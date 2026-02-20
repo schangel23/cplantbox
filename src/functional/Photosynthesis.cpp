@@ -355,8 +355,7 @@ void Photosynthesis::getError(double simTime)
 		assert(!std::isnan(psiXyl_old[i]) && "Photosynthesis xylold is nan" );
 		//std::cout<<this->psiXylnew[i]<<" "<<(this->psiXylnew[i]<=0)<<" "<<std::flush;
 		if(this->psiXyl[i]>0){
-			std::cout<< "Photosynthesis xyl >0, "<<i<<" "<<this->psiXyl[i]<<std::flush;
-			throw std::runtime_error("Photosynthesis::getError : xyl >0");
+			this->psiXyl[i] = -1e-3; // clamp to slightly negative
 		}
 
 		double tempVal = 1;

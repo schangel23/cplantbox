@@ -1,0 +1,98 @@
+{
+  "simulation_name": "cpb_maize_day55_par",
+  "simulation_days": 55,
+  "xml_path": "/home/lukas/PHD/CPlantBox/dart/coupling/data/maize_calibrated.xml",
+  "par_bands": [
+    {
+      "wvl_um": 0.425,
+      "bw_um": 0.05
+    },
+    {
+      "wvl_um": 0.475,
+      "bw_um": 0.05
+    },
+    {
+      "wvl_um": 0.55,
+      "bw_um": 0.05
+    },
+    {
+      "wvl_um": 0.625,
+      "bw_um": 0.05
+    },
+    {
+      "wvl_um": 0.68,
+      "bw_um": 0.05
+    }
+  ],
+  "prospect_params": {
+    "Cab": 55.0,
+    "Car": 10.0,
+    "Cw": 0.012,
+    "Cm": 0.01,
+    "N": 1.4,
+    "CBrown": 0.0,
+    "anthocyanin": 0.0
+  },
+  "sun_zenith": 45.0,
+  "sun_azimuth": 225.0,
+  "plant_grid": {
+    "nx": 3,
+    "ny": 3,
+    "n_plants": 9,
+    "center_plant_idx": 4,
+    "spacing_x_m": 0.75,
+    "spacing_y_m": 0.25
+  },
+  "n_triangles_obj": 105308,
+  "n_leaf_segments": 6202,
+  "n_leaf_segments_with_apar": 6193,
+  "coverage_pct": 99.85488552079974,
+  "checks": {
+    "coverage_90pct": true,
+    "spectral_pattern": true
+  },
+  "apar_stats": {
+    "mean": 1.2540444867117382,
+    "median": 1.2270934333333332,
+    "min": 3.8275262786666666e-31,
+    "max": 3.641636,
+    "total": 7766.297506205775
+  },
+  "per_band_stats": {
+    "band0": {
+      "wvl_nm": 425.0,
+      "mean": 0.1996033281497268,
+      "min": 1.3679666666666667e-36,
+      "max": 0.7315887499999999,
+      "n_segments": 6182
+    },
+    "band1": {
+      "wvl_nm": 475.0,
+      "mean": 0.2271185904085632,
+      "min": 5.851641666666666e-36,
+      "max": 0.7438499166666667,
+      "n_segments": 6185
+    },
+    "band2": {
+      "wvl_nm": 550.0,
+      "mean": 0.22815942973707734,
+      "min": 7.459816666666667e-35,
+      "max": 0.6391860833333334,
+      "n_segments": 6191
+    },
+    "band3": {
+      "wvl_nm": 625.0,
+      "mean": 0.2941666812282064,
+      "min": 3.429533333333333e-36,
+      "max": 0.7597452499999999,
+      "n_segments": 6193
+    },
+    "band4": {
+      "wvl_nm": 680.0,
+      "mean": 0.30571806290306647,
+      "min": 3.8274919833333332e-31,
+      "max": 0.7676403333333334,
+      "n_segments": 6193
+    }
+  }
+}

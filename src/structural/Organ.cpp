@@ -185,6 +185,15 @@ void Organ::addNode(Vector3d n, int id, double t, size_t index, bool shift)
 }
 
 /**
+ * Replace position of the i-th node (for skeleton injection from measured data).
+ * @param i     local node index
+ * @param pos   new absolute position
+ */
+void Organ::setNode(int i, Vector3d pos) {
+    nodes.at(i) = pos;  // at() throws if out of range
+}
+
+/**
  * change idx of node linking to parent organ (in case of internodal growth)
  * @see Organ::addNode
  * @param idx      new idx

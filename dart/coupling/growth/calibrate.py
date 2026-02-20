@@ -1,0 +1,675 @@
+#!/usr/bin/env python3
+"""
+Calibrate maize.xml by merging MaizeField3D mature dimensions with Pheno4D
+early-growth dynamics.
+
+Data sources:
+  - MaizeField3D (required): Target dimensions — lmax, Width_blade, areaMax,
+    leaf_geometry, stem params.  520 plants at anthesis, 11 leaf positions.
+  - Pheno4D trajectory (optional): Growth dynamics — r (growth rate per
+    position), tropismS (curvature), theta (insertion angle).  7 timesteps
+    over days 0-12, up to 4 leaf positions observed.
+
+Merge strategy:
+  1. MaizeField3D provides the structural parameters for all 11 positions
+  2. Pheno4D (when provided) overrides r, tropismS, theta for observed
+     positions (0-N)
+  3. Positions beyond Pheno4D coverage get lmax-scaled extrapolated dynamics
+
+Output: A single maize_calibrated.xml with per-position leaf subtypes that
+grows correctly from seedling to mature.
+
+Usage:
+  # Both datasets (recommended)
+  python calibrate_maize_xml.py \
+      --maizefield3d ../MaizeField3d/maizefield3d_stats.json \
+      --trajectory Maize01_g1_output/trajectory/trajectory.json \
+      --template /home/lukas/PHD/CPlantBox/modelparameter/structural/plant/maize.xml \
+      --output maize_calibrated.xml
+
+  # MaizeField3D only (r defaults to 4.0 for all positions)
+  python calibrate_maize_xml.py \
+      --maizefield3d ../MaizeField3d/maizefield3d_stats.json \
+      --template /home/lukas/PHD/CPlantBox/modelparameter/structural/plant/maize.xml \
+      --output maize_calibrated.xml
+"""
+
+import json
+import math
+import numpy as np
+import xml.etree.ElementTree as ET
+import argparse
+
+
+DEFAULT_LEAF_GEOMETRY = [
+    (-4.0, 0.10),
+    (-2.7, 0.70),
+    (-1.3, 0.95),
+    (0.0, 1.00),
+    (1.3, 0.90),
+    (2.7, 0.45),
+    (4.0, 0.02)
+]
+
+
+def load_trajectory(filepath):
+    """Load trajectory.json produced by batch_extract_morphology.py."""
+    with open(filepath, 'r') as f:
+        return json.load(f)
+
+
+def load_maizefield3d_stats(filepath):
+    """Load pre-computed MaizeField3D per-position stats.
+
+    Returns (per_position, stem_stats) where per_position is a list of dicts
+    and stem_stats contains stem lmax/ln/lb.
+    """
+    with open(filepath, 'r') as f:
+        data = json.load(f)
+
+    per_position = []
+    for s in data['per_position']:
+        if s is None:
+            continue
+        lg = s.get('leaf_geometry')
+        if lg:
+            lg = [(g[0], g[1]) for g in lg]
+        per_position.append({
+            'position': s['position'],
+            'lmax': s['lmax'],
+            'r': s.get('r', 4.0),
+            'Width_blade': s['Width_blade'],
+            'Width_petiole': s.get('Width_petiole', s['Width_blade'] * 0.3),
+            'areaMax': s['areaMax'],
+            'theta': s['theta'],
+            'tropismS': s.get('tropismS', 0.15),
+            'tropismAge': s.get('tropismAge', 5.0),
+            'leaf_geometry': lg,
+        })
+
+    stem_stats = data.get('stem', {})
+
+    print(f"  Loaded MaizeField3D stats: {data.get('n_plants', '?')} plants, "
+          f"{len(per_position)} positions")
+    print(f"  Stem: lmax={stem_stats.get('lmax', '?')}, ln={stem_stats.get('ln', '?')}, "
+          f"lb={stem_stats.get('lb', '?')}")
+
+    return per_position, stem_stats
+
+
+def extract_pheno4d_dynamics(trajectory):
+    """Extract per-position growth dynamics from Pheno4D trajectory.
+
+    Only extracts the parameters that represent temporal dynamics:
+      - r: growth rate (cm/day) from dl/dt between timesteps
+      - tropismS: droop strength from measured curvature
+      - theta: insertion angle from stem skeleton
+
+    Does NOT extract lmax, Width_blade, areaMax, leaf_geometry — those come
+    from MaizeField3D.
+
+    Returns:
+        list of dicts with {position, r, tropismS, theta}
+    """
+    timesteps = trajectory.get('timesteps', trajectory.get('scans', []))
+
+    # Collect per-position data across all timesteps
+    pos_data = {}
+
+    for ts in timesteps:
+        day = ts['day']
+        lengths = ts.get('leaf_lengths_cm', [])
+        angles_deg = ts.get('leaf_angles_deg', [])
+        tropism_hints = ts.get('leaf_tropism_hints', [])
+
+        for i in range(len(lengths)):
+            if i not in pos_data:
+                pos_data[i] = {
+                    'lengths_over_time': [],
+                    'angles_deg': [],
+                    'tropismS_hints': [],
+                }
+
+            pos_data[i]['lengths_over_time'].append((day, lengths[i]))
+
+            if i < len(angles_deg):
+                pos_data[i]['angles_deg'].append(angles_deg[i])
+            if i < len(tropism_hints):
+                pos_data[i]['tropismS_hints'].append(
+                    tropism_hints[i].get('tropismS', 0.05))
+
+    dynamics = []
+    for i in sorted(pos_data.keys()):
+        pd = pos_data[i]
+
+        # Growth rate from length trajectory
+        pts = sorted(pd['lengths_over_time'])
+        r = 2.0  # default
+        if len(pts) > 1:
+            days_arr = np.array([p[0] for p in pts])
+            lens_arr = np.array([p[1] for p in pts])
+            dt = np.diff(days_arr)
+            dl = np.diff(lens_arr)
+            valid = (dt > 0) & (dl > 0)
+            if valid.any():
+                r = max(0.5, float(np.mean(dl[valid] / dt[valid])))
+
+        # Tropism: measured curvature hints, scaled for gravitropism (tropismT=1)
+        # With pure gravitropism, lower values needed than age-switching (tropismT=6)
+        raw_tropS = float(np.mean(pd['tropismS_hints'])) if pd['tropismS_hints'] else 0.05
+        tropismS = np.clip(raw_tropS * 3.0, 0.05, 0.25)
+
+        # Theta: mean of angles, min 30 deg (position-dependent floor applied later)
+        # With gravitropism (tropismT=1), theta determines emergence angle
+        # Young leaves should be more erect, old leaves more horizontal
+        angles = pd['angles_deg'] if pd['angles_deg'] else [50.0]
+        theta = float(np.radians(max(np.mean(angles), 30.0)))
+
+        dynamics.append({
+            'position': i,
+            'r': r,
+            'tropismS': tropismS,
+            'theta': theta,
+        })
+
+    print(f"\n  Pheno4D dynamics extracted for {len(dynamics)} positions:")
+    print(f"    {'Pos':>3} {'r':>6} {'tropS':>7} {'theta':>7}")
+    for d in dynamics:
+        print(f"    {d['position']:>3} {d['r']:>6.1f} {d['tropismS']:>7.3f} "
+              f"{d['theta']:>7.2f}")
+
+    return dynamics
+
+
+def merge_pheno4d_dynamics(mf3d_positions, pheno4d_dynamics):
+    """Merge Pheno4D growth dynamics into MaizeField3D structural parameters.
+
+    For positions covered by Pheno4D: use measured r, tropismS, theta.
+    For positions beyond Pheno4D: extrapolate using lmax-scaled hybrid.
+
+    The lmax-scaled hybrid works as follows:
+      - Take the growth rate at the last observed Pheno4D position as reference
+      - Scale it by the ratio of lmax at the target position to lmax at the
+        reference position
+      - Rationale: bigger leaves (higher lmax) grow proportionally faster
+
+    Args:
+        mf3d_positions: list of MaizeField3D position dicts (modified in place)
+        pheno4d_dynamics: list of dicts from extract_pheno4d_dynamics()
+    """
+    # Build lookup by position index
+    dyn_by_pos = {d['position']: d for d in pheno4d_dynamics}
+    n_pheno4d = len(pheno4d_dynamics)
+
+    if n_pheno4d == 0:
+        print("\n  No Pheno4D dynamics to merge")
+        return
+
+    # Reference position for lmax-scaled extrapolation: last observed
+    last_dyn = pheno4d_dynamics[-1]
+    ref_pos = last_dyn['position']
+    ref_r = last_dyn['r']
+    ref_tropS = last_dyn['tropismS']
+    ref_theta = last_dyn['theta']
+
+    # Get lmax at reference position from MaizeField3D
+    ref_lmax = None
+    for p in mf3d_positions:
+        if p['position'] == ref_pos:
+            ref_lmax = p['lmax']
+            break
+    if ref_lmax is None or ref_lmax < 1.0:
+        ref_lmax = 50.0  # safety fallback
+
+    print(f"\n  Merging Pheno4D dynamics into MaizeField3D structure:")
+    print(f"  Reference position: {ref_pos} (r={ref_r:.1f}, lmax={ref_lmax:.1f})")
+    print(f"    {'Pos':>3} {'r_old':>6} {'r_new':>6} {'tropS_old':>9} {'tropS_new':>9} "
+          f"{'theta_old':>9} {'theta_new':>9} {'source':>12}")
+
+    for p in mf3d_positions:
+        pos = p['position']
+        old_r = p['r']
+        old_tropS = p['tropismS']
+        old_theta = p['theta']
+
+        if pos in dyn_by_pos:
+            # Direct override from Pheno4D measurement
+            d = dyn_by_pos[pos]
+            p['r'] = d['r']
+            p['tropismS'] = d['tropismS']
+            p['theta'] = d['theta']
+            source = "Pheno4D"
+        else:
+            # lmax-scaled extrapolation
+            lmax_ratio = p['lmax'] / ref_lmax
+            p['r'] = np.clip(ref_r * lmax_ratio, 0.5, 8.0)
+            p['tropismS'] = np.clip(ref_tropS * lmax_ratio, 0.02, 0.25)
+            # Theta: blend reference toward target (position-dependent floor applied later)
+            blend = min(1.0, (pos - ref_pos) / max(1, len(mf3d_positions) - ref_pos - 1))
+            target_theta = math.radians(75.0)
+            p['theta'] = ref_theta + blend * (target_theta - ref_theta)
+            source = f"extrapolated"
+
+        print(f"    {pos:>3} {old_r:>6.1f} {p['r']:>6.1f} "
+              f"{old_tropS:>9.3f} {p['tropismS']:>9.3f} "
+              f"{old_theta:>9.2f} {p['theta']:>9.2f} {source:>12}")
+
+
+def apply_maize_base_taper(geometry):
+    """Apply realistic maize leaf base tapering to a leaf geometry profile.
+
+    Maize leaves start narrow at the ligule (blade-sheath junction),
+    expand to maximum width around 1/3 from the base, then taper to a
+    pointed tip.
+    """
+    if not geometry or len(geometry) < 2:
+        return DEFAULT_LEAF_GEOMETRY
+
+    phi_vals = [g[0] for g in geometry]
+    phi_min = min(phi_vals)
+    phi_max = max(phi_vals)
+    phi_range = phi_max - phi_min
+    if phi_range < 1e-6:
+        return DEFAULT_LEAF_GEOMETRY
+
+    result = []
+    for phi, x in geometry:
+        t = (phi - phi_min) / phi_range
+
+        if t < 0.35:
+            s = t / 0.35
+            envelope = 0.10 + 0.90 * (s * s * (3 - 2 * s))
+        else:
+            envelope = 1.0
+
+        result.append((phi, round(x * envelope, 3)))
+
+    return result
+
+
+def update_xml_parameter(elem, name, value, dev=None):
+    """Update or create a parameter in XML element."""
+    param = elem.find(f".//parameter[@name='{name}']")
+    if param is not None:
+        param.set('value', str(value))
+        if dev is not None:
+            param.set('dev', str(dev))
+    else:
+        new_param = ET.SubElement(elem, 'parameter')
+        new_param.set('name', name)
+        new_param.set('value', str(value))
+        if dev is not None:
+            new_param.set('dev', str(dev))
+
+
+def generate_per_leaf_xml(root, per_position_stats, fallback_geometry):
+    """Generate one leaf subType per position and update stem successor rules.
+
+    Args:
+        root: XML root element
+        per_position_stats: list of dicts with per-position parameters
+        fallback_geometry: default leaf geometry profile [(phi, x), ...]
+    """
+    # Remove ALL existing leaf elements
+    for leaf_elem in root.findall('leaf'):
+        root.remove(leaf_elem)
+
+    # Remove branch stem subtypes (2-5) — they interfere with lateral creation
+    for stem_elem in root.findall('stem'):
+        st = stem_elem.get('subType', '0')
+        if st not in ('0', '1'):
+            root.remove(stem_elem)
+
+    # Shared parameters for all maize leaf subtypes
+    shared_params = {
+        'geometryN': '100',
+        'gf': '3',
+        'isPseudostem': '0',
+        'lnf': '0',
+        'parametrisationType': '1',
+        'shapeType': '2',
+        'tropismT': '1',  # gravitropism — leaves emerge at theta and droop gently
+        'BetaDev': '0.22',
+        'InitBeta': '0',
+        'RotBeta': str(math.pi / 2),
+        'a': '0.04',
+        'dx': '0.1',
+        'dxMin': '1e-06',
+        'la': '0',
+        'lb': '0',
+        'ln': '1',
+        'rlt': '1e+09',
+        'tropismN': '3',  # smoother curves
+    }
+
+    n_leaves = len(per_position_stats)
+    # Maize has DISTICHOUS phyllotaxis: leaves alternate 180° (two-ranked).
+    # NOT golden angle (137.5°) — that's for spiral phyllotaxis (sunflower).
+    # Within each rank, add progressive fan-out so same-side leaves don't
+    # overlap, plus per-leaf azimuthal jitter for natural look.
+    distichous_angle = math.pi  # 180°
+    rank_spread = math.radians(4.0)  # 4° systematic fan-out per rank
+    # Per-leaf azimuthal jitter: real maize deviates ±8-15° from perfect
+    # two-ranked pattern due to stem twist, growth asymmetry, mechanical
+    # interactions with neighboring leaves, and wind.  Deterministic seed
+    # for reproducible XML output.
+    rng = np.random.RandomState(42)
+    leaf_jitter_deg = rng.uniform(-12.0, 12.0, size=n_leaves)
+
+    for stats in per_position_stats:
+        pos = stats['position']
+        sub_type = pos + 2
+
+        leaf_elem = ET.SubElement(root, 'leaf')
+        leaf_elem.set('name', f'maize_leaf_L{pos}')
+        leaf_elem.set('subType', str(sub_type))
+
+        rank_idx = pos // 2  # 0,0,1,1,2,2,3,3,...
+        base_angle = pos * distichous_angle + rank_idx * rank_spread
+        jitter = math.radians(leaf_jitter_deg[pos])
+        init_beta = (base_angle + jitter) % (2 * math.pi)
+
+        for name, value in shared_params.items():
+            param = ET.SubElement(leaf_elem, 'parameter')
+            param.set('name', name)
+            if name == 'InitBeta':
+                param.set('value', str(init_beta))
+            else:
+                param.set('value', value)
+
+        # Per-position ldelay: maize phyllochron ~3 days
+        phyllochron = stats.get('phyllochron', 3.0)
+        ldelay = pos * phyllochron
+        param = ET.SubElement(leaf_elem, 'parameter')
+        param.set('name', 'ldelay')
+        param.set('value', str(ldelay))
+
+        # Position-specific parameters
+        for name, value in [
+            ('lmax', stats['lmax']),
+            ('r', stats['r']),
+            ('Width_blade', stats['Width_blade']),
+            ('Width_petiole', stats['Width_petiole']),
+            ('areaMax', stats['areaMax']),
+        ]:
+            param = ET.SubElement(leaf_elem, 'parameter')
+            param.set('name', name)
+            param.set('value', str(value))
+
+        # theta with dev — 15% deviation adds natural insertion angle variation
+        param = ET.SubElement(leaf_elem, 'parameter')
+        param.set('name', 'theta')
+        param.set('value', str(stats['theta']))
+        param.set('dev', str(stats['theta'] * 0.15))
+
+        # tropism — 30% deviation so same-rank leaves droop differently
+        param = ET.SubElement(leaf_elem, 'parameter')
+        param.set('name', 'tropismS')
+        param.set('value', str(stats['tropismS']))
+        param.set('dev', str(stats['tropismS'] * 0.3))
+
+        param = ET.SubElement(leaf_elem, 'parameter')
+        param.set('name', 'tropismAge')
+        param.set('value', str(stats['tropismAge']))
+
+        # leafGeometry profile with base tapering
+        geometry = stats.get('leaf_geometry') or fallback_geometry
+        geometry = apply_maize_base_taper(geometry)
+        for phi, x in geometry:
+            geom_param = ET.SubElement(leaf_elem, 'parameter')
+            geom_param.set('name', 'leafGeometry')
+            geom_param.set('phi', f"{phi:.1f}")
+            geom_param.set('x', f"{x:.2f}")
+
+    # Stem successor placeholder (overridden by Python API at runtime)
+    stem_elem = root.find(".//stem[@subType='1']")
+    if stem_elem is not None:
+        for old_succ in stem_elem.findall(".//parameter[@name='successor']"):
+            stem_elem.remove(old_succ)
+
+        succ = ET.SubElement(stem_elem, 'parameter')
+        succ.set('name', 'successor')
+        succ.set('ruleId', '0')
+        succ.set('numLat', '1')
+        succ.set('Where', '')
+        succ.set('subType', '2')
+        succ.set('organType', '4')
+        succ.set('percentage', '1')
+
+    print(f"\n  Generated {n_leaves} leaf subtypes (subType {2}..{n_leaves + 1})")
+
+    return n_leaves
+
+
+def calibrate_maize_xml(template_path, output_path, trajectory_path=None,
+                        maizefield3d_path=None, max_positions=None):
+    """
+    Calibrate maize.xml from MaizeField3D stats, optionally enriched with
+    Pheno4D growth dynamics.
+
+    Args:
+        template_path: Path to original maize.xml
+        output_path: Path to write calibrated maize.xml
+        trajectory_path: Path to trajectory.json (optional, for dynamics)
+        maizefield3d_path: Path to maizefield3d_stats.json (required)
+        max_positions: Max leaf positions (default: auto from MaizeField3D)
+    """
+    # Load MaizeField3D structure (always required)
+    per_position, mf3d_stem_stats = load_maizefield3d_stats(maizefield3d_path)
+    if max_positions is None:
+        max_positions = len(per_position)
+    per_position = per_position[:max_positions]
+
+    # Optionally merge Pheno4D dynamics
+    if trajectory_path:
+        trajectory = load_trajectory(trajectory_path)
+        pheno4d_dynamics = extract_pheno4d_dynamics(trajectory)
+        merge_pheno4d_dynamics(per_position, pheno4d_dynamics)
+        source_name = "MaizeField3D + Pheno4D"
+    else:
+        source_name = "MaizeField3D only"
+
+    print(f"\n=== Calibration Statistics — Source: {source_name} ===")
+
+    print(f"\nStem (from MaizeField3D):")
+    for k, v in mf3d_stem_stats.items():
+        print(f"  {k}: {v}")
+
+    print(f"\nPer-Position Leaf Stats (after merge):")
+    print(f"  {'Pos':>3} {'SubT':>4} {'lmax':>7} {'Width':>7} {'theta':>7} "
+          f"{'tropS':>7} {'tropAge':>7} {'r':>6} {'area':>7}")
+    for stats in per_position:
+        print(f"  {stats['position']:>3} {stats['position']+2:>4} "
+              f"{stats['lmax']:>7.1f} {stats['Width_blade']:>7.2f} "
+              f"{stats['theta']:>7.2f} {stats['tropismS']:>7.3f} "
+              f"{stats['tropismAge']:>7.1f} {stats['r']:>6.1f} "
+              f"{stats['areaMax']:>7.1f}")
+
+    # Parse XML template
+    tree = ET.parse(template_path)
+    root = tree.getroot()
+
+    # Set delayDefinitionShoot=2 (dd_time_self)
+    seed_elem = root.find('.//seed')
+    if seed_elem is not None:
+        update_xml_parameter(seed_elem, 'delayDefinitionShoot', 2)
+        print(f"\n  Seed delayDefinitionShoot = 2 (dd_time_self)")
+
+    # Update stem from MaizeField3D
+    stem_elem = root.find(".//stem[@subType='1']")
+    if mf3d_stem_stats and stem_elem is not None:
+        print(f"\nUpdating stem subType=1 (from MaizeField3D)...")
+        s_lmax = mf3d_stem_stats.get('lmax', 180.0)
+        s_ln = mf3d_stem_stats.get('ln', 15.0)
+        # Override lb: MaizeField3D lb=30 is for mature plants with elongated
+        # internodes. For growth simulation, lb=4 allows leaves to appear
+        # very early on the stem, simulating the real maize rosette phase
+        # where the growing point stays near the soil surface.
+        s_lb = 4.0
+        update_xml_parameter(stem_elem, 'lmax', s_lmax, dev=s_lmax * 0.1)
+        # Stem r=2.5: slower than previous 5.0 to avoid overly tall stems
+        # at early stages. Day 5: ~12cm, Day 15: ~34cm, Day 60: ~108cm.
+        # Real maize stays compact until V6 (~day 30), then elongates.
+        update_xml_parameter(stem_elem, 'r', 2.5, dev=0.25)
+        update_xml_parameter(stem_elem, 'ln', s_ln, dev=s_ln * 0.05)
+        update_xml_parameter(stem_elem, 'lb', s_lb)
+        update_xml_parameter(stem_elem, 'dx', 0.1)
+        print(f"  lmax={s_lmax}, ln={s_ln}, lb={s_lb}, r=2.5")
+
+    # Phyllotaxy: distichous (180° alternating, two-ranked) — correct for maize
+    if stem_elem is not None:
+        distichous_angle = math.pi  # 180°
+        update_xml_parameter(stem_elem, 'RotBeta', distichous_angle)
+        update_xml_parameter(stem_elem, 'BetaDev', 0.22)
+
+    # Stem la to control leaf count
+    n_leaves = len(per_position)
+    if stem_elem is not None:
+        lmax_param = stem_elem.find(".//parameter[@name='lmax']")
+        lb_param = stem_elem.find(".//parameter[@name='lb']")
+        ln_param = stem_elem.find(".//parameter[@name='ln']")
+        if lmax_param is not None and lb_param is not None and ln_param is not None:
+            stem_lmax = float(lmax_param.get('value'))
+            stem_lb = float(lb_param.get('value'))
+            stem_ln = float(ln_param.get('value'))
+            la_val = stem_lmax - stem_lb - (n_leaves - 1) * stem_ln - 0.1
+            la_val = max(0.1, la_val)
+            update_xml_parameter(stem_elem, 'la', la_val)
+            print(f"  Stem la = {la_val:.1f} (controls {n_leaves} leaves)")
+
+    # Position-dependent theta based on real maize growth stages.
+    # Lower leaves (older) emerge more horizontally; upper leaves (younger)
+    # are more erect. Real maize insertion angles are ~30-50° from vertical.
+    # The reference (UIUC growth stages) shows leaves projecting clearly
+    # outward from the stem — NOT nearly vertical (that creates a bouquet).
+    n_pos = len(per_position)
+    print(f"\n  Position-dependent theta (outward projection):")
+    for p in per_position:
+        pos = p['position']
+        t = pos / max(n_pos - 1, 1)
+        old_theta = p['theta']
+        # Lower leaves (pos 0): 45° — project outward, will droop with age
+        # Upper leaves (pos n-1): 25° — more erect, younger
+        # Bell curve: middle leaves slightly wider than top
+        p['theta'] = math.radians(45 - t * 20)
+        print(f"    Pos {pos}: theta {math.degrees(old_theta):.0f} -> "
+              f"{math.degrees(p['theta']):.0f} deg")
+
+    # Position-dependent tropismS: low values so that only the tip bends,
+    # not a uniform U-shaped arc. Real maize leaves are straight blades
+    # with a gentle nod at the very tip — NOT symmetric parabolas.
+    for p in per_position:
+        pos = p['position']
+        t = pos / max(n_pos - 1, 1)
+        # Lower leaves (pos 0): 0.03 — gentle tip droop
+        # Upper leaves (pos n-1): 0.01 — barely perceptible
+        p['tropismS'] = 0.03 - t * 0.02
+
+    # Ground penetration clamping with stem params
+    # Use the actual lb value from the stem (overridden to 4.0 above)
+    clamp_lb = 4.0
+    s_ln = mf3d_stem_stats.get('ln', 15.0) if mf3d_stem_stats else 14.5
+    for p in per_position:
+        insertion_h = clamp_lb + p['position'] * s_ln
+        # Theta-aware clamping: erect leaves (small theta) can be longer
+        # because they grow upward and won't reach the ground.
+        # Base multiplier 5.0 (relaxed from 3.5 because young leaves are
+        # now erect with low tropismS — much less ground penetration risk)
+        sin_theta = max(math.sin(p['theta']), 0.3)
+        max_lmax = insertion_h * 5.0 / sin_theta
+        if p['lmax'] > max_lmax and insertion_h > 0:
+            old_lmax = p['lmax']
+            scale = max_lmax / old_lmax
+            p['lmax'] = max_lmax
+            p['areaMax'] *= scale
+            p['tropismS'] *= scale
+            # Do NOT reduce theta — shorter leaves should still emerge outward
+            print(f"  Position {p['position']}: clamped lmax {old_lmax:.1f} -> {max_lmax:.1f} cm "
+                  f"(insertion height ~{insertion_h:.1f} cm, theta={math.degrees(p['theta']):.0f} deg)")
+        if insertion_h > 0:
+            max_tropS = 0.04 * insertion_h / max(p['lmax'], 1.0)
+            if p['tropismS'] > max_tropS:
+                p['tropismS'] = max_tropS
+
+    # Position-dependent tropismAge: controls WHERE on the leaf droop begins.
+    # The leaf grows perfectly straight (at theta) for tropismAge days.
+    # After that, new growth gets gravitropism → only the TIP droops.
+    #
+    # Real maize leaves are straight blades — 85-95% of length is rigid,
+    # only the outermost 5-15% shows gentle downward curvature.
+    # Combined with low tropismS, this avoids the uniform U-shaped arc.
+    for p in per_position:
+        pos = p['position']
+        t = pos / max(n_pos - 1, 1)
+        r = max(p['r'], 0.5)
+        lmax = p['lmax']
+        # Lower leaves: 85% straight (tip droop on outer 15%)
+        # Upper leaves: 95% straight (barely any tip droop)
+        straight_frac = 0.85 + t * 0.10
+        t_straight = straight_frac * lmax / r
+        # Clamp: min 12 days, max 70 days
+        p['tropismAge'] = round(np.clip(t_straight, 12.0, 70.0), 1)
+
+    # Generate per-leaf subtypes
+    generate_per_leaf_xml(root, per_position, DEFAULT_LEAF_GEOMETRY)
+
+    # Write calibrated XML
+    indent_xml(root)
+    tree.write(output_path, encoding='utf-8', xml_declaration=True)
+
+    print(f"\nCalibrated maize.xml written to: {output_path}")
+    print(f"\nSummary:")
+    print(f"  - {n_leaves} leaf subtypes (subType 2..{n_leaves + 1})")
+    print(f"  - Bottom leaves: lmax={per_position[0]['lmax']:.0f} cm, r={per_position[0]['r']:.1f}")
+    if n_leaves > 1:
+        mid = n_leaves // 2
+        print(f"  - Middle leaves: lmax={per_position[mid]['lmax']:.0f} cm, r={per_position[mid]['r']:.1f}")
+        print(f"  - Top leaves: lmax={per_position[-1]['lmax']:.0f} cm, r={per_position[-1]['r']:.1f}")
+    if trajectory_path:
+        print(f"  - Growth rates: Pheno4D-measured + lmax-scaled extrapolation")
+    else:
+        print(f"  - Growth rates: uniform 4.0 cm/day (no Pheno4D trajectory)")
+
+
+def indent_xml(elem, level=0):
+    """Add pretty-printing indentation to XML."""
+    i = "\n" + level * "    "
+    if len(elem):
+        if not elem.text or not elem.text.strip():
+            elem.text = i + "    "
+        if not elem.tail or not elem.tail.strip():
+            elem.tail = i
+        for child in elem:
+            indent_xml(child, level + 1)
+        if not child.tail or not child.tail.strip():
+            child.tail = i
+    else:
+        if level and (not elem.tail or not elem.tail.strip()):
+            elem.tail = i
+
+
+def main():
+    parser = argparse.ArgumentParser(
+        description='Calibrate maize.xml from MaizeField3D + optional Pheno4D dynamics')
+    parser.add_argument('--maizefield3d', required=True,
+                        help='Path to maizefield3d_stats.json (required)')
+    parser.add_argument('--trajectory', default=None,
+                        help='Path to trajectory.json (optional, for growth dynamics)')
+    parser.add_argument('--template', required=True, help='Path to template maize.xml')
+    parser.add_argument('--output', required=True, help='Path to output calibrated maize.xml')
+    parser.add_argument('--max-positions', type=int, default=None,
+                        help='Max leaf positions (default: auto from MaizeField3D)')
+
+    args = parser.parse_args()
+
+    calibrate_maize_xml(
+        template_path=args.template,
+        output_path=args.output,
+        trajectory_path=args.trajectory,
+        maizefield3d_path=args.maizefield3d,
+        max_positions=args.max_positions,
+    )
+
+
+if __name__ == '__main__':
+    main()

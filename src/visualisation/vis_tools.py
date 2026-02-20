@@ -68,7 +68,7 @@ def WritePolydataToFile(pd : vtk.vtkPolyData, filename : str) :
   writer.Write()
 # end def WritePolydataToFile
 
-def WavefrontFromPlantGeometry(vis : pb.PlantVisualiser, plant : pb.Plant, filename: str, resolution = "organ", colour = None, fixedset = None, add_material_text = "") :
+def WavefrontFromPlantGeometry(vis : pb.PlantVisualiser, plant : pb.Plant, filename: str, resolution = "organ", colour = None, fixedset = None, add_material_text = "", skip_texcoords = False) :
   """Create a wavefront object by generating a wavefront file from plant organs"""
   # Create a wavefront file
   wf = open(filename, "w")
@@ -139,10 +139,12 @@ def WavefrontFromPlantGeometry(vis : pb.PlantVisualiser, plant : pb.Plant, filen
     #for v in vertices :
     #  wf.write("\t\tvc " + str(colour[on][0]) + " " + str(colour[on][1]) + " " + str(colour[on][2]) + "\n")
     # write the texture coordinates
-    texcoords = np.reshape(vis.GetGeometryTextureCoordinates(), (-1, 2))
-    for t in texcoords :
-      wf.write("\t\tvt " + str(t[0]) + " " + str(t[1]) + "\n")
-    # end for
+    if not skip_texcoords :
+      texcoords = np.reshape(vis.GetGeometryTextureCoordinates(), (-1, 2))
+      for t in texcoords :
+        wf.write("\t\tvt " + str(t[0]) + " " + str(t[1]) + "\n")
+      # end for
+    # end if
     # write the normals
     normals = np.reshape(vis.GetGeometryNormals(), (-1, 3))
     for n in normals :
@@ -152,8 +154,12 @@ def WavefrontFromPlantGeometry(vis : pb.PlantVisualiser, plant : pb.Plant, filen
     indices = np.reshape(vis.GetGeometryIndices(), (-1, 3))
     for i in indices :
       i = i + vertexcounter
-      # written as vertex/texcoord/normal
-      wf.write("\t\tf " + str(i[0] + 1) + "/" + str(i[0] + 1) + "/" + str(i[0] + 1) + " " + str(i[1] + 1) + "/" + str(i[1] + 1) + "/" + str(i[1] + 1) + " " + str(i[2] + 1) + "/" + str(i[2] + 1) + "/" + str(i[2] + 1) + "\n")
+      if skip_texcoords :
+        # written as vertex//normal (no texture coordinates)
+        wf.write("\t\tf " + str(i[0] + 1) + "//" + str(i[0] + 1) + " " + str(i[1] + 1) + "//" + str(i[1] + 1) + " " + str(i[2] + 1) + "//" + str(i[2] + 1) + "\n")
+      else :
+        # written as vertex/texcoord/normal
+        wf.write("\t\tf " + str(i[0] + 1) + "/" + str(i[0] + 1) + "/" + str(i[0] + 1) + " " + str(i[1] + 1) + "/" + str(i[1] + 1) + "/" + str(i[1] + 1) + " " + str(i[2] + 1) + "/" + str(i[2] + 1) + "/" + str(i[2] + 1) + "\n")
     # end for
     vertexcounter += vertices.shape[0]
   # end for

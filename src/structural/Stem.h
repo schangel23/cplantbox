@@ -55,6 +55,8 @@ public:
     int shootborneType = 5;
 
 																										 
+    std::vector<int> getLocalIdLinkingNodes() const { return localId_linking_nodes; } ///< expose linking node local IDs for post-injection sync
+
 protected:
 	void storeLinkingNodeLocalId(int numCreatedLN, bool silence) override; ///<  override by @see Organ::createNonGrowingLateral()
 	std::vector<int> localId_linking_nodes;

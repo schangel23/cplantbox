@@ -1,0 +1,37 @@
+{
+  "Climate": {
+    "Patm":    {"value": 1013.15, "unit": "hPa",        "description": "Atmospheric pressure"},
+    "pCO2":    {"value": 0.00040, "unit": "mol mol-1",  "description": "CO2 partial pressure (current ~400 ppm)"},
+    "g_bl":    {"value": [24.192],  "unit": "mol CO2 cm-2 d-1", "description": "Leaf boundary molar conductance"},
+    "g_canopy":{"value": [52.704],  "unit": "mol CO2 cm-2 d-1", "description": "Aerodynamic molar conductance"},
+    "g_air":   {"value": [98.496],  "unit": "mol CO2 cm-2 d-1", "description": "Aerodynamic molar conductance"}
+  },
+  "Plant": {
+    "C3 and C4": {
+      "PhotoType": {"value": 1, "description": "Photosynthesis type: 0=C3, 1=C4  -- MAIZE IS C4"},
+      "gm":     {"value": 0.25920, "unit": "mol CO2 cm-2 d-1", "description": "Mesophyll conductance"},
+      "g0":     {"value": 0.00259, "unit": "mol CO2 cm-2 d-1", "description": "Residual stomatal conductance"},
+      "a1":     {"value": 4.0,     "unit": "",                  "description": "Tuzet 2003 stomatal parameter"},
+      "alpha":  {"value": 0.05,    "unit": "-",                 "description": "C4 quantum yield (mol CO2/mol photons). C3~0.2, C4~0.05 (lower because bundle-sheath CO2 pump costs energy)"},
+      "water stress": {
+        "fwr":      {"value": 0.09308,    "unit": "-",  "description": "Residual opening under water stress (Corso 2020)"},
+        "fw_cutoff":{"value": 0.0,        "unit": "-",  "description": "Cutoff for fw"},
+        "sh":       {"value": 0.0003765,  "unit": "-",  "description": "Sensitivity to water stress"},
+        "p_lcrit":  {"value": -76477500.0,"unit": "cm", "description": "Min xylem water potential for stomatal opening"}
+      },
+      "Vc": {
+        "Chl":          {"value": [5.5e-05], "unit": "g cm-2", "description": "Chlorophyll concentration (~55 ug/cm2, typical maize)"},
+        "VcmaxrefChl1": {"value": 0.64,      "unit": "-",      "description": "Vcmax-Chl slope: Vcrefmax=(VcmaxrefChl1*Chl+VcmaxrefChl2)*1e-6 [mol m-2 s-1]"},
+        "VcmaxrefChl2": {"value": 4.165,     "unit": "-",      "description": "Vcmax-Chl intercept. At 55ug/cm2: Vcmax~40 umol m-2 s-1 (reasonable for C4 maize)"}
+      }
+    },
+    "C3": {
+      "a3":    {"value": 10.0, "unit": "-",        "description": "Jrefmax/Vcrefmax ratio -- NOT USED for C4"},
+      "theta": {"value": 0.9,  "unit": "-",        "description": "Light response curvature -- NOT USED for C4"},
+      "oi":    {"value": 0.21, "unit": "mol mol-1","description": "Leaf internal O2 -- small effect on C4"}
+    },
+    "C4": {
+      "Q10_photo": {"value": 2.0, "unit": "-", "description": "Temperature sensitivity of C4 photosynthesis (Bonan 2019)"}
+    }
+  }
+}

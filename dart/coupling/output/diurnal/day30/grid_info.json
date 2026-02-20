@@ -1,0 +1,48 @@
+{
+  "grid_nx": 3,
+  "grid_ny": 3,
+  "spacing_x_m": 0.75,
+  "spacing_y_m": 0.25,
+  "n_plants": 9,
+  "center_plant_idx": 4,
+  "positions_m": [
+    [
+      1.25,
+      1.75
+    ],
+    [
+      2.0,
+      1.75
+    ],
+    [
+      2.75,
+      1.75
+    ],
+    [
+      1.25,
+      2.0
+    ],
+    [
+      2.0,
+      2.0
+    ],
+    [
+      2.75,
+      2.0
+    ],
+    [
+      1.25,
+      2.25
+    ],
+    [
+      2.0,
+      2.25
+    ],
+    [
+      2.75,
+      2.25
+    ]
+  ],
+  "n_groups_per_plant": 11,
+  "field_filename": "plant_field.txt"
+}

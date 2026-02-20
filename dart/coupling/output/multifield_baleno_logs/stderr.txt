@@ -1,0 +1,32 @@
+/home/lukas/DART/bin/python_script/dart-eb-main/plugins/BiochemicalSCOPE/vegetation_model.py:255: RuntimeWarning: invalid value encountered in divide
+  ps = po0 * Ja / Je                                              # photochemical yield
+/home/lukas/DART/bin/python_script/dart-eb-main/plugins/BiochemicalSCOPE/vegetation_model.py:592: RuntimeWarning: divide by zero encountered in log
+  x_alpha = np.exp(np.multiply(np.log(np.array(x,dtype=float)), alpha))
+/home/lukas/DART/bin/python_script/dart-eb-main/plugins/BiochemicalSCOPE/vegetation_model.py:255: RuntimeWarning: invalid value encountered in divide
+  ps = po0 * Ja / Je                                              # photochemical yield
+/home/lukas/DART/bin/python_script/dart-eb-main/plugins/BiochemicalSCOPE/vegetation_model.py:592: RuntimeWarning: divide by zero encountered in log
+  x_alpha = np.exp(np.multiply(np.log(np.array(x,dtype=float)), alpha))
+/home/lukas/DART/bin/python_script/dart-eb-main/plugins/AerodynamicsSCOPE/AeroModel.py:68: RuntimeWarning: invalid value encountered in scalar power
+  x = (1 - 16 * z / L) ** (1/4)                                      #Paulson (1970)
+/home/lukas/DART/bin/python_script/dart-eb-main/plugins/BiochemicalSCOPE/vegetation_model.py:255: RuntimeWarning: invalid value encountered in divide
+  ps = po0 * Ja / Je                                              # photochemical yield
+/home/lukas/DART/bin/python_script/dart-eb-main/plugins/BiochemicalSCOPE/vegetation_model.py:592: RuntimeWarning: divide by zero encountered in log
+  x_alpha = np.exp(np.multiply(np.log(np.array(x,dtype=float)), alpha))
+/home/lukas/DART/bin/python_script/dart-eb-main/plugins/AerodynamicsSCOPE/AeroModel.py:68: RuntimeWarning: invalid value encountered in scalar power
+  x = (1 - 16 * z / L) ** (1/4)                                      #Paulson (1970)
+/home/lukas/DART/bin/python_script/dart-eb-main/plugins/BiochemicalSCOPE/vegetation_model.py:255: RuntimeWarning: invalid value encountered in divide
+  ps = po0 * Ja / Je                                              # photochemical yield
+/home/lukas/DART/bin/python_script/dart-eb-main/plugins/BiochemicalSCOPE/vegetation_model.py:592: RuntimeWarning: divide by zero encountered in log
+  x_alpha = np.exp(np.multiply(np.log(np.array(x,dtype=float)), alpha))
+/home/lukas/DART/bin/python_script/dart-eb-main/plugins/AerodynamicsSCOPE/AeroModel.py:68: RuntimeWarning: invalid value encountered in scalar power
+  x = (1 - 16 * z / L) ** (1/4)                                      #Paulson (1970)
+/home/lukas/DART/bin/python_script/dart-eb-main/plugins/BiochemicalSCOPE/vegetation_model.py:255: RuntimeWarning: invalid value encountered in divide
+  ps = po0 * Ja / Je                                              # photochemical yield
+/home/lukas/DART/bin/python_script/dart-eb-main/plugins/BiochemicalSCOPE/vegetation_model.py:592: RuntimeWarning: divide by zero encountered in log
+  x_alpha = np.exp(np.multiply(np.log(np.array(x,dtype=float)), alpha))
+/home/lukas/DART/bin/python_script/dart-eb-main/plugins/AerodynamicsSCOPE/AeroModel.py:68: RuntimeWarning: invalid value encountered in scalar power
+  x = (1 - 16 * z / L) ** (1/4)                                      #Paulson (1970)
+/home/lukas/DART/bin/python_script/dart-eb-main/plugins/BiochemicalSCOPE/vegetation_model.py:255: RuntimeWarning: invalid value encountered in divide
+  ps = po0 * Ja / Je                                              # photochemical yield
+/home/lukas/DART/bin/python_script/dart-eb-main/plugins/BiochemicalSCOPE/vegetation_model.py:592: RuntimeWarning: divide by zero encountered in log
+  x_alpha = np.exp(np.multiply(np.log(np.array(x,dtype=float)), alpha))

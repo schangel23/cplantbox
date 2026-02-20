@@ -326,10 +326,13 @@ PYBIND11_MODULE(plantbox, m) {
             .def("getId",&Organ::getId)
             .def("getParam",&Organ::param)//backward compatibility
             .def("param",&Organ::param)
+            .def("setSpecificParam",&Organ::setSpecificParam, py::arg("p"))
             .def("getOrganRandomParameter",&Organ::getOrganRandomParameter)
             .def("isAlive",&Organ::isAlive)
             .def("isActive",&Organ::isActive)
             .def("getAge",&Organ::getAge)
+            .def("setAge",&Organ::setAge, py::arg("a"))
+            .def("setLength",&Organ::setLength, py::arg("l"))
             .def("getLength", (double (Organ::*)(bool realized) const) &Organ::getLength, py::arg("realized") = true)
             .def("getLength", (double (Organ::*)(int i) const) &Organ::getLength)
 			.def("getEpsilon",&Organ::getEpsilon)
@@ -342,6 +345,7 @@ PYBIND11_MODULE(plantbox, m) {
             .def("getNodeCT",&Organ::getNodeCT)
             .def("addNode",(void (Organ::*)(Vector3d n, double t)) &Organ::addNode,  py::arg("n"), py::arg("t")) // overloads
             .def("addNode",(void (Organ::*)(Vector3d n, int id, double t)) &Organ::addNode,  py::arg("n"),  py::arg("id"),py::arg("t")) // overloads
+            .def("setNode", &Organ::setNode, py::arg("i"), py::arg("pos"))
             .def("getSegments",&Organ::getSegments)
             .def("dx",&Organ::dx)
             .def("dxMin",&Organ::dxMin)
@@ -837,7 +841,8 @@ PYBIND11_MODULE(plantbox, m) {
            .def("calcLength", &Stem::calcLength)
            .def("calcAge", &Stem::calcAge)
            .def("getStemRandomParameter", &Stem::getStemRandomParameter)
-           .def("param", &Stem::param);
+           .def("param", &Stem::param)
+           .def("getLocalIdLinkingNodes", &Stem::getLocalIdLinkingNodes);
     /*
      * RootSystem.h
      */

@@ -1,0 +1,125 @@
+{
+  "phase": "Phase 6: Multi-Plant Unique Realizations",
+  "simulation_days": 55,
+  "n_plants": 9,
+  "field_seed": 42,
+  "center_plant_idx": 4,
+  "grid": {
+    "nx": 3,
+    "ny": 3,
+    "spacing_x_m": 0.75,
+    "spacing_y_m": 0.25
+  },
+  "per_plant": [
+    {
+      "plant_id": 0,
+      "seed": 42,
+      "n_leaf_segs": 6202,
+      "An_total_mmol": 2322.5292248793953,
+      "transp_mmol": 1398.4393921133255,
+      "mean_An_umol": 38.48529591639844,
+      "leaf_area_cm2": 3489.5285429377454,
+      "mean_apar": 999.9391084942828,
+      "mean_tleaf": 23.500470112247122
+    },
+    {
+      "plant_id": 1,
+      "seed": 43,
+      "n_leaf_segs": 6202,
+      "An_total_mmol": 2285.072014534715,
+      "transp_mmol": 1396.116363283859,
+      "mean_An_umol": 37.83488774666144,
+      "leaf_area_cm2": 3489.5174615960027,
+      "mean_apar": 1000.0000000000003,
+      "mean_tleaf": 23.487552641545555
+    },
+    {
+      "plant_id": 2,
+      "seed": 44,
+      "n_leaf_segs": 6202,
+      "An_total_mmol": 2283.53342301782,
+      "transp_mmol": 1394.5061638121238,
+      "mean_An_umol": 37.90272786521905,
+      "leaf_area_cm2": 3489.5186788985275,
+      "mean_apar": 999.9999999999999,
+      "mean_tleaf": 23.471770591500295
+    },
+    {
+      "plant_id": 3,
+      "seed": 45,
+      "n_leaf_segs": 6202,
+      "An_total_mmol": 2289.2020819222043,
+      "transp_mmol": 1396.6528622425146,
+      "mean_An_umol": 37.95200759032359,
+      "leaf_area_cm2": 3489.522422585918,
+      "mean_apar": 1000.0,
+      "mean_tleaf": 23.493008528849163
+    },
+    {
+      "plant_id": 4,
+      "seed": 46,
+      "n_leaf_segs": 6202,
+      "An_total_mmol": 2187.85332624907,
+      "transp_mmol": 1390.292083652995,
+      "mean_An_umol": 36.26624956260735,
+      "leaf_area_cm2": 3489.5303323489265,
+      "mean_apar": 1000.0,
+      "mean_tleaf": 23.457332646740802
+    },
+    {
+      "plant_id": 5,
+      "seed": 47,
+      "n_leaf_segs": 6202,
+      "An_total_mmol": 2207.194829050182,
+      "transp_mmol": 1390.901221750092,
+      "mean_An_umol": 36.48373201269476,
+      "leaf_area_cm2": 3489.531447380435,
+      "mean_apar": 995.6912162985998,
+      "mean_tleaf": 23.46395171968857
+    },
+    {
+      "plant_id": 6,
+      "seed": 48,
+      "n_leaf_segs": 6202,
+      "An_total_mmol": 2255.7424975524887,
+      "transp_mmol": 1393.6700679283897,
+      "mean_An_umol": 37.38381310140596,
+      "leaf_area_cm2": 3489.5114895399424,
+      "mean_apar": 998.2276605195217,
+      "mean_tleaf": 23.46532238072778
+    },
+    {
+      "plant_id": 7,
+      "seed": 49,
+      "n_leaf_segs": 6202,
+      "An_total_mmol": 2196.5170100124274,
+      "transp_mmol": 1387.5396667610692,
+      "mean_An_umol": 36.228285176731255,
+      "leaf_area_cm2": 3489.5209062888252,
+      "mean_apar": 1000.0,
+      "mean_tleaf": 23.438850396420325
+    },
+    {
+      "plant_id": 8,
+      "seed": 50,
+      "n_leaf_segs": 6202,
+      "An_total_mmol": 2245.1393264602434,
+      "transp_mmol": 1390.6079866984614,
+      "mean_An_umol": 37.093770583819925,
+      "leaf_area_cm2": 3489.5165044394735,
+      "mean_apar": 999.8940945448455,
+      "mean_tleaf": 23.43375545644625
+    }
+  ],
+  "field_stats": {
+    "An_mean_mmol": 2252.531525964283,
+    "An_std_mmol": 44.35422452614958,
+    "An_cv_pct": 1.9690834074858081,
+    "An_min_mmol": 2187.85332624907,
+    "An_max_mmol": 2322.5292248793953
+  },
+  "checks": {
+    "cv_gt_5pct": false,
+    "all_plants_have_an": true
+  }
+}

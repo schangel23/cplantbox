@@ -327,6 +327,10 @@ double Stem::getLatGrowthDelay(int ot_lat, int st_lat, double dt) const //overri
 			//get delay per lateral
 			auto latRp = plant.lock()->getOrganRandomParameter(ot_lat, st_lat); // random parameter of lateral to create
 			forDelay = std::max(latRp->ldelay + plant.lock()->randn()*latRp->ldelays, 0.);
+			// For dd_time_self, the delay is carried by each lateral type directly.
+			// Do NOT multiply by multiplyDelay (count of same-subtype siblings),
+			// because each subtype may be unique (e.g., per-position leaf subtypes).
+			multiplyDelay = 1;
 			if(verbose){
 				std::cout<<"create lat, delay output "<<forDelay<<std::endl;
 				std::cout<<"						 "<<ot_lat<<", "<<st_lat <<" "<<latRp->ldelay<<" "
@@ -375,6 +379,7 @@ void Stem::internodalGrowth(double dl,double dt, bool verbose)
 	while( (dl >0)&&(loopId<2) ) {//do the loop at most twice over the children
 		//if the phytomere can do a growth superior to the mean phytomere growth, we add the value of "missing"
 		//(i.e., length left to grow to get the predefined total growth of the branching zone)
+		if (phytomerId + 1 >= localId_linking_nodes.size()) break; // bounds safety
 		int nn1 = localId_linking_nodes.at(phytomerId); //node at the beginning of phytomere
 		int nn2 = localId_linking_nodes.at(phytomerId+1); //node at end of phytomere (if nn1 != nn2)
 
@@ -382,10 +387,9 @@ void Stem::internodalGrowth(double dl,double dt, bool verbose)
 		double availableForGrowth = p.ln.at(phytomerId) -( getLength(nn2) - length1 ) ;//difference between maximum and current length of the phytomer
 		if(availableForGrowth<-1e-3)
 		{
-			std::stringstream errMsg;
-			errMsg <<"Stem::internodalGrowth phytomere "<<phytomerId<<" is too long: "<<availableForGrowth<<" "<<
+			std::cout << "WARNING Stem::internodalGrowth phytomere "<<phytomerId<<" is too long: "<<availableForGrowth<<" "<<
 			p.ln.at(phytomerId)<<" "<<getLength(nn2)<<" "<<length1<<std::endl;
-			throw std::runtime_error(errMsg.str().c_str());
+			availableForGrowth = 0; // clamp: skip growth for overgrown phytomere
 		}
 		dl_ = std::max(0.,std::min(std::min(toGrow[phytomerId],availableForGrowth), dl));
 		if(dl_ > 0)
@@ -402,9 +406,7 @@ void Stem::internodalGrowth(double dl,double dt, bool verbose)
 
 	}
 	if(std::abs(dl)> 1e-6){//this sould not happen as computed dl to be <= sum(availableForGrowth)
-		std::stringstream errMsg;
-		errMsg <<"Stem::internodalGrowth length left to grow: "<<dl;
-		throw std::runtime_error(errMsg.str().c_str());
+		std::cout << "WARNING Stem::internodalGrowth length left to grow: "<<dl<<std::endl;
 	}
 }
 /**

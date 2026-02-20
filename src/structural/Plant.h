@@ -67,7 +67,7 @@ public:
 
   std::string toString() const override;
 
-  std::vector<int> leafphytomerID = { 0, 0, 0, 0, 0, 0, 0, 0, 0, 0 };
+  std::vector<int> leafphytomerID = { 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0 };
   void abs2rel();
   void rel2abs();
 

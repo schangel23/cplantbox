@@ -230,7 +230,7 @@ class PlantHydraulicModel(PlantHydraulicModelCPP):
         """ Standard uptake fraction (SUF) [1] per root segment, should add up to 1 """
         n = self.ms.getNumberOfMappedSegments()
         rsx = np.ones((n, 1)) * (-500)
-        rsx = self.ms.total2matric(rsx)
+        rsx = self.ms.total2matric(rsx.flatten().tolist())
         rx = self.solve_dirichlet(sim_time, -15000, rsx, cells = False)
         q = self.radial_fluxes(sim_time, rx, rsx)
         return np.array(q) / np.sum(q)

@@ -1,0 +1,55 @@
+{
+  "converged": true,
+  "iterations": 5,
+  "time_seconds": 3956.6877839565277,
+  "tleaf_mean_initial_C": 23.458453885843277,
+  "tleaf_mean_final_C": 18.96124671458311,
+  "tleaf_shift_C": -4.497207171260168,
+  "gs_mean_final": 0.0391618983057888,
+  "an_total_mmol": 150.76930634493718,
+  "an_phase4_mmol": 2250.75,
+  "an_change_pct": -93.30137481528658,
+  "soil_psi_cm": -500.0,
+  "gs_history": [
+    {
+      "iteration": 1,
+      "gs_mean": 0.06450186857276166,
+      "tleaf_mean": 23.458453885843277,
+      "an_total_mmol": 254.05785483708198,
+      "max_rel_change": null,
+      "mean_rel_change": null
+    },
+    {
+      "iteration": 2,
+      "gs_mean": 0.035681173463534034,
+      "tleaf_mean": 18.540028938881814,
+      "an_total_mmol": 142.9641970034952,
+      "max_rel_change": 0.4580083583216642,
+      "mean_rel_change": 0.4393016553003592
+    },
+    {
+      "iteration": 3,
+      "gs_mean": 0.03762464087334237,
+      "tleaf_mean": 18.959938138600638,
+      "an_total_mmol": 150.72841792101028,
+      "max_rel_change": 0.25391012558485465,
+      "mean_rel_change": 0.1996605864466874
+    },
+    {
+      "iteration": 4,
+      "gs_mean": 0.0376307870917177,
+      "tleaf_mean": 18.961001204113593,
+      "an_total_mmol": 150.75669889900183,
+      "max_rel_change": 0.13685948723290392,
+      "mean_rel_change": 0.09089297269843005
+    },
+    {
+      "iteration": 5,
+      "gs_mean": 0.03763327797300532,
+      "tleaf_mean": 18.96124671458311,
+      "an_total_mmol": 150.76930634493718,
+      "max_rel_change": 0.08592355017701302,
+      "mean_rel_change": 0.03858905955537412
+    }
+  ]
+}

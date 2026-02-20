@@ -1,0 +1,12 @@
+{
+  "sim_day": 55,
+  "calendar_date": "2025-06-25",
+  "timestep_min": 120,
+  "n_timesteps": 8,
+  "daily_An_mol": 0.19895891387818093,
+  "daily_An_mmol": 198.95891387818094,
+  "peak_An_mmol_d": 432.950564485356,
+  "peak_time_utc": "12:00",
+  "sunrise_utc": "04:00",
+  "sunset_utc": "18:00"
+}

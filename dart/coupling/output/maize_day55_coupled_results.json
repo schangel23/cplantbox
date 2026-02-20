@@ -1,0 +1,139 @@
+{
+  "phase": "Phase 4: Coupled Photosynthesis",
+  "simulation_days": 55,
+  "target_par_umol": 1000.0,
+  "tair_c_uniform": 25.0,
+  "rh": 0.7,
+  "soil_psi_cm": -500.0,
+  "n_leaf_segments": 6202,
+  "n_organs": 11,
+  "apar_stats": {
+    "mean": 1000.0,
+    "std": 356.54801311086226,
+    "min": 90.7836290713442,
+    "max": 2774.3538620504214
+  },
+  "tleaf_stats": {
+    "mean": 23.458453885843277,
+    "std": 0.09878851279279156,
+    "min": 23.3178,
+    "max": 24.5647
+  },
+  "uniform": {
+    "An_total_mmol": 2830.491679097649,
+    "transp_mmol": 1531.3089831209115
+  },
+  "informed_3d": {
+    "An_total_mmol": 2250.7502971857566,
+    "transp_mmol": 1392.4670493574895
+  },
+  "comparison": {
+    "An_uniform_mmol": 2830.491679097649,
+    "An_3d_mmol": 2250.7502971857566,
+    "change_pct": -20.48200269208041,
+    "transp_uniform_mmol": 1531.3089831209115,
+    "transp_3d_mmol": 1392.4670493574895,
+    "transp_change_pct": -9.066879074950162,
+    "per_organ": [
+      {
+        "organ": "leaf_1",
+        "n_segments": 283,
+        "An_uniform_mmol": 103.33033763964683,
+        "An_3d_mmol": 53.516996572443254,
+        "change_pct": -48.207856671215104,
+        "mean_apar_umol": 504.7705767536213,
+        "mean_tleaf_c": 23.371267491166076
+      },
+      {
+        "organ": "leaf_2",
+        "n_segments": 620,
+        "An_uniform_mmol": 274.2051023512734,
+        "An_3d_mmol": 200.1226649997776,
+        "change_pct": -27.017162232302915,
+        "mean_apar_umol": 733.3403415434714,
+        "mean_tleaf_c": 23.396760322580644
+      },
+      {
+        "organ": "leaf_3",
+        "n_segments": 682,
+        "An_uniform_mmol": 328.25281699530217,
+        "An_3d_mmol": 230.05959730750544,
+        "change_pct": -29.913900080620493,
+        "mean_apar_umol": 732.9391000118997,
+        "mean_tleaf_c": 23.410553665689147
+      },
+      {
+        "organ": "leaf_4",
+        "n_segments": 696,
+        "An_uniform_mmol": 339.88953668131774,
+        "An_3d_mmol": 267.60951168824454,
+        "change_pct": -21.265739951519407,
+        "mean_apar_umol": 890.9325334133193,
+        "mean_tleaf_c": 23.439512931034486
+      },
+      {
+        "organ": "leaf_5",
+        "n_segments": 693,
+        "An_uniform_mmol": 331.7861349251695,
+        "An_3d_mmol": 280.4810663864162,
+        "change_pct": -15.463294917469819,
+        "mean_apar_umol": 1058.5907274347505,
+        "mean_tleaf_c": 23.474501875901876
+      },
+      {
+        "organ": "leaf_6",
+        "n_segments": 658,
+        "An_uniform_mmol": 305.870789201534,
+        "An_3d_mmol": 251.93883728155242,
+        "change_pct": -17.632266245746855,
+        "mean_apar_umol": 1187.7597944340234,
+        "mean_tleaf_c": 23.495022644376903
+      },
+      {
+        "organ": "leaf_7",
+        "n_segments": 610,
+        "An_uniform_mmol": 273.55297889168315,
+        "An_3d_mmol": 229.9542627152668,
+        "change_pct": -15.937942388000767,
+        "mean_apar_umol": 1099.2294038416048,
+        "mean_tleaf_c": 23.475650819672133
+      },
+      {
+        "organ": "leaf_8",
+        "n_segments": 554,
+        "An_uniform_mmol": 244.4409461671938,
+        "An_3d_mmol": 204.02770691051998,
+        "change_pct": -16.532925391735226,
+        "mean_apar_umol": 1262.99226161728,
+        "mean_tleaf_c": 23.503064620938627
+      },
+      {
+        "organ": "leaf_9",
+        "n_segments": 511,
+        "An_uniform_mmol": 229.74018419232416,
+        "An_3d_mmol": 196.97378146456867,
+        "change_pct": -14.262373316600765,
+        "mean_apar_umol": 1159.0747908681017,
+        "mean_tleaf_c": 23.48939784735812
+      },
+      {
+        "organ": "leaf_10",
+        "n_segments": 465,
+        "An_uniform_mmol": 208.26156996567258,
+        "An_3d_mmol": 175.4993979665156,
+        "change_pct": -15.731261415419615,
+        "mean_apar_umol": 1175.4556940475375,
+        "mean_tleaf_c": 23.501584731182795
+      },
+      {
+        "organ": "leaf_11",
+        "n_segments": 430,
+        "An_uniform_mmol": 191.16128208653183,
+        "An_3d_mmol": 160.566473892946,
+        "change_pct": -16.004709666958956,
+        "mean_apar_umol": 1070.4053989838615,
+        "mean_tleaf_c": 23.464310697674417
+      }
+    ]
+  }
+}

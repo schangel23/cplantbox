@@ -12,6 +12,9 @@ VTK Plot, by Daniel Leitner (refurbished 06/2020)
 to make interactive vtk plot of root systems and soil grids
 """
 
+# Global counter for auto-incrementing screenshot filenames
+_screenshot_counter = {}
+
 
 def plot_leaf(leaf):
     """
@@ -337,17 +340,28 @@ def render_window(actor, title, scalarBar, bounds, interactiveImage = True):
 def keypress_callback_(obj, ev, bounds):
     """ adds the functionality to make a screenshot by pressing 'g',
     and to change view to axis aligned plots (by 'x', 'y', 'z', 'v') """
+    global _screenshot_counter
     key = obj.GetKeySym()
     if key == 'g':
         renWin = obj.GetRenderWindow()
         file_name = renWin.GetWindowName()
-        write_jpg(renWin, file_name, magnification = 5)
-        print("saved", file_name + ".jpg")
+        # Auto-increment counter for this window title
+        if file_name not in _screenshot_counter:
+            _screenshot_counter[file_name] = 0
+        _screenshot_counter[file_name] += 1
+        file_name_unique = f"{file_name}_{_screenshot_counter[file_name]:03d}"
+        write_jpg(renWin, file_name_unique, magnification = 5)
+        print("saved", file_name_unique + ".jpg")
     if key == 's':  # for small
         renWin = obj.GetRenderWindow()
         file_name = renWin.GetWindowName()
-        write_jpg(renWin, file_name, magnification = 1)
-        print("saved", file_name + ".jpg")
+        # Auto-increment counter for this window title
+        if file_name not in _screenshot_counter:
+            _screenshot_counter[file_name] = 0
+        _screenshot_counter[file_name] += 1
+        file_name_unique = f"{file_name}_{_screenshot_counter[file_name]:03d}"
+        write_jpg(renWin, file_name_unique, magnification = 1)
+        print("saved", file_name_unique + ".jpg")
     if key == 'x' or key == 'y' or key == 'z' or key == 'v':
         renWin = obj.GetRenderWindow()
         ren = renWin.GetRenderers().GetItemAsObject(0)

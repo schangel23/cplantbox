@@ -1,0 +1,559 @@
+<?xml version='1.0' encoding='utf-8'?>
+<plant>
+    <seed name="undefined*" subType="0">
+        <parameter name="delayDefinition" value="0" />
+        <parameter name="delayDefinitionShoot" value="2" />
+        <parameter name="maxTil" value="0" />
+        <parameter name="a" value="0.1" />
+        <parameter name="delayB" value="0" />
+        <parameter name="delayRC" value="7" />
+        <parameter name="delaySB" value="0" />
+        <parameter name="delayTil" value="1e+09" />
+        <parameter name="dx" value="0.25" />
+        <parameter name="dxMin" value="1e-06" />
+        <parameter name="firstB" value="0" />
+        <parameter name="firstSB" value="14" />
+        <parameter name="firstTil" value="1e+09" />
+        <parameter name="ldelay" value="-1" />
+        <parameter name="maxB" value="7" />
+        <parameter name="nC" value="2" />
+        <parameter name="nz" value="0" />
+        <parameter name="seedPos.x" value="0" />
+        <parameter name="seedPos.y" value="0" />
+        <parameter name="seedPos.z" value="-3" />
+        <parameter name="simulationTime" value="56" />
+    </seed>
+    <root name="taproot" subType="1">
+        <parameter name="gf" value="1" />
+        <parameter name="tropismT" value="1" />
+        <parameter name="a" value="0.2" dev="0.02" />
+        <parameter name="dx" value="0.25" />
+        <parameter name="dxMin" value="1e-06" />
+        <parameter name="hairsElongation" value="0" />
+        <parameter name="hairsLength" value="0" />
+        <parameter name="hairsZone" value="0" />
+        <parameter name="la" value="8" />
+        <parameter name="lb" value="2" />
+        <parameter name="ldelay" value="-1" />
+        <parameter name="lmax" value="159" />
+        <parameter name="ln" value="0.5" dev="9.9999997e-06" />
+        <parameter name="lnk" value="0" />
+        <parameter name="r" value="4.5" dev="0.44999999" />
+        <parameter name="rlt" value="1e+09" />
+        <parameter name="theta" value="1.67" dev="0.40000001" />
+        <parameter name="tropismN" value="1" />
+        <parameter name="tropismS" value="0.26179901" />
+        <parameter name="successor" ruleId="0" numLat="1" Where="" subType="2" organType="2" percentage="0.5" />
+        <parameter name="successor" ruleId="1" numLat="1" Where="" subType="3" organType="2" percentage="0.5" />
+    </root>
+    <root name="lateral1" subType="2">
+        <parameter name="gf" value="1" />
+        <parameter name="tropismT" value="2" />
+        <parameter name="a" value="0.0125" dev="0.00125" />
+        <parameter name="dx" value="0.25" />
+        <parameter name="dxMin" value="1e-06" />
+        <parameter name="hairsElongation" value="0" />
+        <parameter name="hairsLength" value="0" />
+        <parameter name="hairsZone" value="0" />
+        <parameter name="la" value="1.76" />
+        <parameter name="lb" value="0" />
+        <parameter name="ldelay" value="-1" />
+        <parameter name="lmax" value="1.76" />
+        <parameter name="ln" value="0" />
+        <parameter name="lnk" value="0" />
+        <parameter name="r" value="0.34999999" dev="0.035" />
+        <parameter name="rlt" value="1e+09" />
+        <parameter name="theta" value="1.22173" />
+        <parameter name="tropismN" value="2" />
+        <parameter name="tropismS" value="0.52359903" />
+    </root>
+    <root name="lateral2" subType="3">
+        <parameter name="gf" value="1" />
+        <parameter name="tropismT" value="2" />
+        <parameter name="a" value="0.02" dev="0.0020000001" />
+        <parameter name="dx" value="0.25" />
+        <parameter name="dxMin" value="1e-06" />
+        <parameter name="hairsElongation" value="0" />
+        <parameter name="hairsLength" value="0" />
+        <parameter name="hairsZone" value="0" />
+        <parameter name="la" value="6.0100002" />
+        <parameter name="lb" value="0" />
+        <parameter name="ldelay" value="-1" />
+        <parameter name="lmax" value="6.0100002" />
+        <parameter name="ln" value="0" />
+        <parameter name="lnk" value="0" />
+        <parameter name="r" value="0.40000001" dev="0.039999999" />
+        <parameter name="rlt" value="1e+09" />
+        <parameter name="theta" value="1.22173" />
+        <parameter name="tropismN" value="2" />
+        <parameter name="tropismS" value="0.52359903" />
+    </root>
+    <root name="nodal_root" subType="4">
+        <parameter name="gf" value="1" />
+        <parameter name="tropismT" value="1" />
+        <parameter name="a" value="0.2" dev="0.02" />
+        <parameter name="dx" value="0.25" />
+        <parameter name="dxMin" value="1e-06" />
+        <parameter name="hairsElongation" value="0" />
+        <parameter name="hairsLength" value="0" />
+        <parameter name="hairsZone" value="0" />
+        <parameter name="la" value="8" />
+        <parameter name="lb" value="2" />
+        <parameter name="ldelay" value="-1" />
+        <parameter name="lmax" value="159" dev="15.9" />
+        <parameter name="ln" value="1" dev="0.1" />
+        <parameter name="lnk" value="0" />
+        <parameter name="r" value="4.5" dev="0.44999999" />
+        <parameter name="rlt" value="1e+09" />
+        <parameter name="theta" value="0.80000001" dev="0.15707999" />
+        <parameter name="tropismN" value="1" />
+        <parameter name="tropismS" value="0.050000001" />
+        <parameter name="successor" ruleId="0" numLat="1" Where="" subType="2" organType="2" percentage="0.5" />
+        <parameter name="successor" ruleId="1" numLat="1" Where="" subType="3" organType="2" percentage="0.5" />
+    </root>
+    <root name="shoot_borne_root" subType="5">
+        <parameter name="gf" value="1" />
+        <parameter name="tropismT" value="1" />
+        <parameter name="a" value="0.2" dev="0.02" />
+        <parameter name="dx" value="0.25" />
+        <parameter name="dxMin" value="1e-06" />
+        <parameter name="hairsElongation" value="0" />
+        <parameter name="hairsLength" value="0" />
+        <parameter name="hairsZone" value="0" />
+        <parameter name="la" value="8" />
+        <parameter name="lb" value="2" />
+        <parameter name="ldelay" value="-1" />
+        <parameter name="lmax" value="59.049999" dev="5.9000001" />
+        <parameter name="ln" value="0.5" dev="9.9999997e-06" />
+        <parameter name="lnk" value="0" />
+        <parameter name="r" value="4.5" dev="0.44999999" />
+        <parameter name="rlt" value="1e+09" />
+        <parameter name="theta" value="1.11404" dev="0.109956" />
+        <parameter name="tropismN" value="1" />
+        <parameter name="tropismS" value="0.050000001" />
+        <parameter name="successor" ruleId="0" numLat="1" Where="" subType="2" organType="2" percentage="0.5" />
+        <parameter name="successor" ruleId="1" numLat="1" Where="" subType="3" organType="2" percentage="0.5" />
+    </root>
+    <stem name="mainstem" subType="1">
+        <parameter name="gf" value="1" />
+        <parameter name="lnf" value="0" />
+        <parameter name="nodalGrowth" value="1" />
+        <parameter name="tropismT" value="1" />
+        <parameter name="BetaDev" value="0.22" />
+        <parameter name="InitBeta" value="0" />
+        <parameter name="RotBeta" value="3.141592653589793" />
+        <parameter name="a" value="0.2" dev="0.02" />
+        <parameter name="delayNGEnd" value="0" />
+        <parameter name="delayNGStart" value="0" />
+        <parameter name="dx" value="0.1" />
+        <parameter name="dxMin" value="1e-06" />
+        <parameter name="la" value="30.9" />
+        <parameter name="lb" value="4.0" />
+        <parameter name="ldelay" value="-1" />
+        <parameter name="lmax" value="180.0" dev="18.0" />
+        <parameter name="ln" value="14.5" dev="0.7250000000000001" />
+        <parameter name="r" value="2.5" dev="0.25" />
+        <parameter name="rlt" value="1e+09" />
+        <parameter name="theta" value="0" />
+        <parameter name="tropismAge" value="0" />
+        <parameter name="tropismN" value="1" />
+        <parameter name="tropismS" value="0" />
+        <parameter name="successor" ruleId="0" numLat="1" Where="" subType="2" organType="4" percentage="1" />
+    </stem>
+    <leaf name="maize_leaf_L0" subType="2">
+        <parameter name="geometryN" value="100" />
+        <parameter name="gf" value="3" />
+        <parameter name="isPseudostem" value="0" />
+        <parameter name="lnf" value="0" />
+        <parameter name="parametrisationType" value="1" />
+        <parameter name="shapeType" value="2" />
+        <parameter name="tropismT" value="1" />
+        <parameter name="BetaDev" value="0.22" />
+        <parameter name="InitBeta" value="6.230632795053003" />
+        <parameter name="RotBeta" value="1.5707963267948966" />
+        <parameter name="a" value="0.04" />
+        <parameter name="dx" value="0.1" />
+        <parameter name="dxMin" value="1e-06" />
+        <parameter name="la" value="0" />
+        <parameter name="lb" value="0" />
+        <parameter name="ln" value="1" />
+        <parameter name="rlt" value="1e+09" />
+        <parameter name="tropismN" value="3" />
+        <parameter name="ldelay" value="0.0" />
+        <parameter name="lmax" value="28.284271247461902" />
+        <parameter name="r" value="4.0" />
+        <parameter name="Width_blade" value="2.94" />
+        <parameter name="Width_petiole" value="0.88" />
+        <parameter name="areaMax" value="116.27387447029919" />
+        <parameter name="theta" value="0.7853981633974483" dev="0.11780972450961724" />
+        <parameter name="tropismS" value="0.00565685424949238" dev="0.001697056274847714" />
+        <parameter name="tropismAge" value="12.0" />
+        <parameter name="leafGeometry" phi="-4.0" x="0.08" />
+        <parameter name="leafGeometry" phi="-2.7" x="0.40" />
+        <parameter name="leafGeometry" phi="-1.3" x="0.75" />
+        <parameter name="leafGeometry" phi="0.0" x="0.77" />
+        <parameter name="leafGeometry" phi="1.3" x="0.78" />
+        <parameter name="leafGeometry" phi="2.7" x="0.78" />
+        <parameter name="leafGeometry" phi="4.0" x="0.05" />
+    </leaf>
+    <leaf name="maize_leaf_L1" subType="3">
+        <parameter name="geometryN" value="100" />
+        <parameter name="gf" value="3" />
+        <parameter name="isPseudostem" value="0" />
+        <parameter name="lnf" value="0" />
+        <parameter name="parametrisationType" value="1" />
+        <parameter name="shapeType" value="2" />
+        <parameter name="tropismT" value="1" />
+        <parameter name="BetaDev" value="0.22" />
+        <parameter name="InitBeta" value="3.330387420774488" />
+        <parameter name="RotBeta" value="1.5707963267948966" />
+        <parameter name="a" value="0.04" />
+        <parameter name="dx" value="0.1" />
+        <parameter name="dxMin" value="1e-06" />
+        <parameter name="la" value="0" />
+        <parameter name="lb" value="0" />
+        <parameter name="ln" value="1" />
+        <parameter name="rlt" value="1e+09" />
+        <parameter name="tropismN" value="3" />
+        <parameter name="ldelay" value="3.0" />
+        <parameter name="lmax" value="64.8" />
+        <parameter name="r" value="4.0" />
+        <parameter name="Width_blade" value="3.63" />
+        <parameter name="Width_petiole" value="1.09" />
+        <parameter name="areaMax" value="329.2" />
+        <parameter name="theta" value="0.7504915783575618" dev="0.11257373675363426" />
+        <parameter name="tropismS" value="0.011419753086419753" dev="0.0034259259259259256" />
+        <parameter name="tropismAge" value="13.9" />
+        <parameter name="leafGeometry" phi="-4.0" x="0.08" />
+        <parameter name="leafGeometry" phi="-2.7" x="0.40" />
+        <parameter name="leafGeometry" phi="-1.3" x="0.75" />
+        <parameter name="leafGeometry" phi="0.0" x="0.78" />
+        <parameter name="leafGeometry" phi="1.3" x="0.80" />
+        <parameter name="leafGeometry" phi="2.7" x="0.81" />
+        <parameter name="leafGeometry" phi="4.0" x="0.05" />
+    </leaf>
+    <leaf name="maize_leaf_L2" subType="4">
+        <parameter name="geometryN" value="100" />
+        <parameter name="gf" value="3" />
+        <parameter name="isPseudostem" value="0" />
+        <parameter name="lnf" value="0" />
+        <parameter name="parametrisationType" value="1" />
+        <parameter name="shapeType" value="2" />
+        <parameter name="tropismT" value="1" />
+        <parameter name="BetaDev" value="0.22" />
+        <parameter name="InitBeta" value="0.16699056518271327" />
+        <parameter name="RotBeta" value="1.5707963267948966" />
+        <parameter name="a" value="0.04" />
+        <parameter name="dx" value="0.1" />
+        <parameter name="dxMin" value="1e-06" />
+        <parameter name="la" value="0" />
+        <parameter name="lb" value="0" />
+        <parameter name="ln" value="1" />
+        <parameter name="rlt" value="1e+09" />
+        <parameter name="tropismN" value="3" />
+        <parameter name="ldelay" value="6.0" />
+        <parameter name="lmax" value="73.8" />
+        <parameter name="r" value="4.0" />
+        <parameter name="Width_blade" value="4.12" />
+        <parameter name="Width_petiole" value="1.24" />
+        <parameter name="areaMax" value="425.2" />
+        <parameter name="theta" value="0.7155849933176751" dev="0.10733774899765126" />
+        <parameter name="tropismS" value="0.01788617886178862" dev="0.005365853658536586" />
+        <parameter name="tropismAge" value="16.1" />
+        <parameter name="leafGeometry" phi="-4.0" x="0.08" />
+        <parameter name="leafGeometry" phi="-2.7" x="0.40" />
+        <parameter name="leafGeometry" phi="-1.3" x="0.74" />
+        <parameter name="leafGeometry" phi="0.0" x="0.76" />
+        <parameter name="leafGeometry" phi="1.3" x="0.79" />
+        <parameter name="leafGeometry" phi="2.7" x="0.82" />
+        <parameter name="leafGeometry" phi="4.0" x="0.05" />
+    </leaf>
+    <leaf name="maize_leaf_L3" subType="5">
+        <parameter name="geometryN" value="100" />
+        <parameter name="gf" value="3" />
+        <parameter name="isPseudostem" value="0" />
+        <parameter name="lnf" value="0" />
+        <parameter name="parametrisationType" value="1" />
+        <parameter name="shapeType" value="2" />
+        <parameter name="tropismT" value="1" />
+        <parameter name="BetaDev" value="0.22" />
+        <parameter name="InitBeta" value="3.252731792891927" />
+        <parameter name="RotBeta" value="1.5707963267948966" />
+        <parameter name="a" value="0.04" />
+        <parameter name="dx" value="0.1" />
+        <parameter name="dxMin" value="1e-06" />
+        <parameter name="la" value="0" />
+        <parameter name="lb" value="0" />
+        <parameter name="ln" value="1" />
+        <parameter name="rlt" value="1e+09" />
+        <parameter name="tropismN" value="3" />
+        <parameter name="ldelay" value="9.0" />
+        <parameter name="lmax" value="77.4" />
+        <parameter name="r" value="4.0" />
+        <parameter name="Width_blade" value="4.38" />
+        <parameter name="Width_petiole" value="1.31" />
+        <parameter name="areaMax" value="474.7" />
+        <parameter name="theta" value="0.6806784082777885" dev="0.10210176124166827" />
+        <parameter name="tropismS" value="0.024" dev="0.0072" />
+        <parameter name="tropismAge" value="17.0" />
+        <parameter name="leafGeometry" phi="-4.0" x="0.08" />
+        <parameter name="leafGeometry" phi="-2.7" x="0.41" />
+        <parameter name="leafGeometry" phi="-1.3" x="0.76" />
+        <parameter name="leafGeometry" phi="0.0" x="0.77" />
+        <parameter name="leafGeometry" phi="1.3" x="0.78" />
+        <parameter name="leafGeometry" phi="2.7" x="0.79" />
+        <parameter name="leafGeometry" phi="4.0" x="0.05" />
+    </leaf>
+    <leaf name="maize_leaf_L4" subType="6">
+        <parameter name="geometryN" value="100" />
+        <parameter name="gf" value="3" />
+        <parameter name="isPseudostem" value="0" />
+        <parameter name="lnf" value="0" />
+        <parameter name="parametrisationType" value="1" />
+        <parameter name="shapeType" value="2" />
+        <parameter name="tropismT" value="1" />
+        <parameter name="BetaDev" value="0.22" />
+        <parameter name="InitBeta" value="6.27872507238475" />
+        <parameter name="RotBeta" value="1.5707963267948966" />
+        <parameter name="a" value="0.04" />
+        <parameter name="dx" value="0.1" />
+        <parameter name="dxMin" value="1e-06" />
+        <parameter name="la" value="0" />
+        <parameter name="lb" value="0" />
+        <parameter name="ln" value="1" />
+        <parameter name="rlt" value="1e+09" />
+        <parameter name="tropismN" value="3" />
+        <parameter name="ldelay" value="12.0" />
+        <parameter name="lmax" value="78.9" />
+        <parameter name="r" value="4.0" />
+        <parameter name="Width_blade" value="4.6" />
+        <parameter name="Width_petiole" value="1.38" />
+        <parameter name="areaMax" value="508.2" />
+        <parameter name="theta" value="0.6457718232379019" dev="0.09686577348568529" />
+        <parameter name="tropismS" value="0.022" dev="0.006599999999999999" />
+        <parameter name="tropismAge" value="17.6" />
+        <parameter name="leafGeometry" phi="-4.0" x="0.08" />
+        <parameter name="leafGeometry" phi="-2.7" x="0.41" />
+        <parameter name="leafGeometry" phi="-1.3" x="0.78" />
+        <parameter name="leafGeometry" phi="0.0" x="0.80" />
+        <parameter name="leafGeometry" phi="1.3" x="0.81" />
+        <parameter name="leafGeometry" phi="2.7" x="0.79" />
+        <parameter name="leafGeometry" phi="4.0" x="0.05" />
+    </leaf>
+    <leaf name="maize_leaf_L5" subType="7">
+        <parameter name="geometryN" value="100" />
+        <parameter name="gf" value="3" />
+        <parameter name="isPseudostem" value="0" />
+        <parameter name="lnf" value="0" />
+        <parameter name="parametrisationType" value="1" />
+        <parameter name="shapeType" value="2" />
+        <parameter name="tropismT" value="1" />
+        <parameter name="BetaDev" value="0.22" />
+        <parameter name="InitBeta" value="3.137122315388483" />
+        <parameter name="RotBeta" value="1.5707963267948966" />
+        <parameter name="a" value="0.04" />
+        <parameter name="dx" value="0.1" />
+        <parameter name="dxMin" value="1e-06" />
+        <parameter name="la" value="0" />
+        <parameter name="lb" value="0" />
+        <parameter name="ln" value="1" />
+        <parameter name="rlt" value="1e+09" />
+        <parameter name="tropismN" value="3" />
+        <parameter name="ldelay" value="15.0" />
+        <parameter name="lmax" value="75.7" />
+        <parameter name="r" value="4.0" />
+        <parameter name="Width_blade" value="4.42" />
+        <parameter name="Width_petiole" value="1.33" />
+        <parameter name="areaMax" value="468.5" />
+        <parameter name="theta" value="0.6108652381980153" dev="0.09162978572970229" />
+        <parameter name="tropismS" value="0.019999999999999997" dev="0.005999999999999999" />
+        <parameter name="tropismAge" value="17.0" />
+        <parameter name="leafGeometry" phi="-4.0" x="0.08" />
+        <parameter name="leafGeometry" phi="-2.7" x="0.42" />
+        <parameter name="leafGeometry" phi="-1.3" x="0.78" />
+        <parameter name="leafGeometry" phi="0.0" x="0.78" />
+        <parameter name="leafGeometry" phi="1.3" x="0.79" />
+        <parameter name="leafGeometry" phi="2.7" x="0.77" />
+        <parameter name="leafGeometry" phi="4.0" x="0.05" />
+    </leaf>
+    <leaf name="maize_leaf_L6" subType="8">
+        <parameter name="geometryN" value="100" />
+        <parameter name="gf" value="3" />
+        <parameter name="isPseudostem" value="0" />
+        <parameter name="lnf" value="0" />
+        <parameter name="parametrisationType" value="1" />
+        <parameter name="shapeType" value="2" />
+        <parameter name="tropismT" value="1" />
+        <parameter name="BetaDev" value="0.22" />
+        <parameter name="InitBeta" value="0.024330006570878027" />
+        <parameter name="RotBeta" value="1.5707963267948966" />
+        <parameter name="a" value="0.04" />
+        <parameter name="dx" value="0.1" />
+        <parameter name="dxMin" value="1e-06" />
+        <parameter name="la" value="0" />
+        <parameter name="lb" value="0" />
+        <parameter name="ln" value="1" />
+        <parameter name="rlt" value="1e+09" />
+        <parameter name="tropismN" value="3" />
+        <parameter name="ldelay" value="18.0" />
+        <parameter name="lmax" value="70.4" />
+        <parameter name="r" value="4.0" />
+        <parameter name="Width_blade" value="4.29" />
+        <parameter name="Width_petiole" value="1.29" />
+        <parameter name="areaMax" value="422.9" />
+        <parameter name="theta" value="0.5759586531581288" dev="0.08639379797371931" />
+        <parameter name="tropismS" value="0.018" dev="0.005399999999999999" />
+        <parameter name="tropismAge" value="16.0" />
+        <parameter name="leafGeometry" phi="-4.0" x="0.08" />
+        <parameter name="leafGeometry" phi="-2.7" x="0.41" />
+        <parameter name="leafGeometry" phi="-1.3" x="0.78" />
+        <parameter name="leafGeometry" phi="0.0" x="0.79" />
+        <parameter name="leafGeometry" phi="1.3" x="0.80" />
+        <parameter name="leafGeometry" phi="2.7" x="0.78" />
+        <parameter name="leafGeometry" phi="4.0" x="0.05" />
+    </leaf>
+    <leaf name="maize_leaf_L7" subType="9">
+        <parameter name="geometryN" value="100" />
+        <parameter name="gf" value="3" />
+        <parameter name="isPseudostem" value="0" />
+        <parameter name="lnf" value="0" />
+        <parameter name="parametrisationType" value="1" />
+        <parameter name="shapeType" value="2" />
+        <parameter name="tropismT" value="1" />
+        <parameter name="BetaDev" value="0.22" />
+        <parameter name="InitBeta" value="3.5044156690939623" />
+        <parameter name="RotBeta" value="1.5707963267948966" />
+        <parameter name="a" value="0.04" />
+        <parameter name="dx" value="0.1" />
+        <parameter name="dxMin" value="1e-06" />
+        <parameter name="la" value="0" />
+        <parameter name="lb" value="0" />
+        <parameter name="ln" value="1" />
+        <parameter name="rlt" value="1e+09" />
+        <parameter name="tropismN" value="3" />
+        <parameter name="ldelay" value="21.0" />
+        <parameter name="lmax" value="63.6" />
+        <parameter name="r" value="4.0" />
+        <parameter name="Width_blade" value="4.13" />
+        <parameter name="Width_petiole" value="1.24" />
+        <parameter name="areaMax" value="367.6" />
+        <parameter name="theta" value="0.5410520681182421" dev="0.08115781021773631" />
+        <parameter name="tropismS" value="0.016" dev="0.0048" />
+        <parameter name="tropismAge" value="14.6" />
+        <parameter name="leafGeometry" phi="-4.0" x="0.08" />
+        <parameter name="leafGeometry" phi="-2.7" x="0.41" />
+        <parameter name="leafGeometry" phi="-1.3" x="0.77" />
+        <parameter name="leafGeometry" phi="0.0" x="0.78" />
+        <parameter name="leafGeometry" phi="1.3" x="0.78" />
+        <parameter name="leafGeometry" phi="2.7" x="0.78" />
+        <parameter name="leafGeometry" phi="4.0" x="0.05" />
+    </leaf>
+    <leaf name="maize_leaf_L8" subType="10">
+        <parameter name="geometryN" value="100" />
+        <parameter name="gf" value="3" />
+        <parameter name="isPseudostem" value="0" />
+        <parameter name="lnf" value="0" />
+        <parameter name="parametrisationType" value="1" />
+        <parameter name="shapeType" value="2" />
+        <parameter name="tropismT" value="1" />
+        <parameter name="BetaDev" value="0.22" />
+        <parameter name="InitBeta" value="0.3216076373937753" />
+        <parameter name="RotBeta" value="1.5707963267948966" />
+        <parameter name="a" value="0.04" />
+        <parameter name="dx" value="0.1" />
+        <parameter name="dxMin" value="1e-06" />
+        <parameter name="la" value="0" />
+        <parameter name="lb" value="0" />
+        <parameter name="ln" value="1" />
+        <parameter name="rlt" value="1e+09" />
+        <parameter name="tropismN" value="3" />
+        <parameter name="ldelay" value="24.0" />
+        <parameter name="lmax" value="59.2" />
+        <parameter name="r" value="4.0" />
+        <parameter name="Width_blade" value="3.81" />
+        <parameter name="Width_petiole" value="1.14" />
+        <parameter name="areaMax" value="316.1" />
+        <parameter name="theta" value="0.5061454830783556" dev="0.07592182246175334" />
+        <parameter name="tropismS" value="0.013999999999999999" dev="0.0042" />
+        <parameter name="tropismAge" value="13.8" />
+        <parameter name="leafGeometry" phi="-4.0" x="0.08" />
+        <parameter name="leafGeometry" phi="-2.7" x="0.40" />
+        <parameter name="leafGeometry" phi="-1.3" x="0.76" />
+        <parameter name="leafGeometry" phi="0.0" x="0.76" />
+        <parameter name="leafGeometry" phi="1.3" x="0.78" />
+        <parameter name="leafGeometry" phi="2.7" x="0.77" />
+        <parameter name="leafGeometry" phi="4.0" x="0.05" />
+    </leaf>
+    <leaf name="maize_leaf_L9" subType="11">
+        <parameter name="geometryN" value="100" />
+        <parameter name="gf" value="3" />
+        <parameter name="isPseudostem" value="0" />
+        <parameter name="lnf" value="0" />
+        <parameter name="parametrisationType" value="1" />
+        <parameter name="shapeType" value="2" />
+        <parameter name="tropismT" value="1" />
+        <parameter name="BetaDev" value="0.22" />
+        <parameter name="InitBeta" value="3.5080025714845604" />
+        <parameter name="RotBeta" value="1.5707963267948966" />
+        <parameter name="a" value="0.04" />
+        <parameter name="dx" value="0.1" />
+        <parameter name="dxMin" value="1e-06" />
+        <parameter name="la" value="0" />
+        <parameter name="lb" value="0" />
+        <parameter name="ln" value="1" />
+        <parameter name="rlt" value="1e+09" />
+        <parameter name="tropismN" value="3" />
+        <parameter name="ldelay" value="27.0" />
+        <parameter name="lmax" value="54.1" />
+        <parameter name="r" value="4.0" />
+        <parameter name="Width_blade" value="3.63" />
+        <parameter name="Width_petiole" value="1.09" />
+        <parameter name="areaMax" value="274.7" />
+        <parameter name="theta" value="0.47123889803846897" dev="0.07068583470577035" />
+        <parameter name="tropismS" value="0.011999999999999997" dev="0.003599999999999999" />
+        <parameter name="tropismAge" value="12.7" />
+        <parameter name="leafGeometry" phi="-4.0" x="0.08" />
+        <parameter name="leafGeometry" phi="-2.7" x="0.40" />
+        <parameter name="leafGeometry" phi="-1.3" x="0.76" />
+        <parameter name="leafGeometry" phi="0.0" x="0.78" />
+        <parameter name="leafGeometry" phi="1.3" x="0.80" />
+        <parameter name="leafGeometry" phi="2.7" x="0.79" />
+        <parameter name="leafGeometry" phi="4.0" x="0.05" />
+    </leaf>
+    <leaf name="maize_leaf_L10" subType="12">
+        <parameter name="geometryN" value="100" />
+        <parameter name="gf" value="3" />
+        <parameter name="isPseudostem" value="0" />
+        <parameter name="lnf" value="0" />
+        <parameter name="parametrisationType" value="1" />
+        <parameter name="shapeType" value="2" />
+        <parameter name="tropismT" value="1" />
+        <parameter name="BetaDev" value="0.22" />
+        <parameter name="InitBeta" value="0.14824875296721984" />
+        <parameter name="RotBeta" value="1.5707963267948966" />
+        <parameter name="a" value="0.04" />
+        <parameter name="dx" value="0.1" />
+        <parameter name="dxMin" value="1e-06" />
+        <parameter name="la" value="0" />
+        <parameter name="lb" value="0" />
+        <parameter name="ln" value="1" />
+        <parameter name="rlt" value="1e+09" />
+        <parameter name="tropismN" value="3" />
+        <parameter name="ldelay" value="30.0" />
+        <parameter name="lmax" value="51.2" />
+        <parameter name="r" value="4.0" />
+        <parameter name="Width_blade" value="3.2" />
+        <parameter name="Width_petiole" value="0.96" />
+        <parameter name="areaMax" value="229.4" />
+        <parameter name="theta" value="0.4363323129985824" dev="0.06544984694978735" />
+        <parameter name="tropismS" value="0.009999999999999998" dev="0.0029999999999999996" />
+        <parameter name="tropismAge" value="12.2" />
+        <parameter name="leafGeometry" phi="-4.0" x="0.08" />
+        <parameter name="leafGeometry" phi="-2.7" x="0.40" />
+        <parameter name="leafGeometry" phi="-1.3" x="0.73" />
+        <parameter name="leafGeometry" phi="0.0" x="0.75" />
+        <parameter name="leafGeometry" phi="1.3" x="0.79" />
+        <parameter name="leafGeometry" phi="2.7" x="0.79" />
+        <parameter name="leafGeometry" phi="4.0" x="0.05" />
+    </leaf>
+</plant>

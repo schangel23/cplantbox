@@ -62,10 +62,13 @@ public:
     /* parameters */
     int getId() const { return id; } ///< unique organ id
     std::shared_ptr<const OrganSpecificParameter> param() const { return param_; } ///< organ parameters
+    void setSpecificParam(std::shared_ptr<const OrganSpecificParameter> p) { param_ = p; } ///< replace organ-specific parameters (for post-injection sync)
     std::shared_ptr<OrganRandomParameter> getOrganRandomParameter() const;  ///< organ type parameter
     bool isAlive() const { return alive; } ///< checks if alive
     bool isActive() const { return active; } ///< checks if active
     double getAge() const { return age; } ///< return age of the organ
+    void setAge(double a) { age = a; } ///< set age of the organ (for external state injection, e.g. from measured data)
+    void setLength(double l) { length = l; } ///< set length of the organ (for external state injection, e.g. from measured data)
     double getLength(bool realized = true) const; ///< length of the organ (realized => dependent on dx() and dxMin())
     double getLength(int i) const; ///< length of the organ up to node index i, e.g. parent base length is getParent()->getLength(parentNI)
 	double getEpsilon() const { return epsilonDx; } ///< return stored growth not yet added because too small
@@ -85,6 +88,7 @@ public:
     virtual void addNode(Vector3d n, int id, double t, size_t index, bool shift); //< adds a node to the root
 	void addNode(Vector3d n, int id, double t){ addNode( n,  id, t, size_t(0), false); } //< for pybind, overwise error with parameter repartition
     void addNode(Vector3d n,  double t){ addNode( n,   t, size_t(0), false); }; //< for link with pybind
+    void setNode(int i, Vector3d pos); ///< replace position of i-th node (for skeleton injection)
     std::vector<Vector2i> getSegments() const; ///< per default, the organ is represented by a polyline
 
     double dx() const; ///< returns the max axial resolution

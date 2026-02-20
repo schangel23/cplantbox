@@ -1,0 +1,18 @@
+{
+  "n_vertices": 15458,
+  "n_faces": 27444,
+  "n_groups": 8,
+  "groups": [
+    "organ_00",
+    "organ_01",
+    "organ_02",
+    "organ_03",
+    "organ_04",
+    "organ_05",
+    "organ_06",
+    "organ_07"
+  ],
+  "dart_triangles": 27402,
+  "dropped_by_dart": 42,
+  "mapping_valid": true
+}
