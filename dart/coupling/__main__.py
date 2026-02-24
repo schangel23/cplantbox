@@ -13,6 +13,10 @@ def cli():
         "--species", type=str, default=None,
         help="Plant species (default: maize). Sets COUPLING_SPECIES env var.",
     )
+    parser.add_argument(
+        "--threads", type=int, default=None,
+        help="DART thread count (default: 8). Sets DART_THREADS env var.",
+    )
     sub = parser.add_subparsers(dest="command", required=True)
 
     # Phase 1 — DART RT simulation
@@ -41,9 +45,11 @@ def cli():
 
     args, remaining = parser.parse_known_args()
 
-    # Set species env var BEFORE importing subcommands (config.py reads it)
+    # Set env vars BEFORE importing subcommands (config.py reads them at import)
     if args.species:
         os.environ["COUPLING_SPECIES"] = args.species.lower()
+    if args.threads is not None:
+        os.environ["DART_THREADS"] = str(args.threads)
 
     if args.command == "simulation":
         from .dart.simulation import main

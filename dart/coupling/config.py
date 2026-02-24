@@ -25,6 +25,11 @@ BALENO_PYTHON = Path(os.environ.get(
     "BALENO_PYTHON", "/home/lukas/PHD/darteb_venv/bin/python3.12"
 ))
 
+# DART thread count — override via DART_THREADS env var or --threads CLI flag.
+# Default 8 is conservative; set higher on multi-core servers (e.g. 64, 128).
+from multiprocessing import cpu_count as _cpu_count
+DART_THREADS = min(int(os.environ.get("DART_THREADS", "8")), _cpu_count())
+
 # CPlantBox paths
 CPLANTBOX_ROOT = Path(os.environ.get(
     "CPLANTBOX_ROOT", str(PACKAGE_DIR.parent.parent.parent)

@@ -27,11 +27,9 @@ import textwrap
 import xml.etree.ElementTree as ET
 import numpy as np
 from pathlib import Path
-from multiprocessing import cpu_count
-
 import pytools4dart as ptd
 
-from ..config import DART_HOME, DART_EB_DIR, DARTRC, BALENO_PYTHON, OUTPUT_DIR, get_species
+from ..config import DART_HOME, DART_EB_DIR, DARTRC, BALENO_PYTHON, OUTPUT_DIR, DART_THREADS, get_species
 from ..prospect_params import get_prospect_params, log_consistency, vcmax25_from_cab
 
 # ---------------------------------------------------------------------------
@@ -206,8 +204,7 @@ def step1_create_simu_I():
 
     # Engine: Lux
     simu.core.phase.Phase.accelerationEngine = 2
-    n_threads = min(cpu_count(), 8)
-    simu.core.phase.Phase.ExpertModeZone.nbThreads = n_threads
+    simu.core.phase.Phase.ExpertModeZone.nbThreads = DART_THREADS
 
     simu.write(overwrite=True)
 
@@ -1506,8 +1503,7 @@ def setup_baleno_full(obj_path, mapping_json, reindex_json, grid_info_path,
     products.radiativeBudgetProducts = 1
     products.radiativeBudgetProperties.budget3DParSurface = 1
     simu_I.core.phase.Phase.accelerationEngine = 2
-    from multiprocessing import cpu_count as _cpu_count
-    simu_I.core.phase.Phase.ExpertModeZone.nbThreads = min(_cpu_count(), 8)
+    simu_I.core.phase.Phase.ExpertModeZone.nbThreads = DART_THREADS
 
     simu_I.write(overwrite=True)
 

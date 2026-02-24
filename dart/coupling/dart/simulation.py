@@ -18,12 +18,10 @@ import re
 import shutil
 import numpy as np
 from pathlib import Path
-from multiprocessing import cpu_count
-
 import plantbox as pb
 import pytools4dart as ptd
 
-from ..config import DEFAULT_XML, OUTPUT_DIR
+from ..config import DEFAULT_XML, OUTPUT_DIR, DART_THREADS
 from ..growth.grow import grow_plant, extract_g3_mesh
 from ..geometry import convert_obj_to_dart, convert_mapping_json_groups
 from ..prospect_params import get_prospect_params, log_consistency
@@ -310,9 +308,8 @@ def step3_create_dart_simulation():
     print(f"  Engine: Lux (accelerationEngine=2)")
 
     # --- Threads ---
-    n_threads = min(cpu_count(), 8)
-    simu.core.phase.Phase.ExpertModeZone.nbThreads = n_threads
-    print(f"  Threads: {n_threads}")
+    simu.core.phase.Phase.ExpertModeZone.nbThreads = DART_THREADS
+    print(f"  Threads: {DART_THREADS}")
 
     # --- Write simulation ---
     simu.write(overwrite=True)
@@ -1289,8 +1286,7 @@ def create_dart_simulation(obj_path, mapping_json_path, simu_name,
 
     # Engine: Lux
     simu.core.phase.Phase.accelerationEngine = 2
-    n_threads = min(cpu_count(), 8)
-    simu.core.phase.Phase.ExpertModeZone.nbThreads = n_threads
+    simu.core.phase.Phase.ExpertModeZone.nbThreads = DART_THREADS
 
     # Write simulation
     simu.write(overwrite=True)
@@ -1694,8 +1690,7 @@ def create_dart_simulation_multi(obj_paths, mapping_json_paths, simu_name,
 
     # Engine: Lux
     simu.core.phase.Phase.accelerationEngine = 2
-    n_threads = min(cpu_count(), 8)
-    simu.core.phase.Phase.ExpertModeZone.nbThreads = n_threads
+    simu.core.phase.Phase.ExpertModeZone.nbThreads = DART_THREADS
 
     # Write simulation
     simu.write(overwrite=True)

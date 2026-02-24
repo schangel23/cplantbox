@@ -29,14 +29,13 @@ import textwrap
 import xml.etree.ElementTree as ET
 import numpy as np
 from pathlib import Path
-from multiprocessing import cpu_count
 from collections import OrderedDict
 
 import plantbox as pb
 import pytools4dart as ptd
 
 from ..config import (DEFAULT_XML, DART_HOME, DART_EB_DIR, DARTRC,
-                      BALENO_PYTHON, OUTPUT_DIR, get_species,
+                      BALENO_PYTHON, OUTPUT_DIR, DART_THREADS, get_species,
                       get_hydraulics_json, get_photosynthesis_json)
 from ..growth.grow import grow_plant, extract_g3_mesh
 from ..geometry import loft_organs, G3Mesh, extract_organs_for_lofter
@@ -310,9 +309,8 @@ def step3_create_dart_simulation(dart_obj_paths):
 
     # Engine: Lux
     simu.core.phase.Phase.accelerationEngine = 2
-    n_threads = min(cpu_count(), 8)
-    simu.core.phase.Phase.ExpertModeZone.nbThreads = n_threads
-    print(f"  Threads: {n_threads}")
+    simu.core.phase.Phase.ExpertModeZone.nbThreads = DART_THREADS
+    print(f"  Threads: {DART_THREADS}")
 
     # Write
     simu.write(overwrite=True)
@@ -732,8 +730,7 @@ def step6_create_baleno_simus(dart_obj_paths):
     products.radiativeBudgetProperties.budget3DParSurface = 1
 
     simu.core.phase.Phase.accelerationEngine = 2
-    n_threads = min(cpu_count(), 8)
-    simu.core.phase.Phase.ExpertModeZone.nbThreads = n_threads
+    simu.core.phase.Phase.ExpertModeZone.nbThreads = DART_THREADS
 
     simu.write(overwrite=True)
 
