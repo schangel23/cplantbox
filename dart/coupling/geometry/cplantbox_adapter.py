@@ -567,21 +567,33 @@ def extract_organs_for_lofter(plant, min_stem_nodes=50, min_leaf_nodes=20,
                         t = (frac - taper_start) / (1.0 - taper_start)
                         envelope = 1.0 - t
                         widths[i] = min(widths[i], widths[i] * envelope)
-            # Append zero-width point along tip tangent
-            tip_dir = skeleton[-1] - skeleton[-2]
-            tip_len = np.linalg.norm(tip_dir)
-            if tip_len > 1e-8:
-                tip_dir /= tip_len
-                tip_point = skeleton[-1] + tip_dir * (tip_len * 0.5)
-                skeleton = np.vstack([skeleton, tip_point[np.newaxis]])
-                widths = np.concatenate([widths, [0.0]])
+            # Truncate skeleton where width falls below min_tip_width.
+            # Previously appended a zero-width extension point + clamped to
+            # 0.01 cm, but this produced degenerate slivers (~0.0001 cm²)
+            # that cause Baleno's Newton solver to diverge (Tleaf > 80 °C).
+            # Instead, cut the skeleton at the last point with meaningful
+            # width — the taper already makes the tip look pointed.
+            min_tip_width = 0.15  # cm (1.5 mm) — smallest non-degenerate width
+            last_good = len(widths) - 1
+            while last_good > 0 and widths[last_good] < min_tip_width:
+                last_good -= 1
+            if last_good < len(widths) - 1 and last_good >= 1:
+                # Interpolate to find where width crosses min_tip_width
+                # for a clean truncation point
+                next_idx = last_good + 1
+                w0, w1 = widths[last_good], widths[next_idx]
+                if abs(w0 - w1) > 1e-8:
+                    t_interp = (min_tip_width - w0) / (w1 - w0)
+                    t_interp = np.clip(t_interp, 0.0, 1.0)
+                    cut_point = skeleton[last_good] + t_interp * (skeleton[next_idx] - skeleton[last_good])
+                    skeleton = np.vstack([skeleton[:last_good + 1], cut_point[np.newaxis]])
+                    widths = np.concatenate([widths[:last_good + 1], [min_tip_width]])
+                else:
+                    skeleton = skeleton[:last_good + 1]
+                    widths = widths[:last_good + 1]
 
-        # Clamp minimum width to prevent degenerate zero-area triangles.
-        # DART's compute_area() returns NaN for zero-area triangles (arccos
-        # of degenerate cross product), which poisons LAI via np.sum and
-        # cascades NaN through all aerodynamic resistances and temperatures.
-        # 0.01 cm = 0.1 mm — visually indistinguishable from a point.
-        widths = np.maximum(widths, 0.01)
+        # Clamp minimum width — safety net after truncation.
+        widths = np.maximum(widths, 0.15)
 
         # Leaf blade waviness + twist
         leaf_length = np.sum(np.linalg.norm(np.diff(skeleton, axis=0), axis=1))

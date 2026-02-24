@@ -27,7 +27,7 @@ import json
 import numpy as np
 from pathlib import Path
 
-from ..config import PHOTO_PATH
+from ..config import get_species, get_hydraulics_json, get_photosynthesis_json
 from .coupled import run_photosynthesis_solve
 
 # Unit conversion constants
@@ -297,7 +297,8 @@ def run_iterative_coupling(
             "Cab": 55, "Cca": 10, "Cs": 0, "Cw": 0.012, "Cdm": 0.01,
             "N": 1.4, "fqe": 0,
             "Vcmax25": 50, "BallBerrySlope": 8, "BallBerry0": 0.01,
-            "RdPerVcmax25": 0.015, "Type": "C4",
+            "RdPerVcmax25": get_species()["rd_per_vcmax25"],
+            "Type": get_species()["photo_type"],
             "rho_thermal": 0.01, "tau_thermal": 0.01, "stress_factor": 1,
         })
 
@@ -385,11 +386,10 @@ def _extract_gs_from_solve(plant, sim_time, par_umol, tleaf, rh, soil_psi_cm):
     from ..prospect_params import get_chl_for_photosynthesis
 
     params = PlantHydraulicParameters()
-    params.read_parameters(PHOTO_PATH + "maize_couvreur2012_hydraulics")
+    params.read_parameters(get_hydraulics_json())
 
     hm = PhotosynthesisPython(plant, params)
-    hm.read_photosynthesis_parameters(
-        filename=PHOTO_PATH + "maize_C4_photosynthesis_parameters")
+    hm.read_photosynthesis_parameters(filename=get_photosynthesis_json())
 
     chl = get_chl_for_photosynthesis(sim_time)
     hm.Chl = [chl]
@@ -433,10 +433,9 @@ def _extract_gs_from_solve(plant, sim_time, par_umol, tleaf, rh, soil_psi_cm):
         seg_areas = np.maximum(seg_areas, 1e-6)
         An_umol = An * 1e6 / 86400 * 1e4 / seg_areas  # µmol/m²/s
 
-        # Simple gs estimate for C4: gs = An * 1.6 / (Ca - Ci)
-        # Assume Ci/Ca ~ 0.4 for C4 (typical)
+        # Simple gs estimate: gs = An * 1.6 / (Ca - Ci)
         Ca = 400.0  # ppm
-        Ci_frac = 0.4
+        Ci_frac = get_species()["ci_ca_ratio"]
         gs_h2o = An_umol * 1.6 / (Ca * (1 - Ci_frac) + 1e-10)  # mol/m²/s approx
         gco2 = gs_h2o / 1.6
         gco2 = np.maximum(gco2, 0.0)

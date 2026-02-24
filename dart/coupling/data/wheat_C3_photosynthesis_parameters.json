@@ -1,0 +1,37 @@
+{
+  "Climate": {
+    "Patm":    {"value": 1013.15, "unit": "hPa",        "description": "Atmospheric pressure"},
+    "pCO2":    {"value": 0.00040, "unit": "mol mol-1",  "description": "CO2 partial pressure (current ~400 ppm)"},
+    "g_bl":    {"value": [24.192],  "unit": "mol CO2 cm-2 d-1", "description": "Leaf boundary molar conductance"},
+    "g_canopy":{"value": [52.704],  "unit": "mol CO2 cm-2 d-1", "description": "Aerodynamic molar conductance"},
+    "g_air":   {"value": [98.496],  "unit": "mol CO2 cm-2 d-1", "description": "Aerodynamic molar conductance"}
+  },
+  "Plant": {
+    "C3 and C4": {
+      "PhotoType": {"value": 0, "description": "Photosynthesis type: 0=C3, 1=C4  -- WHEAT IS C3"},
+      "gm":     {"value": 0.25920, "unit": "mol CO2 cm-2 d-1", "description": "Mesophyll conductance"},
+      "g0":     {"value": 0.00691, "unit": "mol CO2 cm-2 d-1", "description": "Residual stomatal conductance (Giraud2023: 0.008 mol/m2/s -> cm-2 d-1)"},
+      "a1":     {"value": 0.5,     "unit": "",                  "description": "Tuzet 2003 stomatal parameter (Giraud2023)"},
+      "alpha":  {"value": 0.4,     "unit": "-",                 "description": "C3 quantum yield (mol CO2/mol photons, Giraud2023)"},
+      "water stress": {
+        "fwr":      {"value": 0.09308,    "unit": "-",  "description": "Residual opening under water stress (Corso 2020)"},
+        "fw_cutoff":{"value": 0.0,        "unit": "-",  "description": "Cutoff for fw"},
+        "sh":       {"value": 0.0003765,  "unit": "-",  "description": "Sensitivity to water stress"},
+        "p_lcrit":  {"value": -76477500.0,"unit": "cm", "description": "Min xylem water potential for stomatal opening"}
+      },
+      "Vc": {
+        "Chl":          {"value": [5.03e-04], "unit": "g cm-2", "description": "Chlorophyll concentration (~503 ug/cm2 from SPAD=41 via Qian 2021, Giraud2023)"},
+        "VcmaxrefChl1": {"value": 1.28,      "unit": "-",      "description": "Vcmax-Chl slope (Giraud2023): Vcrefmax=(VcmaxrefChl1*Chl+VcmaxrefChl2)*1e-6 [mol m-2 s-1]"},
+        "VcmaxrefChl2": {"value": 8.33,      "unit": "-",      "description": "Vcmax-Chl intercept (Giraud2023). At typical wheat Cab: Vcmax~60-80 umol m-2 s-1"}
+      }
+    },
+    "C3": {
+      "a3":    {"value": 1.5, "unit": "-",        "description": "Jrefmax/Vcrefmax ratio (Giraud2023)"},
+      "theta": {"value": 0.6, "unit": "-",        "description": "Light response curvature (Giraud2023)"},
+      "oi":    {"value": 0.21, "unit": "mol mol-1","description": "Leaf internal O2"}
+    },
+    "C4": {
+      "Q10_photo": {"value": 2.0, "unit": "-", "description": "Temperature sensitivity (not used for C3)"}
+    }
+  }
+}

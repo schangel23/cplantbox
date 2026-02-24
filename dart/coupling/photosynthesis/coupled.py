@@ -29,7 +29,7 @@ from collections import OrderedDict
 
 import plantbox as pb
 
-from ..config import DEFAULT_XML, OUTPUT_DIR, PHOTO_PATH
+from ..config import DEFAULT_XML, OUTPUT_DIR, get_hydraulics_json, get_photosynthesis_json
 from ..growth.grow import grow_plant
 from ..prospect_params import get_chl_for_photosynthesis, get_prospect_params, log_consistency
 
@@ -196,12 +196,11 @@ def run_photosynthesis_solve(plant, sim_time, par, tleaf, label,
 
     # --- Hydraulic parameters ---
     params = PlantHydraulicParameters()
-    params.read_parameters(PHOTO_PATH + "maize_couvreur2012_hydraulics")
+    params.read_parameters(get_hydraulics_json())
 
     # --- Photosynthesis model ---
     hm = PhotosynthesisPython(plant, params)
-    hm.read_photosynthesis_parameters(
-        filename=PHOTO_PATH + "maize_C4_photosynthesis_parameters")
+    hm.read_photosynthesis_parameters(filename=get_photosynthesis_json())
 
     # Override Chl from shared PROSPECT table to ensure Cab consistency
     chl_from_prospect = get_chl_for_photosynthesis(sim_time)

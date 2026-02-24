@@ -301,8 +301,10 @@ def _subdivide_skeleton(skeleton, widths, target_spacing=0.5):
     new_arc = np.linspace(0, total_length, m)
     new_skeleton = np.column_stack([cs_x(new_arc), cs_y(new_arc), cs_z(new_arc)])
     new_widths = cs_w(new_arc)
-    # Clamp widths to non-negative
-    new_widths = np.maximum(new_widths, 0.0)
+    # Clamp widths: cubic spline can overshoot to negative or near-zero
+    # values.  Enforce the same minimum as cplantbox_adapter (0.15 cm)
+    # to prevent degenerate slivers downstream.
+    new_widths = np.maximum(new_widths, 0.15)
 
     # Map each new segment (between new points i and i+1) back to the
     # original skeleton segment it falls within.  Use the midpoint of
@@ -337,6 +339,55 @@ def _loft_leaf(organ):
     plane_normal = organ.get("plane_normal")
     per_point_normals = organ.get("per_point_normals")
     gutter_depths = organ.get("gutter_depths")
+
+    # Resample skeleton to enforce minimum segment length.  With n_cross=7,
+    # very short segments create thin-strip triangles with area below the
+    # degenerate threshold.  For min_width=0.15 cm and n_cross=7:
+    #   min_area ≈ 0.5 * seg_len * (0.15 / 6) = seg_len * 0.0125
+    # Requiring min_area > 0.002 cm² → seg_len > 0.16 cm.
+    # Use uniform resampling at 0.2 cm to guarantee clean triangles.
+    min_seg_len = 0.2  # cm
+    total_skel_len = np.sum(np.linalg.norm(np.diff(skeleton, axis=0), axis=1))
+    avg_spacing = total_skel_len / max(len(skeleton) - 1, 1)
+    if avg_spacing < min_seg_len and len(skeleton) > 3 and total_skel_len > min_seg_len * 2:
+        # Resample at min_seg_len spacing using linear interpolation
+        cum = np.concatenate([[0.0], np.cumsum(np.linalg.norm(
+            np.diff(skeleton, axis=0), axis=1))])
+        n_new = max(3, int(np.ceil(total_skel_len / min_seg_len)) + 1)
+        new_arc = np.linspace(0, total_skel_len, n_new)
+        new_skeleton = np.column_stack([
+            np.interp(new_arc, cum, skeleton[:, d]) for d in range(3)
+        ])
+        new_widths = np.interp(new_arc, cum, widths)
+        new_widths = np.maximum(new_widths, 0.15)
+
+        # Rebuild per_point_normals if present
+        if per_point_normals is not None:
+            ppn = np.asarray(per_point_normals, dtype=np.float64)
+            new_ppn = np.column_stack([
+                np.interp(new_arc, cum, ppn[:, d]) for d in range(3)
+            ])
+            norms = np.linalg.norm(new_ppn, axis=1, keepdims=True)
+            new_ppn /= np.maximum(norms, 1e-8)
+            per_point_normals = new_ppn
+
+        if gutter_depths is not None:
+            gd = np.asarray(gutter_depths, dtype=np.float64)
+            gutter_depths = np.interp(new_arc, cum, gd)
+
+        # Rebuild orig_segment_map
+        orig_seg_map = organ.get("_orig_segment_map")
+        if orig_seg_map is not None:
+            old_mid = (cum[:-1] + cum[1:]) / 2.0
+            new_mid = (new_arc[:-1] + new_arc[1:]) / 2.0
+            new_map = np.searchsorted(cum, new_mid, side="right") - 1
+            new_map = np.clip(new_map, 0, len(orig_seg_map) - 1)
+            new_seg_map = orig_seg_map[new_map]
+            organ = dict(organ, _orig_segment_map=new_seg_map)
+
+        skeleton = new_skeleton
+        widths = new_widths
+
     n = len(skeleton)
 
     # Number of vertices across the width.
@@ -384,6 +435,11 @@ def _loft_leaf(organ):
         for i in range(n):
             if widths[i] > curv_max_w[i]:
                 widths[i] = curv_max_w[i]
+
+        # Re-clamp after curvature capping: very high curvature can push
+        # widths below the minimum, creating degenerate slivers that cause
+        # Baleno Newton divergence.  0.15 cm matches the adapter minimum.
+        widths = np.maximum(widths, 0.15)
 
     # Resolve per-point normals: interpolate to match skeleton length if needed
     use_per_point = per_point_normals is not None
@@ -1060,7 +1116,54 @@ def loft_organs(organs, stem_sides=8, subdivide=True, target_spacing=0.5,
     if smooth:
         mesh = _laplacian_smooth(mesh, iterations=smooth_iterations)
 
+    mesh = _remove_degenerate_triangles(mesh)
+
     return mesh
+
+
+def _remove_degenerate_triangles(mesh, min_area_cm2=0.001):
+    """Remove triangles below a minimum area threshold.
+
+    Degenerate slivers at leaf tips (width → 0) cause Baleno's Newton
+    solver to diverge, producing non-physical temperatures (80–150 °C).
+    Removing them at the geometry stage prevents the issue entirely.
+
+    Mesh vertices are in cm, so areas from cross products are in cm².
+    Day-10 normal triangles are ~0.01–0.04 cm²; mature plants ~2–3 cm²;
+    degenerate tip slivers are ~0.0001 cm².  Default threshold 0.001 cm²
+    removes only the true slivers across all growth stages.
+
+    Args:
+        mesh: G3Mesh instance (vertices in cm).
+        min_area_cm2: Minimum triangle area in cm².  Default 0.001 cm².
+
+    Returns:
+        New G3Mesh with degenerate triangles removed.
+    """
+    verts = mesh.vertices
+
+    # Compute triangle areas via cross product
+    v0 = verts[mesh.indices[:, 0]]
+    v1 = verts[mesh.indices[:, 1]]
+    v2 = verts[mesh.indices[:, 2]]
+    areas = 0.5 * np.linalg.norm(np.cross(v1 - v0, v2 - v0), axis=1)
+
+    keep = areas >= min_area_cm2
+    n_removed = int(np.sum(~keep))
+
+    if n_removed > 0:
+        print(f"  Removed {n_removed}/{len(mesh.indices)} degenerate triangles "
+              f"(area < {min_area_cm2} cm²)")
+
+    return G3Mesh(
+        vertices=mesh.vertices,
+        indices=mesh.indices[keep],
+        normals=mesh.normals,
+        uvs=mesh.uvs,
+        organ_ids=mesh.organ_ids[keep],
+        segment_ids=mesh.segment_ids[keep],
+        organ_meta=mesh.organ_meta,
+    )
 
 
 def render_views(mesh, output_dir, prefix="g3"):
@@ -1194,7 +1297,18 @@ def _laplacian_smooth(mesh, iterations=3, lambda_factor=0.5):
             boundary.add(v0)
             boundary.add(v1)
 
-    # Iterative Laplacian smoothing
+    # Build vertex-to-triangle adjacency for quality checking
+    vert_tris = [[] for _ in range(n_verts)]
+    for ti, tri in enumerate(indices):
+        for v in tri:
+            vert_tris[v].append(ti)
+
+    # Minimum triangle area to preserve during smoothing (cm²).
+    # Prevents Laplacian smoothing from collapsing narrow triangles
+    # at leaf tips into degenerate slivers.
+    min_area_smooth = 0.002  # cm²
+
+    # Iterative Laplacian smoothing with quality guard
     for _ in range(iterations):
         new_verts = vertices.copy()
         for i in range(n_verts):
@@ -1202,7 +1316,22 @@ def _laplacian_smooth(mesh, iterations=3, lambda_factor=0.5):
                 continue
             neighbors = list(adjacency[i])
             avg = vertices[neighbors].mean(axis=0)
-            new_verts[i] = vertices[i] + lambda_factor * (avg - vertices[i])
+            candidate = vertices[i] + lambda_factor * (avg - vertices[i])
+
+            # Check that moving this vertex wouldn't create any
+            # triangle with area below the minimum threshold.
+            ok = True
+            for ti in vert_tris[i]:
+                a, b, c = indices[ti]
+                va = candidate if a == i else new_verts[a]
+                vb = candidate if b == i else new_verts[b]
+                vc = candidate if c == i else new_verts[c]
+                area = 0.5 * np.linalg.norm(np.cross(vb - va, vc - va))
+                if area < min_area_smooth:
+                    ok = False
+                    break
+            if ok:
+                new_verts[i] = candidate
         vertices = new_verts
 
     # Recalculate per-vertex normals as average of adjacent face normals

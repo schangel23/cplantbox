@@ -24,7 +24,7 @@ import argparse
 
 import plantbox as pb
 
-from ..config import HYDRAULICS_PATH, PHOTO_PATH, DEFAULT_XML
+from ..config import HYDRAULICS_PATH, DEFAULT_XML, get_hydraulics_json, get_photosynthesis_json
 from ..geometry import loft_organs, G3Mesh, extract_organs_for_lofter
 
 # ---------------------------------------------------------------------------
@@ -228,14 +228,13 @@ def run_photosynthesis(plant, sim_time, output_prefix,
     from plantbox.functional.Photosynthesis import PhotosynthesisPython
     from plantbox.functional.PlantHydraulicParameters import PlantHydraulicParameters
 
-    # --- Hydraulic parameters (Couvreur 2012 — maize root conductivities) ---
+    # --- Hydraulic parameters ---
     params = PlantHydraulicParameters()
-    params.read_parameters(PHOTO_PATH + "maize_couvreur2012_hydraulics")
+    params.read_parameters(get_hydraulics_json())
 
     # --- Photosynthesis model (fast — no phloem overhead) ---
     hm = PhotosynthesisPython(plant, params)
-    photo_json = PHOTO_PATH + "maize_C4_photosynthesis_parameters"
-    hm.read_photosynthesis_parameters(filename=photo_json)
+    hm.read_photosynthesis_parameters(filename=get_photosynthesis_json())
     vcmax_umol = (hm.VcmaxrefChl1 * hm.Chl[0] + hm.VcmaxrefChl2)
     print(f"  PhotoType={'C4' if hm.PhotoType == 1 else 'C3'}, "
           f"Vcmax~{vcmax_umol:.1f} umol m-2 s-1 (Chl={hm.Chl[0]:.1f} ug/cm2)")

@@ -1,5 +1,6 @@
 """CLI entry point: python -m coupling <subcommand>."""
 import argparse
+import os
 import sys
 
 
@@ -7,6 +8,10 @@ def cli():
     parser = argparse.ArgumentParser(
         prog="coupling",
         description="CPlantBox-DART coupling pipeline.",
+    )
+    parser.add_argument(
+        "--species", type=str, default=None,
+        help="Plant species (default: maize). Sets COUPLING_SPECIES env var.",
     )
     sub = parser.add_subparsers(dest="command", required=True)
 
@@ -35,6 +40,10 @@ def cli():
     sub.add_parser("calibrate", help="Calibrate maize XML")
 
     args, remaining = parser.parse_known_args()
+
+    # Set species env var BEFORE importing subcommands (config.py reads it)
+    if args.species:
+        os.environ["COUPLING_SPECIES"] = args.species.lower()
 
     if args.command == "simulation":
         from .dart.simulation import main

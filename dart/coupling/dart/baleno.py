@@ -31,7 +31,7 @@ from multiprocessing import cpu_count
 
 import pytools4dart as ptd
 
-from ..config import DART_HOME, DART_EB_DIR, DARTRC, BALENO_PYTHON, OUTPUT_DIR
+from ..config import DART_HOME, DART_EB_DIR, DARTRC, BALENO_PYTHON, OUTPUT_DIR, get_species
 from ..prospect_params import get_prospect_params, log_consistency, vcmax25_from_cab
 
 # ---------------------------------------------------------------------------
@@ -415,8 +415,8 @@ def step3_create_baleno_configs():
         "Vcmax25": round(vcmax25_from_cab(55), 1),
         "BallBerrySlope": 8,
         "BallBerry0": 0.01,
-        "RdPerVcmax25": 0.015,
-        "Type": "C4",
+        "RdPerVcmax25": get_species()["rd_per_vcmax25"],
+        "Type": get_species()["photo_type"],
         "rho_thermal": 0.01,
         "tau_thermal": 0.01,
         "stress_factor": 1,
@@ -459,7 +459,7 @@ def step3_create_baleno_configs():
     # modelling_parameters.json5
     _write_json5(input_dir / 'modelling_parameters.json5', {
         "EB_error": 5,
-        "max_iteration": 10,
+        "max_iteration": 20,
         "min_variation_rate": 0,
         "closure_method": "Newton",
         "load_state": False,
@@ -1637,7 +1637,9 @@ def _create_baleno_configs(baleno_simu_name, dart_simu_name):
         "Cab": 55, "Cca": 10, "Cs": 0, "Cw": 0.012, "Cdm": 0.01,
         "N": 1.4, "fqe": 0, "Vcmax25": round(vcmax25_from_cab(55), 1),
         "BallBerrySlope": 8,
-        "BallBerry0": 0.01, "RdPerVcmax25": 0.015, "Type": "C4",
+        "BallBerry0": 0.01,
+        "RdPerVcmax25": get_species()["rd_per_vcmax25"],
+        "Type": get_species()["photo_type"],
         "rho_thermal": 0.01, "tau_thermal": 0.01, "stress_factor": 1,
     })
     _write_json5(input_dir / 'radiation.json5', {"Plugin": "DART", "Model": "DART"})
@@ -1653,7 +1655,7 @@ def _create_baleno_configs(baleno_simu_name, dart_simu_name):
         "Monin_Obukhov_correction": True,
     })
     _write_json5(input_dir / 'modelling_parameters.json5', {
-        "EB_error": 5, "max_iteration": 10, "min_variation_rate": 0,
+        "EB_error": 5, "max_iteration": 20, "min_variation_rate": 0,
         "closure_method": "Newton", "load_state": False,
     })
     _write_json5(input_dir / 'output.json5', {
@@ -1831,10 +1833,12 @@ def read_baleno_tleaf(baleno_sim_dir, mapping_json_path, reindex_json_path,
                             dtype=float, filling_values=np.nan)
 
     col_temp = -1
+    col_eb_err = -1
     for i, h in enumerate(eb_header):
         if 'temperature' in h.lower():
             col_temp = i
-            break
+        if 'error' in h.lower():
+            col_eb_err = i
     if col_temp < 0:
         col_temp = 1
 
@@ -1916,6 +1920,12 @@ def read_baleno_tleaf(baleno_sim_dir, mapping_json_path, reindex_json_path,
     with open(mapping_json_path) as f:
         seg_mapping = _json.load(f)
 
+    # EB_ERROR threshold: reject triangles where Baleno didn't converge.
+    # Well-converged triangles have |EB_ERROR| < 3 W/m²; non-converged
+    # ones reach 80–160 W/m² and produce non-physical Tleaf (80–150 °C).
+    EB_ERR_MAX = 20.0  # W/m²
+    n_rejected = 0
+
     segment_tleaf = []
     for organ in seg_mapping['organs']:
         if organ['type'] != 'leaf':
@@ -1928,12 +1938,22 @@ def read_baleno_tleaf(baleno_sim_dir, mapping_json_path, reindex_json_path,
                     row = obj_to_baleno[tidx]
                     if row < eb_data.shape[0] and col_temp < eb_data.shape[1]:
                         t = eb_data[row, col_temp]
-                        if not np.isnan(t):
-                            temps.append(t - 273.15)  # K → °C
+                        if np.isnan(t):
+                            continue
+                        # Reject non-converged triangles
+                        if col_eb_err >= 0 and col_eb_err < eb_data.shape[1]:
+                            err = abs(eb_data[row, col_eb_err])
+                            if err > EB_ERR_MAX:
+                                n_rejected += 1
+                                continue
+                        temps.append(t - 273.15)  # K → °C
             if temps:
                 segment_tleaf.append(float(np.mean(temps)))
             else:
                 segment_tleaf.append(25.0)  # fallback
+
+    if n_rejected > 0:
+        print(f"  Tleaf: rejected {n_rejected} triangles with |EB_ERROR| > {EB_ERR_MAX} W/m²")
 
     return np.array(segment_tleaf)
 
@@ -2050,7 +2070,8 @@ def run_baleno_with_external_gs(gs_per_segment, mapping_json_path,
         "N": 1.4, "fqe": 0,
         "Vcmax25": round(vcmax25_from_cab(55), 1),
         "BallBerrySlope": 8, "BallBerry0": 0.01,
-        "RdPerVcmax25": 0.015, "Type": "C4",
+        "RdPerVcmax25": get_species()["rd_per_vcmax25"],
+        "Type": get_species()["photo_type"],
         "rho_thermal": 0.01, "tau_thermal": 0.01, "stress_factor": 1,
     })
 

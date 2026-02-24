@@ -36,7 +36,8 @@ import plantbox as pb
 import pytools4dart as ptd
 
 from ..config import (DEFAULT_XML, DART_HOME, DART_EB_DIR, DARTRC,
-                      BALENO_PYTHON, OUTPUT_DIR, PHOTO_PATH)
+                      BALENO_PYTHON, OUTPUT_DIR, get_species,
+                      get_hydraulics_json, get_photosynthesis_json)
 from ..growth.grow import grow_plant, extract_g3_mesh
 from ..geometry import loft_organs, G3Mesh, extract_organs_for_lofter
 from ..geometry import convert_obj_to_dart, convert_mapping_json_groups
@@ -866,7 +867,8 @@ def step7_run_baleno():
         "Cab": 55, "Cca": 10, "Cs": 0, "Cw": 0.012, "Cdm": 0.01,
         "N": 1.4, "fqe": 0, "Vcmax25": 50,
         "BallBerrySlope": 8, "BallBerry0": 0.01,
-        "RdPerVcmax25": 0.015, "Type": "C4",
+        "RdPerVcmax25": get_species()["rd_per_vcmax25"],
+        "Type": get_species()["photo_type"],
         "rho_thermal": 0.01, "tau_thermal": 0.01, "stress_factor": 1,
     })
     _write_json5(input_dir / 'radiation.json5',
@@ -1473,11 +1475,10 @@ def step9_photosynthesis(apar_results, baleno_results, mappings):
 
         # Setup hydraulics + photosynthesis
         params = PlantHydraulicParameters()
-        params.read_parameters(PHOTO_PATH + "maize_couvreur2012_hydraulics")
+        params.read_parameters(get_hydraulics_json())
 
         hm = PhotosynthesisPython(plant, params)
-        hm.read_photosynthesis_parameters(
-            filename=PHOTO_PATH + "maize_C4_photosynthesis_parameters")
+        hm.read_photosynthesis_parameters(filename=get_photosynthesis_json())
 
         # Solve
         depth = 100
