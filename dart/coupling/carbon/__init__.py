@@ -1,0 +1,4 @@
+"""Carbon partitioning subpackage: quasi-steady phloem transport and DVS fallback."""
+
+from .phloem_steady import QuasiSteadyPhloem, solve_carbon_partitioning
+from .dvs_partitioning import partition_carbon_dvs

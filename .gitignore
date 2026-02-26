@@ -56,3 +56,9 @@ tutorial/jupyter/.ipynb_checkpoints/
 # images
 *.png
 .vscode/settings.json
+
+# Coupling pipeline output (generated data, OBJ meshes, session results)
+dart/coupling/output/
+
+# Virtual environments
+cpbenv/

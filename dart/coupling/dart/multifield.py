@@ -36,7 +36,7 @@ import pytools4dart as ptd
 
 from ..config import (DEFAULT_XML, DART_HOME, DART_EB_DIR, DARTRC,
                       BALENO_PYTHON, OUTPUT_DIR, DART_THREADS, get_species,
-                      get_hydraulics_json, get_photosynthesis_json)
+                      get_hydraulics_json, get_photosynthesis_json, get_phloem_json)
 from ..growth.grow import grow_plant, extract_g3_mesh
 from ..geometry import loft_organs, G3Mesh, extract_organs_for_lofter
 from ..geometry import convert_obj_to_dart, convert_mapping_json_groups
@@ -1411,7 +1411,7 @@ def step9_photosynthesis(apar_results, baleno_results, mappings):
     print("STEP 9: Per-Plant Photosynthesis")
     print("=" * 70)
 
-    from plantbox.functional.Photosynthesis import PhotosynthesisPython
+    from plantbox.functional.phloem_flux import PhloemFluxPython
     from plantbox.functional.PlantHydraulicParameters import PlantHydraulicParameters
 
     all_photo_results = []
@@ -1470,12 +1470,13 @@ def step9_photosynthesis(apar_results, baleno_results, mappings):
             continue
         print(f"  Alignment OK: {n_cpb} leaf segments")
 
-        # Setup hydraulics + photosynthesis
+        # Setup hydraulics + photosynthesis + phloem
         params = PlantHydraulicParameters()
         params.read_parameters(get_hydraulics_json())
 
-        hm = PhotosynthesisPython(plant, params)
+        hm = PhloemFluxPython(plant, params)
         hm.read_photosynthesis_parameters(filename=get_photosynthesis_json())
+        hm.read_phloem_parameters(filename=get_phloem_json())
 
         # Solve
         depth = 100

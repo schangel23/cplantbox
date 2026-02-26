@@ -27,7 +27,7 @@ import json
 import numpy as np
 from pathlib import Path
 
-from ..config import get_species, get_hydraulics_json, get_photosynthesis_json
+from ..config import get_species, get_hydraulics_json, get_photosynthesis_json, get_phloem_json
 from .coupled import run_photosynthesis_solve
 
 # Unit conversion constants
@@ -381,15 +381,16 @@ def _extract_gs_from_solve(plant, sim_time, par_umol, tleaf, rh, soil_psi_cm):
 
     Returns array of gs [mol CO2/m²/s] per leaf segment, or None on failure.
     """
-    from plantbox.functional.Photosynthesis import PhotosynthesisPython
+    from plantbox.functional.phloem_flux import PhloemFluxPython
     from plantbox.functional.PlantHydraulicParameters import PlantHydraulicParameters
     from ..prospect_params import get_chl_for_photosynthesis
 
     params = PlantHydraulicParameters()
     params.read_parameters(get_hydraulics_json())
 
-    hm = PhotosynthesisPython(plant, params)
+    hm = PhloemFluxPython(plant, params)
     hm.read_photosynthesis_parameters(filename=get_photosynthesis_json())
+    hm.read_phloem_parameters(filename=get_phloem_json())
 
     chl = get_chl_for_photosynthesis(sim_time)
     hm.Chl = [chl]

@@ -53,6 +53,7 @@ SPECIES_REGISTRY = {
         "vcmax_chl2": 4.165,         # Vcmax-Chl intercept
         "hydraulics": "maize_couvreur2012_hydraulics",
         "photosynthesis": "maize_C4_photosynthesis_parameters",
+        "phloem": "phloem_parameters_maize2026",
     },
     "wheat": {
         "photo_type": "C3",
@@ -67,6 +68,7 @@ SPECIES_REGISTRY = {
         "vcmax_chl2": 8.33,          # Vcmax-Chl intercept (Giraud2023)
         "hydraulics": "wheat_Giraud2023adapted",
         "photosynthesis": "wheat_C3_photosynthesis_parameters",
+        "phloem": "wheat_phloem_parameters",
     },
 }
 
@@ -103,6 +105,11 @@ def _species_photosynthesis_json() -> str:
     return str(DATA_DIR / sp["photosynthesis"])  # no .json (CPlantBox appends)
 
 
+def _species_phloem_json() -> str:
+    sp = get_species()
+    return str(DATA_DIR / sp["phloem"])  # no .json (CPlantBox appends)
+
+
 DEFAULT_XML = DATA_DIR / "maize_calibrated.xml"
 DEFAULT_TEMPLATE_XML = CPLANTBOX_ROOT / "modelparameter" / "structural" / "plant" / "maize.xml"
 PHOTO_PATH = str(DATA_DIR) + "/"  # trailing slash for CPlantBox API compatibility
@@ -118,11 +125,17 @@ def get_photosynthesis_json() -> str:
     return _species_photosynthesis_json()
 
 
+def get_phloem_json() -> str:
+    """Return path to active species' phloem JSON (no .json extension)."""
+    return _species_phloem_json()
+
+
 # Module-level variables — evaluated at import time.
 # Since __main__.py sets COUPLING_SPECIES before importing subcommands,
 # these reflect the correct species when used via the CLI.
 HYDRAULICS_JSON = _species_hydraulics_json()
 PHOTOSYNTHESIS_JSON = _species_photosynthesis_json()
+PHLOEM_JSON = _species_phloem_json()
 
 # MaizeField3D data
 MAIZEFIELD3D_STATS = DATA_DIR / "maizefield3d_stats.json"

@@ -116,7 +116,8 @@ def setup_plants_and_meshes(sim_day, output_subdir):
         print(f"\n  --- Plant {i} (seed={seed}) ---")
 
         plant = grow_plant(XML_PATH, simulation_time=sim_day,
-                           min_stem_nodes=50, min_leaf_nodes=20, seed=seed)
+                           min_stem_nodes=50, min_leaf_nodes=20, seed=seed,
+                           enable_photosynthesis=True)
 
         # Extract organs with plant prefix for unique group names
         organ_dicts = extract_organs_for_lofter(
@@ -509,6 +510,16 @@ def run_single_day(sim_day, timestep_min=30, enable_baleno=True,
             print(f"    An: field mean={An_field_mean:.3f} "
                   f"+/-{An_field_std:.3f} mmol CO2/d")
 
+        # --- Per-timestep DVS carbon tracking ---
+        An_field_mean = float(np.mean(per_plant_An))
+        dvs_carbon = None
+        if not skip_photosynthesis and An_field_mean > 0:
+            try:
+                from ..carbon.dvs_partitioning import partition_carbon_dvs
+                dvs_carbon = partition_carbon_dvs(An_field_mean, sim_day, Tair_C=T_air_C)
+            except Exception as e:
+                print(f"    DVS carbon tracking error: {e}")
+
         step_time = time.time() - t_step
         print(f"    Step time: {step_time:.1f}s")
 
@@ -523,9 +534,14 @@ def run_single_day(sim_day, timestep_min=30, enable_baleno=True,
             'mean_apar_umol': mean_par_umol,
             'dart_mean_apar': field_mean_apar,
             'mean_tleaf_C': mean_tleaf,
-            'An_field_mean_mmol_d': float(np.mean(per_plant_An)),
+            'An_field_mean_mmol_d': An_field_mean,
             'An_field_std_mmol_d': float(np.std(per_plant_An)),
         }
+        if dvs_carbon is not None:
+            hourly_row['Rm_dvs_mmol'] = dvs_carbon['Rm_total_mmol']
+            hourly_row['Rg_dvs_mmol'] = dvs_carbon['Rg_total_mmol']
+            hourly_row['FR_leaf_dvs'] = dvs_carbon['FR_leaf']
+            hourly_row['FR_root_dvs'] = dvs_carbon['FR_root']
         # Per-plant An values
         for pi in range(N_PLANTS):
             hourly_row[f'An_p{pi}'] = per_plant_An[pi]
@@ -571,6 +587,110 @@ def run_single_day(sim_day, timestep_min=30, enable_baleno=True,
     }
 
 
+def run_single_day_with_carbon(sim_day, timestep_min=30, enable_baleno=True,
+                               met_csv=None, skip_photosynthesis=False,
+                               iterate_gs=False, gs_max_iterations=6,
+                               gs_tolerance=0.05, gs_damping_alpha=0.6,
+                               carbon_method='auto'):
+    """Run diurnal loop + daily carbon partitioning and AgroC export.
+
+    Wraps run_single_day() and appends:
+      1. Grows one representative plant (center seed) with roots
+      2. Runs photosynthesis at peak-hour conditions
+      3. Scales per-segment An to match diurnal-integrated daily total
+      4. Solves carbon partitioning (phloem or DVS)
+      5. Exports AgroC coupling timestep
+
+    Args:
+        sim_day: simulation day (days since sowing).
+        timestep_min: diurnal timestep [min].
+        enable_baleno: run Baleno energy balance.
+        met_csv: optional met forcing CSV.
+        skip_photosynthesis: skip photosynthesis (aPAR only).
+        iterate_gs: iterative Tuzet-Baleno coupling.
+        gs_max_iterations, gs_tolerance, gs_damping_alpha: gs params.
+        carbon_method: 'auto', 'phloem', or 'dvs'.
+
+    Returns:
+        dict with all run_single_day keys plus 'daily_carbon' and 'daily_agroc_ts'.
+    """
+    # 1. Run diurnal photosynthesis loop
+    result = run_single_day(
+        sim_day, timestep_min=timestep_min,
+        enable_baleno=enable_baleno, met_csv=met_csv,
+        skip_photosynthesis=skip_photosynthesis,
+        iterate_gs=iterate_gs,
+        gs_max_iterations=gs_max_iterations,
+        gs_tolerance=gs_tolerance,
+        gs_damping_alpha=gs_damping_alpha,
+    )
+
+    daily_An_mol = result.get('daily_An_mol_field_mean', 0.0)
+    daily_An_mmol = daily_An_mol * 1000.0
+
+    if daily_An_mmol <= 0 or skip_photosynthesis:
+        result['daily_carbon'] = None
+        result['daily_agroc_ts'] = None
+        return result
+
+    # 2. Grow center plant with roots for carbon partitioning
+    from ..growth.grow import grow_plant, run_photosynthesis, extract_lai_profile
+    from ..carbon import solve_carbon_partitioning
+    from ..agroc import export_agroc_timestep
+
+    center_seed = FIELD_SEED + CENTER_PLANT_IDX
+    plant = grow_plant(XML_PATH, simulation_time=sim_day,
+                       min_stem_nodes=50, min_leaf_nodes=20,
+                       seed=center_seed, enable_photosynthesis=True)
+
+    # 3. Run photosynthesis at peak conditions to get per-segment An shape
+    day_dir = OUTPUT_DIR / 'diurnal' / f'day{sim_day}'
+    day_dir.mkdir(parents=True, exist_ok=True)
+    prefix = str(day_dir / f'carbon_photo_day{sim_day}')
+    hm = run_photosynthesis(plant, sim_time=sim_day, output_prefix=prefix,
+                            par_umol=1000.0, tair_c=25.0)
+
+    if hm is None:
+        result['daily_carbon'] = None
+        result['daily_agroc_ts'] = None
+        return result
+
+    # 4. Scale per-segment An to match diurnal-integrated daily total
+    An_leaf = np.array(hm.get_net_assimilation())  # mol CO2/d per seg
+    An_peak_total = float(np.sum(An_leaf))
+    if An_peak_total > 0:
+        scale = (daily_An_mol) / An_peak_total
+        An_leaf_scaled = An_leaf * scale
+    else:
+        An_leaf_scaled = An_leaf
+
+    # 5. Carbon partitioning
+    try:
+        carbon = solve_carbon_partitioning(
+            plant, An_leaf_scaled, Tair_C=25.0,
+            method=carbon_method, day=sim_day,
+        )
+    except Exception as e:
+        print(f"  Carbon partitioning error: {e}")
+        carbon = None
+
+    # 6. LAI + AgroC export
+    lai = extract_lai_profile(plant, n_bins=10)
+    agroc_ts = None
+    if carbon is not None:
+        try:
+            agroc_ts = export_agroc_timestep(
+                plant, hm, carbon, lai,
+                day=sim_day, par_umol=1000.0, tair_c=25.0,
+            )
+        except Exception as e:
+            print(f"  AgroC export error: {e}")
+
+    result['daily_carbon'] = carbon
+    result['daily_agroc_ts'] = agroc_ts
+    return result
+
+
 def _integrate_daily_per_plant(hourly_results, timestep_min):
     """Integrate per-timestep An to daily total for each plant.
 
@@ -612,6 +732,7 @@ def _save_diurnal_results(day_dir, sim_day, calendar_date, hourly_results,
         'time_utc', 'zenith', 'azimuth', 'T_air_C', 'RH', 'wind_ms',
         'clearsky_par_Wm2', 'mean_apar_umol', 'dart_mean_apar',
         'mean_tleaf_C', 'An_field_mean_mmol_d', 'An_field_std_mmol_d',
+        'Rm_dvs_mmol', 'Rg_dvs_mmol', 'FR_leaf_dvs', 'FR_root_dvs',
     ]
     for pi in range(N_PLANTS):
         fieldnames.append(f'An_p{pi}')

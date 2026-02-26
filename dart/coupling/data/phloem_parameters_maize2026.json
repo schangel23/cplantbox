@@ -1,0 +1,341 @@
+{
+  "InitialValues": {
+    "initValST": {
+      "value": 0.4,
+      "description": "Initial sucrose concentration in sieve tube [mmol/cm3]. Raised from 0.2 to start closer to C_targ=0.8"
+    },
+    "initValMeso": {
+      "value": 0,
+      "description": "Initial sucrose concentration in mesophyll"
+    },
+    "withInitVal": {
+      "value": true,
+      "description": "Use initial values"
+    }
+  },
+  "Growth": {
+    "psi_osmo_proto": {
+      "value": -10078.8,
+      "unit": "cm",
+      "description": "Osmotic potential in protophloem"
+    },
+    "psiMin": {
+      "value": 2039.4,
+      "unit": "cm",
+      "description": "Minimum water potential for growth"
+    },
+    "leafGrowthZone": {
+      "value": 7.5,
+      "unit": "cm",
+      "description": "Leaf growth zone length (Tardieu et al. 2000: 70-80 mm for maize, temperature-invariant)"
+    },
+    "Gr_Y": {
+      "value": 0.8,
+      "description": "Growth efficiency (g DW / g sucrose)"
+    },
+    "StemGrowthPerPhytomer": {
+      "value": true,
+      "description": "Growth per phytomer"
+    },
+    "useCWGr": {
+      "value": true,
+      "description": "Use carbon- and water-limited growth"
+    }
+  },
+  "SieveTube": {
+    "Vmaxloading": {
+      "value": 0.02,
+      "unit": "mmol cm-1 d-1",
+      "description": "Q4: Reduced from 0.05 after other fixes. Start low, increase if leaf export insufficient"
+    },
+    "CSTimin": {
+      "value": 0.2,
+      "description": "Minimum sucrose concentration threshold for loading"
+    },
+    "beta_loading": {
+      "value": 2.0,
+      "description": "Q5: Strong self-regulation (was 0.6). At C_ST=0.8: loading=20% of Vmax. Carpaneto 2005: ZmSUT1 inherently reversible"
+    },
+    "Mloading": {
+      "value": 0.2,
+      "description": "Michaelis-Menten coefficient for loading [mmol Suc cm-3]. Note: molecular Km of ZmSUT1 = 3.7 mM (Carpaneto et al. 2005), but tissue-level apparent Km is higher"
+    },
+    "C_targ": {
+      "value": 0.8,
+      "unit": "mmol Suc cm-3",
+      "description": "Raised from 0.4 to match measured maize phloem concentration. Ohshima 1990: 900-1400 mM; Yesbergenova-Cuny 2016: 844 mM; Jensen 2013: 40.7% w/w (~1190 mM)"
+    },
+    "Q10": {
+      "value": 2.0,
+      "description": "Q10 for maintenance respiration (Di Matteo 2018)"
+    },
+    "TrefQ10": {
+      "value": 20.0,
+      "unit": "\u00b0C",
+      "description": "Reference temperature for Q10"
+    },
+    "KMfu": {
+      "value": 0.11,
+      "description": "Michaelis-Menten coefficient for sucrose usage"
+    },
+    "k_mucil": {
+      "value": 0.0,
+      "unit": "d-1",
+      "description": "Mucilage decay rate"
+    },
+    "k_mucil_": {
+      "value": [],
+      "description": "Vector of mucilage decay rates"
+    },
+    "Vmax_S_ST": {
+      "value": 0.0,
+      "unit": "mmol Suc d-1 cm-3",
+      "description": "Max sucrose usage in sieve tube"
+    },
+    "kM_S_ST": {
+      "value": 0.0,
+      "unit": "mmol Suc cm-3",
+      "description": "Michaelis-Menten constant for ST sucrose usage"
+    },
+    "kHyd_S_ST": {
+      "value": 1.0,
+      "unit": "d-1",
+      "description": "Q3: Starch hydrolysis (was 0.0 = irreversible trap). Must be >0 for bidirectional starch buffer. Stems remobilize reserves during grain fill. kHyd >= k_S -> sucrose dominates at equilibrium"
+    },
+    "k_S_ST": {
+      "value": 0.3,
+      "unit": "d-1",
+      "description": "Q3: Starch synthesis rate per unit parenchyma volume. Was 1.0 (PiafMunch sieve tube vol), reduced for parenchyma-scale storage (245 cm3 at day 55). At 0.3 d-1 and C_eff~0.25: ~18 mmol/d storage. CALIBRATION PARAMETER for FR_stem."
+    },
+    "update_viscosity_": {
+      "value": true,
+      "description": "Update viscosity with concentration (eta ~ exp(4.68*c))"
+    },
+    "usePsiXyl": {
+      "value": true,
+      "description": "Couple sieve tube water potential with xylem potential"
+    }
+  },
+  "Mesophyll": {
+    "C_targMesophyll": {
+      "value": 0.8,
+      "unit": "mmol Suc cm-3",
+      "description": "Matches C_targ (raised from 0.4)"
+    },
+    "Vmax_S_Mesophyll": {
+      "value": 0.0,
+      "unit": "mmol Suc d-1 cm-3",
+      "description": "Max sucrose usage in mesophyll"
+    },
+    "kM_S_Mesophyll": {
+      "value": 0.0,
+      "unit": "mmol Suc cm-3",
+      "description": "Michaelis-Menten constant for mesophyll"
+    },
+    "kHyd_S_Mesophyll": {
+      "value": 0.0,
+      "unit": "d-1",
+      "description": "Sucrose hydrolysis rate in mesophyll"
+    },
+    "k_S_Mesophyll": {
+      "value": 1.0,
+      "unit": "d-1",
+      "description": "Matches k_S_ST (was 20.0)"
+    },
+    "surfMeso": {
+      "value": 0.01,
+      "unit": "cm2",
+      "description": "Cross-sectional area of mesophyll"
+    },
+    "sameVolume_meso_seg": {
+      "value": true,
+      "description": "Same volume for mesophyll and segment"
+    },
+    "sameVolume_meso_st": {
+      "value": false,
+      "description": "Same volume for sieve tube and mesophyll"
+    }
+  },
+  "PerType": {
+    "Across_st": {
+      "value": [
+        [
+          5.701990666265475e-05,
+          1.0178760197630929e-05,
+          1.2723450247038663e-05,
+          5.701990666265475e-05,
+          3.534291735288517e-05
+        ],
+        [
+          0.0006442719309119693
+        ],
+        [
+          3.2731075760506954e-05,
+          4.041285884715655e-05,
+          4.586803814057438e-05,
+          4.876262307177567e-05,
+          5.121188724433061e-05,
+          4.920794383042202e-05,
+          4.776065136482138e-05,
+          4.597936833023596e-05,
+          4.241680226106514e-05,
+          4.041285884715655e-05,
+          3.562566069170825e-05
+        ]
+      ],
+      "unit": "cm2",
+      "description": "Total sieve tube cross-sectional area per organ subtype"
+    },
+    "kr_st": {
+      "value": [
+        [
+          0.01,
+          0.01,
+          0.01,
+          0.01,
+          0.01
+        ],
+        [
+          0.03
+        ],
+        [
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0
+        ]
+      ],
+      "unit": "1 d-1",
+      "description": "Q6: Phloem radial conductivity. Leaf=0 (source). Stem=0.03 (doubled from 0.015 for stem unloading). Root=0.01 (reduced from 0.05; exudation was 37% of loading, target 5-15%)."
+    },
+    "kx_st": {
+      "value": [
+        [
+          1.5092456544771431e-12,
+          1.80354907251773e-13,
+          2.2544363406471624e-13,
+          1.5092456544771431e-12,
+          7.731263170943632e-13
+        ],
+        [
+          5.8628745712989216e-12
+        ],
+        [
+          4.142526775939161e-13,
+          5.11475244784325e-13,
+          5.805173577166445e-13,
+          6.171519482521607e-13,
+          6.481504479360592e-13,
+          6.227880391037786e-13,
+          6.044707438360205e-13,
+          5.819263804295488e-13,
+          5.368376536166055e-13,
+          5.11475244784325e-13,
+          4.5088726812943253e-13
+        ]
+      ],
+      "unit": "cm4",
+      "description": "Q1: Stem from Babst (2022) k with reduced bundles (175). Leaf from HP with plate correction (beta=0.5). Roots from HP with beta=0.7. Stem/leaf ratio ~10x (was 83x)."
+    },
+    "Krm2": {
+      "value": [
+        [
+          3e-05
+        ],
+        [
+          2e-05
+        ],
+        [
+          4e-05
+        ]
+      ],
+      "description": "Q2: Per-organ-type (root, stem, leaf). Proportionally scaled with Krm1"
+    },
+    "Krm1": {
+      "value": [
+        [
+          0.15
+        ],
+        [
+          0.15
+        ],
+        [
+          0.25
+        ]
+      ],
+      "description": "Q2: Per-organ-type maintenance respiration (WOFOST). Leaf=0.25 (2.5x; protein-rich), stem=0.15, root=0.15. Total respiration: ~9 -> ~18 mmol/d (50-65% of loading)"
+    },
+    "Rho_s": {
+      "value": [
+        [
+          0.51
+        ],
+        [
+          0.7
+        ],
+        [
+          0.56
+        ]
+      ],
+      "unit": "mmol Suc cm-3",
+      "description": "Sucrose density per organ type (root, stem, leaf)"
+    },
+    "Rmax_st": {
+      "value": [
+        [
+          4.5,
+          1.5,
+          2.0,
+          4.5,
+          4.0
+        ],
+        [
+          2.5
+        ],
+        [
+          4.8,
+          5.5,
+          6.0,
+          6.5,
+          7.0,
+          7.2,
+          6.8,
+          6.2,
+          5.5,
+          5.0,
+          4.5
+        ]
+      ],
+      "unit": "cm d-1",
+      "description": "Maximum growth rate per subtype [cm/d]. Leaf: Ben-Haj-Salah & Tardieu 1995. Root: Bloom et al. 2006. Stem: 2.5 cm/d per active internode (Morrison et al. 2003 report 2-4 cm/d; raised from 1.2 to represent simultaneous multi-internode elongation)."
+    }
+  },
+  "Soil": {
+    "DefaultC": {
+      "value": 0.0001,
+      "unit": "mmol Suc cm-3",
+      "description": "Dummy value for soil sucrose concentration"
+    }
+  },
+  "Solver": {
+    "atol": {
+      "value": 0.0001,
+      "description": "Base absolute tolerance (scaled per variable type internally)"
+    },
+    "rtol": {
+      "value": 0.0001,
+      "description": "Relative tolerance"
+    },
+    "doTroubleshooting": {
+      "value": false,
+      "description": "Enable troubleshooting output"
+    }
+  }
+}

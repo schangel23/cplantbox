@@ -27,7 +27,7 @@ from collections import OrderedDict
 
 import plantbox as pb
 
-from ..config import DEFAULT_XML, OUTPUT_DIR, PHOTO_PATH
+from ..config import DEFAULT_XML, OUTPUT_DIR, PHOTO_PATH, get_phloem_json
 from ..growth.grow import grow_plant
 
 # ---------------------------------------------------------------------------
@@ -227,15 +227,16 @@ def get_per_segment_transpiration(plant, apar_umol, tleaf_c):
     """
     print("\n--- Step 4: Re-run 3D Solve for Per-Segment Transpiration ---")
 
-    from plantbox.functional.Photosynthesis import PhotosynthesisPython
+    from plantbox.functional.phloem_flux import PhloemFluxPython
     from plantbox.functional.PlantHydraulicParameters import PlantHydraulicParameters
 
     params = PlantHydraulicParameters()
     params.read_parameters(PHOTO_PATH + "maize_couvreur2012_hydraulics")
 
-    hm = PhotosynthesisPython(plant, params)
+    hm = PhloemFluxPython(plant, params)
     hm.read_photosynthesis_parameters(
         filename=PHOTO_PATH + "maize_C4_photosynthesis_parameters")
+    hm.read_phloem_parameters(filename=get_phloem_json())
 
     depth = 100
     p_s = np.linspace(SOIL_PSI_CM, SOIL_PSI_CM - depth, depth)

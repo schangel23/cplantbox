@@ -29,7 +29,7 @@ from collections import OrderedDict
 
 import plantbox as pb
 
-from ..config import DEFAULT_XML, OUTPUT_DIR, get_hydraulics_json, get_photosynthesis_json
+from ..config import DEFAULT_XML, OUTPUT_DIR, get_hydraulics_json, get_photosynthesis_json, get_phloem_json
 from ..growth.grow import grow_plant
 from ..prospect_params import get_chl_for_photosynthesis, get_prospect_params, log_consistency
 
@@ -189,7 +189,7 @@ def run_photosynthesis_solve(plant, sim_time, par, tleaf, label,
 
     Returns dict with An_leaf, An_per_umol, An_total_mmol, transp_mmol.
     """
-    from plantbox.functional.Photosynthesis import PhotosynthesisPython
+    from plantbox.functional.phloem_flux import PhloemFluxPython
     from plantbox.functional.PlantHydraulicParameters import PlantHydraulicParameters
 
     print(f"\n=== Photosynthesis Solve: {label} ===")
@@ -198,9 +198,10 @@ def run_photosynthesis_solve(plant, sim_time, par, tleaf, label,
     params = PlantHydraulicParameters()
     params.read_parameters(get_hydraulics_json())
 
-    # --- Photosynthesis model ---
-    hm = PhotosynthesisPython(plant, params)
+    # --- Photosynthesis + phloem model ---
+    hm = PhloemFluxPython(plant, params)
     hm.read_photosynthesis_parameters(filename=get_photosynthesis_json())
+    hm.read_phloem_parameters(filename=get_phloem_json())
 
     # Override Chl from shared PROSPECT table to ensure Cab consistency
     chl_from_prospect = get_chl_for_photosynthesis(sim_time)
