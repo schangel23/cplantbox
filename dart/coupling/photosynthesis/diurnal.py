@@ -924,6 +924,167 @@ def run_growth_series(growth_days, timestep_min=30, enable_baleno=True):
     return series_results
 
 
+def run_production_series(growth_days, timestep_min=60, enable_baleno=True,
+                          iterate_gs=True, gs_max_iterations=6,
+                          gs_tolerance=0.05, gs_damping_alpha=0.6,
+                          carbon_method='auto', run_agroc_fortran=False,
+                          resume=False):
+    """Run full production diurnal campaign: DART + Baleno + gs + carbon + AgroC.
+
+    Like run_growth_series() but calls run_single_day_with_carbon() per day,
+    supports checkpointing/resume for multi-day runs, and optionally runs
+    AgroC Fortran after all days complete.
+
+    Args:
+        growth_days: List of simulation days.
+        timestep_min: Timestep in minutes.
+        enable_baleno: Run Baleno energy balance per timestep.
+        iterate_gs: Use iterative Tuzet-Baleno gs coupling.
+        gs_max_iterations: Max iterations for gs convergence.
+        gs_tolerance: Relative convergence threshold.
+        gs_damping_alpha: Under-relaxation factor for gs.
+        carbon_method: 'auto', 'phloem', or 'dvs'.
+        run_agroc_fortran: If True, run AgroC Fortran after all days.
+        resume: If True, skip already-completed days from checkpoint.
+
+    Returns:
+        dict mapping day -> daily result.
+    """
+    print(f"\n{'=' * 70}")
+    print(f"PRODUCTION SERIES: {growth_days}")
+    print(f"  Carbon: {carbon_method}, AgroC Fortran: {run_agroc_fortran}, "
+          f"Resume: {resume}")
+    print(f"{'=' * 70}")
+
+    # --- Checkpoint logic ---
+    checkpoint_dir = OUTPUT_DIR / 'diurnal'
+    checkpoint_dir.mkdir(parents=True, exist_ok=True)
+    checkpoint_path = checkpoint_dir / 'production_checkpoint.json'
+
+    completed_days = []
+    daily_summaries = {}
+    if resume and checkpoint_path.exists():
+        with open(checkpoint_path) as f:
+            ckpt = json.load(f)
+        completed_days = ckpt.get('completed_days', [])
+        daily_summaries = ckpt.get('daily_summaries', {})
+        print(f"  Resumed from checkpoint: {len(completed_days)} days completed "
+              f"({completed_days})")
+
+    # --- Run each day ---
+    series_results = {}
+    all_agroc_timesteps = []
+
+    for day in growth_days:
+        if day in completed_days:
+            print(f"\n  [SKIP] Day {day} already completed (checkpoint)")
+            continue
+
+        result = run_single_day_with_carbon(
+            day, timestep_min=timestep_min,
+            enable_baleno=enable_baleno,
+            iterate_gs=iterate_gs,
+            gs_max_iterations=gs_max_iterations,
+            gs_tolerance=gs_tolerance,
+            gs_damping_alpha=gs_damping_alpha,
+            carbon_method=carbon_method,
+        )
+        series_results[day] = result
+
+        # Collect AgroC timestep
+        if result.get('daily_agroc_ts') is not None:
+            all_agroc_timesteps.append(result['daily_agroc_ts'])
+
+        # Save checkpoint after each day
+        completed_days.append(day)
+        daily_summaries[str(day)] = {
+            'An_field_mean': result.get('daily_An_mol_field_mean', 0.0),
+            'carbon_source': (result.get('daily_carbon', {}) or {}).get(
+                'partitioning_source', 'none'),
+        }
+        ckpt_data = {
+            'completed_days': completed_days,
+            'growth_days': growth_days,
+            'timestep_min': timestep_min,
+            'daily_summaries': daily_summaries,
+        }
+        with open(checkpoint_path, 'w') as f:
+            json.dump(ckpt_data, f, indent=2)
+        print(f"  Checkpoint saved: {len(completed_days)}/{len(growth_days)} days")
+
+    # --- Write combined coupling CSV ---
+    if all_agroc_timesteps:
+        from ..agroc import export_coupling_csv
+        series_dir = OUTPUT_DIR / 'diurnal' / 'production'
+        series_dir.mkdir(parents=True, exist_ok=True)
+        csv_path = series_dir / 'coupling.csv'
+        n_layers = all_agroc_timesteps[0].get('n_layers', 20)
+        export_coupling_csv(all_agroc_timesteps, csv_path, n_layers)
+        print(f"\n  Combined coupling CSV: {csv_path}")
+
+        # --- Optional AgroC Fortran run ---
+        if run_agroc_fortran:
+            try:
+                from ..agroc.run import (
+                    get_agroc_src, prepare_agroc_workdir, run_agroc,
+                    validate_agroc_outputs,
+                )
+                agroc_src = get_agroc_src()
+                agroc_out = series_dir / 'agroc_run'
+                agroc_out.mkdir(parents=True, exist_ok=True)
+                workdir = prepare_agroc_workdir(agroc_src, agroc_out, csv_path)
+                proc = run_agroc(workdir, timeout=600)
+                if proc.returncode == 0:
+                    validation = validate_agroc_outputs(workdir, csv_path)
+                    print(f"  AgroC: {'PASSED' if validation['passed'] else 'WARNINGS'}")
+                else:
+                    print(f"  AgroC FAILED (exit code {proc.returncode})")
+            except Exception as e:
+                print(f"  AgroC error: {e}")
+
+    # --- Save production summary ---
+    series_dir = OUTPUT_DIR / 'diurnal' / 'production'
+    series_dir.mkdir(parents=True, exist_ok=True)
+
+    summary = {
+        'growth_days': growth_days,
+        'timestep_min': timestep_min,
+        'n_plants': N_PLANTS,
+        'carbon_method': carbon_method,
+        'iterate_gs': iterate_gs,
+        'enable_baleno': enable_baleno,
+        'daily_summaries': daily_summaries,
+        'n_agroc_timesteps': len(all_agroc_timesteps),
+    }
+    json_path = series_dir / 'production_summary.json'
+    with open(json_path, 'w') as f:
+        json.dump(summary, f, indent=2)
+    print(f"  Summary: {json_path}")
+
+    # --- Growth series plot (reuse existing) ---
+    # Only plot days that were actually run this session
+    if series_results:
+        try:
+            _plot_growth_series(series_dir, list(series_results.keys()),
+                                series_results)
+        except Exception as e:
+            print(f"  WARNING: Growth series plot failed: {e}")
+
+    print(f"\n{'=' * 70}")
+    print(f"PRODUCTION SERIES COMPLETE")
+    print(f"  Days completed: {len(completed_days)}/{len(growth_days)}")
+    for d in growth_days:
+        s = daily_summaries.get(str(d), {})
+        An = s.get('An_field_mean', 0.0)
+        src = s.get('carbon_source', 'N/A')
+        print(f"  Day {d:>3}: An={An:.6f} mol/plant/day  [{src}]")
+    if all_agroc_timesteps:
+        print(f"  AgroC timesteps: {len(all_agroc_timesteps)}")
+    print(f"{'=' * 70}")
+
+    return series_results
+
+
 def _plot_growth_series(series_dir, growth_days, series_results):
     """Plot daily An vs growth day with error bars."""
     import matplotlib
@@ -997,6 +1158,17 @@ Examples:
     parser.add_argument('--gs-damping', type=float, default=0.6,
                         help='gs under-relaxation factor (default: 0.6)')
 
+    # Production mode flags (Mode B with carbon + AgroC)
+    parser.add_argument('--with-carbon', action='store_true',
+                        help='Enable carbon partitioning + AgroC export per day')
+    parser.add_argument('--with-agroc', action='store_true',
+                        help='Run AgroC Fortran after all days complete')
+    parser.add_argument('--carbon-method', type=str, default='auto',
+                        choices=['auto', 'phloem', 'dvs'],
+                        help='Carbon partitioning method (default: auto)')
+    parser.add_argument('--resume', action='store_true',
+                        help='Resume interrupted production run from checkpoint')
+
     args = parser.parse_args()
 
     print("Phase 9: Time-Series Diurnal Coupling Loop (Multi-Plant)")
@@ -1020,11 +1192,26 @@ Examples:
     else:
         # Mode B: growth series
         growth_days = [int(d.strip()) for d in args.growth_days.split(',')]
-        result = run_growth_series(
-            growth_days,
-            timestep_min=args.timestep_min,
-            enable_baleno=enable_baleno,
-        )
+        if args.with_carbon:
+            # Production mode: full carbon + AgroC pipeline
+            result = run_production_series(
+                growth_days,
+                timestep_min=args.timestep_min,
+                enable_baleno=enable_baleno,
+                iterate_gs=args.iterate_gs,
+                gs_max_iterations=args.gs_max_iter,
+                gs_tolerance=args.gs_tolerance,
+                gs_damping_alpha=args.gs_damping,
+                carbon_method=args.carbon_method,
+                run_agroc_fortran=args.with_agroc,
+                resume=args.resume,
+            )
+        else:
+            result = run_growth_series(
+                growth_days,
+                timestep_min=args.timestep_min,
+                enable_baleno=enable_baleno,
+            )
 
 
 if __name__ == '__main__':

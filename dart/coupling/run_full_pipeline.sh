@@ -360,7 +360,7 @@ if [[ "$RUN_DIURNAL" == true ]]; then
   if [[ "$MODE" == "quick" ]]; then
     DIURNAL_FLAGS="--no-baleno --skip-photosynthesis"
   else
-    DIURNAL_FLAGS="--iterate-gs"
+    DIURNAL_FLAGS="--iterate-gs --with-carbon"
   fi
 
   run_step 10 "Diurnal loop (${DIURNAL_DAYS}, ${DIURNAL_TIMESTEP}min)" \
