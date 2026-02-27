@@ -37,7 +37,7 @@ def configure_atmosphere_midlatsum(simu):
     # Enable atmospheric RT simulation
     simu.core.phase.Phase.AtmosphereRadiativeTransfer.TOAtoBOA = 2
 
-    # Gas model: Mid-Latitude Summer
+    # Gas model: Mid-Latitude Summer (typeOfAtmosphere=1 → database mode)
     atmo = simu.core.atmosphere.Atmosphere.IsAtmosphere
     atmo.AtmosphericOpticalPropertyModel.gasModelName = 'MIDLATSUM'
     atmo.AtmosphericOpticalPropertyModel.gasCumulativeModelName = 'MIDLATSUM'
@@ -45,7 +45,8 @@ def configure_atmosphere_midlatsum(simu):
     atmo.AtmosphericOpticalPropertyModel.co2MixRate = 420.0  # current CO2
 
     # Aerosol model: MIDLATSUM + Rural (visibility 23km — Jülich)
-    atmo.AtmosphericOpticalProperty.AerosolProperties.aerosolsModelName = 'MIDLATSUM_RURALV23'
+    # Aerosols live under Atmosphere.Aerosol (separate from IsAtmosphere)
+    simu.core.atmosphere.Atmosphere.Aerosol.AerosolProperties[0].aerosolsModelName = 'MIDLATSUM_RURALV23'
 
 
 # ---------------------------------------------------------------------------
