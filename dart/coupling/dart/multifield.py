@@ -40,7 +40,10 @@ from ..config import (DEFAULT_XML, DART_HOME, DART_EB_DIR, DARTRC,
 from ..growth.grow import grow_plant, extract_g3_mesh
 from ..geometry import loft_organs, G3Mesh, extract_organs_for_lofter
 from ..geometry import convert_obj_to_dart, convert_mapping_json_groups
-from ..prospect_params import get_prospect_params, log_consistency
+from ..prospect_params import (get_prospect_params, get_prospect_params_per_position,
+                               get_stem_prospect_params,
+                               log_consistency, log_lops_consistency)
+from ..dart.simulation import configure_atmosphere_midlatsum
 
 # ---------------------------------------------------------------------------
 # Constants
@@ -52,17 +55,19 @@ N_PLANTS = 9
 FIELD_SEED = 42
 CENTER_PLANT_IDX = 4  # center of 3x3 grid
 
-# 5 PAR bands (central wavelength in µm, bandwidth in µm)
+# 6 contiguous PAR bands covering 400-700 nm (central wavelength in µm, bandwidth in µm)
 PAR_BANDS = [
-    (0.425, 0.050),
-    (0.475, 0.050),
-    (0.550, 0.050),
-    (0.625, 0.050),
-    (0.680, 0.050),
+    (0.425, 0.050),   # 400-450 nm
+    (0.475, 0.050),   # 450-500 nm
+    (0.525, 0.050),   # 500-550 nm
+    (0.575, 0.050),   # 550-600 nm
+    (0.625, 0.050),   # 600-650 nm
+    (0.675, 0.050),   # 650-700 nm
 ]
 
-# PROSPECT parameters: loaded from shared growth-stage table
-PROSPECT_PARAMS = get_prospect_params(SIMULATION_DAYS)
+# PROSPECT parameters are loaded per-position in step3/step6 via
+# get_prospect_params_per_position(). Base stage params for metadata only:
+PROSPECT_PARAMS_BASE = get_prospect_params(SIMULATION_DAYS)
 
 SUN_ZENITH = 45.0
 SUN_AZIMUTH = 225.0
@@ -200,7 +205,7 @@ def step2_export_meshes(plants):
 
 
 # ============================================================================
-# Step 3: Create DART PAR simulation (5 bands, 9 models)
+# Step 3: Create DART PAR simulation (6 bands, 9 models)
 # ============================================================================
 def step3_create_dart_simulation(dart_obj_paths):
     """Create DART simulation with 9 models in ObjectFields."""
@@ -235,16 +240,27 @@ def step3_create_dart_simulation(dart_obj_paths):
     )
     simu.scene.ground.OpticalPropertyLink.ident = 'ground'
 
-    # Leaf OP (PROSPECT)
-    simu.add.optical_property(
-        type='Lambertian', ident='maize_leaf',
-        prospect=PROSPECT_PARAMS,
-        useMultiplicativeFactorForLUT=0,
-    )
+    # Per-position leaf OPs (PROSPECT from LOPS) — same species, shared across plants
+    # Determine n_leaves from first OBJ (all plants have the same leaf count)
+    first_obj_path = simu.get_input_file_path(str(dart_obj_paths[0]))
+    first_obj_info = ptd.OBJtools.objreader(first_obj_path)
+    first_gnames = ptd.OBJtools.gnames_dart_order(first_obj_info.names)
+    n_leaf_groups = sum(1 for g in first_gnames if not g.endswith('_00'))
+
+    per_pos_params = get_prospect_params_per_position(SIMULATION_DAYS, n_leaf_groups)
+    for pi, params in enumerate(per_pos_params):
+        ident = f'maize_leaf_pos{pi}'
+        simu.add.optical_property(
+            type='Lambertian', ident=ident,
+            prospect=params,
+            useMultiplicativeFactorForLUT=0,
+        )
+    log_lops_consistency(SIMULATION_DAYS, n_leaf_groups)
+
+    stem_prospect = get_stem_prospect_params(SIMULATION_DAYS)
     simu.add.optical_property(
         type='Lambertian', ident='maize_stem',
-        databaseName='Lambertian_vegetation.db',
-        ModelName='bark_eucalyptus',
+        prospect=stem_prospect,
         useMultiplicativeFactorForLUT=0,
     )
 
@@ -258,12 +274,18 @@ def step3_create_dart_simulation(dart_obj_paths):
         xdim, ydim, zdim = obj_info.dims
         xc, yc, zc = obj_info.center
 
-        # Create groups with PROSPECT OP + doubleFace
+        # Create groups with per-position PROSPECT OP + doubleFace
+        # Leaf position = suffix number - 1 (e.g., p0_organ_01 -> pos 0)
         groups_list = []
+        leaf_idx = 0
         for gi, gname in enumerate(gnames):
             g = ptd.object_3d.create_Group(num=gi + 1, name=gname)
             is_stem = gname.endswith('_00')
-            op_ident = 'maize_stem' if is_stem else 'maize_leaf'
+            if is_stem:
+                op_ident = 'maize_stem'
+            else:
+                op_ident = f'maize_leaf_pos{leaf_idx}'
+                leaf_idx += 1
             df = 0 if is_stem else 1
             g.set_nodes(ident=op_ident)
             gop = g.GroupOpticalProperties
@@ -311,6 +333,10 @@ def step3_create_dart_simulation(dart_obj_paths):
     simu.core.phase.Phase.accelerationEngine = 2
     simu.core.phase.Phase.ExpertModeZone.nbThreads = DART_THREADS
     print(f"  Threads: {DART_THREADS}")
+
+    # Atmosphere: MIDLATSUM
+    configure_atmosphere_midlatsum(simu)
+    print("  Atmosphere: MIDLATSUM + RURALV23 (TOAtoBOA=2)")
 
     # Write
     simu.write(overwrite=True)
@@ -663,15 +689,25 @@ def step6_create_baleno_simus(dart_obj_paths):
     )
     simu.scene.ground.OpticalPropertyLink.ident = 'ground'
 
-    simu.add.optical_property(
-        type='Lambertian', ident='maize_leaf',
-        prospect=PROSPECT_PARAMS,
-        useMultiplicativeFactorForLUT=0,
-    )
+    # Per-position leaf OPs (same as step3)
+    first_obj_path = simu.get_input_file_path(str(dart_obj_paths[0]))
+    first_obj_info = ptd.OBJtools.objreader(first_obj_path)
+    first_gnames = ptd.OBJtools.gnames_dart_order(first_obj_info.names)
+    n_leaf_groups = sum(1 for g in first_gnames if not g.endswith('_00'))
+
+    per_pos_params = get_prospect_params_per_position(SIMULATION_DAYS, n_leaf_groups)
+    for pi, params in enumerate(per_pos_params):
+        ident = f'maize_leaf_pos{pi}'
+        simu.add.optical_property(
+            type='Lambertian', ident=ident,
+            prospect=params,
+            useMultiplicativeFactorForLUT=0,
+        )
+
+    stem_prospect = get_stem_prospect_params(SIMULATION_DAYS)
     simu.add.optical_property(
         type='Lambertian', ident='maize_stem',
-        databaseName='Lambertian_vegetation.db',
-        ModelName='bark_eucalyptus',
+        prospect=stem_prospect,
         useMultiplicativeFactorForLUT=0,
     )
 
@@ -685,10 +721,15 @@ def step6_create_baleno_simus(dart_obj_paths):
         xc, yc, zc = obj_info.center
 
         groups_list = []
+        leaf_idx = 0
         for gi, gname in enumerate(gnames):
             g = ptd.object_3d.create_Group(num=gi + 1, name=gname)
             is_stem = gname.endswith('_00')
-            op_ident = 'maize_stem' if is_stem else 'maize_leaf'
+            if is_stem:
+                op_ident = 'maize_stem'
+            else:
+                op_ident = f'maize_leaf_pos{leaf_idx}'
+                leaf_idx += 1
             df = 0 if is_stem else 1
             g.set_nodes(ident=op_ident)
             gop = g.GroupOpticalProperties
@@ -731,6 +772,9 @@ def step6_create_baleno_simus(dart_obj_paths):
 
     simu.core.phase.Phase.accelerationEngine = 2
     simu.core.phase.Phase.ExpertModeZone.nbThreads = DART_THREADS
+
+    # Atmosphere: MIDLATSUM
+    configure_atmosphere_midlatsum(simu)
 
     simu.write(overwrite=True)
 
@@ -858,11 +902,19 @@ def step7_run_baleno():
         "z": 10, "Ta": 298.15, "p": 1013, "ea": 15, "u": 2,
         "Ca": 400, "Oa": 280,
     })
+    # vegetation.json5 — mean Cab/N across per-position profiles
+    import numpy as _np
+    mean_cab = float(_np.mean([p["Cab"] for p in per_pos_params]))
+    mean_n = float(_np.mean([p["N"] for p in per_pos_params]))
+    base_params = get_prospect_params(SIMULATION_DAYS)
+    from ..prospect_params import vcmax25_from_cab
     _write_json5(input_dir / 'vegetation.json5', {
         "Plugin": "BiochemicalSCOPE", "Model": "VegetationSCOPE",
-        "PAR_min": 0.400, "PAR_max": 0.780,
-        "Cab": 55, "Cca": 10, "Cs": 0, "Cw": 0.012, "Cdm": 0.01,
-        "N": 1.4, "fqe": 0, "Vcmax25": 50,
+        "PAR_min": 0.400, "PAR_max": 0.700,
+        "Cab": round(mean_cab, 1), "Cca": 10, "Cs": 0,
+        "Cw": base_params["Cw"], "Cdm": base_params["Cm"],
+        "N": round(mean_n, 2), "fqe": 0,
+        "Vcmax25": round(vcmax25_from_cab(mean_cab), 1),
         "BallBerrySlope": 8, "BallBerry0": 0.01,
         "RdPerVcmax25": get_species()["rd_per_vcmax25"],
         "Type": get_species()["photo_type"],
@@ -1477,6 +1529,15 @@ def step9_photosynthesis(apar_results, baleno_results, mappings):
         hm = PhloemFluxPython(plant, params)
         hm.read_photosynthesis_parameters(filename=get_photosynthesis_json())
         hm.read_phloem_parameters(filename=get_phloem_json())
+
+        # Per-segment Chl from LOPS per-position profiles
+        from ..prospect_params import get_chl_per_segment, vcmax25_from_cab
+        chl_per_seg = get_chl_per_segment(SIMULATION_DAYS, plant)
+        if len(chl_per_seg) == n_leaf_segs:
+            hm.Chl = chl_per_seg
+            print(f"  Per-segment Chl: [{min(chl_per_seg):.1f}, {max(chl_per_seg):.1f}] "
+                  f"-> Vcmax [{vcmax25_from_cab(min(chl_per_seg)):.1f}, "
+                  f"{vcmax25_from_cab(max(chl_per_seg)):.1f}] umol/m2/s")
 
         # Solve
         depth = 100

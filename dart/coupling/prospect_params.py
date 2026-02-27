@@ -6,12 +6,21 @@ DART optical properties and CPlantBox photosynthesis (Cab → Vcmax).
 
 Species selection is driven by config.get_species().
 
+Per-leaf-position profiles from LOPS measurements (Eko, LOPS_maize_P1.xlsx)
+provide Cab and N gradients along the canopy for maize at V6, V10, and R1.
+
 Literature references:
   - Feret et al. (2008) PROSPECT-4 / PROSPECT-5
   - Berger et al. (2018) maize Cab ranges across growth stages
   - Giraud et al. (2023) wheat Cab/Car ranges
   - CPlantBox Vcmax conversion: Vcmax = (VcmaxrefChl1 * Cab + VcmaxrefChl2) * 1e-6 mol/m²/s
 """
+
+import json
+from functools import lru_cache
+from pathlib import Path
+
+import numpy as np
 
 from .config import get_species, get_species_name
 
@@ -126,6 +135,32 @@ def get_prospect_params(day: float) -> dict:
     }
 
 
+def get_stem_prospect_params(day: float) -> dict:
+    """Return PROSPECT parameter dict for stem optical properties.
+
+    For maize: reads Cab, N, CBrown from LOPS stem entry for the growth stage.
+    For non-maize or missing data: returns base stage params with low Cab.
+
+    Returns keys: Cab, Car, Cw, Cm, N, CBrown, anthocyanin.
+    Suitable for passing to pytools4dart's ``prospect=`` kwarg.
+    """
+    base = get_prospect_params(day)
+    stage = get_lops_stage(day)
+    if stage is not None and "stem" in stage:
+        stem = stage["stem"]
+        return {
+            "Cab": stem["Cab"],
+            "Car": base["Car"],
+            "Cw": base["Cw"],
+            "Cm": base["Cm"],
+            "N": stem["N"],
+            "CBrown": stem["CBrown"],
+            "anthocyanin": base["anthocyanin"],
+        }
+    # Fallback: low Cab stem (green but not as much as leaves)
+    return {**base, "Cab": base["Cab"] * 0.5, "N": base["N"] + 0.3}
+
+
 def get_chl_for_photosynthesis(day: float) -> float:
     """Return Cab in CPlantBox internal units (ug/cm2) for a given simulation day.
 
@@ -156,3 +191,122 @@ def log_consistency(day: float) -> None:
     species_name = get_species_name()
     print(f"  PROSPECT [{species_name}/{stage_label}] Cab={cab:.1f} ug/cm2"
           f" -> Vcmax_ref={vcmax:.1f} umol/m2/s ({sp['photo_type']})")
+
+
+# ==========================================================================
+# Per-leaf-position PROSPECT profiles (LOPS data)
+# ==========================================================================
+_LOPS_DATA_PATH = Path(__file__).parent / 'data' / 'lops_prospect_profiles.json'
+
+
+@lru_cache(maxsize=1)
+def _load_lops_profiles() -> dict:
+    """Load and cache LOPS per-position PROSPECT profiles."""
+    with open(_LOPS_DATA_PATH) as f:
+        return json.load(f)
+
+
+def get_lops_stage(day: float) -> dict | None:
+    """Select LOPS stage dict by day range.  Returns None for non-maize."""
+    if get_species_name() != "maize":
+        return None
+    data = _load_lops_profiles()
+    for stage in data["stages"].values():
+        lo, hi = stage["day_range"]
+        if lo <= day < hi:
+            return stage
+    return None
+
+
+def get_prospect_params_per_position(day: float, n_leaves: int) -> list[dict]:
+    """Return list of n_leaves PROSPECT dicts with per-position Cab and N.
+
+    For maize: interpolates LOPS Cab/N profiles to n_leaves positions.
+    For non-maize or if LOPS data is unavailable: returns uniform dicts.
+
+    Each dict has keys: Cab, Car, Cw, Cm, N, CBrown, anthocyanin.
+    """
+    base = get_prospect_params(day)  # uniform stage params (Cw, Cm, Car, ...)
+
+    stage = get_lops_stage(day)
+    if stage is None or n_leaves < 1:
+        return [dict(base) for _ in range(max(n_leaves, 1))]
+
+    lops_data = _load_lops_profiles()
+    const = lops_data["constant_params"]
+
+    # LOPS positions (1-based, bottom-to-top)
+    positions = stage["positions"]
+    lops_pos = np.array([p["position"] for p in positions], dtype=float)
+    lops_cab = np.array([p["Cab"] for p in positions], dtype=float)
+    lops_n = np.array([p["N"] for p in positions], dtype=float)
+
+    # Normalize both to [0, 1]
+    lops_frac = (lops_pos - lops_pos.min()) / max(lops_pos.max() - lops_pos.min(), 1.0)
+    # CPlantBox positions: 0 = bottom, n_leaves-1 = top
+    if n_leaves == 1:
+        cpb_frac = np.array([0.5])
+    else:
+        cpb_frac = np.linspace(0.0, 1.0, n_leaves)
+
+    # Interpolate Cab and N
+    interp_cab = np.interp(cpb_frac, lops_frac, lops_cab)
+    interp_n = np.interp(cpb_frac, lops_frac, lops_n)
+
+    result = []
+    for i in range(n_leaves):
+        d = {
+            "Cab": float(interp_cab[i]),
+            "N": float(interp_n[i]),
+            "Car": const["Car"],
+            "Cw": base["Cw"],
+            "Cm": base["Cm"],
+            "CBrown": const["CBrown"],
+            "anthocyanin": const["anthocyanin"],
+        }
+        result.append(d)
+    return result
+
+
+def get_chl_per_segment(day: float, plant) -> list[float]:
+    """Build per-leaf-segment Chl array from LOPS profiles.
+
+    Returns list of length n_leaf_segments, suitable for hm.Chl = [...].
+    Each organ's segments get the Cab value of that organ's canopy position.
+
+    CPlantBox's getMeanOrSegData() in Photosynthesis.h switches to per-segment
+    mode when Chl.size() == seg_leaves_idx.size().
+    """
+    import plantbox as pb
+
+    leaf_organs = [o for o in plant.getOrgans() if o.organType() == pb.OrganTypes.leaf]
+    n_leaves = len(leaf_organs)
+
+    if n_leaves == 0:
+        return [get_chl_for_photosynthesis(day)]
+
+    per_pos = get_prospect_params_per_position(day, n_leaves)
+
+    chl_per_seg = []
+    for i, organ in enumerate(leaf_organs):
+        n_segs = len(organ.getSegments())
+        cab = per_pos[i]["Cab"]
+        chl_per_seg.extend([cab] * n_segs)
+
+    return chl_per_seg
+
+
+def log_lops_consistency(day: float, n_leaves: int) -> None:
+    """Print per-position Cab -> Vcmax chain for LOPS profiles."""
+    sp = get_species()
+    per_pos = get_prospect_params_per_position(day, n_leaves)
+    stage = get_lops_stage(day)
+    stage_label = stage["label"] if stage else "unknown"
+
+    print(f"  LOPS per-position [{stage_label}] ({n_leaves} leaves):")
+    for i, params in enumerate(per_pos):
+        cab = params["Cab"]
+        n_val = params["N"]
+        vcmax = sp["vcmax_chl1"] * cab + sp["vcmax_chl2"]
+        pos_label = "bottom" if i == 0 else ("top" if i == n_leaves - 1 else f"pos {i+1}")
+        print(f"    {pos_label}: Cab={cab:.1f}, N={n_val:.2f} -> Vcmax={vcmax:.1f} umol/m2/s")

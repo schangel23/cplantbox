@@ -26,6 +26,7 @@ import plantbox as pb
 
 from ..config import HYDRAULICS_PATH, DEFAULT_XML, get_hydraulics_json, get_photosynthesis_json, get_phloem_json
 from ..geometry import loft_organs, G3Mesh, extract_organs_for_lofter
+from ..prospect_params import get_chl_per_segment, vcmax25_from_cab
 
 # ---------------------------------------------------------------------------
 # Color palette (matching batch pipeline)
@@ -827,9 +828,22 @@ def run_photosynthesis(plant, sim_time, output_prefix,
     hm = PhloemFluxPython(plant, params)
     hm.read_photosynthesis_parameters(filename=get_photosynthesis_json())
     hm.read_phloem_parameters(filename=get_phloem_json())
-    vcmax_umol = (hm.VcmaxrefChl1 * hm.Chl[0] + hm.VcmaxrefChl2)
-    print(f"  PhotoType={'C4' if hm.PhotoType == 1 else 'C3'}, "
-          f"Vcmax~{vcmax_umol:.1f} umol m-2 s-1 (Chl={hm.Chl[0]:.1f} ug/cm2)")
+
+    # Per-segment Chl from LOPS per-position profiles
+    chl_per_seg = get_chl_per_segment(sim_time, plant)
+    seg_leaves_check = plant.getSegmentIds(4)
+    if len(chl_per_seg) == len(seg_leaves_check):
+        hm.Chl = chl_per_seg
+        cab_min, cab_max = min(chl_per_seg), max(chl_per_seg)
+        vcmax_range = f"[{vcmax25_from_cab(cab_min):.1f}, {vcmax25_from_cab(cab_max):.1f}]"
+        print(f"  PhotoType={'C4' if hm.PhotoType == 1 else 'C3'}, "
+              f"Vcmax range={vcmax_range} umol m-2 s-1 "
+              f"(Cab range=[{cab_min:.1f}, {cab_max:.1f}] ug/cm2, "
+              f"{len(chl_per_seg)} segs)")
+    else:
+        vcmax_umol = (hm.VcmaxrefChl1 * hm.Chl[0] + hm.VcmaxrefChl2)
+        print(f"  PhotoType={'C4' if hm.PhotoType == 1 else 'C3'}, "
+              f"Vcmax~{vcmax_umol:.1f} umol m-2 s-1 (Chl={hm.Chl[0]:.1f} ug/cm2)")
 
     # --- Soil water potential vector ---
     depth = 100  # must match setSoilGrid depth in grow_plant()

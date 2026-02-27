@@ -30,7 +30,10 @@ from pathlib import Path
 import pytools4dart as ptd
 
 from ..config import DART_HOME, DART_EB_DIR, DARTRC, BALENO_PYTHON, OUTPUT_DIR, DART_THREADS, get_species
-from ..prospect_params import get_prospect_params, log_consistency, vcmax25_from_cab
+from ..prospect_params import (get_prospect_params, get_prospect_params_per_position,
+                               get_stem_prospect_params,
+                               log_consistency, log_lops_consistency, vcmax25_from_cab)
+from ..dart.simulation import configure_atmosphere_midlatsum
 
 # ---------------------------------------------------------------------------
 # Constants
@@ -119,32 +122,45 @@ def step1_create_simu_I():
     )
     simu.scene.ground.OpticalPropertyLink.ident = 'ground'
 
-    # Leaf optical property (PROSPECT)
-    simu.add.optical_property(
-        type='Lambertian', ident='maize_leaf',
-        prospect=PROSPECT_PARAMS,
-        useMultiplicativeFactorForLUT=0,
-    )
+    # Per-position leaf optical properties (PROSPECT from LOPS data)
+    file_src_fullpath = simu.get_input_file_path(str(OBJ_PATH))
+    obj_info = ptd.OBJtools.objreader(file_src_fullpath)
+    gnames = ptd.OBJtools.gnames_dart_order(obj_info.names)
+    n_leaf_groups = sum(1 for g in gnames if not g.endswith('_00'))
+
+    per_pos_params = get_prospect_params_per_position(55, n_leaf_groups)
+    for i, params in enumerate(per_pos_params):
+        ident = f'maize_leaf_pos{i}'
+        simu.add.optical_property(
+            type='Lambertian', ident=ident,
+            prospect=params,
+            useMultiplicativeFactorForLUT=0,
+        )
+        print(f"    Leaf OP: {ident} (Cab={params['Cab']:.1f}, N={params['N']:.2f})")
+    log_lops_consistency(55, n_leaf_groups)
+
+    stem_prospect = get_stem_prospect_params(55)
     simu.add.optical_property(
         type='Lambertian', ident='maize_stem',
-        databaseName='Lambertian_vegetation.db',
-        ModelName='bark_eucalyptus',
+        prospect=stem_prospect,
         useMultiplicativeFactorForLUT=0,
     )
 
     # 3D Object via ObjectFields (same grid as Phase 1)
-    file_src_fullpath = simu.get_input_file_path(str(OBJ_PATH))
-    obj_info = ptd.OBJtools.objreader(file_src_fullpath)
-    gnames = ptd.OBJtools.gnames_dart_order(obj_info.names)
     xdim, ydim, zdim = obj_info.dims
     xc, yc, zc = obj_info.center
 
-    # Create groups with optical properties + doubleFace
+    # Create groups with per-position optical properties + doubleFace
     groups_list = []
+    leaf_idx = 0
     for gi, gname in enumerate(gnames):
         g = ptd.object_3d.create_Group(num=gi + 1, name=gname)
         is_stem = gname.endswith('_00')
-        op_ident = 'maize_stem' if is_stem else 'maize_leaf'
+        if is_stem:
+            op_ident = 'maize_stem'
+        else:
+            op_ident = f'maize_leaf_pos{leaf_idx}'
+            leaf_idx += 1
         df = 0 if is_stem else 1
         g.set_nodes(ident=op_ident)
         gop = g.GroupOpticalProperties
@@ -205,6 +221,9 @@ def step1_create_simu_I():
     # Engine: Lux
     simu.core.phase.Phase.accelerationEngine = 2
     simu.core.phase.Phase.ExpertModeZone.nbThreads = DART_THREADS
+
+    # Atmosphere: MIDLATSUM
+    configure_atmosphere_midlatsum(simu)
 
     simu.write(overwrite=True)
 
@@ -395,21 +414,27 @@ def step3_create_baleno_configs():
         "Oa": 280,          # per mille O2
     })
 
-    # vegetation.json5 — C4 maize with PROSPECT params
-    # Vcmax25 derived from Cab via CPlantBox formula for consistency
+    # vegetation.json5 — C4 maize with mean PROSPECT params across positions
+    # Per-position spectral effects are already in the DART OPs; Baleno's SCOPE
+    # config uses mean Cab/N.  The iterative Tuzet loop uses CPlantBox's
+    # per-segment Vcmax anyway.
+    import numpy as np
+    mean_cab = float(np.mean([p["Cab"] for p in per_pos_params]))
+    mean_n = float(np.mean([p["N"] for p in per_pos_params]))
+    base_params = get_prospect_params(55)
     _write_json5(input_dir / 'vegetation.json5', {
         "Plugin": "BiochemicalSCOPE",
         "Model": "VegetationSCOPE",
         "PAR_min": 0.400,
-        "PAR_max": 0.780,
-        "Cab": 55,
+        "PAR_max": 0.700,
+        "Cab": round(mean_cab, 1),
         "Cca": 10,
         "Cs": 0,
-        "Cw": 0.012,
-        "Cdm": 0.01,
-        "N": 1.4,
+        "Cw": base_params["Cw"],
+        "Cdm": base_params["Cm"],
+        "N": round(mean_n, 2),
         "fqe": 0,
-        "Vcmax25": round(vcmax25_from_cab(55), 1),
+        "Vcmax25": round(vcmax25_from_cab(mean_cab), 1),
         "BallBerrySlope": 8,
         "BallBerry0": 0.01,
         "RdPerVcmax25": get_species()["rd_per_vcmax25"],
@@ -418,6 +443,7 @@ def step3_create_baleno_configs():
         "tau_thermal": 0.01,
         "stress_factor": 1,
     })
+    print(f"  Baleno vegetation.json5: mean Cab={mean_cab:.1f}, N={mean_n:.2f}")
 
     # radiation.json5
     _write_json5(input_dir / 'radiation.json5', {
@@ -1454,10 +1480,10 @@ def setup_baleno_full(obj_path, mapping_json, reindex_json, grid_info_path,
         prospect=prospect_params,
         useMultiplicativeFactorForLUT=0,
     )
+    stem_prospect = get_stem_prospect_params(55)
     simu_I.add.optical_property(
         type='Lambertian', ident='maize_stem',
-        databaseName='Lambertian_vegetation.db',
-        ModelName='bark_eucalyptus',
+        prospect=stem_prospect,
         useMultiplicativeFactorForLUT=0,
     )
 
@@ -1504,6 +1530,9 @@ def setup_baleno_full(obj_path, mapping_json, reindex_json, grid_info_path,
     products.radiativeBudgetProperties.budget3DParSurface = 1
     simu_I.core.phase.Phase.accelerationEngine = 2
     simu_I.core.phase.Phase.ExpertModeZone.nbThreads = DART_THREADS
+
+    # Atmosphere: MIDLATSUM
+    configure_atmosphere_midlatsum(simu_I)
 
     simu_I.write(overwrite=True)
 
@@ -1627,11 +1656,19 @@ def _create_baleno_configs(baleno_simu_name, dart_simu_name):
         "z": 10, "Ta": 298.15, "p": 1013, "ea": 15, "u": 2,
         "Ca": 400, "Oa": 280,
     })
+    # Use mean Cab/N across per-position LOPS profiles
+    import numpy as _np
+    _per_pos = get_prospect_params_per_position(55, 11)
+    _mean_cab = float(_np.mean([p["Cab"] for p in _per_pos]))
+    _mean_n = float(_np.mean([p["N"] for p in _per_pos]))
+    _base_p = get_prospect_params(55)
     _write_json5(input_dir / 'vegetation.json5', {
         "Plugin": "BiochemicalSCOPE", "Model": "VegetationSCOPE",
-        "PAR_min": 0.400, "PAR_max": 0.780,
-        "Cab": 55, "Cca": 10, "Cs": 0, "Cw": 0.012, "Cdm": 0.01,
-        "N": 1.4, "fqe": 0, "Vcmax25": round(vcmax25_from_cab(55), 1),
+        "PAR_min": 0.400, "PAR_max": 0.700,
+        "Cab": round(_mean_cab, 1), "Cca": 10, "Cs": 0,
+        "Cw": _base_p["Cw"], "Cdm": _base_p["Cm"],
+        "N": round(_mean_n, 2), "fqe": 0,
+        "Vcmax25": round(vcmax25_from_cab(_mean_cab), 1),
         "BallBerrySlope": 8,
         "BallBerry0": 0.01,
         "RdPerVcmax25": get_species()["rd_per_vcmax25"],
@@ -2056,15 +2093,21 @@ def run_baleno_with_external_gs(gs_per_segment, mapping_json_path,
     gs_csv_path = Path(baleno_sim_dir) / 'input' / 'external_gs.csv'
     write_triangle_gs_csv(tri_result['rcw_per_triangle'], gs_csv_path)
 
-    # Update vegetation.json5 to use ExternalGS plugin
+    # Update vegetation.json5 to use ExternalGS plugin (mean Cab/N from LOPS)
+    import numpy as _np
+    _per_pos = get_prospect_params_per_position(55, 11)
+    _mean_cab = float(_np.mean([p["Cab"] for p in _per_pos]))
+    _mean_n = float(_np.mean([p["N"] for p in _per_pos]))
+    _base_p = get_prospect_params(55)
     input_dir = Path(baleno_sim_dir) / 'input'
     _write_json5(input_dir / 'vegetation.json5', {
         "Plugin": "ExternalGS",
         "Model": "VegetationExternalGS",
-        "PAR_min": 0.400, "PAR_max": 0.780,
-        "Cab": 55, "Cca": 10, "Cs": 0, "Cw": 0.012, "Cdm": 0.01,
-        "N": 1.4, "fqe": 0,
-        "Vcmax25": round(vcmax25_from_cab(55), 1),
+        "PAR_min": 0.400, "PAR_max": 0.700,
+        "Cab": round(_mean_cab, 1), "Cca": 10, "Cs": 0,
+        "Cw": _base_p["Cw"], "Cdm": _base_p["Cm"],
+        "N": round(_mean_n, 2), "fqe": 0,
+        "Vcmax25": round(vcmax25_from_cab(_mean_cab), 1),
         "BallBerrySlope": 8, "BallBerry0": 0.01,
         "RdPerVcmax25": get_species()["rd_per_vcmax25"],
         "Type": get_species()["photo_type"],

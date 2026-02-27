@@ -3,7 +3,7 @@
 Phase 1: Standalone DART Simulation from CPlantBox OBJ.
 
 Grows a CPlantBox maize plant (day 55), exports a G3 mesh, converts to DART
-coordinates, creates a DART simulation with PROSPECT leaf optics and 5 PAR
+coordinates, creates a DART simulation with PROSPECT leaf optics and 6 PAR
 bands, runs the full radiative transfer pipeline, reads per-triangle absorbed
 radiation, and aggregates it to per-CPlantBox-segment aPAR.
 
@@ -24,7 +24,29 @@ import pytools4dart as ptd
 from ..config import DEFAULT_XML, OUTPUT_DIR, DART_THREADS
 from ..growth.grow import grow_plant, extract_g3_mesh
 from ..geometry import convert_obj_to_dart, convert_mapping_json_groups
-from ..prospect_params import get_prospect_params, log_consistency
+from ..prospect_params import (get_prospect_params, get_prospect_params_per_position,
+                               get_stem_prospect_params,
+                               log_consistency, log_lops_consistency)
+
+# ---------------------------------------------------------------------------
+# Atmosphere helper
+# ---------------------------------------------------------------------------
+
+def configure_atmosphere_midlatsum(simu):
+    """Configure DART atmosphere: MIDLATSUM + RURALV23, TOAtoBOA=2."""
+    # Enable atmospheric RT simulation
+    simu.core.phase.Phase.AtmosphereRadiativeTransfer.TOAtoBOA = 2
+
+    # Gas model: Mid-Latitude Summer
+    atmo = simu.core.atmosphere.Atmosphere.IsAtmosphere
+    atmo.AtmosphericOpticalPropertyModel.gasModelName = 'MIDLATSUM'
+    atmo.AtmosphericOpticalPropertyModel.gasCumulativeModelName = 'MIDLATSUM'
+    atmo.AtmosphericOpticalPropertyModel.temperatureModelName = 'MIDLATSUM'
+    atmo.AtmosphericOpticalPropertyModel.co2MixRate = 420.0  # current CO2
+
+    # Aerosol model: MIDLATSUM + Rural (visibility 23km — Jülich)
+    atmo.AtmosphericOpticalProperty.AerosolProperties.aerosolsModelName = 'MIDLATSUM_RURALV23'
+
 
 # ---------------------------------------------------------------------------
 # Constants
@@ -33,13 +55,14 @@ XML_PATH = str(DEFAULT_XML)
 SIMULATION_DAYS = 55
 SIMU_NAME = 'cpb_maize_day55_par'
 
-# 5 PAR bands (central wavelength in µm, bandwidth in µm)
+# 6 contiguous PAR bands covering 400-700 nm (central wavelength in µm, bandwidth in µm)
 PAR_BANDS = [
-    (0.425, 0.050),   # violet-blue
-    (0.475, 0.050),   # blue
-    (0.550, 0.050),   # green
-    (0.625, 0.050),   # orange-red
-    (0.680, 0.050),   # red edge
+    (0.425, 0.050),   # 400-450 nm  violet-blue
+    (0.475, 0.050),   # 450-500 nm  blue
+    (0.525, 0.050),   # 500-550 nm  cyan-green
+    (0.575, 0.050),   # 550-600 nm  green-yellow
+    (0.625, 0.050),   # 600-650 nm  orange-red
+    (0.675, 0.050),   # 650-700 nm  red
 ]
 
 # PROSPECT parameters: loaded from shared growth-stage table
@@ -175,7 +198,7 @@ def step2_convert_to_dart():
 # Step 3: Create DART simulation with pytools4dart
 # ============================================================================
 def step3_create_dart_simulation():
-    """Create DART simulation with 5 PAR bands, PROSPECT leaf optics."""
+    """Create DART simulation with 6 PAR bands, PROSPECT leaf optics."""
     print("\n" + "=" * 70)
     print("STEP 3: Create DART Simulation")
     print("=" * 70)
@@ -213,43 +236,52 @@ def step3_create_dart_simulation():
     simu.scene.ground.OpticalPropertyLink.ident = 'ground'
     print(f"  Ground: clay_brown (Lambertian)")
 
-    # --- Leaf optical property (Lambertian with PROSPECT) ---
-    # PROSPECT computes wavelength-dependent reflectance/transmittance from
-    # biochemical parameters via DART's Fluspect module (Python 3.8).
-    # Requires libxcrypt-compat (provides libcrypt.so.1) on Arch/CachyOS.
-    simu.add.optical_property(
-        type='Lambertian', ident='maize_leaf',
-        prospect=PROSPECT_PARAMS,
-        useMultiplicativeFactorForLUT=0,
-    )
-    print(f"  Leaf OP: maize_leaf (PROSPECT Cab={PROSPECT_PARAMS['Cab']}, "
-          f"N={PROSPECT_PARAMS['N']})")
-    simu.add.optical_property(
-        type='Lambertian', ident='maize_stem',
-        databaseName='Lambertian_vegetation.db',
-        ModelName='bark_eucalyptus',
-        useMultiplicativeFactorForLUT=0,
-    )
-    print(f"  Stem OP: maize_stem (bark_eucalyptus, doubleFace=0)")
-
-    # --- 3D Object via ObjectFields (plant grid) ---
+    # --- Per-position leaf optical properties (PROSPECT from LOPS data) ---
+    # Count leaf groups (non-_00 suffixes) to determine n_leaves
     dart_obj = OUTPUT_DIR / 'maize_day55_dart.obj'
-
-    # Parse OBJ for groups + dimensions (replicate what add.object_3d does)
     file_src_fullpath = simu.get_input_file_path(str(dart_obj))
     obj_info = ptd.OBJtools.objreader(file_src_fullpath)
     gnames = ptd.OBJtools.gnames_dart_order(obj_info.names)
+    n_leaf_groups = sum(1 for g in gnames if not g.endswith('_00'))
+
+    per_pos_params = get_prospect_params_per_position(SIMULATION_DAYS, n_leaf_groups)
+    leaf_idx = 0
+    for i, params in enumerate(per_pos_params):
+        ident = f'maize_leaf_pos{i}'
+        simu.add.optical_property(
+            type='Lambertian', ident=ident,
+            prospect=params,
+            useMultiplicativeFactorForLUT=0,
+        )
+        print(f"  Leaf OP: {ident} (Cab={params['Cab']:.1f}, N={params['N']:.2f})")
+    log_lops_consistency(SIMULATION_DAYS, n_leaf_groups)
+
+    stem_prospect = get_stem_prospect_params(SIMULATION_DAYS)
+    simu.add.optical_property(
+        type='Lambertian', ident='maize_stem',
+        prospect=stem_prospect,
+        useMultiplicativeFactorForLUT=0,
+    )
+    print(f"  Stem OP: maize_stem (PROSPECT Cab={stem_prospect['Cab']:.0f},"
+          f" N={stem_prospect['N']:.1f}, CBrown={stem_prospect['CBrown']:.3f})")
+
+    # --- 3D Object via ObjectFields (plant grid) ---
     xdim, ydim, zdim = obj_info.dims
     xc, yc, zc = obj_info.center
     print(f"  OBJ: {dart_obj.name} ({len(gnames)} groups, "
           f"dims={xdim:.2f}x{ydim:.2f}x{zdim:.2f}m)")
 
-    # Create group list with optical properties + doubleFace
+    # Create group list with per-position optical properties + doubleFace
     groups_list = []
+    leaf_idx = 0
     for gi, gname in enumerate(gnames):
         g = ptd.object_3d.create_Group(num=gi + 1, name=gname)
         is_stem = gname.endswith('_00')
-        op_ident = 'maize_stem' if is_stem else 'maize_leaf'
+        if is_stem:
+            op_ident = 'maize_stem'
+        else:
+            op_ident = f'maize_leaf_pos{leaf_idx}'
+            leaf_idx += 1
         df = 0 if is_stem else 1
         g.set_nodes(ident=op_ident)
         gop = g.GroupOpticalProperties
@@ -310,6 +342,10 @@ def step3_create_dart_simulation():
     # --- Threads ---
     simu.core.phase.Phase.ExpertModeZone.nbThreads = DART_THREADS
     print(f"  Threads: {DART_THREADS}")
+
+    # --- Atmosphere: MIDLATSUM ---
+    configure_atmosphere_midlatsum(simu)
+    print("  Atmosphere: MIDLATSUM + RURALV23 (TOAtoBOA=2)")
 
     # --- Write simulation ---
     simu.write(overwrite=True)
@@ -1049,17 +1085,17 @@ def step8_summary_and_output(segment_results, per_band_data, mapping):
     check2 = True
     if len(band_indices) >= 3 and leaf_with_apar:
         blue_mean = np.mean([r['band_apar'].get(1, 0) for r in leaf_with_apar])   # 475nm
-        green_mean = np.mean([r['band_apar'].get(2, 0) for r in leaf_with_apar])  # 550nm
-        red_mean = np.mean([r['band_apar'].get(4, 0) for r in leaf_with_apar])    # 680nm
+        green_mean = np.mean([r['band_apar'].get(2, 0) for r in leaf_with_apar])  # 525nm
+        red_mean = np.mean([r['band_apar'].get(5, 0) for r in leaf_with_apar])    # 675nm
 
-        # Interpolated value at 550nm between 475nm and 680nm
-        interp_green = blue_mean + (red_mean - blue_mean) * (550 - 475) / (680 - 475)
+        # Interpolated value at 525nm between 475nm and 675nm
+        interp_green = blue_mean + (red_mean - blue_mean) * (525 - 475) / (675 - 475)
         green_dip = (interp_green - green_mean) / interp_green * 100 if interp_green > 0 else 0
         check2 = green_dip > 1.0  # at least 1% dip at green
         print(f"  Check 2: Spectral green-dip (PROSPECT chlorophyll signature):")
         print(f"    Blue (475nm):  {blue_mean:.4f}")
-        print(f"    Green (550nm): {green_mean:.4f}")
-        print(f"    Red (680nm):   {red_mean:.4f}")
+        print(f"    Green (525nm): {green_mean:.4f}")
+        print(f"    Red (675nm):   {red_mean:.4f}")
         print(f"    Interpolated green: {interp_green:.4f}")
         print(f"    Green dip: {green_dip:.1f}%")
         print(f"    {'PASS' if check2 else 'FAIL'} (threshold: >1% dip)")
@@ -1223,10 +1259,10 @@ def create_dart_simulation(obj_path, mapping_json_path, simu_name,
         prospect=prospect_params,
         useMultiplicativeFactorForLUT=0,
     )
+    stem_prospect = get_stem_prospect_params(SIMULATION_DAYS)
     simu.add.optical_property(
         type='Lambertian', ident='maize_stem',
-        databaseName='Lambertian_vegetation.db',
-        ModelName='bark_eucalyptus',
+        prospect=stem_prospect,
         useMultiplicativeFactorForLUT=0,
     )
 
@@ -1287,6 +1323,9 @@ def create_dart_simulation(obj_path, mapping_json_path, simu_name,
     # Engine: Lux
     simu.core.phase.Phase.accelerationEngine = 2
     simu.core.phase.Phase.ExpertModeZone.nbThreads = DART_THREADS
+
+    # Atmosphere: MIDLATSUM
+    configure_atmosphere_midlatsum(simu)
 
     # Write simulation
     simu.write(overwrite=True)
@@ -1624,10 +1663,10 @@ def create_dart_simulation_multi(obj_paths, mapping_json_paths, simu_name,
         prospect=prospect_params,
         useMultiplicativeFactorForLUT=0,
     )
+    stem_prospect = get_stem_prospect_params(SIMULATION_DAYS)
     simu.add.optical_property(
         type='Lambertian', ident='maize_stem',
-        databaseName='Lambertian_vegetation.db',
-        ModelName='bark_eucalyptus',
+        prospect=stem_prospect,
         useMultiplicativeFactorForLUT=0,
     )
 
@@ -1691,6 +1730,9 @@ def create_dart_simulation_multi(obj_paths, mapping_json_paths, simu_name,
     # Engine: Lux
     simu.core.phase.Phase.accelerationEngine = 2
     simu.core.phase.Phase.ExpertModeZone.nbThreads = DART_THREADS
+
+    # Atmosphere: MIDLATSUM
+    configure_atmosphere_midlatsum(simu)
 
     # Write simulation
     simu.write(overwrite=True)

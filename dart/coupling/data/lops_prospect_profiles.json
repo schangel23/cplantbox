@@ -1,0 +1,70 @@
+{
+  "source": "LOPS_maize_P1.xlsx",
+  "description": "Per-leaf-position PROSPECT parameters from LOPS intra-plant variability measurements. Positions are 1-based, bottom-to-top. Only Cab and N vary across positions; Car, Cw, Cm are constant within a stage.",
+  "constant_params": {
+    "Car": 10.0,
+    "anthocyanin": 0.005,
+    "CBrown": 0.0
+  },
+  "stages": {
+    "V6": {
+      "day_range": [0, 35],
+      "label": "early_vegetative",
+      "test_set": "maizeV6_0",
+      "source_block": "R-block (Maize V6 CKA-B, 30.10.24)",
+      "n_positions": 3,
+      "positions": [
+        {"position": 1, "Cab": 25.0, "N": 1.75},
+        {"position": 2, "Cab": 50.0, "N": 1.65},
+        {"position": 3, "Cab": 38.0, "N": 1.55}
+      ],
+      "stem": {"Cab": 25.0, "N": 2.0, "CBrown": 0.05}
+    },
+    "V10": {
+      "day_range": [35, 56],
+      "label": "late_vegetative",
+      "test_set": "maizeV10_0",
+      "source_block": "H-block (My test, 9.7.24)",
+      "n_positions": 13,
+      "positions": [
+        {"position": 1,  "Cab": 15.0, "N": 1.20},
+        {"position": 2,  "Cab": 22.0, "N": 1.40},
+        {"position": 3,  "Cab": 19.0, "N": 1.35},
+        {"position": 4,  "Cab": 35.0, "N": 1.50},
+        {"position": 5,  "Cab": 40.0, "N": 1.50},
+        {"position": 6,  "Cab": 49.0, "N": 1.65},
+        {"position": 7,  "Cab": 47.0, "N": 1.60},
+        {"position": 8,  "Cab": 44.0, "N": 1.60},
+        {"position": 9,  "Cab": 40.0, "N": 1.50},
+        {"position": 10, "Cab": 38.0, "N": 1.50},
+        {"position": 11, "Cab": 35.0, "N": 1.40},
+        {"position": 12, "Cab": 28.0, "N": 1.40},
+        {"position": 13, "Cab": 25.0, "N": 1.35}
+      ],
+      "stem": {"Cab": 35.0, "N": 1.5, "CBrown": 0.018}
+    },
+    "R1": {
+      "day_range": [56, 9999],
+      "label": "mature",
+      "test_set": "maizeR1_2",
+      "source_block": "H-block (Maize R1 CKA-B, 29.10.24)",
+      "n_positions": 13,
+      "positions": [
+        {"position": 1,  "Cab": 40.0, "N": 1.80},
+        {"position": 2,  "Cab": 40.0, "N": 1.80},
+        {"position": 3,  "Cab": 40.0, "N": 1.80},
+        {"position": 4,  "Cab": 62.0, "N": 1.60},
+        {"position": 5,  "Cab": 62.0, "N": 1.60},
+        {"position": 6,  "Cab": 62.0, "N": 1.60},
+        {"position": 7,  "Cab": 62.0, "N": 1.60},
+        {"position": 8,  "Cab": 62.0, "N": 1.60},
+        {"position": 9,  "Cab": 62.0, "N": 1.60},
+        {"position": 10, "Cab": 50.0, "N": 1.50},
+        {"position": 11, "Cab": 50.0, "N": 1.50},
+        {"position": 12, "Cab": 50.0, "N": 1.50},
+        {"position": 13, "Cab": 50.0, "N": 1.50}
+      ],
+      "stem": {"Cab": 25.0, "N": 2.0, "CBrown": 0.05}
+    }
+  }
+}

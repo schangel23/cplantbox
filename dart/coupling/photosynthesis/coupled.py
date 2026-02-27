@@ -31,7 +31,9 @@ import plantbox as pb
 
 from ..config import DEFAULT_XML, OUTPUT_DIR, get_hydraulics_json, get_photosynthesis_json, get_phloem_json
 from ..growth.grow import grow_plant
-from ..prospect_params import get_chl_for_photosynthesis, get_prospect_params, log_consistency
+from ..prospect_params import (get_chl_for_photosynthesis, get_chl_per_segment,
+                               get_prospect_params, log_consistency, log_lops_consistency,
+                               vcmax25_from_cab)
 
 # ---------------------------------------------------------------------------
 # Constants
@@ -203,13 +205,21 @@ def run_photosynthesis_solve(plant, sim_time, par, tleaf, label,
     hm.read_photosynthesis_parameters(filename=get_photosynthesis_json())
     hm.read_phloem_parameters(filename=get_phloem_json())
 
-    # Override Chl from shared PROSPECT table to ensure Cab consistency
-    chl_from_prospect = get_chl_for_photosynthesis(sim_time)
-    hm.Chl = [chl_from_prospect]
+    # Override Chl from LOPS per-position profiles (per-segment mode)
+    chl_per_seg = get_chl_per_segment(sim_time, plant)
+    seg_leaves_idx_check = plant.getSegmentIds(4)
+    if len(chl_per_seg) == len(seg_leaves_idx_check):
+        hm.Chl = chl_per_seg
+    else:
+        # Fallback to uniform if mismatch
+        hm.Chl = [get_chl_for_photosynthesis(sim_time)]
 
-    vcmax_umol = (hm.VcmaxrefChl1 * hm.Chl[0] + hm.VcmaxrefChl2)
+    cab_arr = hm.Chl if len(hm.Chl) > 1 else hm.Chl * len(seg_leaves_idx_check)
+    vcmax_min = vcmax25_from_cab(min(cab_arr))
+    vcmax_max = vcmax25_from_cab(max(cab_arr))
     print(f"  PhotoType={'C4' if hm.PhotoType == 1 else 'C3'}, "
-          f"Vcmax~{vcmax_umol:.1f} µmol m-2 s-1")
+          f"Vcmax range=[{vcmax_min:.1f}, {vcmax_max:.1f}] µmol m-2 s-1 "
+          f"({len(hm.Chl)} Chl values)")
 
     # --- Soil water potential ---
     depth = 100

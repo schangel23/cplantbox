@@ -28,6 +28,8 @@ import numpy as np
 from pathlib import Path
 
 from ..config import get_species, get_hydraulics_json, get_photosynthesis_json, get_phloem_json
+from ..prospect_params import (get_prospect_params, get_prospect_params_per_position,
+                               get_chl_per_segment, vcmax25_from_cab)
 from .coupled import run_photosynthesis_solve
 
 # Unit conversion constants
@@ -288,15 +290,25 @@ def run_iterative_coupling(
         print(f"  Wrote triangle gs CSV: {tri_result['coverage']*100:.1f}% coverage")
 
         # --- Update Baleno config to use ExternalGS plugin ---
+        # Use mean Cab/N across per-position LOPS profiles
+        leaf_organs = [o for o in plant.getOrgans()
+                       if o.organType() == pb.OrganTypes.leaf]
+        n_lv = len(leaf_organs)
+        per_pos = get_prospect_params_per_position(sim_time, n_lv)
+        mean_cab = float(np.mean([p["Cab"] for p in per_pos]))
+        mean_n = float(np.mean([p["N"] for p in per_pos]))
+        base_p = get_prospect_params(sim_time)
         input_dir = Path(baleno_sim_dir) / 'input'
         _write_json5(input_dir / 'vegetation.json5', {
             "Plugin": "ExternalGS",
             "Model": "VegetationExternalGS",
             "PAR_min": 0.400,
-            "PAR_max": 0.780,
-            "Cab": 55, "Cca": 10, "Cs": 0, "Cw": 0.012, "Cdm": 0.01,
-            "N": 1.4, "fqe": 0,
-            "Vcmax25": 50, "BallBerrySlope": 8, "BallBerry0": 0.01,
+            "PAR_max": 0.700,
+            "Cab": round(mean_cab, 1), "Cca": 10, "Cs": 0,
+            "Cw": base_p["Cw"], "Cdm": base_p["Cm"],
+            "N": round(mean_n, 2), "fqe": 0,
+            "Vcmax25": round(vcmax25_from_cab(mean_cab), 1),
+            "BallBerrySlope": 8, "BallBerry0": 0.01,
             "RdPerVcmax25": get_species()["rd_per_vcmax25"],
             "Type": get_species()["photo_type"],
             "rho_thermal": 0.01, "tau_thermal": 0.01, "stress_factor": 1,
@@ -392,8 +404,13 @@ def _extract_gs_from_solve(plant, sim_time, par_umol, tleaf, rh, soil_psi_cm):
     hm.read_photosynthesis_parameters(filename=get_photosynthesis_json())
     hm.read_phloem_parameters(filename=get_phloem_json())
 
-    chl = get_chl_for_photosynthesis(sim_time)
-    hm.Chl = [chl]
+    # Per-segment Chl from LOPS profiles
+    chl_per_seg = get_chl_per_segment(sim_time, plant)
+    seg_check = plant.getSegmentIds(4)
+    if len(chl_per_seg) == len(seg_check):
+        hm.Chl = chl_per_seg
+    else:
+        hm.Chl = [get_chl_for_photosynthesis(sim_time)]
 
     # Soil water potential
     depth = 100
