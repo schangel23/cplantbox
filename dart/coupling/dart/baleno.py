@@ -802,7 +802,7 @@ def step5_run_baleno():
     )
     env['LD_LIBRARY_PATH'] = filtered_ld
 
-    cmd = [str(VENV_PYTHON), 'src/main.py']
+    cmd = [str(VENV_PYTHON), '-m', 'src.main']
     print(f"  Command: {' '.join(cmd)}")
     print(f"  CWD: {BALENO_DIR}")
     print(f"  Python: {VENV_PYTHON}")
@@ -1792,7 +1792,7 @@ def run_baleno_subprocess(baleno_simu_name=None, timeout=3600):
     )
     env['LD_LIBRARY_PATH'] = filtered_ld
 
-    cmd = [str(VENV_PYTHON), 'src/main.py']
+    cmd = [str(VENV_PYTHON), '-m', 'src.main']
     try:
         result = subprocess.run(
             cmd, cwd=str(BALENO_DIR), env=env,
