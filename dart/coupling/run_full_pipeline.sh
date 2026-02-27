@@ -31,6 +31,12 @@
 #
 #   # Detach: Ctrl+B, D — Re-attach: tmux attach -t pipeline
 #
+# ENVIRONMENT:
+#   AGROC_SRC     Path to AgroC source dir with compiled binary (auto-detected)
+#   DART_HOME     Path to DART installation (required for --full)
+#   DARTRC        Path to DART license file (required for --full)
+#   BALENO_PYTHON Path to Baleno Python interpreter (required for --full)
+#
 # OUTPUT:
 #   dart/coupling/output/pipeline_run/
 #     pipeline.log           full log
@@ -39,6 +45,7 @@
 #     step3_carbon/          carbon partitioning (phloem + DVS)
 #     step4_summary/         LAI + plant summary
 #     step5_agroc/           AgroC coupling CSV + conservation
+#     step5b_agroc_run/      AgroC Fortran with ExternalPlantMode
 #     step6_session8/        integration test results
 #     step7_dart/            DART RT (full mode only)
 #     step8_baleno/          Baleno EB (full mode only)
@@ -259,6 +266,43 @@ mkdir -p "$STEP5_OUT"
 run_step 5 "AgroC coupling CSV (multi-day)" \
   python3 -m dart.coupling agroc-export \
     --multi-day --method auto
+
+# ---------------------------------------------------------------------------
+# STEP 5b: Run AgroC with ExternalPlantMode
+# ---------------------------------------------------------------------------
+AGROC_SRC="${AGROC_SRC:-}"
+
+# Auto-detect AgroC source directory
+if [[ -z "$AGROC_SRC" ]]; then
+  if [[ -f "/home/lukas/PHD/agroC_20250327_1511/src/agroC" ]]; then
+    AGROC_SRC="/home/lukas/PHD/agroC_20250327_1511/src"
+  elif [[ -f "/media/data/Lukas/agroC_20250327_1511/src/agroC" ]]; then
+    AGROC_SRC="/media/data/Lukas/agroC_20250327_1511/src"
+  fi
+fi
+
+# Find the coupling CSV produced by Step 5
+COUPLING_CSV=""
+if [[ -d "$SCRIPT_DIR/output/session6" ]]; then
+  COUPLING_CSV=$(find "$SCRIPT_DIR/output/session6" -name "*_coupling.csv" -type f | head -1)
+fi
+
+if [[ -n "$AGROC_SRC" ]] && [[ -f "$AGROC_SRC/agroC" ]] && [[ -n "$COUPLING_CSV" ]]; then
+  STEP5B_OUT="$OUTDIR/step5b_agroc_run"
+  mkdir -p "$STEP5B_OUT"
+
+  run_step 5b "AgroC soil simulation (ExternalPlantMode)" \
+    python3 -m dart.coupling agroc-run \
+      --agroc-src "$AGROC_SRC" \
+      --coupling-csv "$COUPLING_CSV" \
+      --output-dir "$STEP5B_OUT"
+else
+  if [[ -z "$AGROC_SRC" ]] || [[ ! -f "${AGROC_SRC:-/nonexistent}/agroC" ]]; then
+    step_skip 5b "AgroC run (binary not found; set AGROC_SRC)"
+  else
+    step_skip 5b "AgroC run (coupling CSV not found; run Step 5 first)"
+  fi
+fi
 
 # ---------------------------------------------------------------------------
 # STEP 6: Session 8 integration test

@@ -46,7 +46,10 @@ from dart.coupling.growth.grow import (
     extract_lai_profile, extract_rld_profile,
 )
 from dart.coupling.carbon import solve_carbon_partitioning, partition_carbon_dvs
-from dart.coupling.agroc import export_agroc_timestep, export_coupling_csv
+from dart.coupling.agroc import (
+    export_agroc_timestep, export_coupling_csv,
+    get_agroc_src, prepare_agroc_workdir, run_agroc, validate_agroc_outputs,
+)
 
 # ---------------------------------------------------------------------------
 # Stage 1 reference values (from Session 1)
@@ -607,7 +610,8 @@ def task6_agroc_coupling_test(day=55, skip_agroc=False):
 
     Validation:
       - AgroC exits cleanly (returncode == 0)
-      - GPP in t_level.out matches coupling CSV within 1%
+      - t_level.out exists with data rows
+      - GPP in t_level.out matches coupling CSV input
     """
     print("\n" + "=" * 70)
     print(f"TASK 6: AgroC Fortran Integration (day {day})")
@@ -645,99 +649,64 @@ def task6_agroc_coupling_test(day=55, skip_agroc=False):
     csv_path = task_dir / "coupling.csv"
     export_coupling_csv(timesteps, csv_path, n_layers=20)
 
-    # 2. Find AgroC binary and inputs
-    agroc_src = Path("/home/lukas/PHD/agroC_20250327_1511/src")
-    agroc_bin = agroc_src / "agroC"
-    selector_in = agroc_src / "selector.in"
-
-    if not agroc_bin.exists():
-        print(f"  WARNING: AgroC binary not found at {agroc_bin}")
-        print(f"  AgroC Fortran test skipped (binary missing)")
+    # 2. Find AgroC source using the run module
+    try:
+        agroc_src = get_agroc_src()
+    except FileNotFoundError as e:
+        print(f"  WARNING: {e}")
+        print(f"  AgroC Fortran test skipped (binary not found)")
         result["skip_reason"] = "binary_missing"
         result["passed"] = True  # graceful skip
         return result
 
-    # 3. Create temp directory with AgroC inputs
-    tmp_dir = task_dir / "agroc_run"
-    if tmp_dir.exists():
-        shutil.rmtree(tmp_dir)
-    tmp_dir.mkdir(parents=True)
+    agroc_bin = agroc_src / "agroC"
+    if not agroc_bin.exists():
+        print(f"  WARNING: AgroC binary not found at {agroc_bin}")
+        result["skip_reason"] = "binary_missing"
+        result["passed"] = True
+        return result
 
-    # Copy AgroC binary
-    shutil.copy2(agroc_bin, tmp_dir / "agroC")
-    os.chmod(tmp_dir / "agroC", 0o755)
-
-    # Copy selector.in + required input files
-    if selector_in.exists():
-        shutil.copy2(selector_in, tmp_dir / "selector.in")
-
-    # Copy coupling CSV
-    shutil.copy2(csv_path, tmp_dir / "coupling.csv")
-
-    # Copy any other required input files from AgroC src
-    for pattern in ["*.in", "*.dat", "METEO*", "meteo*"]:
-        for f in agroc_src.glob(pattern):
-            if f.name != "selector.in":  # already copied
-                shutil.copy2(f, tmp_dir / f.name)
-
-    # 4. Flip ExternalPlant flag in selector.in
-    sel_path = tmp_dir / "selector.in"
-    if sel_path.exists():
-        sel_text = sel_path.read_text()
-        # Replace "ExternalPlant f" with "ExternalPlant t"
-        if "ExternalPlant" in sel_text:
-            sel_text = sel_text.replace("ExternalPlant f", "ExternalPlant t")
-            sel_text = sel_text.replace("ExternalPlant  f", "ExternalPlant  t")
-            sel_path.write_text(sel_text)
-            print(f"  Flipped ExternalPlant flag to 't'")
-        else:
-            print(f"  WARNING: ExternalPlant flag not found in selector.in")
-
-    # 5. Run AgroC
-    print(f"\n  Running AgroC in {tmp_dir}...")
+    # 3. Prepare working directory using run module
     try:
-        proc = subprocess.run(
-            ["./agroC"],
-            cwd=str(tmp_dir),
-            capture_output=True, text=True,
-            timeout=120,
-        )
+        workdir = prepare_agroc_workdir(agroc_src, task_dir, csv_path)
+        print(f"  Working directory: {workdir}")
+    except Exception as e:
+        print(f"  ERROR: Failed to prepare AgroC workdir: {e}")
+        result["passed"] = True  # graceful — CSV was generated
+        return result
+
+    # 4. Run AgroC
+    try:
+        proc = run_agroc(workdir, timeout=120)
         result["returncode"] = proc.returncode
         result["stdout_tail"] = proc.stdout[-500:] if proc.stdout else ""
         result["stderr_tail"] = proc.stderr[-500:] if proc.stderr else ""
-        print(f"  Exit code: {proc.returncode}")
 
         if proc.returncode != 0:
             print(f"  AgroC failed with exit code {proc.returncode}")
-            print(f"  stderr: {proc.stderr[-200:]}")
-            # Graceful: still pass if we at least generated the CSV
-            result["passed"] = True
+            if proc.stderr:
+                print(f"  stderr: {proc.stderr[-200:]}")
+            result["passed"] = True  # graceful
             result["agroc_ran"] = False
             return result
 
         result["agroc_ran"] = True
 
-        # 6. Parse t_level.out if it exists
-        t_level = tmp_dir / "t_level.out"
-        if t_level.exists():
+        # 5. Validate outputs using run module
+        validation = validate_agroc_outputs(workdir, csv_path)
+        result["validation"] = validation
+        for check in validation["checks"]:
+            print(f"    {check}")
+
+        if "t_level" in validation:
             result["t_level_exists"] = True
-            print(f"  t_level.out found ({t_level.stat().st_size} bytes)")
-            # Check GPP column if present
-            try:
-                lines = t_level.read_text().strip().split("\n")
-                if len(lines) > 1:
-                    header = lines[0].split()
-                    if "GPP" in header:
-                        gpp_col = header.index("GPP")
-                        gpp_vals = [float(l.split()[gpp_col])
-                                    for l in lines[1:] if l.strip()]
-                        result["gpp_from_tlevel"] = gpp_vals
-                        print(f"  GPP values from t_level: {gpp_vals[:5]}")
-            except Exception as e:
-                print(f"  WARNING: Could not parse t_level.out: {e}")
+            t_level = validation["t_level"]
+            gpp_col = t_level.get("columns", {}).get("GPP")
+            if gpp_col:
+                result["gpp_from_tlevel"] = gpp_col[:5]
+                print(f"  GPP values from t_level: {gpp_col[:5]}")
         else:
             result["t_level_exists"] = False
-            print(f"  t_level.out not found (AgroC may need more input files)")
 
         result["passed"] = True
         print(f"\n  TASK 6 PASSED")

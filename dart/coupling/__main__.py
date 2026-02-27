@@ -103,6 +103,18 @@ def cli():
     p_agroc.add_argument("--multi-day", action="store_true",
                          help="Run days [20, 35, 55] trajectory")
 
+    # Stage 2 Session 7 — AgroC Fortran run
+    p_agroc_run = sub.add_parser("agroc-run",
+                                 help="Session 7: run AgroC with ExternalPlantMode")
+    p_agroc_run.add_argument("--agroc-src", type=str, default=None,
+                             help="Path to AgroC source dir (default: AGROC_SRC env var)")
+    p_agroc_run.add_argument("--coupling-csv", type=str, required=True,
+                             help="Path to coupling.csv from agroc-export")
+    p_agroc_run.add_argument("--output-dir", type=str, default=None,
+                             help="Output directory (default: coupling/output/session7)")
+    p_agroc_run.add_argument("--timeout", type=int, default=300,
+                             help="AgroC timeout in seconds (default: 300)")
+
     # Session 8 — integration test
     p_integ = sub.add_parser("integration-test",
                              help="Session 8: full pipeline integration test")
@@ -535,6 +547,61 @@ def cli():
             lines = [f"Day {ts['day']}:"] + ts["conservation"]
             report_path.write_text("\n".join(lines))
             print(f"\n  Conservation report: {report_path}")
+
+    elif args.command == "agroc-run":
+        from pathlib import Path as _Path
+        from .agroc.run import (
+            get_agroc_src, prepare_agroc_workdir, run_agroc,
+            validate_agroc_outputs,
+        )
+        from .config import OUTPUT_DIR
+
+        # Resolve agroc source
+        if args.agroc_src:
+            agroc_src = _Path(args.agroc_src)
+        else:
+            agroc_src = get_agroc_src()
+
+        # Resolve output dir
+        if args.output_dir:
+            out_dir = _Path(args.output_dir)
+        else:
+            out_dir = OUTPUT_DIR / "session7"
+        out_dir.mkdir(parents=True, exist_ok=True)
+
+        coupling_csv = _Path(args.coupling_csv)
+
+        print(f"\n{'='*60}")
+        print("AGROC RUN — ExternalPlantMode")
+        print(f"{'='*60}")
+        print(f"  AgroC source:  {agroc_src}")
+        print(f"  Coupling CSV:  {coupling_csv}")
+        print(f"  Output:        {out_dir}")
+
+        # 1. Prepare working directory
+        workdir = prepare_agroc_workdir(agroc_src, out_dir, coupling_csv)
+        print(f"  Working dir:   {workdir}")
+
+        # 2. Run AgroC
+        proc = run_agroc(workdir, timeout=args.timeout)
+
+        if proc.returncode != 0:
+            print(f"\n  AgroC FAILED (exit code {proc.returncode})")
+            # Save stdout/stderr for debugging
+            (workdir / "agroc_stdout.txt").write_text(proc.stdout or "")
+            (workdir / "agroc_stderr.txt").write_text(proc.stderr or "")
+            sys.exit(1)
+
+        # 3. Validate outputs
+        validation = validate_agroc_outputs(workdir, coupling_csv)
+        print(f"\n  Validation:")
+        for check in validation["checks"]:
+            print(f"    {check}")
+
+        if validation["passed"]:
+            print(f"\n  AGROC RUN PASSED")
+        else:
+            print(f"\n  AGROC RUN — validation warnings (see above)")
 
     elif args.command == "integration-test":
         from .tests.test_session8_integration import main as integ_main

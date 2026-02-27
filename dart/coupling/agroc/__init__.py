@@ -1,4 +1,4 @@
-"""AgroC coupling interface: profiles, unit conversions, and export."""
+"""AgroC coupling interface: profiles, unit conversions, export, and runner."""
 
 from .profiles import (
     compute_root_respiration_profile,
@@ -8,3 +8,10 @@ from .profiles import (
     compute_aboveground_fluxes,
 )
 from .export import export_agroc_timestep, export_coupling_csv
+from .run import (
+    get_agroc_src,
+    prepare_agroc_workdir,
+    run_agroc,
+    validate_agroc_outputs,
+    parse_t_level,
+)
