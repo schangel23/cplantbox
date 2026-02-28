@@ -139,8 +139,12 @@ def step1_create_simu_I():
         print(f"    Leaf OP: {ident} (Cab={params['Cab']:.1f}, N={params['N']:.2f})")
     log_lops_consistency(55, n_leaf_groups)
 
-    # NOTE: No separate stem material — Baleno crashes (KeyError) when
-    # ObjectFields mode doesn't render stem triangles in phase.scn.
+    stem_prospect = get_stem_prospect_params(55)
+    simu.add.optical_property(
+        type='Lambertian', ident='maize_stem',
+        prospect=stem_prospect,
+        useMultiplicativeFactorForLUT=0,
+    )
 
     # 3D Object via ObjectFields (same grid as Phase 1)
     xdim, ydim, zdim = obj_info.dims
@@ -153,16 +157,17 @@ def step1_create_simu_I():
         g = ptd.object_3d.create_Group(num=gi + 1, name=gname)
         is_stem = gname.endswith('_00')
         if is_stem:
-            op_ident = f'maize_leaf_pos0'  # use leaf OP for stems
+            op_ident = 'maize_stem'
         else:
             op_ident = f'maize_leaf_pos{leaf_idx}'
             leaf_idx += 1
+        df = 0 if is_stem else 1
         g.set_nodes(ident=op_ident)
         gop = g.GroupOpticalProperties
-        gop.SurfaceOpticalProperties.doubleFace = 1
-        gop.SurfaceExitanceProperties.doubleFace = 1
+        gop.SurfaceOpticalProperties.doubleFace = df
+        gop.SurfaceExitanceProperties.doubleFace = df
         groups_list.append(g)
-        print(f"    Group {gi+1}: {gname} -> {op_ident}, doubleFace=1")
+        print(f"    Group {gi+1}: {gname} -> {op_ident}, doubleFace={df}")
     groups = ptd.object_3d.create_Groups(Group=groups_list)
     print(f"  OBJ groups: {len(gnames)}")
 
@@ -1475,9 +1480,12 @@ def setup_baleno_full(obj_path, mapping_json, reindex_json, grid_info_path,
         prospect=prospect_params,
         useMultiplicativeFactorForLUT=0,
     )
-    # NOTE: No separate stem material. Baleno crashes (KeyError) when
-    # ObjectFields mode doesn't render stem triangles in phase.scn.
-    # Stems are <5% of geometry — using leaf OP is fine for energy balance.
+    stem_prospect = get_stem_prospect_params(55)
+    simu_I.add.optical_property(
+        type='Lambertian', ident='maize_stem',
+        prospect=stem_prospect,
+        useMultiplicativeFactorForLUT=0,
+    )
 
     # 3D Object
     file_src_fullpath = simu_I.get_input_file_path(str(obj_path))
@@ -1489,10 +1497,13 @@ def setup_baleno_full(obj_path, mapping_json, reindex_json, grid_info_path,
     groups_list = []
     for gi, gname in enumerate(gnames):
         g = ptd.object_3d.create_Group(num=gi + 1, name=gname)
-        g.set_nodes(ident='maize_leaf')
+        is_stem = gname.endswith('_00')
+        op_ident = 'maize_stem' if is_stem else 'maize_leaf'
+        df = 0 if is_stem else 1
+        g.set_nodes(ident=op_ident)
         gop = g.GroupOpticalProperties
-        gop.SurfaceOpticalProperties.doubleFace = 1
-        gop.SurfaceExitanceProperties.doubleFace = 1
+        gop.SurfaceOpticalProperties.doubleFace = df
+        gop.SurfaceExitanceProperties.doubleFace = df
         groups_list.append(g)
     groups = ptd.object_3d.create_Groups(Group=groups_list)
 
