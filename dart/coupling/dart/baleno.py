@@ -421,6 +421,7 @@ def step3_create_baleno_configs():
     # config uses mean Cab/N.  The iterative Tuzet loop uses CPlantBox's
     # per-segment Vcmax anyway.
     import numpy as np
+    per_pos_params = get_prospect_params_per_position(55, 11)
     mean_cab = float(np.mean([p["Cab"] for p in per_pos_params]))
     mean_n = float(np.mean([p["N"] for p in per_pos_params]))
     base_params = get_prospect_params(55)
