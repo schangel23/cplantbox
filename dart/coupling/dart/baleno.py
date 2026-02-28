@@ -47,11 +47,13 @@ VENV_PYTHON = BALENO_PYTHON
 SIMU_NAME_EB = 'cpb_maize_eb'            # Baleno simulation name
 DART_SIMU_NAME = 'cpb_maize_day55_eb'    # DART simulation container name
 
-# Baleno user_data base: when config.ini user_data_path is empty, both
-# main.py and PathManager resolve to BALENO_DIR / 'user_data'.
-# We MUST use empty user_data_path because main.py:check_existing_simulation()
-# and PathManager construct different paths when user_data_path is non-empty
-# (main.py skips the 'user_data/' subdirectory — Baleno bug).
+# Baleno has TWO user_data directories:
+# 1. BALENO_DIR/user_data — Baleno's own (JSON5 configs, EB outputs)
+# 2. DART_LOCAL (= DART_HOME/user_data) — DART simulations (_I, _II subdirs)
+#
+# config.ini user_data_path MUST be empty so check_existing_simulation()
+# resolves to BALENO_DIR/user_data where the JSON5 input files live.
+# DARTPathManager separately reads DART_LOCAL from .dartrc for DART outputs.
 BALENO_USER_DATA = BALENO_DIR / 'user_data'
 
 # Pre-existing Phase 1 outputs
@@ -614,15 +616,14 @@ def step4_write_config_files():
         backups['baleno_config'] = (str(baleno_config_path), None)
         print(f"  config.ini did not exist (will be cleaned up)")
 
-    # user_data_path MUST be empty so both main.py and PathManager
-    # resolve to BALENO_DIR/user_data/ (see Baleno path inconsistency bug)
     baleno_config_content = textwrap.dedent(f"""\
         [simulation]
         user_data_path =
         name = {SIMU_NAME_EB}
     """)
     baleno_config_path.write_text(baleno_config_content)
-    print(f"  Wrote config.ini: user_data_path=(empty), name={SIMU_NAME_EB}")
+    print(f"  Wrote config.ini: user_data_path=(empty -> BALENO_DIR/user_data), "
+          f"name={SIMU_NAME_EB}")
 
     # --- DART plugin dart_config.ini ---
     dart_config_path = BALENO_DIR / 'plugins' / 'DART' / 'resources' / 'dart_config.ini'
