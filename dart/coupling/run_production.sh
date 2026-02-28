@@ -52,13 +52,15 @@ if [[ -z "${DART_HOME:-}" ]]; then
     if [[ -d "/media/data/Lukas/DART" ]]; then
         export DART_HOME="/media/data/Lukas/DART"
         export DARTRC="/media/data/Lukas/DART/.dartrc"
-        # Baleno needs Python 3.11+ (StrEnum). DART bundles Python 3.8 which is
-        # too old. Use cpbenv's Python 3.12 instead.
-        export BALENO_PYTHON="$REPO_ROOT/cpbenv/bin/python3"
     elif [[ -d "/home/lukas/DART" ]]; then
         export DART_HOME="/home/lukas/DART"
     fi
 fi
+
+# Baleno needs Python 3.11+ (StrEnum). DART bundles Python 3.8 which is
+# too old. Always use cpbenv's Python (3.12+ on server, 3.14 locally).
+# Set unconditionally to override any stale BALENO_PYTHON in the environment.
+export BALENO_PYTHON="$REPO_ROOT/cpbenv/bin/python3"
 
 # ---------------------------------------------------------------------------
 # Activate venv
