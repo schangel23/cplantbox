@@ -1804,6 +1804,18 @@ def run_baleno_subprocess(baleno_simu_name=None, timeout=3600):
             for line in stderr_lines[-10:]:
                 print(f"    {line}")
             return False
+
+        # Baleno exits 0 even on failure (e.g. "does not exist. Exit").
+        # Check stdout/stderr for known failure patterns.
+        combined = result.stdout + result.stderr
+        failure_patterns = ['does not exist', 'Error', 'Traceback', 'KeyError']
+        for pattern in failure_patterns:
+            if pattern in combined:
+                print(f"  Baleno exited 0 but output indicates failure:")
+                for line in combined.strip().split('\n')[-15:]:
+                    print(f"    {line}")
+                return False
+
         return True
     except subprocess.TimeoutExpired:
         print(f"  Baleno timed out after {timeout}s")
