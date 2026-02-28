@@ -52,7 +52,9 @@ if [[ -z "${DART_HOME:-}" ]]; then
     if [[ -d "/media/data/Lukas/DART" ]]; then
         export DART_HOME="/media/data/Lukas/DART"
         export DARTRC="/media/data/Lukas/DART/.dartrc"
-        export BALENO_PYTHON="/media/data/Lukas/DART/bin/python/bin/python3"
+        # Baleno needs Python 3.11+ (StrEnum). DART bundles Python 3.8 which is
+        # too old. Use cpbenv's Python 3.12 instead.
+        export BALENO_PYTHON="$REPO_ROOT/cpbenv/bin/python3"
     elif [[ -d "/home/lukas/DART" ]]; then
         export DART_HOME="/home/lukas/DART"
     fi
@@ -68,10 +70,11 @@ cd "$REPO_ROOT"
 echo "============================================================"
 echo "PRODUCTION RUN: Full Multifield Diurnal Simulation"
 echo "============================================================"
-echo "  Repository:  $REPO_ROOT"
-echo "  Python:      $(which python3) ($(python3 --version 2>&1))"
-echo "  DART_HOME:   ${DART_HOME:-NOT SET}"
-echo "  Start:       $(date)"
+echo "  Repository:    $REPO_ROOT"
+echo "  Python:        $(which python3) ($(python3 --version 2>&1))"
+echo "  DART_HOME:     ${DART_HOME:-NOT SET}"
+echo "  BALENO_PYTHON: ${BALENO_PYTHON:-NOT SET} ($($BALENO_PYTHON --version 2>&1 || echo MISSING))"
+echo "  Start:         $(date)"
 echo "============================================================"
 
 # ---------------------------------------------------------------------------

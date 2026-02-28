@@ -342,8 +342,12 @@ def run_single_day(sim_day, timestep_min=30, enable_baleno=True,
             baleno_setup['simu_I'].run.full(timeout=1800)
             print(f"  Baleno _I full: {time.time() - t0:.1f}s")
         except Exception as e:
-            print(f"  WARNING: Baleno setup failed: {e}")
-            print(f"  Continuing without Baleno (using uniform Tleaf)")
+            import traceback
+            print(f"\n  {'!' * 60}")
+            print(f"  BALENO SETUP FAILED — all Tleaf will default to Tair!")
+            print(f"  Error: {e}")
+            traceback.print_exc()
+            print(f"  {'!' * 60}\n")
             baleno_setup = None
 
     # --- Diurnal loop ---
@@ -401,6 +405,7 @@ def run_single_day(sim_day, timestep_min=30, enable_baleno=True,
         # --- Baleno energy balance (optional) ---
         # Use center plant Tleaf for all plants (small inter-plant difference)
         tleaf_center = None
+        baleno_ok_flag = False
         if baleno_setup is not None:
             try:
                 t0 = time.time()
@@ -426,11 +431,17 @@ def run_single_day(sim_day, timestep_min=30, enable_baleno=True,
                         grid_info_path=str(grid_path),
                         center_plant_idx=CENTER_PLANT_IDX,
                     )
+                baleno_ok_flag = tleaf_center is not None
                 baleno_time = time.time() - t0
                 print(f"    Baleno: {baleno_time:.1f}s, "
-                      f"Tleaf={'OK' if tleaf_center is not None else 'FAILED'}")
+                      f"Tleaf={'OK' if baleno_ok_flag else 'FAILED'}")
+                if not baleno_ok_flag:
+                    print(f"    WARNING: Baleno ran but Tleaf extraction failed "
+                          f"(subprocess_ok={ok}). Using Tair={T_air_C:.1f}C")
             except Exception as e:
+                import traceback
                 print(f"    Baleno error: {e}")
+                traceback.print_exc()
 
         # --- Scale DART aPAR to absolute umol/m2/s ---
         n_par_bands = len(PAR_BANDS)
@@ -534,6 +545,7 @@ def run_single_day(sim_day, timestep_min=30, enable_baleno=True,
             'mean_apar_umol': mean_par_umol,
             'dart_mean_apar': field_mean_apar,
             'mean_tleaf_C': mean_tleaf,
+            'baleno_ok': baleno_ok_flag,
             'An_field_mean_mmol_d': An_field_mean,
             'An_field_std_mmol_d': float(np.std(per_plant_An)),
         }
@@ -731,7 +743,8 @@ def _save_diurnal_results(day_dir, sim_day, calendar_date, hourly_results,
     fieldnames = [
         'time_utc', 'zenith', 'azimuth', 'T_air_C', 'RH', 'wind_ms',
         'clearsky_par_Wm2', 'mean_apar_umol', 'dart_mean_apar',
-        'mean_tleaf_C', 'An_field_mean_mmol_d', 'An_field_std_mmol_d',
+        'mean_tleaf_C', 'baleno_ok',
+        'An_field_mean_mmol_d', 'An_field_std_mmol_d',
         'Rm_dvs_mmol', 'Rg_dvs_mmol', 'FR_leaf_dvs', 'FR_root_dvs',
     ]
     for pi in range(N_PLANTS):
