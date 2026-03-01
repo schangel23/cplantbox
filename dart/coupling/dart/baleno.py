@@ -65,7 +65,8 @@ REINDEX_JSON = OUTPUT_DIR / 'maize_day55_reindex.json'
 # Baleno uses the same day as Phase 1 (day 55)
 PROSPECT_PARAMS = get_prospect_params(55)
 
-# Sun geometry (same as Phase 1)
+# Sun geometry: for standalone testing only.
+# Diurnal pipeline uses configure_exact_date() (DART exactDate=1 mode).
 SUN_ZENITH = 45.0
 SUN_AZIMUTH = 225.0
 SCENE_SIZE = [4, 4]
@@ -1423,11 +1424,13 @@ def step9_save_results(segment_results):
 # ============================================================================
 
 def setup_baleno_full(obj_path, mapping_json, reindex_json, grid_info_path,
-                      prospect_params, sun_zenith, sun_azimuth,
+                      prospect_params, sun_zenith=None, sun_azimuth=None,
                       scene_size=(4, 4), plant_pos=(2.0, 2.0),
                       dart_simu_name='cpb_maize_diurnal_eb',
                       baleno_simu_name='cpb_diurnal_eb',
-                      field_filename='plant_field.txt'):
+                      field_filename='plant_field.txt',
+                      calendar_date=None, hour_utc=None, minute_utc=None,
+                      lat=50.92, lon=6.36, use_exact_date=True):
     """Create _I, _II DART simulations and Baleno config files.
 
     This is the reusable counterpart of steps 1-4. Returns paths and backup
@@ -1439,12 +1442,20 @@ def setup_baleno_full(obj_path, mapping_json, reindex_json, grid_info_path,
         reindex_json: Path to Phase 1 reindex JSON.
         grid_info_path: Path to grid_info.json.
         prospect_params: PROSPECT parameter dict.
-        sun_zenith, sun_azimuth: Initial sun angles.
+        sun_zenith, sun_azimuth: Initial sun angles. Used when
+            use_exact_date=False (backward compat).
         scene_size: Scene size in meters.
         plant_pos: Center plant position.
         dart_simu_name: Name for the DART _I/_II container.
         baleno_simu_name: Name for the Baleno simulation.
         field_filename: Name of the plant field file.
+        calendar_date: datetime.date for exactDate mode.
+        hour_utc: Hour in UTC (int) for exactDate mode.
+        minute_utc: Minute (int) for exactDate mode.
+        lat: Latitude (default: Juelich 50.92).
+        lon: Longitude (default: Juelich 6.36).
+        use_exact_date: If True (default), use DART's built-in solar
+            geometry via exactDate=1.
 
     Returns:
         dict with: simu_I (ptd.simulation), simu_II_dir (Path),
@@ -1468,8 +1479,14 @@ def setup_baleno_full(obj_path, mapping_json, reindex_json, grid_info_path,
     for wvl, bw in SW_BANDS:
         simu_I.add.band(wvl=wvl, bw=bw)
 
-    simu_I.core.directions.Directions.SunViewingAngles.sunViewingZenithAngle = sun_zenith
-    simu_I.core.directions.Directions.SunViewingAngles.sunViewingAzimuthAngle = sun_azimuth
+    # Sun direction
+    if use_exact_date and calendar_date is not None:
+        from ..dart.simulation import configure_exact_date
+        configure_exact_date(simu_I, calendar_date, hour_utc, minute_utc,
+                             lat=lat, lon=lon)
+    else:
+        simu_I.core.directions.Directions.SunViewingAngles.sunViewingZenithAngle = sun_zenith
+        simu_I.core.directions.Directions.SunViewingAngles.sunViewingAzimuthAngle = sun_azimuth
 
     simu_I.add.optical_property(
         type='Lambertian', ident='ground',
@@ -1761,6 +1778,39 @@ def update_baleno_sun_and_rerun_I(simu_I, sun_zenith, sun_azimuth, timeout=300):
         for elem in root.iter('SunViewingAngles'):
             elem.set('sunViewingZenithAngle', f'{sun_zenith:.6f}')
             elem.set('sunViewingAzimuthAngle', f'{sun_azimuth:.6f}')
+        tree.write(str(directions_xml), xml_declaration=True, encoding='unicode')
+
+    for name, runner in [
+        ('direction', simu_I.run.direction),
+        ('phase', simu_I.run.phase),
+        ('dart', simu_I.run.dart),
+    ]:
+        try:
+            runner(timeout=timeout)
+        except Exception as e:
+            print(f"  Baleno _I {name} error: {e}")
+
+
+def update_baleno_datetime_and_rerun_I(simu_I, calendar_date, hour_utc,
+                                        minute_utc, timeout=300):
+    """Update ExactDateHour in _I DART simulation and re-run RT (skip maket).
+
+    For use with exactDate=1 mode. Edits the ExactDateHour XML element
+    instead of SunViewingAngles.
+    """
+    simu_I_path = Path(str(simu_I.simu_dir))
+    directions_xml = simu_I_path / 'input' / 'directions.xml'
+
+    if directions_xml.exists():
+        tree = ET.parse(str(directions_xml))
+        root = tree.getroot()
+        for elem in root.iter('ExactDateHour'):
+            elem.set('year', str(calendar_date.year))
+            elem.set('month', str(calendar_date.month))
+            elem.set('day', str(calendar_date.day))
+            elem.set('hour', str(int(hour_utc)))
+            elem.set('minute', str(int(minute_utc)))
+            elem.set('second', '0')
         tree.write(str(directions_xml), xml_declaration=True, encoding='unicode')
 
     for name, runner in [

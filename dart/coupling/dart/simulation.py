@@ -32,6 +32,32 @@ from ..prospect_params import (get_prospect_params, get_prospect_params_per_posi
 # Atmosphere helper
 # ---------------------------------------------------------------------------
 
+def configure_exact_date(simu, calendar_date, hour_utc, minute_utc,
+                         lat=50.92, lon=6.36):
+    """Configure DART to compute sun angles from date/time/location.
+
+    Uses DART's built-in solar geometry (exactDate=1) instead of manually
+    injecting sun zenith/azimuth angles.  Requires sunAzimuthalOffset=-90
+    to correct for DART's azimuth convention vs geographic convention
+    (see pytools4dart use_case_7, line 153-156).
+
+    Args:
+        simu: ptd.simulation object (not yet written).
+        calendar_date: datetime.date with year/month/day.
+        hour_utc: Hour in UTC (int).
+        minute_utc: Minute (int).
+        lat: Latitude (default: Juelich 50.92).
+        lon: Longitude (default: Juelich 6.36).
+    """
+    simu.core.maket.set_nodes(latitude=lat, longitude=lon)
+    simu.core.directions.set_nodes(exactDate=1)
+    simu.core.directions.set_nodes(
+        year=calendar_date.year, month=calendar_date.month,
+        day=calendar_date.day, hour=int(hour_utc), minute=int(minute_utc),
+        second=0, localTime=0, timezone=0, daylightSavingTime=0)
+    simu.core.directions.set_nodes(sunAzimuthalOffset=-90)
+
+
 def configure_atmosphere_midlatsum(simu):
     """Configure DART atmosphere: MIDLATSUM + RURALV23, TOAtoBOA=2."""
     # Enable atmospheric RT simulation
@@ -69,7 +95,8 @@ PAR_BANDS = [
 # PROSPECT parameters: loaded from shared growth-stage table
 PROSPECT_PARAMS = get_prospect_params(SIMULATION_DAYS)
 
-# Sun geometry: 45° zenith, 225° azimuth (summer afternoon, SW illumination)
+# Sun geometry: for standalone testing only.
+# Diurnal pipeline uses configure_exact_date() (DART exactDate=1 mode).
 SUN_ZENITH = 45.0
 SUN_AZIMUTH = 225.0
 
@@ -1415,6 +1442,56 @@ def update_sun_and_rerun(simu, sun_zenith, sun_azimuth, timeout=300):
     return bool(list(simu_path.glob('output/BAND*')))
 
 
+def update_datetime_and_rerun(simu, calendar_date, hour_utc, minute_utc,
+                               timeout=600):
+    """Update ExactDateHour in directions.xml and re-run RT (skip maket).
+
+    For use with exactDate=1 mode. Edits the ExactDateHour XML element
+    instead of SunViewingAngles, then re-runs direction+phase+dart.
+
+    Args:
+        simu: ptd.simulation object (already written + maket'd).
+        calendar_date: datetime.date with year/month/day.
+        hour_utc: Hour in UTC (int).
+        minute_utc: Minute (int).
+        timeout: Per-stage timeout in seconds.
+
+    Returns:
+        True if DART output was generated.
+    """
+    import xml.etree.ElementTree as ET
+
+    simu_path = Path(str(simu.simu_dir))
+    directions_xml = simu_path / 'input' / 'directions.xml'
+
+    if directions_xml.exists():
+        tree = ET.parse(str(directions_xml))
+        root = tree.getroot()
+        for elem in root.iter('ExactDateHour'):
+            elem.set('year', str(calendar_date.year))
+            elem.set('month', str(calendar_date.month))
+            elem.set('day', str(calendar_date.day))
+            elem.set('hour', str(int(hour_utc)))
+            elem.set('minute', str(int(minute_utc)))
+            elem.set('second', '0')
+        tree.write(str(directions_xml), xml_declaration=True, encoding='unicode')
+
+    # Re-run direction + phase + dart (skip maket — geometry unchanged)
+    for name, runner in [
+        ('direction', simu.run.direction),
+        ('phase', simu.run.phase),
+        ('dart', simu.run.dart),
+    ]:
+        try:
+            ok = runner(timeout=timeout)
+            if not ok:
+                print(f"  WARNING: {name} returned False")
+        except Exception as e:
+            print(f"  {name} error: {e}")
+
+    return bool(list(simu_path.glob('output/BAND*')))
+
+
 def read_ori_reindex(simu, dart_obj_path):
     """Read .ori reindex tables from a DART simulation.
 
@@ -1606,10 +1683,14 @@ def read_and_aggregate_apar(simu, mapping, reindex_info,
 # ============================================================================
 
 def create_dart_simulation_multi(obj_paths, mapping_json_paths, simu_name,
-                                  sun_zenith, sun_azimuth,
-                                  prospect_params, scene_size, grid_info,
+                                  sun_zenith=None, sun_azimuth=None,
+                                  prospect_params=None, scene_size=None,
+                                  grid_info=None,
                                   par_bands=None,
-                                  field_filename='plant_field.txt'):
+                                  field_filename='plant_field.txt',
+                                  calendar_date=None, hour_utc=None,
+                                  minute_utc=None, lat=50.92, lon=6.36,
+                                  use_exact_date=True):
     """Create DART simulation with multiple unique plant models.
 
     Each OBJ becomes a separate model in ObjectFields; the field file maps
@@ -1619,12 +1700,20 @@ def create_dart_simulation_multi(obj_paths, mapping_json_paths, simu_name,
         obj_paths: List of DART-convention OBJ paths (one per plant).
         mapping_json_paths: List of mapping JSON paths (one per plant).
         simu_name: DART simulation name.
-        sun_zenith / sun_azimuth: Initial sun angles (degrees).
+        sun_zenith / sun_azimuth: Sun angles (degrees). Used when
+            use_exact_date=False (backward compat).
         prospect_params: Dict with PROSPECT parameters.
         scene_size: [x, y] in meters.
         grid_info: Dict with positions_m, etc.
         par_bands: List of (center_wvl_um, bw_um) tuples.
         field_filename: Name of the field position file.
+        calendar_date: datetime.date for exactDate mode.
+        hour_utc: Hour in UTC (int) for exactDate mode.
+        minute_utc: Minute (int) for exactDate mode.
+        lat: Latitude (default: Juelich 50.92).
+        lon: Longitude (default: Juelich 6.36).
+        use_exact_date: If True (default), use DART's built-in solar
+            geometry via exactDate=1. Requires calendar_date/hour/minute.
 
     Returns:
         ptd.simulation object (written to disk).
@@ -1647,8 +1736,12 @@ def create_dart_simulation_multi(obj_paths, mapping_json_paths, simu_name,
         simu.add.band(wvl=wvl, bw=bw)
 
     # Sun direction
-    simu.core.directions.Directions.SunViewingAngles.sunViewingZenithAngle = sun_zenith
-    simu.core.directions.Directions.SunViewingAngles.sunViewingAzimuthAngle = sun_azimuth
+    if use_exact_date and calendar_date is not None:
+        configure_exact_date(simu, calendar_date, hour_utc, minute_utc,
+                             lat=lat, lon=lon)
+    else:
+        simu.core.directions.Directions.SunViewingAngles.sunViewingZenithAngle = sun_zenith
+        simu.core.directions.Directions.SunViewingAngles.sunViewingAzimuthAngle = sun_azimuth
 
     # Ground OP
     simu.add.optical_property(
