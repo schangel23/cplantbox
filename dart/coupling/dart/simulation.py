@@ -21,7 +21,8 @@ from pathlib import Path
 import plantbox as pb
 import pytools4dart as ptd
 
-from ..config import DEFAULT_XML, OUTPUT_DIR, DART_THREADS
+from ..config import (DEFAULT_XML, OUTPUT_DIR, DART_THREADS,
+                      DART_RAY_DENSITY_PER_PIXEL, DART_MAX_RENDERING_TIME)
 from ..growth.grow import grow_plant, extract_g3_mesh
 from ..geometry import convert_obj_to_dart, convert_mapping_json_groups
 from ..prospect_params import (get_prospect_params, get_prospect_params_per_position,
@@ -366,6 +367,13 @@ def step3_create_dart_simulation():
     # --- Engine: use Lux (accelerationEngine=2 for forward+backward) ---
     simu.core.phase.Phase.accelerationEngine = 2
     print(f"  Engine: Lux (accelerationEngine=2)")
+
+    # --- LuxCore sampling ---
+    lux = simu.core.phase.Phase.EngineParameter.LuxCoreRenderEngineParameters
+    lux.targetRayDensityPerPixel = DART_RAY_DENSITY_PER_PIXEL
+    lux.maximumRenderingTime = DART_MAX_RENDERING_TIME
+    print(f"  LuxCore sampling: {DART_RAY_DENSITY_PER_PIXEL} rays/pixel, "
+          f"maxTime={DART_MAX_RENDERING_TIME}s")
 
     # --- Threads ---
     simu.core.phase.Phase.ExpertModeZone.nbThreads = DART_THREADS

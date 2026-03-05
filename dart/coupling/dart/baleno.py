@@ -29,7 +29,9 @@ import numpy as np
 from pathlib import Path
 import pytools4dart as ptd
 
-from ..config import DART_HOME, DART_EB_DIR, DARTRC, BALENO_PYTHON, OUTPUT_DIR, DART_THREADS, get_species
+from ..config import (DART_HOME, DART_EB_DIR, DARTRC, BALENO_PYTHON, OUTPUT_DIR,
+                      DART_THREADS, DART_RAY_DENSITY_PER_PIXEL,
+                      DART_MAX_RENDERING_TIME, get_species)
 from ..prospect_params import (get_prospect_params, get_prospect_params_per_position,
                                get_stem_prospect_params,
                                log_consistency, log_lops_consistency, vcmax25_from_cab)
@@ -221,8 +223,11 @@ def step1_create_simu_I():
     products.radiativeBudgetProducts = 1
     products.radiativeBudgetProperties.budget3DParSurface = 1
 
-    # Engine: Lux
+    # Engine: Lux + sampling
     simu.core.phase.Phase.accelerationEngine = 2
+    lux = simu.core.phase.Phase.EngineParameter.LuxCoreRenderEngineParameters
+    lux.targetRayDensityPerPixel = DART_RAY_DENSITY_PER_PIXEL
+    lux.maximumRenderingTime = DART_MAX_RENDERING_TIME
     simu.core.phase.Phase.ExpertModeZone.nbThreads = DART_THREADS
 
     # Atmosphere: MIDLATSUM
