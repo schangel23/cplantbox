@@ -416,9 +416,16 @@ def run_single_day(sim_day, timestep_min=30, enable_baleno=True,
 
         # --- Baleno energy balance (optional) ---
         # Use center plant Tleaf for all plants (small inter-plant difference)
+        # Skip Baleno at very low PAR (dawn/dusk): EB solver is unreliable
+        # and Tleaf ≈ Tair anyway when shortwave radiation is negligible.
+        MIN_PAR_FOR_BALENO = 20.0  # W/m²
         tleaf_center = None
         baleno_ok_flag = False
-        if baleno_setup is not None:
+        clearsky_par_wm2_early = get_clearsky_par(ts_time, LAT, LON)
+        if baleno_setup is not None and clearsky_par_wm2_early < MIN_PAR_FOR_BALENO:
+            print(f"    PAR={clearsky_par_wm2_early:.1f} W/m² < {MIN_PAR_FOR_BALENO} "
+                  f"-> skip Baleno, Tleaf=Tair")
+        elif baleno_setup is not None:
             try:
                 t0 = time.time()
                 update_baleno_datetime_and_rerun_I(
@@ -443,12 +450,18 @@ def run_single_day(sim_day, timestep_min=30, enable_baleno=True,
                         str(center_dart_mapping), str(reindex_path),
                         grid_info_path=str(grid_path),
                         center_plant_idx=CENTER_PLANT_IDX,
+                        tair_c=T_air_C,
                     )
                 baleno_ok_flag = tleaf_center is not None
                 baleno_time = time.time() - t0
                 print(f"    Baleno: {baleno_time:.1f}s, "
                       f"Tleaf={'OK' if baleno_ok_flag else 'FAILED'}")
-                if not baleno_ok_flag:
+                if baleno_ok_flag:
+                    from ..dart.baleno import log_baleno_diagnostics
+                    log_baleno_diagnostics(
+                        baleno_setup['baleno_sim_dir'],
+                        tleaf_center, T_air_C)
+                else:
                     print(f"    WARNING: Baleno ran but Tleaf extraction failed "
                           f"(subprocess_ok={ok}). Using Tair={T_air_C:.1f}C")
             except Exception as e:
@@ -481,8 +494,6 @@ def run_single_day(sim_day, timestep_min=30, enable_baleno=True,
             else:
                 all_tleaf.append(np.full(n_segs, T_air_C))
 
-        mean_tleaf = float(np.mean([np.mean(t) for t in all_tleaf]))
-
         # --- CPlantBox photosynthesis (per-plant) ---
         per_plant_An = [0.0] * N_PLANTS
         if not skip_photosynthesis:
@@ -514,10 +525,10 @@ def run_single_day(sim_day, timestep_min=30, enable_baleno=True,
                     )
                     if iter_result is not None:
                         per_plant_An[pi] = iter_result['an_total_mmol']
-                        # Update Tleaf for remaining plants
+                        # Update Tleaf for all plants (center + others)
                         tleaf_center = iter_result['tleaf_per_segment']
                         for pj in range(N_PLANTS):
-                            if pj != pi and len(all_tleaf[pj]) == len(tleaf_center):
+                            if len(all_tleaf[pj]) == len(tleaf_center):
                                 all_tleaf[pj] = tleaf_center.copy()
                 else:
                     result = run_photosynthesis_solve(
@@ -533,6 +544,9 @@ def run_single_day(sim_day, timestep_min=30, enable_baleno=True,
             An_field_std = float(np.std(per_plant_An))
             print(f"    An: field mean={An_field_mean:.3f} "
                   f"+/-{An_field_std:.3f} mmol CO2/d")
+
+        # Compute mean_tleaf AFTER iterative coupling has updated all_tleaf
+        mean_tleaf = float(np.mean([np.mean(t) for t in all_tleaf]))
 
         # --- Per-timestep DVS carbon tracking ---
         An_field_mean = float(np.mean(per_plant_An))
@@ -616,7 +630,7 @@ def run_single_day_with_carbon(sim_day, timestep_min=30, enable_baleno=True,
                                met_csv=None, skip_photosynthesis=False,
                                iterate_gs=False, gs_max_iterations=6,
                                gs_tolerance=0.05, gs_damping_alpha=0.6,
-                               carbon_method='auto'):
+                               carbon_method='auto', warm_start=None):
     """Run diurnal loop + daily carbon partitioning and AgroC export.
 
     Wraps run_single_day() and appends:
@@ -1006,6 +1020,18 @@ def run_production_series(growth_days, timestep_min=60, enable_baleno=True,
             print(f"\n  [SKIP] Day {day} already completed (checkpoint)")
             continue
 
+        # Extract warm-start from previous day's checkpoint
+        ws = None
+        prev_days = [d for d in completed_days if d < day]
+        if prev_days:
+            prev_summary = daily_summaries.get(str(prev_days[-1]), {})
+            if prev_summary.get('C_ST_mean') is not None:
+                ws = {
+                    'C_ST_mean': prev_summary['C_ST_mean'],
+                    'C_ST_min': prev_summary['C_ST_min'],
+                    'C_ST_max': prev_summary['C_ST_max'],
+                }
+
         result = run_single_day_with_carbon(
             day, timestep_min=timestep_min,
             enable_baleno=enable_baleno,
@@ -1014,6 +1040,7 @@ def run_production_series(growth_days, timestep_min=60, enable_baleno=True,
             gs_tolerance=gs_tolerance,
             gs_damping_alpha=gs_damping_alpha,
             carbon_method=carbon_method,
+            warm_start=ws,
         )
         series_results[day] = result
 
@@ -1021,12 +1048,15 @@ def run_production_series(growth_days, timestep_min=60, enable_baleno=True,
         if result.get('daily_agroc_ts') is not None:
             all_agroc_timesteps.append(result['daily_agroc_ts'])
 
-        # Save checkpoint after each day
+        # Save checkpoint after each day (include C_ST stats for warm-start)
         completed_days.append(day)
+        carbon_result = result.get('daily_carbon') or {}
         daily_summaries[str(day)] = {
             'An_field_mean': result.get('daily_An_mol_field_mean', 0.0),
-            'carbon_source': (result.get('daily_carbon', {}) or {}).get(
-                'partitioning_source', 'none'),
+            'carbon_source': carbon_result.get('partitioning_source', 'none'),
+            'C_ST_mean': carbon_result.get('C_ST_mean'),
+            'C_ST_min': carbon_result.get('C_ST_min'),
+            'C_ST_max': carbon_result.get('C_ST_max'),
         }
         ckpt_data = {
             'completed_days': completed_days,
@@ -1316,7 +1346,8 @@ def run_single_day_uniform(sim_day, timestep_min=30, met_csv=None):
 
 
 def run_single_day_uniform_with_carbon(sim_day, timestep_min=30,
-                                        met_csv=None, carbon_method='auto'):
+                                        met_csv=None, carbon_method='auto',
+                                        warm_start=None):
     """Run uniform diurnal loop + daily carbon partitioning and AgroC export.
 
     Wraps run_single_day_uniform() the same way run_single_day_with_carbon()
@@ -1371,6 +1402,7 @@ def run_single_day_uniform_with_carbon(sim_day, timestep_min=30,
         carbon = solve_carbon_partitioning(
             plant, An_leaf_scaled, Tair_C=25.0,
             method=carbon_method, day=sim_day,
+            warm_start=warm_start,
         )
     except Exception as e:
         print(f"  Carbon partitioning error: {e}")
@@ -1483,9 +1515,22 @@ def run_production_series_uniform(growth_days, timestep_min=60,
             print(f"\n  [SKIP] Day {day} already completed (checkpoint)")
             continue
 
+        # Extract warm-start from previous day's checkpoint
+        ws = None
+        prev_days = [d for d in completed_days if d < day]
+        if prev_days:
+            prev_summary = daily_summaries.get(str(prev_days[-1]), {})
+            if prev_summary.get('C_ST_mean') is not None:
+                ws = {
+                    'C_ST_mean': prev_summary['C_ST_mean'],
+                    'C_ST_min': prev_summary['C_ST_min'],
+                    'C_ST_max': prev_summary['C_ST_max'],
+                }
+
         result = run_single_day_uniform_with_carbon(
             day, timestep_min=timestep_min,
             carbon_method=carbon_method,
+            warm_start=ws,
         )
         series_results[day] = result
 
@@ -1493,12 +1538,15 @@ def run_production_series_uniform(growth_days, timestep_min=60,
         if result.get('daily_agroc_ts') is not None:
             all_agroc_timesteps.append(result['daily_agroc_ts'])
 
-        # Save checkpoint after each day
+        # Save checkpoint after each day (include C_ST stats for warm-start)
         completed_days.append(day)
+        carbon_result = result.get('daily_carbon') or {}
         daily_summaries[str(day)] = {
             'An_field_mean': result.get('daily_An_mol_field_mean', 0.0),
-            'carbon_source': (result.get('daily_carbon', {}) or {}).get(
-                'partitioning_source', 'none'),
+            'carbon_source': carbon_result.get('partitioning_source', 'none'),
+            'C_ST_mean': carbon_result.get('C_ST_mean'),
+            'C_ST_min': carbon_result.get('C_ST_min'),
+            'C_ST_max': carbon_result.get('C_ST_max'),
         }
         ckpt_data = {
             'completed_days': completed_days,

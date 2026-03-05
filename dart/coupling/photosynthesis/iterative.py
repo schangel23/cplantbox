@@ -104,6 +104,16 @@ def segment_gs_to_triangle_gs(gs_per_segment, mapping_json_path,
                     n_assigned += 1
 
     coverage = n_assigned / max(n_total, 1)
+
+    # Diagnostic: warn if rcw values are unexpectedly high
+    leaf_rcw = rcw[rcw < RCW_MAX]
+    if len(leaf_rcw) > 0:
+        median_rcw = float(np.median(leaf_rcw))
+        if median_rcw > 800:
+            print(f"  WARNING: median rcw={median_rcw:.0f} s/m is very high "
+                  f"for well-watered maize (expected 50-500 s/m). "
+                  f"Check CPlantBox Tuzet gs parameters.")
+
     return {
         'rcw_per_triangle': rcw,
         'n_triangles_total': n_total,
@@ -287,6 +297,11 @@ def run_iterative_coupling(
 
         gs_csv_path = Path(baleno_sim_dir) / 'input' / 'external_gs.csv'
         write_triangle_gs_csv(tri_result['rcw_per_triangle'], gs_csv_path)
+        leaf_rcw = tri_result['rcw_per_triangle'][tri_result['rcw_per_triangle'] < RCW_MAX]
+        if len(leaf_rcw) > 0:
+            print(f"  rcw stats: median={np.median(leaf_rcw):.0f}, "
+                  f"mean={np.mean(leaf_rcw):.0f}, "
+                  f"range=[{np.min(leaf_rcw):.0f}, {np.max(leaf_rcw):.0f}] s/m")
         print(f"  Wrote triangle gs CSV: {tri_result['coverage']*100:.1f}% coverage")
 
         # --- Update Baleno config to use ExternalGS plugin ---
@@ -343,6 +358,7 @@ def run_iterative_coupling(
             str(baleno_sim_dir), mapping_json_path, reindex_json_path,
             grid_info_path=grid_info_path,
             center_plant_idx=center_plant_idx,
+            tair_c=tair_c,
         )
         if tleaf_new is None:
             print(f"  ERROR: Tleaf read failed at iteration {iteration+1}")
@@ -358,9 +374,18 @@ def run_iterative_coupling(
             else:
                 tleaf_new = tleaf_new[:n_leaf_segs]
 
+        # Diagnostic: Tleaf direction relative to Tair
+        tleaf_old_mean = float(np.mean(tleaf))
         tleaf = tleaf_new
-        print(f"  Tleaf updated: mean={np.mean(tleaf):.2f} C, "
-              f"range=[{tleaf.min():.2f}, {tleaf.max():.2f}]")
+        tleaf_new_mean = float(np.mean(tleaf))
+        direction = "toward" if abs(tleaf_new_mean - tair_c) < abs(tleaf_old_mean - tair_c) else "away from"
+        print(f"  Tleaf updated: mean={tleaf_new_mean:.2f}C "
+              f"(was {tleaf_old_mean:.2f}C), moved {direction} Tair={tair_c:.1f}C")
+        print(f"  Tleaf range=[{tleaf.min():.2f}, {tleaf.max():.2f}]")
+
+        # Log Baleno EB diagnostics for this iteration
+        from ..dart.baleno import log_baleno_diagnostics
+        log_baleno_diagnostics(baleno_sim_dir, tleaf, tair_c)
 
     # --- Final results ---
     n_iters = len(gs_history)

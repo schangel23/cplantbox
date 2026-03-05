@@ -58,11 +58,44 @@ def load_trajectory(filepath):
         return json.load(f)
 
 
+def _integrate_leaf_profile_shape_factor(leaf_geometry):
+    """Compute shape factor from leaf geometry profile via trapezoidal integration.
+
+    The leaf geometry profile is a list of (phi, x) pairs where x is the
+    normalized width at station phi. The shape factor is the mean x value
+    across the profile, representing the fraction of the bounding rectangle
+    (lmax × max_width) that the leaf actually covers.
+
+    Returns ~0.73 for typical maize leaf profiles.
+    """
+    if not leaf_geometry or len(leaf_geometry) < 2:
+        return 0.73  # reasonable default for maize
+
+    phi_vals = [g[0] for g in leaf_geometry]
+    x_vals = [g[1] for g in leaf_geometry]
+    phi_range = phi_vals[-1] - phi_vals[0]
+    if phi_range < 1e-6:
+        return 0.73
+
+    # Trapezoidal integration (compatible with numpy 1.x and 2.x)
+    integral = 0.0
+    for i in range(len(phi_vals) - 1):
+        integral += 0.5 * (x_vals[i] + x_vals[i + 1]) * (phi_vals[i + 1] - phi_vals[i])
+    return integral / phi_range
+
+
 def load_maizefield3d_stats(filepath):
     """Load pre-computed MaizeField3D per-position stats.
 
     Returns (per_position, stem_stats) where per_position is a list of dicts
     and stem_stats contains stem lmax/ln/lb.
+
+    Corrects Width_blade and areaMax using median_max_width_cm and profile
+    integration to avoid double-counting of taper. The JSON stores Width_blade
+    from median(median_widths) which already includes taper (~75% of max),
+    and areaMax applies an additional 0.7 shape factor. The fix uses
+    median_max_width_cm (true max width) and integrates the leaf profile
+    for the correct shape factor.
     """
     with open(filepath, 'r') as f:
         data = json.load(f)
@@ -74,13 +107,29 @@ def load_maizefield3d_stats(filepath):
         lg = s.get('leaf_geometry')
         if lg:
             lg = [(g[0], g[1]) for g in lg]
+
+        # Correct Width_blade and areaMax if median_max_width_cm available
+        median_max = s.get('median_max_width_cm')
+        lmax = s['lmax']
+        if median_max is not None and lg:
+            shape_factor = _integrate_leaf_profile_shape_factor(lg)
+            width_blade = median_max / 2.0
+            area_max = lmax * median_max * shape_factor
+            width_petiole = width_blade * 0.3
+        else:
+            # Fallback to stored values
+            width_blade = s['Width_blade']
+            area_max = s['areaMax']
+            width_petiole = s.get('Width_petiole', width_blade * 0.3)
+            shape_factor = None
+
         per_position.append({
             'position': s['position'],
-            'lmax': s['lmax'],
+            'lmax': lmax,
             'r': s.get('r', 4.0),
-            'Width_blade': s['Width_blade'],
-            'Width_petiole': s.get('Width_petiole', s['Width_blade'] * 0.3),
-            'areaMax': s['areaMax'],
+            'Width_blade': width_blade,
+            'Width_petiole': width_petiole,
+            'areaMax': area_max,
             'theta': s['theta'],
             'tropismS': s.get('tropismS', 0.15),
             'tropismAge': s.get('tropismAge', 5.0),
@@ -93,6 +142,15 @@ def load_maizefield3d_stats(filepath):
           f"{len(per_position)} positions")
     print(f"  Stem: lmax={stem_stats.get('lmax', '?')}, ln={stem_stats.get('ln', '?')}, "
           f"lb={stem_stats.get('lb', '?')}")
+    print(f"  Leaf width correction (median_max_width → Width_blade, profile-integrated areaMax):")
+    for p in per_position:
+        pos = p['position']
+        orig = data['per_position'][pos]
+        if orig and orig.get('median_max_width_cm'):
+            print(f"    Pos {pos:>2}: Wb {orig['Width_blade']:.2f} -> {p['Width_blade']:.2f}, "
+                  f"aM {orig['areaMax']:.1f} -> {p['areaMax']:.1f}")
+        else:
+            print(f"    Pos {pos:>2}: (no correction, using stored values)")
 
     return per_position, stem_stats
 

@@ -665,8 +665,8 @@ def step4_write_config_files():
             content = content.replace(old_check, new_check)
             lux_reader_path.write_text(content)
             print(f"  Patched is_scene_sorted(): relaxed to monotonic check")
-        else:
-            print(f"  WARNING: Could not find is_scene_sorted check to patch")
+        elif new_check not in content:
+            print(f"  Note: is_scene_sorted patch target not found (DART version may differ)")
 
     # --- Patch spectrum_integration.py: band index bug ---
     # Baleno bug: radiative_budget_integration() uses DART band number (from band name)
@@ -708,8 +708,8 @@ def step4_write_config_files():
             content = content.replace(old_loop, new_loop)
             spec_int_path.write_text(content)
             print(f"  Patched spectrum_integration.py: band index bug fix")
-        else:
-            print(f"  WARNING: Could not find band loop to patch in spectrum_integration.py")
+        elif 'enumerate(band_name_list)' not in content:
+            print(f"  Note: spectrum_integration band loop patch target not found (DART version may differ)")
 
     # --- Patch lux_manager.py: missing temperaturematrix fallback ---
     # When _II simulation doesn't have temperaturematrix entries in phase.scn
@@ -754,8 +754,8 @@ def step4_write_config_files():
             content = content.replace(old_get_input, new_get_input)
             lux_mgr_path.write_text(content)
             print(f"  Patched lux_manager.py: fallback for missing temperaturematrix")
-        else:
-            print(f"  WARNING: Could not find __get_input_files code to patch in lux_manager.py")
+        elif 'Fallback: generate default temp file path' not in content:
+            print(f"  Note: lux_manager __get_input_files patch target not found (DART version may differ)")
 
     return backups
 
@@ -1878,10 +1878,17 @@ def run_baleno_subprocess(baleno_simu_name=None, timeout=3600):
 
 
 def read_baleno_tleaf(baleno_sim_dir, mapping_json_path, reindex_json_path,
-                      grid_info_path=None, center_plant_idx=4):
+                      grid_info_path=None, center_plant_idx=4,
+                      tair_c=None, apar_shaded_threshold=10.0):
     """Read Baleno outputs and aggregate per-triangle Tleaf to per-segment.
 
     Combines steps 6-8 logic into one call.
+
+    Args:
+        tair_c: Air temperature (°C) for fallback on rejected triangles.
+            None = use 25.0 for backward compatibility.
+        apar_shaded_threshold: APAR below this (µmol/m²/s) = shaded triangle.
+            Shaded triangles with high EB_ERROR get Tair instead of rejection.
 
     Returns:
         np.ndarray of per-leaf-segment Tleaf (°C), or None on failure.
@@ -1938,6 +1945,19 @@ def read_baleno_tleaf(baleno_sim_dir, mapping_json_path, reindex_json_path,
             col_eb_err = i
     if col_temp < 0:
         col_temp = 1
+
+    # Read radiation_3D.csv for shaded-triangle detection
+    rad_file = results_dir / 'radiation_3D.csv'
+    rad_data = None
+    col_apar = -1
+    if rad_file.exists():
+        with open(rad_file) as f:
+            rad_header = [h.strip() for h in f.readline().strip().split(delimiter)]
+        rad_data = np.genfromtxt(str(rad_file), skip_header=1, delimiter=delimiter,
+                                 dtype=float, filling_values=np.nan)
+        for i, h in enumerate(rad_header):
+            if 'absorption_par' in h.lower():
+                col_apar = i
 
     # Load reindex
     with open(reindex_json_path) as f:
@@ -2020,8 +2040,22 @@ def read_baleno_tleaf(baleno_sim_dir, mapping_json_path, reindex_json_path,
     # EB_ERROR threshold: reject triangles where Baleno didn't converge.
     # Well-converged triangles have |EB_ERROR| < 3 W/m²; non-converged
     # ones reach 80–160 W/m² and produce non-physical Tleaf (80–150 °C).
+    # Tiered approach: shaded triangles (low APAR) with high EB_ERROR get
+    # Tair fallback (physically correct — no shortwave heating). Only lit
+    # triangles with high EB_ERROR are truly rejected.
     EB_ERR_MAX = 20.0  # W/m²
+    fallback_temp_c = tair_c if tair_c is not None else 25.0
     n_rejected = 0
+    n_shaded_fallback = 0
+
+    def _is_shaded(row):
+        """Check if triangle is shaded (low APAR)."""
+        if rad_data is None or col_apar < 0:
+            return False
+        if row >= rad_data.shape[0] or col_apar >= rad_data.shape[1]:
+            return False
+        apar = rad_data[row, col_apar]
+        return not np.isnan(apar) and apar < apar_shaded_threshold
 
     segment_tleaf = []
     for organ in seg_mapping['organs']:
@@ -2037,22 +2071,130 @@ def read_baleno_tleaf(baleno_sim_dir, mapping_json_path, reindex_json_path,
                         t = eb_data[row, col_temp]
                         if np.isnan(t):
                             continue
-                        # Reject non-converged triangles
+                        # Check EB convergence
                         if col_eb_err >= 0 and col_eb_err < eb_data.shape[1]:
                             err = abs(eb_data[row, col_eb_err])
                             if err > EB_ERR_MAX:
-                                n_rejected += 1
+                                if _is_shaded(row):
+                                    # Shaded triangle: Tleaf ≈ Tair is correct
+                                    temps.append(fallback_temp_c)
+                                    n_shaded_fallback += 1
+                                else:
+                                    n_rejected += 1
                                 continue
                         temps.append(t - 273.15)  # K → °C
             if temps:
                 segment_tleaf.append(float(np.mean(temps)))
             else:
-                segment_tleaf.append(25.0)  # fallback
+                segment_tleaf.append(fallback_temp_c)
 
-    if n_rejected > 0:
-        print(f"  Tleaf: rejected {n_rejected} triangles with |EB_ERROR| > {EB_ERR_MAX} W/m²")
+    if n_shaded_fallback > 0 or n_rejected > 0:
+        print(f"  Tleaf: {n_shaded_fallback} shaded->Tair({fallback_temp_c:.1f}C), "
+              f"{n_rejected} lit rejected (|EB_ERROR|>{EB_ERR_MAX} W/m²)")
 
     return np.array(segment_tleaf)
+
+
+def log_baleno_diagnostics(baleno_sim_dir, tleaf_per_segment, tair_c):
+    """Log diagnostic stats from Baleno EB output files.
+
+    Reads energy_balance_3D.csv and reports convergence, Tleaf offset,
+    and energy flux statistics to help diagnose EB anomalies.
+    """
+    results_dir = Path(baleno_sim_dir) / 'output' / 'final_results'
+    eb_file = results_dir / 'energy_balance_3D.csv'
+    if not eb_file.exists():
+        print(f"    [EB diag] energy_balance_3D.csv not found")
+        return
+
+    delimiter = _detect_delimiter(eb_file)
+    with open(eb_file) as f:
+        eb_header = [h.strip() for h in f.readline().strip().split(delimiter)]
+    eb_data = np.genfromtxt(str(eb_file), skip_header=1, delimiter=delimiter,
+                            dtype=float, filling_values=np.nan)
+    if eb_data.ndim < 2 or eb_data.shape[0] == 0:
+        print(f"    [EB diag] empty EB data")
+        return
+
+    # Find columns by name
+    def _col(names):
+        for n in names:
+            for i, h in enumerate(eb_header):
+                if n.lower() in h.lower():
+                    return i
+        return -1
+
+    col_temp = _col(['temperature'])
+    col_err = _col(['error'])
+    col_h = _col(['sensible', 'H'])
+    col_le = _col(['latent', 'lE', 'LE'])
+    col_rn = _col(['net_radiation', 'Rn', 'rn'])
+
+    print(f"    [EB diag] {eb_data.shape[0]} triangles, Tair={tair_c:.1f}C")
+
+    # Read radiation_3D.csv for shaded/lit breakdown
+    rad_file = results_dir / 'radiation_3D.csv'
+    rad_data_diag = None
+    col_apar_diag = -1
+    if rad_file.exists():
+        with open(rad_file) as f:
+            rad_hdr = [h.strip() for h in f.readline().strip().split(delimiter)]
+        rad_data_diag = np.genfromtxt(str(rad_file), skip_header=1,
+                                      delimiter=delimiter, dtype=float,
+                                      filling_values=np.nan)
+        for i, h in enumerate(rad_hdr):
+            if 'absorption_par' in h.lower():
+                col_apar_diag = i
+
+    if col_err >= 0:
+        eb_err = eb_data[:, col_err]
+        valid = ~np.isnan(eb_err)
+        if np.any(valid):
+            n_converged = int(np.sum(np.abs(eb_err[valid]) < 3.0))
+            n_high_err = int(np.sum(np.abs(eb_err[valid]) > 20.0))
+            # Break down high-error triangles into shaded vs lit
+            n_shaded = 0
+            n_lit = 0
+            if rad_data_diag is not None and col_apar_diag >= 0:
+                high_err_mask = valid & (np.abs(eb_err) > 20.0)
+                high_err_idx = np.where(high_err_mask)[0]
+                for idx in high_err_idx:
+                    if (idx < rad_data_diag.shape[0] and
+                            col_apar_diag < rad_data_diag.shape[1]):
+                        apar = rad_data_diag[idx, col_apar_diag]
+                        if not np.isnan(apar) and apar < 10.0:
+                            n_shaded += 1
+                        else:
+                            n_lit += 1
+                    else:
+                        n_lit += 1
+            print(f"    [EB diag] EB_ERROR: mean={np.nanmean(eb_err):.2f}, "
+                  f"std={np.nanstd(eb_err):.2f} W/m2")
+            print(f"    [EB diag] converged (|err|<3)={n_converged}, "
+                  f"high_err (|err|>20)={n_high_err}"
+                  f"{f' (shaded={n_shaded}, lit={n_lit})' if n_shaded + n_lit > 0 else ''}")
+
+    if col_temp >= 0:
+        temps_k = eb_data[:, col_temp]
+        valid = ~np.isnan(temps_k)
+        if np.any(valid):
+            temps_c = temps_k[valid] - 273.15
+            print(f"    [EB diag] Tleaf(all tri): mean={np.mean(temps_c):.2f}C, "
+                  f"std={np.std(temps_c):.2f}C, "
+                  f"offset={np.mean(temps_c) - tair_c:+.2f}C vs Tair")
+
+    if tleaf_per_segment is not None and len(tleaf_per_segment) > 0:
+        print(f"    [EB diag] Tleaf(segments): mean={np.mean(tleaf_per_segment):.2f}C, "
+              f"std={np.std(tleaf_per_segment):.2f}C, "
+              f"offset={np.mean(tleaf_per_segment) - tair_c:+.2f}C vs Tair")
+
+    for label, col in [('H', col_h), ('lE', col_le), ('Rn', col_rn)]:
+        if col >= 0:
+            vals = eb_data[:, col]
+            valid = ~np.isnan(vals)
+            if np.any(valid):
+                print(f"    [EB diag] {label}: mean={np.nanmean(vals):.1f}, "
+                      f"std={np.nanstd(vals):.1f} W/m2")
 
 
 # ============================================================================

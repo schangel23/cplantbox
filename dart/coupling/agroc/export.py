@@ -90,8 +90,10 @@ def export_agroc_timestep(plant, hm, carbon_result, lai_profile,
         Rm_root = Rg_root = exud_total = dead_total = 0.0
         An_total_mmol = 0.0
 
-    # Compute An from hm if available (more accurate)
-    if hm is not None:
+    # Compute An from hm only when carbon_result doesn't provide it.
+    # In the diurnal pipeline, carbon_result has the correct diurnal-scaled An;
+    # hm still holds the unscaled reference photosynthesis (PAR=1000, T=25°C).
+    if hm is not None and carbon_result is None:
         An_leaf = np.array(hm.get_net_assimilation())
         An_total_mmol = float(np.sum(An_leaf)) * 1000.0
 

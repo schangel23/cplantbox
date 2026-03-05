@@ -207,6 +207,10 @@ class QuasiSteadyPhloem:
     # So 12 CO2 -> 1 sucrose.  1 mol CO2 * 1000/12 = 83.33 mmol Suc
     CO2_TO_SUC = 1000.0 / 12.0
 
+    # Inverse: 1 mmol Suc respired -> 12 mmol CO2 released.
+    # Used to convert Rm/Rg outputs to mmol CO2/d (matching DVS solver interface).
+    SUC_TO_CO2 = 12.0
+
     def __init__(self, plant, tree=None, params=None, sim_day=None):
         """Initialize the solver from a CPlantBox plant.
 
@@ -672,7 +676,7 @@ class QuasiSteadyPhloem:
 
     def solve(self, An_per_leaf_seg, Tair_C=25.0,
               max_iter=500, tol=1e-3, alpha=0.6,
-              balance_tol=0.02, sim_day=None):
+              balance_tol=0.02, sim_day=None, warm_start=None):
         """Solve for steady-state sucrose concentrations via Picard iteration
         with bisection-guided root collar concentration.
 
@@ -697,6 +701,9 @@ class QuasiSteadyPhloem:
             balance_tol: Convergence tolerance on carbon balance error.
             sim_day: Simulation day (for seed reserve calculation). If None,
                      no seed reserve is applied.
+            warm_start: Optional dict with 'C_ST_mean', 'C_ST_min', 'C_ST_max'
+                from a previous day's solution. Used to initialize bisection
+                bounds and C_base for faster convergence.
 
         Returns:
             dict with carbon partitioning results.
@@ -734,9 +741,18 @@ class QuasiSteadyPhloem:
             alpha = min(alpha, 0.4)
 
         # Bisection bounds for root collar concentration
-        C_lo = p.CSTimin + 0.001
-        C_hi = 3.0 * p.C_targ
-        C_base = p.C_targ
+        if warm_start is not None and warm_start.get('C_ST_mean') is not None:
+            ws_mean = warm_start['C_ST_mean']
+            ws_min = warm_start['C_ST_min']
+            ws_max = warm_start['C_ST_max']
+            C_base = ws_mean
+            C_lo = max(p.CSTimin + 0.001, ws_min * 0.8)
+            C_hi = max(ws_max * 1.5, 3.0 * p.C_targ)
+            max_iter = max(max_iter, 800)
+        else:
+            C_lo = p.CSTimin + 0.001
+            C_hi = 3.0 * p.C_targ
+            C_base = p.C_targ
 
         # Initialize C_ST
         C_ST = np.full(N, C_base)
@@ -905,6 +921,7 @@ class QuasiSteadyPhloem:
         starch_surplus = total_An_mmol_suc - total_loading  # leaf starch (not loaded)
 
         # Partitioning fractions (of total usage including storage)
+        # Computed BEFORE unit conversion (fractions are unitless).
         total_usage = Rm_total + Rg_total + total_exud + total_storage
         if total_usage > 0:
             FR_leaf = (Rm_leaf + Rg_leaf) / total_usage
@@ -914,22 +931,29 @@ class QuasiSteadyPhloem:
         else:
             FR_leaf = FR_stem = FR_root = FR_storage = 0.0
 
+        # Convert respiration/growth fluxes from mmol Suc/d to mmol CO2/d.
+        # 1 mmol Suc fully oxidised → 12 mmol CO2.
+        # This matches the DVS solver's output units (all mmol CO2/d).
+        # Exudation/dead root stay in mmol Suc/d (downstream expects sucrose
+        # for kg C conversion via sucrose molar mass).
+        S = self.SUC_TO_CO2
+
         return {
-            'Rm_total_mmol': Rm_total,
-            'Rm_leaf': Rm_leaf,
-            'Rm_stem': Rm_stem,
-            'Rm_root': Rm_root,
-            'Rm_storage': Rm_storage,
-            'Rg_total_mmol': Rg_total,
-            'stem_storage_mmol': total_stem_storage,
+            'Rm_total_mmol': Rm_total * S,
+            'Rm_leaf': Rm_leaf * S,
+            'Rm_stem': Rm_stem * S,
+            'Rm_root': Rm_root * S,
+            'Rm_storage': Rm_storage * S,
+            'Rg_total_mmol': Rg_total * S,
+            'stem_storage_mmol': total_stem_storage * S,
             'FR_leaf': FR_leaf,
             'FR_stem': FR_stem,
             'FR_root': FR_root,
             'FR_storage': FR_storage,
-            'root_resp_profile_mmol_d': np.array([Rm_root]),
-            'root_exud_mmol_d': np.array([total_exud]),
-            'root_dead_mmol_d': np.array([0.0]),
-            'growth_mmol_d': growth,
+            'root_resp_profile_mmol_d': np.array([Rm_root * S]),
+            'root_exud_mmol_d': np.array([total_exud]),  # stays mmol Suc/d
+            'root_dead_mmol_d': np.array([0.0]),          # stays mmol Suc/d
+            'growth_mmol_d': growth * S,
             'carbon_balance_error': balance_error,
             'C_ST_mean': float(np.mean(C_ST)),
             'C_ST_min': float(np.min(C_ST)),
@@ -937,16 +961,16 @@ class QuasiSteadyPhloem:
             'n_iterations': n_iter,
             'converged': converged,
             'max_delta': max_delta,
-            'total_loading_mmol': total_loading,
-            'starch_surplus_mmol': starch_surplus,
+            'total_loading_mmol': total_loading * S,
+            'starch_surplus_mmol': starch_surplus * S,
             'total_An_mmol_suc': total_An_mmol_suc,
-            'seed_reserve_mmol': seed_reserve_mmol,
+            'seed_reserve_mmol': seed_reserve_mmol * S,
             'partitioning_source': 'quasi_steady_phloem',
         }
 
 
 def solve_carbon_partitioning(plant, An_per_leaf_seg, Tair_C=25.0,
-                              method='auto', day=55):
+                              method='auto', day=55, warm_start=None):
     """High-level API for carbon partitioning.
 
     Args:
@@ -970,7 +994,8 @@ def solve_carbon_partitioning(plant, An_per_leaf_seg, Tair_C=25.0,
     # Try quasi-steady phloem
     try:
         solver = QuasiSteadyPhloem(plant, sim_day=day)
-        result = solver.solve(An_per_leaf_seg, Tair_C=Tair_C, sim_day=day)
+        result = solver.solve(An_per_leaf_seg, Tair_C=Tair_C, sim_day=day,
+                              warm_start=warm_start)
 
         if method == 'auto' and result['carbon_balance_error'] > 0.10:
             print(f"  Phloem balance error {result['carbon_balance_error']:.1%} > 10%, "
