@@ -1553,6 +1553,9 @@ def setup_baleno_full(obj_path, mapping_json, reindex_json, grid_info_path,
     products.radiativeBudgetProducts = 1
     products.radiativeBudgetProperties.budget3DParSurface = 1
     simu_I.core.phase.Phase.accelerationEngine = 2
+    lux = simu_I.core.phase.Phase.EngineParameter.LuxCoreRenderEngineParameters
+    lux.targetRayDensityPerPixel = DART_RAY_DENSITY_PER_PIXEL
+    lux.maximumRenderingTime = DART_MAX_RENDERING_TIME
     simu_I.core.phase.Phase.ExpertModeZone.nbThreads = DART_THREADS
 
     # Atmosphere: MIDLATSUM

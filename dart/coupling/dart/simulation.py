@@ -1356,8 +1356,11 @@ def create_dart_simulation(obj_path, mapping_json_path, simu_name,
     products.radiativeBudgetProducts = 1
     products.radiativeBudgetProperties.budget3DParSurface = 1
 
-    # Engine: Lux
+    # Engine: Lux + sampling
     simu.core.phase.Phase.accelerationEngine = 2
+    lux = simu.core.phase.Phase.EngineParameter.LuxCoreRenderEngineParameters
+    lux.targetRayDensityPerPixel = DART_RAY_DENSITY_PER_PIXEL
+    lux.maximumRenderingTime = DART_MAX_RENDERING_TIME
     simu.core.phase.Phase.ExpertModeZone.nbThreads = DART_THREADS
 
     # Atmosphere: MIDLATSUM
@@ -1829,8 +1832,11 @@ def create_dart_simulation_multi(obj_paths, mapping_json_paths, simu_name,
     products.radiativeBudgetProducts = 1
     products.radiativeBudgetProperties.budget3DParSurface = 1
 
-    # Engine: Lux
+    # Engine: Lux + sampling
     simu.core.phase.Phase.accelerationEngine = 2
+    lux = simu.core.phase.Phase.EngineParameter.LuxCoreRenderEngineParameters
+    lux.targetRayDensityPerPixel = DART_RAY_DENSITY_PER_PIXEL
+    lux.maximumRenderingTime = DART_MAX_RENDERING_TIME
     simu.core.phase.Phase.ExpertModeZone.nbThreads = DART_THREADS
 
     # Atmosphere: MIDLATSUM
