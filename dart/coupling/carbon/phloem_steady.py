@@ -675,7 +675,7 @@ class QuasiSteadyPhloem:
         return loading, Rm_node, Rg_node, exud_node, storage_node
 
     def solve(self, An_per_leaf_seg, Tair_C=25.0,
-              max_iter=500, tol=1e-3, alpha=0.6,
+              max_iter=1000, tol=1e-3, alpha=0.6,
               balance_tol=0.02, sim_day=None, warm_start=None):
         """Solve for steady-state sucrose concentrations via Picard iteration
         with bisection-guided root collar concentration.
@@ -732,27 +732,57 @@ class QuasiSteadyPhloem:
         # Temperature factor for maintenance respiration
         temp_factor = p.Q10 ** ((Tair_C - p.TrefQ10) / 10.0)
 
-        # Adaptive damping: when growth demand >> supply (young plants),
-        # the balance is hypersensitive to C_base shifts. Lower alpha
-        # stabilizes the Picard iteration.
+        # Growth demand scaling: when total growth demand vastly exceeds
+        # carbon supply, the balance equation becomes hypersensitive to C_base
+        # (sinks are on the steep part of Michaelis-Menten). Scale down Q_Grmax
+        # so total demand ≤ 2× supply. This is physically justified: carbon-
+        # limited plants cannot satisfy all growth zones simultaneously.
+        # The relative distribution of Rg across organs is preserved.
         total_Grmax = float(np.sum(self.Q_Grmax_node))
         total_supply = total_An_mmol_suc + seed_reserve_mmol
-        if total_supply > 0 and total_Grmax / total_supply > 2.0:
+        demand_ratio = total_Grmax / max(total_supply, 1e-6)
+        if demand_ratio > 2.0:
+            scale = 2.0 * total_supply / total_Grmax
+            self.Q_Grmax_node *= scale
+            total_Grmax = float(np.sum(self.Q_Grmax_node))
+
+        # Adaptive damping for remaining imbalance
+        if total_supply > 0 and total_Grmax / total_supply > 1.5:
             alpha = min(alpha, 0.4)
 
-        # Bisection bounds for root collar concentration
+        # Find C_base via binary search on uniform C (surplus is monotonically
+        # decreasing in C at uniform concentration: higher C → less loading
+        # via exp(-C*beta), more sinks via Michaelis-Menten). This gives
+        # a precise starting point for the Picard iteration.
+        C_lo = p.CSTimin + 0.001
+        C_hi = 3.0 * p.C_targ
         if warm_start is not None and warm_start.get('C_ST_mean') is not None:
-            ws_mean = warm_start['C_ST_mean']
-            ws_min = warm_start['C_ST_min']
-            ws_max = warm_start['C_ST_max']
-            C_base = ws_mean
-            C_lo = max(p.CSTimin + 0.001, ws_min * 0.8)
-            C_hi = max(ws_max * 1.5, 3.0 * p.C_targ)
-            max_iter = max(max_iter, 800)
-        else:
-            C_lo = p.CSTimin + 0.001
-            C_hi = 3.0 * p.C_targ
-            C_base = p.C_targ
+            C_hi = max(warm_start['C_ST_max'] * 2.0, C_hi)
+
+        def _uniform_surplus(C_val):
+            C_test = np.full(N, C_val)
+            ld, rm, rg, ex, st = self._compute_fluxes(C_test, An_source, temp_factor)
+            flow = np.zeros(N)
+            for node in t.reverse_topo_order:
+                ci = sum(flow[ch] for ch in t.children[node])
+                flow[node] = ld[node] + ci - rm[node] - rg[node] - ex[node] - st[node]
+            return flow[0]
+
+        # 30 bisection steps on uniform C → precision ~(C_hi-C_lo)/2^30 ≈ 2e-9
+        for _ in range(30):
+            C_mid = 0.5 * (C_lo + C_hi)
+            if _uniform_surplus(C_mid) > 0:
+                C_lo = C_mid
+            else:
+                C_hi = C_mid
+
+        C_base = 0.5 * (C_lo + C_hi)
+
+        # Widen bounds for the main Picard loop: non-uniform C_ST distributions
+        # shift the balance away from the uniform-C zero-crossing. Allow ±50%
+        # of C_base for the Picard bisection to explore.
+        C_lo = max(p.CSTimin + 0.001, C_base * 0.5)
+        C_hi = C_base * 1.5
 
         # Initialize C_ST
         C_ST = np.full(N, C_base)
@@ -807,6 +837,12 @@ class QuasiSteadyPhloem:
                 best_storage = storage_node.copy()
 
             if balance_error < balance_tol and max_delta < tol:
+                converged = True
+                break
+            # Early exit: the binary search gives near-perfect balance from
+            # iteration 1. If the best solution is good and we've done enough
+            # Picard iterations for a reasonable C_ST profile, stop.
+            if best_balance < balance_tol * 0.5 and n_iter >= 20:
                 converged = True
                 break
 
@@ -966,7 +1002,99 @@ class QuasiSteadyPhloem:
             'total_An_mmol_suc': total_An_mmol_suc,
             'seed_reserve_mmol': seed_reserve_mmol * S,
             'partitioning_source': 'quasi_steady_phloem',
+            'Rg_node': Rg_node.copy(),
+            'Q_Grmax_node': self.Q_Grmax_node.copy(),
         }
+
+
+    def compute_organ_growth_map(self, Rg_node):
+        """Convert per-node Rg (mmol Suc/d) to per-organ CW_Gr length increments (cm).
+
+        Follows PiafMunch runPM.cpp:553-632 logic:
+          1. Sum Rg across each organ's nodes
+          2. delta_vol = Rg_organ * Gr_Y / rho_s  [cm^3]
+          3. newl = organ.orgVolume2Length(vol + delta_vol)
+          4. orgGr = newl - current_length  [cm]
+
+        Args:
+            Rg_node: np.array(N), mmol Suc/d per node (from solver output).
+
+        Returns:
+            {2: {orgID: dL_cm, ...},   # root
+             3: {orgID: dL_cm, ...},   # stem
+             4: {orgID: dL_cm, ...}}   # leaf
+        """
+        import plantbox as pb
+
+        p = self.params
+        t = self.tree
+        segments = self.plant.getSegments()
+
+        # Build node -> segment index lookup for child nodes
+        child_to_seg = {}
+        for si in range(t.n_segments):
+            seg = segments[si]
+            child_to_seg[seg.y] = si
+
+        growth_map = {2: {}, 3: {}, 4: {}}
+
+        for org in self.plant.getOrgans(-1):
+            ot = org.organType()
+            if ot < 2:
+                continue
+
+            org_id = org.getId()
+            st = int(org.getParameter("subType"))
+            rho_s = _pertype_lookup(p.Rho_s, ot, st)
+            if rho_s <= 0:
+                continue
+
+            # Skip organs with no segments yet (just-emerged, only base node).
+            # Omitting them from CW_Gr lets CWLimitedGrowth fall back to
+            # ExponentialGrowth so they can grow their first segments.
+            org_node_ids = org.getNodeIds()
+            n_org_segs = len(org_node_ids) - 1
+            if n_org_segs <= 0:
+                continue
+
+            # Sum Rg across this organ's nodes
+            total_Rg = 0.0
+            for nid in org_node_ids:
+                if nid < len(Rg_node):
+                    total_Rg += Rg_node[nid]
+
+            # Only include organs with positive growth in the map.
+            # Omitting zero-growth organs lets CWLimitedGrowth fall back
+            # to ExponentialGrowth (preserving tropism, branching).
+            if total_Rg <= 0:
+                continue
+
+            # Volume increment: Rg * Gr_Y / rho_s
+            delta_vol = total_Rg * p.Gr_Y / rho_s
+
+            # Current volume and length
+            vol = org.orgVolume(-1, False)
+            current_length = org.getLength(False)
+
+            # New length from volume
+            try:
+                new_length = org.orgVolume2Length(vol + delta_vol)
+            except Exception:
+                new_length = current_length
+
+            org_gr = max(0.0, new_length - current_length)
+
+            # Cap at parametric max
+            try:
+                lmax = org.getParameter("lmax")
+                remaining = max(0.0, lmax - current_length)
+                org_gr = min(org_gr, remaining)
+            except Exception:
+                pass
+
+            growth_map[ot][org_id] = org_gr
+
+        return growth_map
 
 
 def solve_carbon_partitioning(plant, An_per_leaf_seg, Tair_C=25.0,

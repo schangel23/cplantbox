@@ -96,6 +96,44 @@ def setup_successor_where(plant):
             break
 
 
+def init_plant(xml_path=None, seed=None, enable_photosynthesis=True):
+    """Create and initialize a plant without growing. For carbon-limited mode.
+
+    Same setup as grow_plant() but stops after initialize().
+    Returns plant at day 0.
+
+    Args:
+        xml_path: Path to calibrated XML. Defaults to DEFAULT_XML.
+        seed: Optional random seed for reproducibility.
+        enable_photosynthesis: Enable soil grid for photosynthesis (default True).
+
+    Returns:
+        pb.MappedPlant at day 0, initialized and ready for simulate().
+    """
+    if xml_path is None:
+        xml_path = str(DEFAULT_XML)
+
+    plant = pb.MappedPlant()
+    plant.readParameters(str(xml_path))
+
+    if seed is not None:
+        plant.setSeed(seed)
+
+    setup_successor_where(plant)
+
+    if enable_photosynthesis:
+        depth = 100
+        soil_domain = pb.SDF_PlantContainer(np.inf, np.inf, depth, True)
+        plant.setGeometry(soil_domain)
+
+        def _picker(_x, _y, z):
+            return max(min(int(np.floor(-z)), depth - 1), -1)
+        plant.setSoilGrid(_picker)
+
+    plant.initialize()
+    return plant
+
+
 def grow_plant(xml_path, simulation_time, min_stem_nodes=50, min_leaf_nodes=20,
                enable_photosynthesis=False, seed=None):
     """Grow a CPlantBox plant from calibrated XML."""
@@ -960,30 +998,31 @@ def run_photosynthesis(plant, sim_time, output_prefix,
         })
 
     # --- Save CSV (leaf segments only) ---
-    csv_path = Path(output_prefix).with_suffix('.csv')
-    header = "leaf_seg_idx,global_seg_idx,An_mol_d,An_umol_m2_s,psi_cm"
-    rows = []
-    for i in range(n_leaf_segs):
-        gi = int(leaf_global_indices[i])
-        psi = hx_all[gi] if 0 <= gi < len(hx_all) else 0.0
-        rows.append(f"{i},{gi},{An_leaf[i]:.6e},{An_per_umol[i]:.4f},{psi:.2f}")
-    csv_path.write_text(header + "\n" + "\n".join(rows))
-    print(f"\n  CSV: {csv_path} ({len(rows)} leaf segments)")
+    if output_prefix is not None:
+        csv_path = Path(output_prefix).with_suffix('.csv')
+        header = "leaf_seg_idx,global_seg_idx,An_mol_d,An_umol_m2_s,psi_cm"
+        rows = []
+        for i in range(n_leaf_segs):
+            gi = int(leaf_global_indices[i])
+            psi = hx_all[gi] if 0 <= gi < len(hx_all) else 0.0
+            rows.append(f"{i},{gi},{An_leaf[i]:.6e},{An_per_umol[i]:.4f},{psi:.2f}")
+        csv_path.write_text(header + "\n" + "\n".join(rows))
+        print(f"\n  CSV: {csv_path} ({len(rows)} leaf segments)")
 
-    # --- Plot ---
-    plot_photosynthesis(
-        organ_data=organ_data,
-        An_per_umol=An_per_umol,
-        hx_all=hx_all,
-        seg_leaves_idx=list(leaf_global_indices),
-        An_total_mmol=An_total_mmol,
-        transp=transp,
-        par_umol=par_umol,
-        tair_c=tair_c,
-        rh=rh,
-        sim_time=sim_time,
-        output_prefix=output_prefix,
-    )
+        # --- Plot ---
+        plot_photosynthesis(
+            organ_data=organ_data,
+            An_per_umol=An_per_umol,
+            hx_all=hx_all,
+            seg_leaves_idx=list(leaf_global_indices),
+            An_total_mmol=An_total_mmol,
+            transp=transp,
+            par_umol=par_umol,
+            tair_c=tair_c,
+            rh=rh,
+            sim_time=sim_time,
+            output_prefix=output_prefix,
+        )
 
     return hm
 

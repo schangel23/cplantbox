@@ -143,6 +143,9 @@ HYDRAULICS_JSON = _species_hydraulics_json()
 PHOTOSYNTHESIS_JSON = _species_photosynthesis_json()
 PHLOEM_JSON = _species_phloem_json()
 
+# Growth mode: "parametric" (default) or "carbon" (carbon-feedback limited)
+GROWTH_MODE = os.environ.get("GROWTH_MODE", "parametric")
+
 # MaizeField3D data
 MAIZEFIELD3D_STATS = DATA_DIR / "maizefield3d_stats.json"
 MAIZEFIELD3D_DEFORMATION = DATA_DIR / "maizefield3d_blade_deformation.json"

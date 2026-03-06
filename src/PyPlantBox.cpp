@@ -305,6 +305,12 @@ PYBIND11_MODULE(plantbox, m) {
             .def_readwrite("plant",&OrganRandomParameter::plant)
             .def_readwrite("f_gf", &OrganRandomParameter::f_gf)
             .def_readwrite("f_tf", &OrganRandomParameter::f_tf);
+
+    py::class_<GrowthFunction, std::shared_ptr<GrowthFunction>>(m, "GrowthFunction")
+        .def_readwrite("CW_Gr", &GrowthFunction::CW_Gr);
+
+    py::class_<CWLimitedGrowth, GrowthFunction, std::shared_ptr<CWLimitedGrowth>>(m, "CWLimitedGrowth");
+
     /**
      * Organ.h
      */
