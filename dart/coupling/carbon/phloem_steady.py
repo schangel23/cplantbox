@@ -26,6 +26,92 @@ import numpy as np
 
 from .tree_topology import VascularTree, build_tree
 
+# --- Numba JIT sweep functions (with pure-Python fallbacks) ---
+
+try:
+    import numba
+
+    @numba.njit(cache=True)
+    def _forward_sweep_jit(reverse_topo_order, children_indices, children_offsets,
+                           loading, Rm, Rg, exud, storage):
+        N = len(loading)
+        flow_to_parent = np.zeros(N)
+        for idx in range(len(reverse_topo_order)):
+            node = reverse_topo_order[idx]
+            children_import = 0.0
+            for ci in range(children_offsets[node], children_offsets[node + 1]):
+                children_import += flow_to_parent[children_indices[ci]]
+            flow_to_parent[node] = (loading[node] + children_import
+                                    - Rm[node] - Rg[node] - exud[node]
+                                    - storage[node])
+        return flow_to_parent
+
+    @numba.njit(cache=True)
+    def _backward_sweep_jit(topo_order, parent_of, K_sugar,
+                            flow_to_parent, C_base, half_C_base, C_max):
+        N = len(parent_of)
+        C_ST_new = np.empty(N)
+        for i in range(N):
+            C_ST_new[i] = C_base
+        for idx in range(len(topo_order)):
+            node = topo_order[idx]
+            if node == 0:
+                continue
+            parent = parent_of[node]
+            K = K_sugar[node]
+            if K > 0.0:
+                delta_C = flow_to_parent[node] / K
+                if delta_C > half_C_base:
+                    delta_C = half_C_base
+                elif delta_C < -half_C_base:
+                    delta_C = -half_C_base
+                C_ST_new[node] = C_ST_new[parent] + delta_C
+            else:
+                C_ST_new[node] = C_ST_new[parent]
+        for i in range(N):
+            if C_ST_new[i] < 0.01:
+                C_ST_new[i] = 0.01
+            elif C_ST_new[i] > C_max:
+                C_ST_new[i] = C_max
+        return C_ST_new
+
+    _HAS_NUMBA = True
+except ImportError:
+    _HAS_NUMBA = False
+
+
+def _forward_sweep_python(reverse_topo_order, children, loading, Rm, Rg,
+                          exud, storage):
+    N = len(loading)
+    flow_to_parent = np.zeros(N)
+    for node in reverse_topo_order:
+        children_import = 0.0
+        for ch in children[node]:
+            children_import += flow_to_parent[ch]
+        flow_to_parent[node] = (loading[node] + children_import
+                                - Rm[node] - Rg[node] - exud[node]
+                                - storage[node])
+    return flow_to_parent
+
+
+def _backward_sweep_python(topo_order, parent_of, K_sugar,
+                           flow_to_parent, C_base, half_C_base, C_max):
+    N = len(parent_of)
+    C_ST_new = np.full(N, C_base)
+    for node in topo_order:
+        if node == 0:
+            continue
+        parent = parent_of[node]
+        K = K_sugar[node]
+        if K > 0.0:
+            delta_C = flow_to_parent[node] / K
+            delta_C = max(-half_C_base, min(delta_C, half_C_base))
+            C_ST_new[node] = C_ST_new[parent] + delta_C
+        else:
+            C_ST_new[node] = C_ST_new[parent]
+    np.clip(C_ST_new, 0.01, C_max, out=C_ST_new)
+    return C_ST_new
+
 
 @dataclass
 class PhloemParams:
@@ -599,11 +685,8 @@ class QuasiSteadyPhloem:
             f"{len(An_per_leaf_seg)} An array"
         )
 
-        segments = self.plant.getSegments()
-        for i, seg_idx in enumerate(leaf_seg_indices):
-            child_node = segments[seg_idx].y
-            # mol CO2/d -> mmol Suc/d
-            An_nodes[child_node] = An_per_leaf_seg[i] * self.CO2_TO_SUC
+        child_nodes = t.child_node_for_seg[leaf_seg_indices]
+        An_nodes[child_nodes] = An_per_leaf_seg * self.CO2_TO_SUC
 
         return An_nodes
 
@@ -613,64 +696,38 @@ class QuasiSteadyPhloem:
         Returns:
             loading, Rm_node, Rg_node, exud_node, storage_node — all np.array(N).
         """
-        t = self.tree
         p = self.params
-        N = t.n_nodes
 
-        loading = np.zeros(N)
-        Rm_node = np.zeros(N)
-        Rg_node = np.zeros(N)
-        exud_node = np.zeros(N)
-        storage_node = np.zeros(N)
+        C = np.maximum(0.0, C_ST)
 
-        for node in range(N):
-            C = max(0.0, C_ST[node])
+        # Loading: An * exp(-C * beta) on leaf source nodes
+        loading = np.where(
+            (self.loading_len > 0) & (An_source > 0),
+            An_source * np.exp(-C * p.beta_loading),
+            0.0,
+        )
 
-            # --- Loading (leaf source nodes) ---
-            # At quasi-steady state, mesophyll C_meso adjusts so that
-            # phloem loading Q_Fl ≈ Ag. The product inhibition exp(-C_ST*beta)
-            # modulates the fraction exported (vs starch storage).
-            # Loading = An * exp(-C_ST * beta), not capped by Vmax
-            # (Vmax limits the rate in the ODE system, but C_meso compensates
-            # at steady state).
-            if self.loading_len[node] > 0 and An_source[node] > 0:
-                inhibition = np.exp(-C * p.beta_loading)
-                loading[node] = An_source[node] * inhibition
+        # Usage: maintenance respiration
+        C_eff = np.maximum(0.0, C - p.CSTimin)
+        Q_Rmmax = (self.Q_Rmmax_base + self.krm2_node * C_eff) * temp_factor
+        denom = C_eff + p.KMfu
+        Fu_avail = np.where(denom > 0.0, C_eff / denom, 0.0)
+        Fu = (Q_Rmmax + self.Q_Grmax_node) * Fu_avail
+        Rm_node = np.minimum(Fu, Q_Rmmax)
 
-            # --- Usage: maintenance respiration ---
-            C_eff = max(0.0, C - p.CSTimin)
-            Q_Rmmax = (self.Q_Rmmax_base[node] + self.krm2_node[node] * C_eff) * temp_factor
-            Fu_avail = C_eff / (C_eff + p.KMfu) if (C_eff + p.KMfu) > 0 else 0.0
-            Fu = (Q_Rmmax + self.Q_Grmax_node[node]) * Fu_avail
-            Rm_node[node] = min(Fu, Q_Rmmax)
+        # Growth
+        Rg_node = np.clip(Fu - Rm_node, 0.0, self.Q_Grmax_node)
 
-            # --- Growth ---
-            Rg_node[node] = max(0.0, min(Fu - Rm_node[node], self.Q_Grmax_node[node]))
+        # Exudation (below-ground root nodes)
+        C_delta = np.maximum(0.0, C_eff - p.C_soil)
+        exud_node = C_delta * self.Q_Exudmax_coeff
 
-            # --- Exudation (below-ground root nodes) ---
-            if self.Q_Exudmax_coeff[node] > 0:
-                C_delta = max(0.0, C_eff - p.C_soil)
-                exud_node[node] = C_delta * self.Q_Exudmax_coeff[node]
-
-            # --- Stem storage (starch accumulation in parenchyma) ---
-            # Net storage = synthesis - hydrolysis:
-            #   Q_store = k_S_ST * C_eff * V_par  (sucrose → starch)
-            #   Q_hydro = kHyd_S_ST * C_starch     (starch → sucrose)
-            # At quasi-steady state, C_starch = (k_S_ST / kHyd_S_ST) * C_eff
-            # Net flux = k_S_ST * C_eff * V_par - kHyd_S_ST * C_starch * V_par
-            # Substituting: Net = k_S_ST * C_eff * V_par * (1 - k_S_ST/kHyd_S_ST)
-            # BUT: that gives 0 when k_S_ST == kHyd_S_ST (equilibrium).
-            #
-            # The key insight: starch ACCUMULATES over days/weeks because the
-            # stem is continuously receiving new carbon from the phloem. The
-            # storage rate represents the fraction of phloem-unloaded carbon
-            # that goes to starch rather than back to sucrose. At vegetative
-            # stage, synthesis > hydrolysis because the plant is building
-            # reserves. We model net storage as:
-            #   Q_store = k_S_ST * C_eff * V_parenchyma
-            # with kHyd releasing starch only during grain fill (future).
-            if self.storage_vol[node] > 0 and C_eff > 0:
-                storage_node[node] = p.k_S_ST * C_eff * self.storage_vol[node]
+        # Stem storage (starch accumulation in parenchyma)
+        storage_node = np.where(
+            (self.storage_vol > 0) & (C_eff > 0),
+            p.k_S_ST * C_eff * self.storage_vol,
+            0.0,
+        )
 
         return loading, Rm_node, Rg_node, exud_node, storage_node
 
@@ -761,11 +818,14 @@ class QuasiSteadyPhloem:
 
         def _uniform_surplus(C_val):
             C_test = np.full(N, C_val)
-            ld, rm, rg, ex, st = self._compute_fluxes(C_test, An_source, temp_factor)
-            flow = np.zeros(N)
-            for node in t.reverse_topo_order:
-                ci = sum(flow[ch] for ch in t.children[node])
-                flow[node] = ld[node] + ci - rm[node] - rg[node] - ex[node] - st[node]
+            ld, rm, rg, ex, st_nd = self._compute_fluxes(C_test, An_source, temp_factor)
+            if _HAS_NUMBA:
+                flow = _forward_sweep_jit(
+                    t.reverse_topo_order, t.children_indices,
+                    t.children_offsets, ld, rm, rg, ex, st_nd)
+            else:
+                flow = _forward_sweep_python(
+                    t.reverse_topo_order, t.children, ld, rm, rg, ex, st_nd)
             return flow[0]
 
         # 30 bisection steps on uniform C → precision ~(C_hi-C_lo)/2^30 ≈ 2e-9
@@ -808,15 +868,15 @@ class QuasiSteadyPhloem:
                 C_ST, An_source, temp_factor
             )
 
-            flow_to_parent = np.zeros(N)
-            for node in t.reverse_topo_order:
-                children_import = sum(
-                    flow_to_parent[ch] for ch in t.children[node]
-                )
-                net = (loading[node] + children_import
-                       - Rm_node[node] - Rg_node[node] - exud_node[node]
-                       - storage_node[node])
-                flow_to_parent[node] = net
+            if _HAS_NUMBA:
+                flow_to_parent = _forward_sweep_jit(
+                    t.reverse_topo_order, t.children_indices,
+                    t.children_offsets, loading, Rm_node, Rg_node,
+                    exud_node, storage_node)
+            else:
+                flow_to_parent = _forward_sweep_python(
+                    t.reverse_topo_order, t.children, loading, Rm_node,
+                    Rg_node, exud_node, storage_node)
 
             # --- Check global balance and update bisection ---
             surplus = flow_to_parent[0]
@@ -857,23 +917,16 @@ class QuasiSteadyPhloem:
             C_base = 0.5 * (C_lo + C_hi)
 
             # --- Backward sweep with updated C_base ---
-            C_ST_new = np.full(N, C_base)
-
-            for node in t.topo_order:
-                if node == 0:
-                    continue
-                parent = t.parent_of[node]
-                K = self.K_sugar[node]
-                if K > 0:
-                    delta_C = flow_to_parent[node] / K
-                    delta_C = np.clip(
-                        delta_C, -0.5 * C_base, 0.5 * C_base
-                    )
-                    C_ST_new[node] = C_ST_new[parent] + delta_C
-                else:
-                    C_ST_new[node] = C_ST_new[parent]
-
-            C_ST_new = np.clip(C_ST_new, 0.01, 5.0 * p.C_targ)
+            C_max = 5.0 * p.C_targ
+            half_C_base = 0.5 * C_base
+            if _HAS_NUMBA:
+                C_ST_new = _backward_sweep_jit(
+                    t.topo_order, t.parent_of, self.K_sugar,
+                    flow_to_parent, C_base, half_C_base, C_max)
+            else:
+                C_ST_new = _backward_sweep_python(
+                    t.topo_order, t.parent_of, self.K_sugar,
+                    flow_to_parent, C_base, half_C_base, C_max)
 
             # Damped update
             C_ST = (1 - alpha) * C_ST_old + alpha * C_ST_new
@@ -919,26 +972,27 @@ class QuasiSteadyPhloem:
         """Format solver results into the standard output dict."""
         t = self.tree
 
-        # Aggregate by organ type
-        Rm_leaf = Rm_stem = Rm_root = Rm_storage = 0.0
-        Rg_leaf = Rg_stem = Rg_root = Rg_storage = 0.0
-        total_stem_storage = 0.0
+        # Aggregate by organ type using vectorized indexing
+        cn = t.child_node_for_seg
+        leaf_mask = t.organ_type == 4
+        stem_mask = t.organ_type == 3
+        root_mask = t.organ_type == 2
 
-        segments = self.plant.getSegments()
-        for seg_idx in range(t.n_segments):
-            child_node = segments[seg_idx].y
-            ot = int(t.organ_type[seg_idx])
+        leaf_nodes = cn[leaf_mask]
+        stem_nodes = cn[stem_mask]
+        root_nodes = cn[root_mask]
 
-            if ot == 4:    # leaf
-                Rm_leaf += Rm_node[child_node]
-                Rg_leaf += Rg_node[child_node]
-            elif ot == 3:  # stem
-                Rm_stem += Rm_node[child_node]
-                Rg_stem += Rg_node[child_node]
-                total_stem_storage += storage_node[child_node]
-            elif ot == 2:  # root
-                Rm_root += Rm_node[child_node]
-                Rg_root += Rg_node[child_node]
+        Rm_leaf = float(np.sum(Rm_node[leaf_nodes]))
+        Rm_stem = float(np.sum(Rm_node[stem_nodes]))
+        Rm_root = float(np.sum(Rm_node[root_nodes]))
+        Rm_storage = 0.0
+
+        Rg_leaf = float(np.sum(Rg_node[leaf_nodes]))
+        Rg_stem = float(np.sum(Rg_node[stem_nodes]))
+        Rg_root = float(np.sum(Rg_node[root_nodes]))
+        Rg_storage = 0.0
+
+        total_stem_storage = float(np.sum(storage_node[stem_nodes]))
 
         Rm_total = Rm_leaf + Rm_stem + Rm_root + Rm_storage
         Rg_total = Rg_leaf + Rg_stem + Rg_root + Rg_storage

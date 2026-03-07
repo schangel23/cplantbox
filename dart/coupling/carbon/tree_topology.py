@@ -36,6 +36,11 @@ class VascularTree:
     is_root_below: np.ndarray       # True if segment is below ground (seg2cell >= 0)
     seg_radius: np.ndarray          # segment radius [cm]
 
+    # CSR representation of children (for numba JIT sweeps)
+    children_offsets: np.ndarray = None   # [N+1] int32, CSR row pointers
+    children_indices: np.ndarray = None   # flat int32, CSR values
+    child_node_for_seg: np.ndarray = None # [n_segments] int32, segments[si].y cached
+
 
 def build_tree(plant: pb.MappedPlant) -> VascularTree:
     """Build a VascularTree from a CPlantBox MappedPlant.
@@ -98,6 +103,20 @@ def build_tree(plant: pb.MappedPlant) -> VascularTree:
         children[parent_node].append(child_node)
         seg_for_node[child_node] = seg_idx
 
+    # Build CSR representation of children list
+    children_offsets = np.zeros(n_nodes + 1, dtype=np.int32)
+    for i in range(n_nodes):
+        children_offsets[i + 1] = children_offsets[i] + len(children[i])
+    children_indices = np.empty(children_offsets[-1], dtype=np.int32)
+    for i in range(n_nodes):
+        start = children_offsets[i]
+        for j, ch in enumerate(children[i]):
+            children_indices[start + j] = ch
+
+    # Cache child node per segment (segments[si].y)
+    child_node_for_seg = np.array([segments[si].y for si in range(n_segments)],
+                                  dtype=np.int32)
+
     # BFS from root collar (node 0) for topological order
     topo_order = []
     visited = np.zeros(n_nodes, dtype=bool)
@@ -145,4 +164,7 @@ def build_tree(plant: pb.MappedPlant) -> VascularTree:
         is_leaf_node=is_leaf_node,
         is_root_below=is_root_below,
         seg_radius=radii,
+        children_offsets=children_offsets,
+        children_indices=children_indices,
+        child_node_for_seg=child_node_for_seg,
     )
