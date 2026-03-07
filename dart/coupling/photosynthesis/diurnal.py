@@ -1908,19 +1908,25 @@ def run_production_series_carbon(growth_days, timestep_min=60,
             clearsky_par_wm2 = get_clearsky_par(ts_time, LAT, LON)
             actual_par_per_band = clearsky_par_wm2 / n_par_bands
 
-            # Per-plant photosynthesis (fresh plants for clean HydraulicModel)
+            # Per-plant photosynthesis on persistent plants.
+            # PhloemFluxPython is created fresh each call and doesn't
+            # mutate plant geometry, so this is safe for subsequent
+            # simulate() calls.
             per_plant_An_ts = [0.0] * N_PLANTS
             for pi in range(N_PLANTS):
-                seed = FIELD_SEED + pi
-                plant_ts = grow_plant(
-                    XML_PATH, simulation_time=dart_day,
-                    enable_photosynthesis=True, seed=seed)
+                plant_p = persistent_plants[pi]
+                n_leaf_segs = len(plant_p.getSegmentIds(4))
 
                 apar_wm2 = all_plant_apar[pi] * actual_par_per_band
                 par_umol = np.clip(apar_wm2 * 4.57, 0.0, 3000.0)
 
+                # aPAR array must match persistent plant's leaf segments
+                if len(par_umol) != n_leaf_segs:
+                    # Fallback to scalar mean if segment count mismatch
+                    par_umol = float(np.mean(par_umol))
+
                 result = run_photosynthesis_solve(
-                    plant_ts, dart_day,
+                    plant_p, dart_day,
                     par=par_umol, tleaf=T_air_C,
                     label=f"carbon_ts_{ts_label}_p{pi}",
                     rh=rh, soil_psi_cm=-500.0,
@@ -1951,14 +1957,10 @@ def run_production_series_carbon(growth_days, timestep_min=60,
                 per_plant_carbon.append(None)
                 continue
 
-            # Run photosynthesis at peak to get per-segment An shape
-            seed = FIELD_SEED + pi
-            plant_photo = grow_plant(
-                XML_PATH, simulation_time=dart_day,
-                enable_photosynthesis=True, seed=seed)
-
+            # Run photosynthesis at peak on persistent plant to get
+            # per-segment An shape for carbon partitioning
             hm = run_photosynthesis(
-                plant_photo, sim_time=dart_day,
+                plant, sim_time=dart_day,
                 output_prefix=None,
                 par_umol=1000.0, tair_c=25.0)
 
@@ -1975,7 +1977,7 @@ def run_production_series_carbon(growth_days, timestep_min=60,
 
             try:
                 carbon = solve_carbon_partitioning(
-                    plant_photo, An_leaf_scaled, Tair_C=25.0,
+                    plant, An_leaf_scaled, Tair_C=25.0,
                     method=carbon_method, day=dart_day,
                     warm_start=per_plant_warm_starts[pi] or None,
                 )
@@ -2040,13 +2042,9 @@ def run_production_series_carbon(growth_days, timestep_min=60,
             if daily_An_mol <= 0:
                 continue
 
-            # Get per-segment An shape from photosynthesis
-            seed = FIELD_SEED + pi
-            plant_photo = grow_plant(
-                XML_PATH, simulation_time=dart_day,
-                enable_photosynthesis=True, seed=seed)
+            # Get per-segment An shape from persistent plant
             hm = run_photosynthesis(
-                plant_photo, sim_time=dart_day,
+                plant, sim_time=dart_day,
                 output_prefix=None, par_umol=1000.0, tair_c=25.0)
             if hm is None:
                 continue
