@@ -429,7 +429,7 @@ def run_single_day(sim_day, timestep_min=30, enable_baleno=True,
         # --- Baleno energy balance (optional, all plants) ---
         # Skip Baleno at very low PAR (dawn/dusk): EB solver is unreliable
         # and Tleaf ≈ Tair anyway when shortwave radiation is negligible.
-        MIN_PAR_FOR_BALENO = 20.0  # W/m²
+        MIN_PAR_FOR_BALENO = 50.0  # W/m²
         all_tleaf_baleno = None  # list of per-plant Tleaf arrays
         baleno_ok_flag = False
         clearsky_par_wm2_early = get_clearsky_par(ts_time, LAT, LON)
@@ -454,7 +454,9 @@ def run_single_day(sim_day, timestep_min=30, enable_baleno=True,
                     user_data_path =
                     name = {baleno_setup['baleno_simu_name']}
                 """))
-                ok = run_baleno_subprocess(timeout=1800)
+                # Adaptive timeout: shorter at low PAR where Baleno struggles
+                baleno_timeout = 600 if clearsky_par_wm2_early < 100.0 else 1800
+                ok = run_baleno_subprocess(timeout=baleno_timeout)
                 if ok:
                     all_tleaf_baleno = read_baleno_tleaf_multi(
                         baleno_setup['baleno_sim_dir'],
@@ -2003,7 +2005,9 @@ def run_production_series_carbon(growth_days, timestep_min=60,
             mean_par_umol_ts /= max(N_PLANTS, 1)
 
             # Baleno + iterative coupling (if enabled)
-            MIN_PAR_FOR_BALENO = 20.0
+            MIN_PAR_FOR_BALENO = 50.0
+            # Adaptive timeout: shorter at low PAR where Baleno struggles
+            baleno_timeout = 600 if clearsky_par_wm2 < 100.0 else 1800
             if (iterate_gs and baleno_setup is not None
                     and clearsky_par_wm2 >= MIN_PAR_FOR_BALENO):
                 try:
@@ -2028,7 +2032,7 @@ def run_production_series_carbon(growth_days, timestep_min=60,
                     """))
 
                     # Initial Baleno pass (Ball-Berry) for scene mapping
-                    ok = run_baleno_subprocess(timeout=1800)
+                    ok = run_baleno_subprocess(timeout=baleno_timeout)
                     if ok:
                         # Get initial Tleaf
                         init_tleaf = read_baleno_tleaf_multi(
@@ -2090,7 +2094,7 @@ def run_production_series_carbon(growth_days, timestep_min=60,
                         user_data_path =
                         name = {baleno_setup['baleno_simu_name']}
                     """))
-                    ok = run_baleno_subprocess(timeout=1800)
+                    ok = run_baleno_subprocess(timeout=baleno_timeout)
                     if ok:
                         all_tleaf_baleno = read_baleno_tleaf_multi(
                             baleno_setup['baleno_sim_dir'],
