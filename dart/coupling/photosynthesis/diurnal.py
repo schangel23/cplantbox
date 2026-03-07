@@ -1874,11 +1874,13 @@ def run_production_series_carbon(growth_days, timestep_min=60,
 
         # Diurnal loop: accumulate per-plant An across timesteps
         daily_An_per_plant_mmol = [0.0] * N_PLANTS
+        hourly_results = []
         dt_day = timestep_min / (24 * 60)
         n_steps_done = 0
 
         for step_i, (ts_time, ts_row) in enumerate(solar_df.iterrows()):
             sun_zen = ts_row['apparent_zenith']
+            sun_azi = ts_row.get('azimuth', 0.0)
             ts_label = ts_time.strftime('%H:%M')
             print(f"\n  [{step_i+1}/{n_daylight}] {ts_label} UTC")
 
@@ -1890,6 +1892,7 @@ def run_production_series_carbon(growth_days, timestep_min=60,
 
             T_air_C = float(met_row['T_air_C'])
             rh = float(met_row['RH'])
+            wind_ms = float(met_row.get('wind_ms', 2.0))
 
             # Update DART sun + re-run RT
             if step_i > 0:
@@ -1913,6 +1916,7 @@ def run_production_series_carbon(growth_days, timestep_min=60,
             # mutate plant geometry, so this is safe for subsequent
             # simulate() calls.
             per_plant_An_ts = [0.0] * N_PLANTS
+            mean_par_umol_ts = 0.0
             for pi in range(N_PLANTS):
                 plant_p = persistent_plants[pi]
                 n_leaf_segs = len(plant_p.getSegmentIds(4))
@@ -1925,6 +1929,11 @@ def run_production_series_carbon(growth_days, timestep_min=60,
                     # Fallback to scalar mean if segment count mismatch
                     par_umol = float(np.mean(par_umol))
 
+                if not np.isscalar(par_umol):
+                    mean_par_umol_ts += float(np.mean(par_umol))
+                else:
+                    mean_par_umol_ts += par_umol
+
                 result = run_photosynthesis_solve(
                     plant_p, dart_day,
                     par=par_umol, tleaf=T_air_C,
@@ -1934,19 +1943,59 @@ def run_production_series_carbon(growth_days, timestep_min=60,
                 if result is not None:
                     per_plant_An_ts[pi] = result['An_total_mmol']
 
+            mean_par_umol_ts /= max(N_PLANTS, 1)
+
             # Trapezoidal integration
             for pi in range(N_PLANTS):
                 daily_An_per_plant_mmol[pi] += per_plant_An_ts[pi] * dt_day
             n_steps_done += 1
 
-        # Convert mmol -> mol
-        daily_An_per_plant_mol = [a / 1000.0 for a in daily_An_per_plant_mmol]
+            # Collect hourly data for CSV/plots
+            An_field_mean_ts = float(np.mean(per_plant_An_ts))
+            An_field_std_ts = float(np.std(per_plant_An_ts))
+            field_mean_apar = float(np.mean([
+                float(np.mean(all_plant_apar[pi]))
+                for pi in range(N_PLANTS)
+            ])) if all_plant_apar is not None else 0.0
+
+            hourly_row = {
+                'time_utc': ts_label,
+                'zenith': float(sun_zen),
+                'azimuth': float(sun_azi),
+                'T_air_C': T_air_C,
+                'RH': rh,
+                'wind_ms': wind_ms,
+                'clearsky_par_Wm2': clearsky_par_wm2,
+                'mean_apar_umol': mean_par_umol_ts,
+                'dart_mean_apar': field_mean_apar,
+                'mean_tleaf_C': T_air_C,  # no Baleno in carbon mode
+                'baleno_ok': False,
+                'An_field_mean_mmol_d': An_field_mean_ts,
+                'An_field_std_mmol_d': An_field_std_ts,
+            }
+            for pi in range(N_PLANTS):
+                hourly_row[f'An_p{pi}'] = per_plant_An_ts[pi]
+            hourly_results.append(hourly_row)
+
+        # Integrate daily per-plant An
+        daily_An_per_plant = _integrate_daily_per_plant(
+            hourly_results, timestep_min)
+        daily_An_per_plant_mol = daily_An_per_plant
         daily_An_field_mean = float(np.mean(daily_An_per_plant_mol))
         daily_An_field_std = float(np.std(daily_An_per_plant_mol))
 
         print(f"\n  Day {dart_day}: An field mean = {daily_An_field_mean:.6f} "
               f"+/- {daily_An_field_std:.6f} mol CO2/plant/day "
               f"({n_steps_done} timesteps)")
+
+        # Save CSV, JSON summary, and diurnal curve plot
+        try:
+            _save_diurnal_results(
+                day_dir, dart_day, calendar_date, hourly_results,
+                daily_An_per_plant, daily_An_field_mean,
+                daily_An_field_std, timestep_min)
+        except Exception as e:
+            print(f"  WARNING: Failed to save diurnal results: {e}")
 
         # --- 3b. Per-plant carbon partitioning on DART day ---
         per_plant_carbon = []
@@ -2075,7 +2124,6 @@ def run_production_series_carbon(growth_days, timestep_min=60,
             'daily_An_mol_per_plant': daily_An_per_plant_mol,
             'daily_An_mol_field_mean': daily_An_field_mean,
             'daily_An_mol_field_std': daily_An_field_std,
-            'hourly': [],  # simplified — no full hourly tracking
         }
 
         # Save checkpoint
@@ -2110,6 +2158,12 @@ def run_production_series_carbon(growth_days, timestep_min=60,
     json_path = checkpoint_dir / 'production_summary.json'
     with open(json_path, 'w') as f:
         json.dump(summary, f, indent=2)
+
+    # Growth series plot
+    try:
+        _plot_growth_series(checkpoint_dir, growth_days, series_results)
+    except Exception as e:
+        print(f"  WARNING: Growth series plot failed: {e}")
 
     print(f"\n{'=' * 70}")
     print(f"PRODUCTION SERIES COMPLETE (CARBON FEEDBACK)")
