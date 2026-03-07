@@ -1597,6 +1597,214 @@ def setup_baleno_full(obj_path, mapping_json, reindex_json, grid_info_path,
     }
 
 
+def setup_baleno_full_multi(obj_paths, mapping_json_paths, reindex_json_paths,
+                             grid_info_path, prospect_params,
+                             sun_zenith=None, sun_azimuth=None,
+                             scene_size=(4, 4),
+                             dart_simu_name='cpb_maize_diurnal_eb',
+                             baleno_simu_name='cpb_diurnal_eb',
+                             field_filename='plant_field.txt',
+                             calendar_date=None, hour_utc=None, minute_utc=None,
+                             lat=50.92, lon=6.36, use_exact_date=True):
+    """Create _I, _II DART sims and Baleno configs for multi-plant scene.
+
+    Like setup_baleno_full() but with 9 unique OBJ models in ObjectFields,
+    matching create_dart_simulation_multi() pattern. A single Baleno run
+    computes energy balance for ALL plants simultaneously.
+
+    Args:
+        obj_paths: List of DART-convention OBJ paths (one per plant).
+        mapping_json_paths: List of mapping JSON paths (one per plant).
+        reindex_json_paths: List of reindex JSON paths (one per plant).
+        grid_info_path: Path to grid_info.json.
+        prospect_params: PROSPECT parameter dict.
+        sun_zenith, sun_azimuth: Initial sun angles (backward compat).
+        scene_size: Scene size in meters.
+        dart_simu_name: Name for the DART _I/_II container.
+        baleno_simu_name: Name for the Baleno simulation.
+        field_filename: Name of the plant field file.
+        calendar_date: datetime.date for exactDate mode.
+        hour_utc, minute_utc: UTC time for exactDate mode.
+        lat, lon: Location coordinates.
+        use_exact_date: If True, use DART's exactDate=1 solar geometry.
+
+    Returns:
+        dict with: simu_I, simu_II_dir, baleno_sim_dir, backups,
+        dart_simu_name, baleno_simu_name, obj_paths, reindex_json_paths.
+    """
+    import json as _json
+
+    n_plants = len(obj_paths)
+
+    # Step 1: Create _I simulation with multiple models
+    simu_I_name = f'{dart_simu_name}/{dart_simu_name}_I'
+    parent_dir = DART_LOCAL / 'simulations' / dart_simu_name
+    simu_I_dir = parent_dir / f'{dart_simu_name}_I'
+    parent_dir.mkdir(parents=True, exist_ok=True)
+    if simu_I_dir.exists():
+        shutil.rmtree(str(simu_I_dir))
+
+    simu_I = ptd.simulation(simu_I_name, empty=True)
+    simu_I.scene.size = list(scene_size)
+
+    # 21 shortwave bands
+    for wvl, bw in SW_BANDS:
+        simu_I.add.band(wvl=wvl, bw=bw)
+
+    # Sun direction
+    if use_exact_date and calendar_date is not None:
+        from ..dart.simulation import configure_exact_date
+        configure_exact_date(simu_I, calendar_date, hour_utc, minute_utc,
+                             lat=lat, lon=lon)
+    else:
+        simu_I.core.directions.Directions.SunViewingAngles.sunViewingZenithAngle = sun_zenith
+        simu_I.core.directions.Directions.SunViewingAngles.sunViewingAzimuthAngle = sun_azimuth
+
+    # Ground OP
+    simu_I.add.optical_property(
+        type='Lambertian', ident='ground',
+        databaseName='Lambertian_mineral.db', ModelName='clay_brown',
+        useMultiplicativeFactorForLUT=0,
+    )
+    simu_I.scene.ground.OpticalPropertyLink.ident = 'ground'
+
+    # Leaf + stem OPs
+    simu_I.add.optical_property(
+        type='Lambertian', ident='maize_leaf',
+        prospect=prospect_params,
+        useMultiplicativeFactorForLUT=0,
+    )
+    stem_prospect = get_stem_prospect_params(55)
+    simu_I.add.optical_property(
+        type='Lambertian', ident='maize_stem',
+        prospect=stem_prospect,
+        useMultiplicativeFactorForLUT=0,
+    )
+
+    # Build multi-model ObjectFields (one model per plant)
+    model_list = ptd.object_3d.create_ModelList()
+
+    for i, dart_obj in enumerate(obj_paths):
+        file_src_fullpath = simu_I.get_input_file_path(str(dart_obj))
+        obj_info = ptd.OBJtools.objreader(file_src_fullpath)
+        gnames = ptd.OBJtools.gnames_dart_order(obj_info.names)
+        xdim, ydim, zdim = obj_info.dims
+        xc, yc, zc = obj_info.center
+
+        groups_list = []
+        for gi, gname in enumerate(gnames):
+            g = ptd.object_3d.create_Group(num=gi + 1, name=gname)
+            is_stem = gname.endswith('_00')
+            op_ident = 'maize_stem' if is_stem else 'maize_leaf'
+            df = 0 if is_stem else 1
+            g.set_nodes(ident=op_ident)
+            gop = g.GroupOpticalProperties
+            gop.SurfaceOpticalProperties.doubleFace = df
+            gop.SurfaceExitanceProperties.doubleFace = df
+            groups_list.append(g)
+        groups = ptd.object_3d.create_Groups(Group=groups_list)
+
+        geom = ptd.object_3d.create_GeometricProperties(
+            Dimension3D=ptd.object_3d.create_Dimension3D(
+                xdim=xdim, ydim=ydim, zdim=zdim),
+            Center3D=ptd.object_3d.create_Center3D(
+                xCenter=xc, yCenter=yc, zCenter=zc),
+            ScaleProperties=ptd.object_3d.create_ScaleProperties(
+                xscale=1.0, yscale=1.0, zscale=1.0),
+        )
+        model_obj = ptd.object_3d.create_Object(
+            file_src=str(dart_obj), hasGroups=1, GeometricProperties=geom,
+            Groups=groups, num=i, name=f'CPlantBox_Maize_p{i}',
+            objectDEMMode=0,
+        )
+        model_list.add_Object(model_obj)
+
+    # ObjectFields with field file
+    field = ptd.object_3d.create_Field(
+        name='MaizeField', fieldDescriptionFileName=field_filename)
+    field.set_ModelList(model_list)
+    obj_fields = ptd.object_3d.create_ObjectFields()
+    obj_fields.add_Field(field)
+    simu_I.core.object_3d.object_3d.ObjectFields = obj_fields
+
+    # Radiative budget + LuxCore sampling
+    products = simu_I.core.phase.Phase.DartProduct.dartModuleProducts.CommonProducts
+    products.radiativeBudgetProducts = 1
+    products.radiativeBudgetProperties.budget3DParSurface = 1
+    simu_I.core.phase.Phase.accelerationEngine = 2
+    lux = simu_I.core.phase.Phase.EngineParameter.LuxCoreRenderEngineParameters
+    lux.targetRayDensityPerPixel = DART_RAY_DENSITY_PER_PIXEL
+    lux.maximumRenderingTime = DART_MAX_RENDERING_TIME
+    simu_I.core.phase.Phase.ExpertModeZone.nbThreads = DART_THREADS
+
+    # Atmosphere: MIDLATSUM
+    configure_atmosphere_midlatsum(simu_I)
+
+    simu_I.write(overwrite=True)
+
+    # Write field file: one model per position (model_index = position index)
+    simu_I_path = Path(str(simu_I.simu_dir))
+    field_path = simu_I_path / 'input' / field_filename
+    if Path(grid_info_path).exists():
+        with open(grid_info_path) as gf:
+            gi = _json.load(gf)
+        with open(field_path, 'w') as ff:
+            ff.write('complete transformation\n')
+            for idx, (x, y) in enumerate(gi['positions_m']):
+                ff.write(f'{idx} {x:.6f} {y:.6f} 0.0 1.0 1.0 1.0 0.0 0.0 0.0\n')
+    else:
+        with open(field_path, 'w') as ff:
+            ff.write('complete transformation\n')
+            ff.write('0 2.0 2.0 0.0 1.0 1.0 1.0 0.0 0.0 0.0\n')
+
+    # Step 2: Create _II (thermal) — uses combined reindex from all plants
+    combined_reindex = _build_combined_reindex(reindex_json_paths)
+    combined_reindex_path = simu_I_path.parent / 'combined_reindex.json'
+    with open(combined_reindex_path, 'w') as f:
+        _json.dump(combined_reindex, f, indent=2)
+    simu_II_dir = _create_simu_II(simu_I, dart_simu_name, str(combined_reindex_path))
+
+    # Step 3: Create Baleno configs
+    baleno_sim_dir = _create_baleno_configs(baleno_simu_name, dart_simu_name)
+
+    # Step 4: Write config files
+    backups = step4_write_config_files()
+
+    return {
+        'simu_I': simu_I,
+        'simu_II_dir': simu_II_dir,
+        'baleno_sim_dir': baleno_sim_dir,
+        'backups': backups,
+        'dart_simu_name': dart_simu_name,
+        'baleno_simu_name': baleno_simu_name,
+        'obj_paths': obj_paths,
+        'reindex_json_paths': reindex_json_paths,
+    }
+
+
+def _build_combined_reindex(reindex_json_paths):
+    """Combine per-plant reindex JSONs into one for _II temperature files.
+
+    The _II simulation sees all plant groups sequentially numbered.
+    Plant 0 gets groups 0..G0-1, plant 1 gets G0..G0+G1-1, etc.
+    """
+    import json as _json
+
+    combined = {'dart_to_obj': {}, 'group_names': []}
+    global_gi = 0
+    for pi, rpath in enumerate(reindex_json_paths):
+        with open(rpath) as f:
+            ri = _json.load(f)
+        n_groups = len(ri['group_names'])
+        for local_gi in range(n_groups):
+            gname = ri['group_names'][local_gi]
+            combined['dart_to_obj'][str(global_gi)] = ri['dart_to_obj'][str(local_gi)]
+            combined['group_names'].append(gname)
+            global_gi += 1
+
+    return combined
+
+
 def _create_simu_II(simu_I, dart_simu_name, reindex_json_path):
     """Create _II (thermal) simulation from _I."""
     import json as _json
@@ -2101,6 +2309,192 @@ def read_baleno_tleaf(baleno_sim_dir, mapping_json_path, reindex_json_path,
               f"{n_rejected} lit rejected (|EB_ERROR|>{EB_ERR_MAX} W/m²)")
 
     return np.array(segment_tleaf)
+
+
+def read_baleno_tleaf_multi(baleno_sim_dir, mapping_json_paths,
+                             reindex_json_paths, n_plants,
+                             tair_c=None, apar_shaded_threshold=10.0):
+    """Read Baleno outputs and return per-plant per-segment Tleaf arrays.
+
+    Parses a single multi-plant Baleno run. Uses DART_NAME _mo{pi}_go{gi}
+    to identify which scene rows belong to each plant, then maps to OBJ
+    faces via per-plant .ori reindex and aggregates to segments.
+
+    Args:
+        baleno_sim_dir: Path to Baleno simulation directory.
+        mapping_json_paths: List of mapping JSON paths (one per plant).
+        reindex_json_paths: List of reindex JSON paths (one per plant).
+        n_plants: Number of plants.
+        tair_c: Air temperature (°C) for fallback.
+        apar_shaded_threshold: APAR below this = shaded triangle.
+
+    Returns:
+        List of n_plants np.ndarray (per-leaf-segment Tleaf in °C),
+        or None on failure.
+    """
+    import json as _json
+
+    output_base = Path(baleno_sim_dir) / 'output'
+    results_dir = output_base / 'final_results'
+    if not results_dir.exists():
+        print(f"  read_baleno_tleaf_multi: results dir not found")
+        return None
+
+    # Read scene file
+    scene_file = None
+    for candidate in [output_base / 'scene', results_dir / 'scene.csv',
+                      results_dir / 'scene']:
+        if candidate.exists() and candidate.stat().st_size > 0:
+            scene_file = candidate
+            break
+    if scene_file is None:
+        print(f"  read_baleno_tleaf_multi: scene file not found")
+        return None
+
+    delimiter = _detect_delimiter(scene_file)
+    scene_str = np.genfromtxt(str(scene_file), skip_header=1,
+                               delimiter=delimiter, dtype=str)
+    with open(scene_file) as f:
+        header_line = f.readline().strip()
+    scene_header = [h.strip() for h in header_line.split(delimiter)]
+
+    col_type_id = scene_header.index('TYPE_ID') if 'TYPE_ID' in scene_header else 0
+    col_dart_name = scene_header.index('DART_NAME') if 'DART_NAME' in scene_header else 1
+    col_index_obj = scene_header.index('INDEX_OBJECT') if 'INDEX_OBJECT' in scene_header else 2
+
+    type_ids = scene_str[:, col_type_id].astype(float).astype(int)
+    dart_names = scene_str[:, col_dart_name]
+    index_in_object = scene_str[:, col_index_obj].astype(float).astype(int)
+    leaf_mask = (type_ids >= 100) | (type_ids == 5)
+    n_total = len(type_ids)
+
+    # Read energy balance
+    eb_file = results_dir / 'energy_balance_3D.csv'
+    if not eb_file.exists():
+        print(f"  read_baleno_tleaf_multi: energy_balance_3D.csv not found")
+        return None
+
+    with open(eb_file) as f:
+        eb_header = [h.strip() for h in f.readline().strip().split(delimiter)]
+    eb_data = np.genfromtxt(str(eb_file), skip_header=1, delimiter=delimiter,
+                            dtype=float, filling_values=np.nan)
+
+    col_temp = -1
+    col_eb_err = -1
+    for i, h in enumerate(eb_header):
+        if 'temperature' in h.lower():
+            col_temp = i
+        if 'error' in h.lower():
+            col_eb_err = i
+    if col_temp < 0:
+        col_temp = 1
+
+    # Read radiation for shaded detection
+    rad_file = results_dir / 'radiation_3D.csv'
+    rad_data = None
+    col_apar = -1
+    if rad_file.exists():
+        with open(rad_file) as f:
+            rad_header = [h.strip() for h in f.readline().strip().split(delimiter)]
+        rad_data = np.genfromtxt(str(rad_file), skip_header=1,
+                                  delimiter=delimiter, dtype=float,
+                                  filling_values=np.nan)
+        for i, h in enumerate(rad_header):
+            if 'absorption_par' in h.lower():
+                col_apar = i
+
+    # Build per-plant .ori reindex and group info
+    per_plant_dart_to_obj = {}
+    for pi in range(n_plants):
+        with open(reindex_json_paths[pi]) as f:
+            ri = _json.load(f)
+        dart_to_obj = {}
+        for gi_str, obj_indices in ri['dart_to_obj'].items():
+            dart_to_obj[int(gi_str)] = np.array(obj_indices, dtype=np.int64)
+        per_plant_dart_to_obj[pi] = dart_to_obj
+
+    # Build per-plant baleno_to_obj mapping via DART_NAME parsing
+    EB_ERR_MAX = 20.0
+    fallback_temp_c = tair_c if tair_c is not None else 25.0
+
+    def _is_shaded(row):
+        if rad_data is None or col_apar < 0:
+            return False
+        if row >= rad_data.shape[0] or col_apar >= rad_data.shape[1]:
+            return False
+        apar = rad_data[row, col_apar]
+        return not np.isnan(apar) and apar < apar_shaded_threshold
+
+    all_plant_tleaf = []
+    for pi in range(n_plants):
+        dart_to_obj = per_plant_dart_to_obj[pi]
+
+        # Map Baleno rows to OBJ faces for this plant
+        baleno_to_obj = np.full(n_total, -1, dtype=np.int64)
+        for row_idx in range(n_total):
+            if not leaf_mask[row_idx]:
+                continue
+            dn = dart_names[row_idx]
+            mo_m = re.search(r'_mo(\d+)', dn)
+            go_m = re.search(r'_go(\d+)', dn)
+            if mo_m and go_m:
+                instance = int(mo_m.group(1))
+                group = int(go_m.group(1))
+                if instance == pi and group in dart_to_obj:
+                    idx = index_in_object[row_idx]
+                    ori_arr = dart_to_obj[group]
+                    if idx < len(ori_arr):
+                        baleno_to_obj[row_idx] = ori_arr[idx]
+
+        # Build reverse mapping
+        obj_to_baleno = {}
+        for row_idx in range(n_total):
+            obj_face = baleno_to_obj[row_idx]
+            if obj_face >= 0:
+                obj_to_baleno[int(obj_face)] = row_idx
+
+        # Aggregate to segments
+        with open(mapping_json_paths[pi]) as f:
+            seg_mapping = _json.load(f)
+
+        n_rejected = 0
+        n_shaded_fallback = 0
+        segment_tleaf = []
+        for organ in seg_mapping['organs']:
+            if organ['type'] != 'leaf':
+                continue
+            for seg in organ['segments']:
+                tri_indices = seg['triangle_indices']
+                temps = []
+                for tidx in tri_indices:
+                    if tidx in obj_to_baleno:
+                        row = obj_to_baleno[tidx]
+                        if row < eb_data.shape[0] and col_temp < eb_data.shape[1]:
+                            t = eb_data[row, col_temp]
+                            if np.isnan(t):
+                                continue
+                            if col_eb_err >= 0 and col_eb_err < eb_data.shape[1]:
+                                err = abs(eb_data[row, col_eb_err])
+                                if err > EB_ERR_MAX:
+                                    if _is_shaded(row):
+                                        temps.append(fallback_temp_c)
+                                        n_shaded_fallback += 1
+                                    else:
+                                        n_rejected += 1
+                                    continue
+                            temps.append(t - 273.15)
+                if temps:
+                    segment_tleaf.append(float(np.mean(temps)))
+                else:
+                    segment_tleaf.append(fallback_temp_c)
+
+        if n_shaded_fallback > 0 or n_rejected > 0:
+            print(f"  Plant {pi} Tleaf: {n_shaded_fallback} shaded->Tair, "
+                  f"{n_rejected} rejected")
+
+        all_plant_tleaf.append(np.array(segment_tleaf))
+
+    return all_plant_tleaf
 
 
 def log_baleno_diagnostics(baleno_sim_dir, tleaf_per_segment, tair_c):

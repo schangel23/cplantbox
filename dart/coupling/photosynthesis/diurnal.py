@@ -63,11 +63,13 @@ from ..dart.simulation import (
 )
 from ..dart.baleno import (
     setup_baleno_full,
+    setup_baleno_full_multi,
     update_baleno_atmosphere,
     update_baleno_sun_and_rerun_I,
     update_baleno_datetime_and_rerun_I,
     run_baleno_subprocess,
     read_baleno_tleaf,
+    read_baleno_tleaf_multi,
     restore_config_files,
 )
 from .coupled import run_photosynthesis_solve
@@ -315,35 +317,36 @@ def run_single_day(sim_day, timestep_min=30, enable_baleno=True,
         return {'hourly': [], 'daily_An_mol_field_mean': 0.0,
                 'daily_An_mol_per_plant': [0.0] * N_PLANTS}
 
-    # Save reindex for Baleno (center plant only, for backward compat)
-    center_reindex = reindex_infos[CENTER_PLANT_IDX]
-    reindex_path = day_dir / f'maize_day{sim_day}_reindex.json'
-    reindex_save = {
-        'dart_to_obj': {str(k): v.tolist()
-                        for k, v in center_reindex['dart_to_obj'].items()},
-        'group_names': center_reindex['groups_sorted'],
-        'group_offsets': {g: center_reindex['group_offsets'][g]
-                          for g in center_reindex['groups_sorted']},
-        'n_groups_per_plant': len(center_reindex['groups_sorted']),
-        'center_groups': list(range(len(center_reindex['groups_sorted']))),
-    }
-    with open(reindex_path, 'w') as f:
-        json.dump(reindex_save, f, indent=2)
+    # Save per-plant reindex JSONs
+    per_plant_reindex_paths = []
+    for pi in range(N_PLANTS):
+        ri = reindex_infos[pi]
+        ri_path = day_dir / f'maize_day{sim_day}_p{pi}_reindex.json'
+        ri_save = {
+            'dart_to_obj': {str(k): v.tolist()
+                            for k, v in ri['dart_to_obj'].items()},
+            'group_names': ri['groups_sorted'],
+            'group_offsets': {g: ri['group_offsets'][g]
+                              for g in ri['groups_sorted']},
+        }
+        with open(ri_path, 'w') as f:
+            json.dump(ri_save, f, indent=2)
+        per_plant_reindex_paths.append(ri_path)
 
-    # --- Setup Baleno (once -- geometry static) ---
-    # NOTE: Baleno uses center plant's OBJ for Tleaf extraction.
-    # Multi-plant Baleno is complex and per-plant Tleaf differences are small.
-    # All plants receive the center plant's Tleaf (or uniform Tair).
+    # Backward compat: center reindex path alias
+    reindex_path = per_plant_reindex_paths[CENTER_PLANT_IDX]
+
+    # --- Setup Baleno (once -- geometry static, all plants) ---
     baleno_setup = None
     center_dart_obj = dart_obj_paths[CENTER_PLANT_IDX]
     center_dart_mapping = setup['dart_mapping_paths'][CENTER_PLANT_IDX]
     if enable_baleno:
-        print(f"\n  Setting up Baleno (center plant {CENTER_PLANT_IDX})...")
+        print(f"\n  Setting up Baleno (all {N_PLANTS} plants)...")
         try:
-            baleno_setup = setup_baleno_full(
-                obj_path=center_dart_obj,
-                mapping_json=str(center_dart_mapping),
-                reindex_json=str(reindex_path),
+            baleno_setup = setup_baleno_full_multi(
+                obj_paths=[str(p) for p in dart_obj_paths],
+                mapping_json_paths=[str(p) for p in setup['dart_mapping_paths']],
+                reindex_json_paths=[str(p) for p in per_plant_reindex_paths],
                 grid_info_path=str(grid_path),
                 prospect_params=prospect_params,
                 scene_size=SCENE_SIZE,
@@ -423,12 +426,11 @@ def run_single_day(sim_day, timestep_min=30, enable_baleno=True,
         print(f"    aPAR: field mean={field_mean_apar:.4f} "
               f"(+/-{field_std_apar:.4f})")
 
-        # --- Baleno energy balance (optional) ---
-        # Use center plant Tleaf for all plants (small inter-plant difference)
+        # --- Baleno energy balance (optional, all plants) ---
         # Skip Baleno at very low PAR (dawn/dusk): EB solver is unreliable
         # and Tleaf ≈ Tair anyway when shortwave radiation is negligible.
         MIN_PAR_FOR_BALENO = 20.0  # W/m²
-        tleaf_center = None
+        all_tleaf_baleno = None  # list of per-plant Tleaf arrays
         baleno_ok_flag = False
         clearsky_par_wm2_early = get_clearsky_par(ts_time, LAT, LON)
         if baleno_setup is not None and clearsky_par_wm2_early < MIN_PAR_FOR_BALENO:
@@ -454,14 +456,13 @@ def run_single_day(sim_day, timestep_min=30, enable_baleno=True,
                 """))
                 ok = run_baleno_subprocess(timeout=1800)
                 if ok:
-                    tleaf_center = read_baleno_tleaf(
+                    all_tleaf_baleno = read_baleno_tleaf_multi(
                         baleno_setup['baleno_sim_dir'],
-                        str(center_dart_mapping), str(reindex_path),
-                        grid_info_path=str(grid_path),
-                        center_plant_idx=CENTER_PLANT_IDX,
-                        tair_c=T_air_C,
+                        [str(p) for p in setup['dart_mapping_paths']],
+                        [str(p) for p in per_plant_reindex_paths],
+                        N_PLANTS, tair_c=T_air_C,
                     )
-                baleno_ok_flag = tleaf_center is not None
+                baleno_ok_flag = all_tleaf_baleno is not None
                 baleno_time = time.time() - t0
                 print(f"    Baleno: {baleno_time:.1f}s, "
                       f"Tleaf={'OK' if baleno_ok_flag else 'FAILED'}")
@@ -469,7 +470,7 @@ def run_single_day(sim_day, timestep_min=30, enable_baleno=True,
                     from ..dart.baleno import log_baleno_diagnostics
                     log_baleno_diagnostics(
                         baleno_setup['baleno_sim_dir'],
-                        tleaf_center, T_air_C)
+                        all_tleaf_baleno[CENTER_PLANT_IDX], T_air_C)
                 else:
                     print(f"    WARNING: Baleno ran but Tleaf extraction failed "
                           f"(subprocess_ok={ok}). Using Tair={T_air_C:.1f}C")
@@ -498,48 +499,59 @@ def run_single_day(sim_day, timestep_min=30, enable_baleno=True,
         all_tleaf = []
         for pi in range(N_PLANTS):
             n_segs = len(all_par_umol[pi])
-            if tleaf_center is not None and len(tleaf_center) == n_segs:
-                all_tleaf.append(tleaf_center.copy())
+            if all_tleaf_baleno is not None and pi < len(all_tleaf_baleno):
+                t = all_tleaf_baleno[pi]
+                if len(t) == n_segs:
+                    all_tleaf.append(t.copy())
+                else:
+                    all_tleaf.append(np.full(n_segs, T_air_C))
             else:
                 all_tleaf.append(np.full(n_segs, T_air_C))
 
         # --- CPlantBox photosynthesis (per-plant) ---
         per_plant_An = [0.0] * N_PLANTS
         if not skip_photosynthesis:
-            for pi in range(N_PLANTS):
-                seed = FIELD_SEED + pi
-                plant_ts = grow_plant(
-                    XML_PATH, simulation_time=sim_day,
-                    enable_photosynthesis=True, seed=seed,
-                )
+            if iterate_gs and baleno_setup is not None:
+                # Iterative Tuzet-Baleno coupling for ALL plants
+                from .iterative import run_iterative_coupling_multi
 
-                if iterate_gs and baleno_setup is not None and pi == CENTER_PLANT_IDX:
-                    # Iterative Tuzet-Baleno coupling for center plant
-                    from .iterative import run_iterative_coupling
-                    iter_result = run_iterative_coupling(
-                        plant_ts, sim_day,
-                        par_umol=all_par_umol[pi],
-                        mapping_json_path=str(center_dart_mapping),
-                        reindex_json_path=str(reindex_path),
-                        baleno_sim_dir=str(baleno_setup['baleno_sim_dir']),
-                        baleno_simu_name=baleno_setup['baleno_simu_name'],
-                        grid_info_path=str(grid_path),
-                        center_plant_idx=CENTER_PLANT_IDX,
-                        max_iterations=gs_max_iterations,
-                        gs_tolerance=gs_tolerance,
-                        damping_alpha=gs_damping_alpha,
-                        soil_psi_cm=-500.0,
-                        tair_c=T_air_C, rh=rh,
-                        initial_tleaf=all_tleaf[pi],
+                # Grow fresh plants for photosynthesis solve
+                iter_plants = []
+                for pi in range(N_PLANTS):
+                    seed = FIELD_SEED + pi
+                    plant_ts = grow_plant(
+                        XML_PATH, simulation_time=sim_day,
+                        enable_photosynthesis=True, seed=seed,
                     )
-                    if iter_result is not None:
-                        per_plant_An[pi] = iter_result['an_total_mmol']
-                        # Update Tleaf for all plants (center + others)
-                        tleaf_center = iter_result['tleaf_per_segment']
-                        for pj in range(N_PLANTS):
-                            if len(all_tleaf[pj]) == len(tleaf_center):
-                                all_tleaf[pj] = tleaf_center.copy()
-                else:
+                    iter_plants.append(plant_ts)
+
+                iter_results = run_iterative_coupling_multi(
+                    iter_plants, sim_day,
+                    par_umol_per_plant=all_par_umol,
+                    mapping_json_paths=[str(p) for p in setup['dart_mapping_paths']],
+                    reindex_json_paths=[str(p) for p in per_plant_reindex_paths],
+                    baleno_sim_dir=str(baleno_setup['baleno_sim_dir']),
+                    baleno_simu_name=baleno_setup['baleno_simu_name'],
+                    n_plants=N_PLANTS,
+                    max_iterations=gs_max_iterations,
+                    gs_tolerance=gs_tolerance,
+                    damping_alpha=gs_damping_alpha,
+                    soil_psi_cm=-500.0,
+                    tair_c=T_air_C, rh=rh,
+                    initial_tleaf=all_tleaf,
+                )
+                if iter_results is not None:
+                    for pi in range(N_PLANTS):
+                        per_plant_An[pi] = iter_results[pi]['an_total_mmol']
+                        all_tleaf[pi] = iter_results[pi]['tleaf_per_segment']
+            else:
+                for pi in range(N_PLANTS):
+                    seed = FIELD_SEED + pi
+                    plant_ts = grow_plant(
+                        XML_PATH, simulation_time=sim_day,
+                        enable_photosynthesis=True, seed=seed,
+                    )
+
                     result = run_photosynthesis_solve(
                         plant_ts, sim_day,
                         par=all_par_umol[pi], tleaf=all_tleaf[pi],
@@ -1872,6 +1884,56 @@ def run_production_series_carbon(growth_days, timestep_min=60,
             completed_dart_days.append(dart_day)
             continue
 
+        # Save per-plant reindex JSONs
+        per_plant_reindex_paths = []
+        for pi in range(N_PLANTS):
+            ri = reindex_infos[pi]
+            ri_path = day_dir / f'maize_day{dart_day}_p{pi}_reindex.json'
+            ri_save = {
+                'dart_to_obj': {str(k): v.tolist()
+                                for k, v in ri['dart_to_obj'].items()},
+                'group_names': ri['groups_sorted'],
+                'group_offsets': {g: ri['group_offsets'][g]
+                                  for g in ri['groups_sorted']},
+            }
+            with open(ri_path, 'w') as f:
+                json.dump(ri_save, f, indent=2)
+            per_plant_reindex_paths.append(ri_path)
+
+        # Setup multi-plant Baleno (once per DART day)
+        baleno_setup = None
+        if enable_baleno:
+            print(f"\n  Setting up Baleno (all {N_PLANTS} plants)...")
+            try:
+                baleno_setup = setup_baleno_full_multi(
+                    obj_paths=[str(p) for p in dart_obj_paths],
+                    mapping_json_paths=[str(p) for p in setup['dart_mapping_paths']],
+                    reindex_json_paths=[str(p) for p in per_plant_reindex_paths],
+                    grid_info_path=str(grid_path),
+                    prospect_params=prospect_params,
+                    scene_size=SCENE_SIZE,
+                    dart_simu_name=f'cpb_carbon_day{dart_day}_eb',
+                    baleno_simu_name=f'cpb_carbon_day{dart_day}_eb',
+                    field_filename=FIELD_FILENAME,
+                    calendar_date=calendar_date,
+                    hour_utc=first_ts_time.hour,
+                    minute_utc=first_ts_time.minute,
+                    lat=LAT, lon=LON,
+                    use_exact_date=True,
+                )
+                print(f"  Running initial Baleno _I full DART...")
+                t0 = time.time()
+                baleno_setup['simu_I'].run.full(timeout=1800)
+                print(f"  Baleno _I full: {time.time() - t0:.1f}s")
+            except Exception as e:
+                import traceback
+                print(f"\n  {'!' * 60}")
+                print(f"  BALENO SETUP FAILED — Tleaf will default to Tair!")
+                print(f"  Error: {e}")
+                traceback.print_exc()
+                print(f"  {'!' * 60}\n")
+                baleno_setup = None
+
         # Diurnal loop: accumulate per-plant An across timesteps
         daily_An_per_plant_mmol = [0.0] * N_PLANTS
         hourly_results = []
@@ -1891,8 +1953,12 @@ def run_production_series_carbon(growth_days, timestep_min=60,
                 met_row = met.iloc[idx]
 
             T_air_C = float(met_row['T_air_C'])
+            T_air_K = float(met_row.get('T_air_K', T_air_C + 273.15))
             rh = float(met_row['RH'])
             wind_ms = float(met_row.get('wind_ms', 2.0))
+            ea_hPa = float(met_row.get(
+                'ea_hPa',
+                rh * 6.112 * np.exp(17.67 * T_air_C / (T_air_C + 243.5))))
 
             # Update DART sun + re-run RT
             if step_i > 0:
@@ -1911,12 +1977,13 @@ def run_production_series_carbon(growth_days, timestep_min=60,
             clearsky_par_wm2 = get_clearsky_par(ts_time, LAT, LON)
             actual_par_per_band = clearsky_par_wm2 / n_par_bands
 
-            # Per-plant photosynthesis on persistent plants.
-            # PhloemFluxPython is created fresh each call and doesn't
-            # mutate plant geometry, so this is safe for subsequent
-            # simulate() calls.
             per_plant_An_ts = [0.0] * N_PLANTS
             mean_par_umol_ts = 0.0
+            all_par_umol = []
+            all_tleaf_baleno = None
+            mean_tleaf_ts = T_air_C
+            baleno_ok_ts = False
+
             for pi in range(N_PLANTS):
                 plant_p = persistent_plants[pi]
                 n_leaf_segs = len(plant_p.getSegmentIds(4))
@@ -1924,26 +1991,142 @@ def run_production_series_carbon(growth_days, timestep_min=60,
                 apar_wm2 = all_plant_apar[pi] * actual_par_per_band
                 par_umol = np.clip(apar_wm2 * 4.57, 0.0, 3000.0)
 
-                # aPAR array must match persistent plant's leaf segments
                 if len(par_umol) != n_leaf_segs:
-                    # Fallback to scalar mean if segment count mismatch
                     par_umol = float(np.mean(par_umol))
 
                 if not np.isscalar(par_umol):
                     mean_par_umol_ts += float(np.mean(par_umol))
                 else:
                     mean_par_umol_ts += par_umol
-
-                result = run_photosynthesis_solve(
-                    plant_p, dart_day,
-                    par=par_umol, tleaf=T_air_C,
-                    label=f"carbon_ts_{ts_label}_p{pi}",
-                    rh=rh, soil_psi_cm=-500.0,
-                )
-                if result is not None:
-                    per_plant_An_ts[pi] = result['An_total_mmol']
+                all_par_umol.append(par_umol)
 
             mean_par_umol_ts /= max(N_PLANTS, 1)
+
+            # Baleno + iterative coupling (if enabled)
+            MIN_PAR_FOR_BALENO = 20.0
+            if (iterate_gs and baleno_setup is not None
+                    and clearsky_par_wm2 >= MIN_PAR_FOR_BALENO):
+                try:
+                    from .iterative import run_iterative_coupling_multi
+
+                    # Update Baleno datetime + atmosphere
+                    if step_i > 0:
+                        update_baleno_datetime_and_rerun_I(
+                            baleno_setup['simu_I'], calendar_date,
+                            ts_time.hour, ts_time.minute)
+                    update_baleno_atmosphere(
+                        baleno_setup['baleno_sim_dir'],
+                        T_air_K=T_air_K, ea_hPa=ea_hPa, wind_ms=wind_ms,
+                    )
+                    from ..dart.baleno import BALENO_DIR
+                    baleno_config_path = BALENO_DIR / 'resources' / 'config.ini'
+                    import textwrap
+                    baleno_config_path.write_text(textwrap.dedent(f"""\
+                        [simulation]
+                        user_data_path =
+                        name = {baleno_setup['baleno_simu_name']}
+                    """))
+
+                    # Initial Baleno pass (Ball-Berry) for scene mapping
+                    ok = run_baleno_subprocess(timeout=1800)
+                    if ok:
+                        # Get initial Tleaf
+                        init_tleaf = read_baleno_tleaf_multi(
+                            baleno_setup['baleno_sim_dir'],
+                            [str(p) for p in setup['dart_mapping_paths']],
+                            [str(p) for p in per_plant_reindex_paths],
+                            N_PLANTS, tair_c=T_air_C,
+                        )
+
+                        iter_results = run_iterative_coupling_multi(
+                            persistent_plants, dart_day,
+                            par_umol_per_plant=all_par_umol,
+                            mapping_json_paths=[str(p) for p in setup['dart_mapping_paths']],
+                            reindex_json_paths=[str(p) for p in per_plant_reindex_paths],
+                            baleno_sim_dir=str(baleno_setup['baleno_sim_dir']),
+                            baleno_simu_name=baleno_setup['baleno_simu_name'],
+                            n_plants=N_PLANTS,
+                            max_iterations=gs_max_iterations,
+                            gs_tolerance=gs_tolerance,
+                            damping_alpha=gs_damping_alpha,
+                            soil_psi_cm=-500.0,
+                            tair_c=T_air_C, rh=rh,
+                            initial_tleaf=init_tleaf,
+                        )
+                        if iter_results is not None:
+                            for pi in range(N_PLANTS):
+                                per_plant_An_ts[pi] = iter_results[pi]['an_total_mmol']
+                            tleaf_means = [float(np.mean(iter_results[pi]['tleaf_per_segment']))
+                                           for pi in range(N_PLANTS)]
+                            mean_tleaf_ts = float(np.mean(tleaf_means))
+                            baleno_ok_ts = True
+                        else:
+                            # Fall through to simple photosynthesis
+                            baleno_ok_ts = False
+                    else:
+                        print(f"    Initial Baleno failed, using Tleaf=Tair")
+                except Exception as e:
+                    import traceback
+                    print(f"    Iterative coupling error: {e}")
+                    traceback.print_exc()
+
+            elif (baleno_setup is not None
+                  and clearsky_par_wm2 >= MIN_PAR_FOR_BALENO):
+                # Non-iterative Baleno: single pass for Tleaf
+                try:
+                    if step_i > 0:
+                        update_baleno_datetime_and_rerun_I(
+                            baleno_setup['simu_I'], calendar_date,
+                            ts_time.hour, ts_time.minute)
+                    update_baleno_atmosphere(
+                        baleno_setup['baleno_sim_dir'],
+                        T_air_K=T_air_K, ea_hPa=ea_hPa, wind_ms=wind_ms,
+                    )
+                    from ..dart.baleno import BALENO_DIR
+                    baleno_config_path = BALENO_DIR / 'resources' / 'config.ini'
+                    import textwrap
+                    baleno_config_path.write_text(textwrap.dedent(f"""\
+                        [simulation]
+                        user_data_path =
+                        name = {baleno_setup['baleno_simu_name']}
+                    """))
+                    ok = run_baleno_subprocess(timeout=1800)
+                    if ok:
+                        all_tleaf_baleno = read_baleno_tleaf_multi(
+                            baleno_setup['baleno_sim_dir'],
+                            [str(p) for p in setup['dart_mapping_paths']],
+                            [str(p) for p in per_plant_reindex_paths],
+                            N_PLANTS, tair_c=T_air_C,
+                        )
+                        if all_tleaf_baleno is not None:
+                            baleno_ok_ts = True
+                            tleaf_means = [float(np.mean(t)) for t in all_tleaf_baleno]
+                            mean_tleaf_ts = float(np.mean(tleaf_means))
+                except Exception as e:
+                    print(f"    Baleno error: {e}")
+
+            # Simple photosynthesis fallback:
+            # - iterate_gs=True but coupling failed -> use Tair
+            # - iterate_gs=False, baleno_ok -> use Baleno Tleaf
+            # - iterate_gs=False, no baleno -> use Tair
+            # Skip if iterative coupling already produced results
+            if not (iterate_gs and baleno_ok_ts):
+                for pi in range(N_PLANTS):
+                    plant_p = persistent_plants[pi]
+                    tleaf_pi = T_air_C
+                    if (baleno_ok_ts
+                            and all_tleaf_baleno is not None
+                            and pi < len(all_tleaf_baleno)):
+                        tleaf_pi = all_tleaf_baleno[pi]
+
+                    result = run_photosynthesis_solve(
+                        plant_p, dart_day,
+                        par=all_par_umol[pi], tleaf=tleaf_pi,
+                        label=f"carbon_ts_{ts_label}_p{pi}",
+                        rh=rh, soil_psi_cm=-500.0,
+                    )
+                    if result is not None:
+                        per_plant_An_ts[pi] = result['An_total_mmol']
 
             # Trapezoidal integration
             for pi in range(N_PLANTS):
@@ -1968,14 +2151,21 @@ def run_production_series_carbon(growth_days, timestep_min=60,
                 'clearsky_par_Wm2': clearsky_par_wm2,
                 'mean_apar_umol': mean_par_umol_ts,
                 'dart_mean_apar': field_mean_apar,
-                'mean_tleaf_C': T_air_C,  # no Baleno in carbon mode
-                'baleno_ok': False,
+                'mean_tleaf_C': mean_tleaf_ts,
+                'baleno_ok': baleno_ok_ts,
                 'An_field_mean_mmol_d': An_field_mean_ts,
                 'An_field_std_mmol_d': An_field_std_ts,
             }
             for pi in range(N_PLANTS):
                 hourly_row[f'An_p{pi}'] = per_plant_An_ts[pi]
             hourly_results.append(hourly_row)
+
+        # Cleanup Baleno after diurnal loop
+        if baleno_setup is not None:
+            try:
+                restore_config_files(baleno_setup['backups'])
+            except Exception:
+                pass
 
         # Integrate daily per-plant An
         daily_An_per_plant = _integrate_daily_per_plant(

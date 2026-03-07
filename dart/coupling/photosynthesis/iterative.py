@@ -484,3 +484,412 @@ def _extract_gs_from_solve(plant, sim_time, par_umol, tleaf, rh, soil_psi_cm):
         gco2 = np.maximum(gco2, 0.0)
 
     return np.asarray(gco2, dtype=np.float64)
+
+
+# ============================================================================
+# Multi-plant iterative coupling
+# ============================================================================
+
+def build_scene_row_mapping(baleno_sim_dir, reindex_json_paths, n_plants):
+    """Build mapping from (plant_idx, OBJ_face_idx) -> Baleno scene row index.
+
+    Parses the Baleno scene file's DART_NAME column (_mo{pi}_go{gi} format)
+    and INDEX_OBJECT column, then uses per-plant .ori reindex to convert
+    (group, INDEX_OBJECT) -> absolute OBJ face index.
+
+    Args:
+        baleno_sim_dir: Path to Baleno simulation directory.
+        reindex_json_paths: List of reindex JSON paths (one per plant).
+        n_plants: Number of plants.
+
+    Returns:
+        dict with:
+          - plant_to_obj_to_scene: {plant_idx: {obj_face_idx: scene_row_idx}}
+          - n_scene_rows: total number of rows in scene file
+    """
+    import re
+
+    output_base = Path(baleno_sim_dir) / 'output'
+
+    # Find scene file
+    scene_file = None
+    results_dir = output_base / 'final_results'
+    for candidate in [output_base / 'scene', results_dir / 'scene.csv',
+                      results_dir / 'scene']:
+        if candidate.exists() and candidate.stat().st_size > 0:
+            scene_file = candidate
+            break
+    if scene_file is None:
+        return None
+
+    from ..dart.baleno import _detect_delimiter
+    delimiter = _detect_delimiter(scene_file)
+
+    scene_str = np.genfromtxt(str(scene_file), skip_header=1,
+                               delimiter=delimiter, dtype=str)
+    with open(scene_file) as f:
+        header_line = f.readline().strip()
+    scene_header = [h.strip() for h in header_line.split(delimiter)]
+
+    col_type_id = scene_header.index('TYPE_ID') if 'TYPE_ID' in scene_header else 0
+    col_dart_name = scene_header.index('DART_NAME') if 'DART_NAME' in scene_header else 1
+    col_index_obj = scene_header.index('INDEX_OBJECT') if 'INDEX_OBJECT' in scene_header else 2
+
+    type_ids = scene_str[:, col_type_id].astype(float).astype(int)
+    dart_names = scene_str[:, col_dart_name]
+    index_in_object = scene_str[:, col_index_obj].astype(float).astype(int)
+    leaf_mask = (type_ids >= 100) | (type_ids == 5)
+    n_total = len(type_ids)
+
+    # Load per-plant reindex
+    per_plant_dart_to_obj = {}
+    for pi in range(n_plants):
+        with open(reindex_json_paths[pi]) as f:
+            ri = json.load(f)
+        dart_to_obj = {}
+        for gi_str, obj_indices in ri['dart_to_obj'].items():
+            dart_to_obj[int(gi_str)] = np.array(obj_indices, dtype=np.int64)
+        per_plant_dart_to_obj[pi] = dart_to_obj
+
+    # Build mapping
+    plant_to_obj_to_scene = {pi: {} for pi in range(n_plants)}
+    for row_idx in range(n_total):
+        if not leaf_mask[row_idx]:
+            continue
+        dn = dart_names[row_idx]
+        mo_m = re.search(r'_mo(\d+)', dn)
+        go_m = re.search(r'_go(\d+)', dn)
+        if mo_m and go_m:
+            instance = int(mo_m.group(1))
+            group = int(go_m.group(1))
+            if instance < n_plants and group in per_plant_dart_to_obj.get(instance, {}):
+                idx = index_in_object[row_idx]
+                ori_arr = per_plant_dart_to_obj[instance][group]
+                if idx < len(ori_arr):
+                    obj_face = int(ori_arr[idx])
+                    plant_to_obj_to_scene[instance][obj_face] = row_idx
+
+    return {
+        'plant_to_obj_to_scene': plant_to_obj_to_scene,
+        'n_scene_rows': n_total,
+    }
+
+
+def segment_gs_to_scene_rcw_multi(gs_per_segment_list, mapping_json_paths,
+                                    scene_row_mapping, n_scene_rows):
+    """Map per-plant segment gs arrays to a single scene-row-indexed rcw array.
+
+    Args:
+        gs_per_segment_list: List of per-plant gs arrays [mol CO2/m²/s].
+        mapping_json_paths: List of mapping JSON paths (one per plant).
+        scene_row_mapping: dict {plant_idx: {obj_face_idx: scene_row_idx}}
+            from build_scene_row_mapping().
+        n_scene_rows: Total number of scene rows.
+
+    Returns:
+        np.ndarray of rcw [s/m] per scene row (size = n_scene_rows).
+    """
+    rcw = np.full(n_scene_rows, RCW_MAX, dtype=np.float64)
+
+    for pi, gs_per_segment in enumerate(gs_per_segment_list):
+        with open(mapping_json_paths[pi]) as f:
+            mapping = json.load(f)
+
+        obj_to_scene = scene_row_mapping.get(pi, {})
+        seg_counter = 0
+        for organ in mapping['organs']:
+            if organ['type'] != 'leaf':
+                continue
+            for seg in organ['segments']:
+                if seg_counter >= len(gs_per_segment):
+                    break
+
+                gco2 = gs_per_segment[seg_counter]
+                seg_counter += 1
+
+                gs_h2o = gco2 * 1.6
+                if gs_h2o > 1e-10:
+                    seg_rcw = RHO_OVER_M / gs_h2o
+                else:
+                    seg_rcw = RCW_MAX
+                seg_rcw = np.clip(seg_rcw, RCW_MIN, RCW_MAX)
+
+                for tri_idx in seg['triangle_indices']:
+                    if tri_idx in obj_to_scene:
+                        scene_row = obj_to_scene[tri_idx]
+                        rcw[scene_row] = seg_rcw
+
+    return rcw
+
+
+def run_iterative_coupling_multi(
+    plants, sim_time, par_umol_per_plant,
+    mapping_json_paths, reindex_json_paths,
+    baleno_sim_dir, baleno_simu_name,
+    n_plants=9,
+    max_iterations=6, gs_tolerance=0.05,
+    damping_alpha=0.6,
+    soil_psi_cm=-500.0,
+    tair_c=25.0, rh=0.6,
+    initial_tleaf=None,
+):
+    """Multi-plant iterative Tuzet-Baleno coupling loop.
+
+    All plants get full iterative coupling with their own per-segment Tleaf
+    from a single multi-plant Baleno simulation.
+
+    Args:
+        plants: List of pb.MappedPlant instances (one per plant).
+        sim_time: Simulation day.
+        par_umol_per_plant: List of per-segment PAR arrays [µmol/m²/s].
+        mapping_json_paths: List of mapping JSON paths (one per plant).
+        reindex_json_paths: List of reindex JSON paths (one per plant).
+        baleno_sim_dir: Path to Baleno simulation directory.
+        baleno_simu_name: Baleno simulation name.
+        n_plants: Number of plants.
+        max_iterations: Maximum coupling iterations.
+        gs_tolerance: Relative convergence threshold for gs.
+        damping_alpha: Under-relaxation factor.
+        soil_psi_cm: Soil water potential [cm].
+        tair_c: Air temperature [°C].
+        rh: Relative humidity [0-1].
+        initial_tleaf: Optional list of per-plant Tleaf arrays.
+
+    Returns:
+        List of n_plants result dicts, each with:
+          tleaf_per_segment, gs_per_segment, an_per_segment,
+          an_total_mmol, iterations, gs_history, converged.
+        Or None on complete failure.
+    """
+    from ..dart.baleno import (
+        run_baleno_subprocess, read_baleno_tleaf_multi, _write_json5,
+        BALENO_DIR, log_baleno_diagnostics,
+    )
+    import plantbox as pb
+
+    print(f"\n{'=' * 70}")
+    print(f"ITERATIVE TUZET-BALENO COUPLING (MULTI-PLANT, {n_plants} plants)")
+    print(f"  max_iter={max_iterations}, tol={gs_tolerance*100:.1f}%, "
+          f"alpha={damping_alpha}")
+    print(f"  soil_psi={soil_psi_cm} cm, T_air={tair_c} C, RH={rh*100:.0f}%")
+    print(f"{'=' * 70}")
+
+    # Per-plant leaf segment counts
+    n_leaf_segs = [len(plants[pi].getSegmentIds(4)) for pi in range(n_plants)]
+
+    # Initialize per-plant Tleaf
+    tleaf = []
+    for pi in range(n_plants):
+        if initial_tleaf is not None and pi < len(initial_tleaf):
+            tleaf.append(np.asarray(initial_tleaf[pi], dtype=np.float64))
+        else:
+            tleaf.append(np.full(n_leaf_segs[pi], tair_c, dtype=np.float64))
+
+    # Build scene row mapping (once, from initial Baleno run)
+    scene_mapping = build_scene_row_mapping(
+        baleno_sim_dir, reindex_json_paths, n_plants)
+    if scene_mapping is None:
+        print("  ERROR: Could not build scene row mapping, "
+              "falling back to Tleaf=Tair")
+        return None
+    plant_to_obj_to_scene = scene_mapping['plant_to_obj_to_scene']
+    n_scene_rows = scene_mapping['n_scene_rows']
+
+    gs_history_per_plant = [[] for _ in range(n_plants)]
+    gs_prev = [None] * n_plants
+    converged_flags = [False] * n_plants
+    final_results = [None] * n_plants
+
+    for iteration in range(max_iterations):
+        print(f"\n  --- Iteration {iteration + 1}/{max_iterations} ---")
+
+        # 1. Run photosynthesis for each plant
+        all_gs_tuzet = []
+        for pi in range(n_plants):
+            result = run_photosynthesis_solve(
+                plants[pi], sim_time,
+                par=par_umol_per_plant[pi], tleaf=tleaf[pi],
+                label=f"iter_{iteration+1}_p{pi}",
+                rh=rh, soil_psi_cm=soil_psi_cm,
+            )
+            if result is None:
+                print(f"  Plant {pi}: photosynthesis solve FAILED")
+                all_gs_tuzet.append(np.zeros(n_leaf_segs[pi]))
+                continue
+
+            final_results[pi] = result
+
+            gs = _extract_gs_from_solve(
+                plants[pi], sim_time, par_umol_per_plant[pi],
+                tleaf[pi], rh, soil_psi_cm)
+            if gs is None:
+                gs = np.zeros(n_leaf_segs[pi])
+            all_gs_tuzet.append(gs)
+
+        # 2. Check convergence per plant
+        all_converged = True
+        for pi in range(n_plants):
+            if converged_flags[pi]:
+                continue
+            gs_tuzet = all_gs_tuzet[pi]
+            gs_mean = float(np.mean(gs_tuzet[gs_tuzet > 0])) if np.any(gs_tuzet > 0) else 0.0
+
+            if gs_prev[pi] is not None:
+                mask = gs_prev[pi] > 1e-10
+                if np.any(mask):
+                    rel_change = np.abs(gs_tuzet[mask] - gs_prev[pi][mask]) / gs_prev[pi][mask]
+                    mean_rel_change = float(np.mean(rel_change))
+                else:
+                    mean_rel_change = 1.0
+
+                gs_history_per_plant[pi].append({
+                    'iteration': iteration + 1,
+                    'gs_mean': gs_mean,
+                    'tleaf_mean': float(np.mean(tleaf[pi])),
+                    'an_total_mmol': final_results[pi]['An_total_mmol'] if final_results[pi] else 0.0,
+                    'mean_rel_change': mean_rel_change,
+                })
+
+                if mean_rel_change < gs_tolerance:
+                    converged_flags[pi] = True
+                    print(f"  Plant {pi}: CONVERGED (mean_rel={mean_rel_change:.4f})")
+                else:
+                    all_converged = False
+            else:
+                gs_history_per_plant[pi].append({
+                    'iteration': iteration + 1,
+                    'gs_mean': gs_mean,
+                    'tleaf_mean': float(np.mean(tleaf[pi])),
+                    'an_total_mmol': final_results[pi]['An_total_mmol'] if final_results[pi] else 0.0,
+                    'mean_rel_change': None,
+                })
+                all_converged = False
+
+        if all_converged and iteration > 0:
+            print(f"  ALL plants converged at iteration {iteration + 1}")
+            break
+
+        # 3. Damp gs
+        gs_damped = []
+        for pi in range(n_plants):
+            if converged_flags[pi]:
+                gs_damped.append(gs_prev[pi].copy())
+            elif gs_prev[pi] is not None:
+                gs_d = damping_alpha * all_gs_tuzet[pi] + (1 - damping_alpha) * gs_prev[pi]
+                gs_damped.append(gs_d)
+            else:
+                gs_damped.append(all_gs_tuzet[pi].copy())
+            gs_prev[pi] = gs_damped[pi].copy()
+
+        # 4. Build combined rcw array and write CSV
+        rcw = segment_gs_to_scene_rcw_multi(
+            gs_damped, mapping_json_paths,
+            plant_to_obj_to_scene, n_scene_rows)
+
+        gs_csv_path = Path(baleno_sim_dir) / 'input' / 'external_gs.csv'
+        write_triangle_gs_csv(rcw, gs_csv_path)
+
+        leaf_rcw = rcw[rcw < RCW_MAX]
+        if len(leaf_rcw) > 0:
+            print(f"  rcw stats: median={np.median(leaf_rcw):.0f}, "
+                  f"mean={np.mean(leaf_rcw):.0f} s/m, "
+                  f"{len(leaf_rcw)} leaf triangles")
+
+        # 5. Update Baleno config to use ExternalGS plugin
+        leaf_organs = [o for o in plants[0].getOrgans()
+                       if o.organType() == pb.OrganTypes.leaf]
+        n_lv = len(leaf_organs)
+        per_pos = get_prospect_params_per_position(sim_time, n_lv)
+        mean_cab = float(np.mean([p["Cab"] for p in per_pos]))
+        mean_n = float(np.mean([p["N"] for p in per_pos]))
+        base_p = get_prospect_params(sim_time)
+        input_dir = Path(baleno_sim_dir) / 'input'
+        _write_json5(input_dir / 'vegetation.json5', {
+            "Plugin": "ExternalGS",
+            "Model": "VegetationExternalGS",
+            "PAR_min": 0.400, "PAR_max": 0.700,
+            "Cab": round(mean_cab, 1), "Cca": 10, "Cs": 0,
+            "Cw": base_p["Cw"], "Cdm": base_p["Cm"],
+            "N": round(mean_n, 2), "fqe": 0,
+            "Vcmax25": round(vcmax25_from_cab(mean_cab), 1),
+            "BallBerrySlope": 8, "BallBerry0": 0.01,
+            "RdPerVcmax25": get_species()["rd_per_vcmax25"],
+            "Type": get_species()["photo_type"],
+            "rho_thermal": 0.01, "tau_thermal": 0.01, "stress_factor": 1,
+        })
+
+        plugins_dir = input_dir / 'plugins'
+        plugins_dir.mkdir(parents=True, exist_ok=True)
+        _write_json5(plugins_dir / 'ExternalGS_input.json5', {
+            "gs_file": str(gs_csv_path),
+            "fallback_rcw": 100.0,
+        })
+
+        # 6. Write Baleno config.ini + run
+        baleno_config_path = BALENO_DIR / 'resources' / 'config.ini'
+        import textwrap
+        baleno_config_path.write_text(textwrap.dedent(f"""\
+            [simulation]
+            user_data_path =
+            name = {baleno_simu_name}
+        """))
+
+        print(f"  Running Baleno (ExternalGS, {n_plants} plants)...")
+        ok = run_baleno_subprocess(timeout=1800)
+        if not ok:
+            print(f"  ERROR: Baleno subprocess failed at iteration {iteration+1}")
+            break
+
+        # 7. Read per-plant Tleaf
+        tleaf_new_list = read_baleno_tleaf_multi(
+            str(baleno_sim_dir), mapping_json_paths, reindex_json_paths,
+            n_plants, tair_c=tair_c)
+        if tleaf_new_list is None:
+            print(f"  ERROR: Tleaf read failed at iteration {iteration+1}")
+            break
+
+        # Update Tleaf per plant (skip converged)
+        for pi in range(n_plants):
+            if converged_flags[pi]:
+                continue
+            tleaf_new = tleaf_new_list[pi]
+            if len(tleaf_new) != n_leaf_segs[pi]:
+                if len(tleaf_new) < n_leaf_segs[pi]:
+                    tleaf_new = np.pad(
+                        tleaf_new, (0, n_leaf_segs[pi] - len(tleaf_new)),
+                        constant_values=tair_c)
+                else:
+                    tleaf_new = tleaf_new[:n_leaf_segs[pi]]
+
+            old_mean = float(np.mean(tleaf[pi]))
+            tleaf[pi] = tleaf_new
+            new_mean = float(np.mean(tleaf_new))
+            print(f"  Plant {pi}: Tleaf mean={new_mean:.2f}C (was {old_mean:.2f}C)")
+
+    # Build final results
+    n_iters = max(len(h) for h in gs_history_per_plant) if any(gs_history_per_plant) else 0
+    n_converged = sum(converged_flags)
+    print(f"\n{'=' * 70}")
+    print(f"ITERATIVE COUPLING: {n_converged}/{n_plants} converged, "
+          f"{n_iters} iterations")
+    for pi in range(n_plants):
+        if final_results[pi]:
+            print(f"  Plant {pi}: An={final_results[pi]['An_total_mmol']:.3f} mmol, "
+                  f"Tleaf={np.mean(tleaf[pi]):.2f}C, "
+                  f"{'converged' if converged_flags[pi] else 'not converged'}")
+    print(f"{'=' * 70}")
+
+    results = []
+    for pi in range(n_plants):
+        r = final_results[pi]
+        results.append({
+            'tleaf_per_segment': tleaf[pi],
+            'gs_per_segment': gs_prev[pi] if gs_prev[pi] is not None else np.zeros(n_leaf_segs[pi]),
+            'an_per_segment': r['An_per_umol'] if r else np.zeros(n_leaf_segs[pi]),
+            'an_total_mmol': r['An_total_mmol'] if r else 0.0,
+            'iterations': n_iters,
+            'gs_history': gs_history_per_plant[pi],
+            'converged': converged_flags[pi],
+        })
+
+    return results
