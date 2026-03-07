@@ -284,10 +284,19 @@ def run_photosynthesis_solve(plant, sim_time, par, tleaf, label,
     An_total_mmol = np.sum(An_leaf) * 1e3                 # mmol CO2/d
     An_per_umol = An_per * 1e4 / 86400 * 1e6              # µmol CO2/m²/s
 
+    # --- Leaf water potential ---
+    psi_xyl = np.array(hm.get_water_potential())           # per-node [cm]
+    seg_nodes = plant.getSegments()
+    leaf_tip_nodes = [seg.y for seg in np.array(seg_nodes)[seg_leaves_idx]]
+    psi_leaf = psi_xyl[leaf_tip_nodes]                     # per-leaf-segment [cm]
+    psi_leaf_MPa = psi_leaf * 1e-4 * 0.0980665             # cm → MPa
+
     print(f"\n  --- Results ({label}) ---")
     print(f"  Total An:      {An_total_mmol:.3f} mmol CO2/d")
     print(f"  Transpiration: {transp:.3f} mmol H2O/d")
     print(f"  Leaf segments: {len(An_leaf)}")
+    print(f"  Leaf psi:      mean={np.mean(psi_leaf_MPa):.3f} MPa, "
+          f"range=[{np.min(psi_leaf_MPa):.3f}, {np.max(psi_leaf_MPa):.3f}]")
 
     active = An_per_umol[An_per_umol > 0]
     if len(active) > 0:
@@ -301,6 +310,8 @@ def run_photosynthesis_solve(plant, sim_time, par, tleaf, label,
         'An_total_mmol': An_total_mmol,
         'transp_mmol': transp,
         'n_segs': len(An_leaf),
+        'psi_leaf_cm': psi_leaf,
+        'psi_leaf_MPa': psi_leaf_MPa,
     }
 
 
