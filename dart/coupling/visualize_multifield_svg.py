@@ -849,7 +849,7 @@ def main():
 
         try:
             import plantbox as pb  # noqa: F401
-            from dart.coupling.growth.grow import grow_plant
+            from dart.coupling.growth import grow_plant
             from dart.coupling.geometry import extract_organs_for_lofter
             from dart.coupling.config import DEFAULT_XML
         except ImportError as e:

@@ -300,3 +300,61 @@ def validate_agroc_outputs(workdir: Path, coupling_csv_path: Path = None) -> dic
                 result["checks"].append(f"WARN: Could not compare GPP: {e}")
 
     return result
+
+
+# ---------------------------------------------------------------------------
+# CLI entry point (called from __main__.py)
+# ---------------------------------------------------------------------------
+
+def main_agroc_run(args):
+    """CLI handler for the ``agroc-run`` subcommand."""
+    import sys
+    from pathlib import Path as _Path
+    from ..config import OUTPUT_DIR
+
+    # Resolve agroc source
+    if args.agroc_src:
+        agroc_src = _Path(args.agroc_src)
+    else:
+        agroc_src = get_agroc_src()
+
+    # Resolve output dir
+    if args.output_dir:
+        out_dir = _Path(args.output_dir)
+    else:
+        out_dir = OUTPUT_DIR / "agroc_run"
+    out_dir.mkdir(parents=True, exist_ok=True)
+
+    coupling_csv = _Path(args.coupling_csv)
+
+    print(f"\n{'='*60}")
+    print("AGROC RUN — ExternalPlantMode")
+    print(f"{'='*60}")
+    print(f"  AgroC source:  {agroc_src}")
+    print(f"  Coupling CSV:  {coupling_csv}")
+    print(f"  Output:        {out_dir}")
+
+    # 1. Prepare working directory
+    workdir = prepare_agroc_workdir(agroc_src, out_dir, coupling_csv)
+    print(f"  Working dir:   {workdir}")
+
+    # 2. Run AgroC
+    proc = run_agroc(workdir, timeout=args.timeout)
+
+    if proc.returncode != 0:
+        print(f"\n  AgroC FAILED (exit code {proc.returncode})")
+        # Save stdout/stderr for debugging
+        (workdir / "agroc_stdout.txt").write_text(proc.stdout or "")
+        (workdir / "agroc_stderr.txt").write_text(proc.stderr or "")
+        sys.exit(1)
+
+    # 3. Validate outputs
+    validation = validate_agroc_outputs(workdir, coupling_csv)
+    print(f"\n  Validation:")
+    for check in validation["checks"]:
+        print(f"    {check}")
+
+    if validation["passed"]:
+        print(f"\n  AGROC RUN PASSED")
+    else:
+        print(f"\n  AGROC RUN — validation warnings (see above)")

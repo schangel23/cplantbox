@@ -41,7 +41,7 @@ import numpy as np
 from pathlib import Path
 
 from ..config import DEFAULT_XML, OUTPUT_DIR
-from ..growth.grow import grow_plant
+from ..growth import grow_plant
 from ..geometry import (
     convert_obj_to_dart, convert_mapping_json_groups,
     loft_organs, extract_organs_for_lofter,
@@ -231,20 +231,25 @@ def setup_plants_and_meshes(sim_day, output_subdir, plants=None):
 # ============================================================================
 # Single-day diurnal loop (Mode A)
 # ============================================================================
-def run_single_day(sim_day, timestep_min=30, enable_baleno=True,
-                   met_csv=None, skip_photosynthesis=False,
-                   iterate_gs=False, gs_max_iterations=6,
-                   gs_tolerance=0.05, gs_damping_alpha=0.6):
+def run_single_day(sim_day, use_dart=True, timestep_min=30,
+                   enable_baleno=True, met_csv=None,
+                   skip_photosynthesis=False, iterate_gs=False,
+                   gs_max_iterations=6, gs_tolerance=0.05,
+                   gs_damping_alpha=0.6):
     """Run full diurnal coupling for a single day with 9 unique plants.
 
     Args:
         sim_day: CPlantBox simulation day (days since sowing).
+        use_dart: If True, run DART RT + Baleno EB (3D mode).
+            If False, uniform clearsky PAR + Tleaf=Tair (baseline).
         timestep_min: Timestep in minutes (default 30).
-        enable_baleno: If True, run Baleno energy balance per timestep.
+        enable_baleno: If True, run Baleno energy balance per timestep
+            (only used when use_dart=True).
         met_csv: Optional path to CSV with met forcing.
         skip_photosynthesis: If True, only compute aPAR (for testing).
         iterate_gs: If True, use iterative Tuzet-Baleno gs coupling
             (Phase 10) instead of single-pass Ball-Berry.
+            Only used when use_dart=True.
         gs_max_iterations: Max iterations for gs convergence.
         gs_tolerance: Relative convergence threshold (0.05 = 5%).
         gs_damping_alpha: Under-relaxation factor for gs.
@@ -252,11 +257,17 @@ def run_single_day(sim_day, timestep_min=30, enable_baleno=True,
     Returns:
         dict with 'hourly' list, 'daily_An_mol_per_plant', 'daily_An_mol_field_mean'.
     """
+    mode_label = "" if use_dart else " (UNIFORM BASELINE)"
+    subdir = 'diurnal' if use_dart else 'diurnal_uniform'
+
     calendar_date = sim_day_to_date(sim_day, SOWING_DATE)
     print(f"\n{'=' * 70}")
-    print(f"DIURNAL LOOP: Day {sim_day} ({calendar_date})")
-    print(f"  Timestep: {timestep_min} min, Baleno: {enable_baleno}, "
-          f"iterate_gs: {iterate_gs}")
+    print(f"DIURNAL LOOP{mode_label}: Day {sim_day} ({calendar_date})")
+    if use_dart:
+        print(f"  Timestep: {timestep_min} min, Baleno: {enable_baleno}, "
+              f"iterate_gs: {iterate_gs}")
+    else:
+        print(f"  Timestep: {timestep_min} min, PAR: clearsky, Tleaf: Tair")
     print(f"  Plants: {N_PLANTS} unique realizations (seeds {FIELD_SEED}-{FIELD_SEED + N_PLANTS - 1})")
     print(f"{'=' * 70}")
 
@@ -277,8 +288,10 @@ def run_single_day(sim_day, timestep_min=30, enable_baleno=True,
 
     # --- Met forcing ---
     if met_csv:
-        from utils.met_forcing import load_met_csv
+        from ..utils.met_forcing import load_met_csv, inject_met_csv_into_dvs
         met = load_met_csv(met_csv)
+        # Also derive daily stats for DVS GDD so both use the same source
+        inject_met_csv_into_dvs(met_csv)
     else:
         met = diurnal_met_profile(calendar_date, LAT, LON,
                                    freq=f'{timestep_min}min',
@@ -287,7 +300,7 @@ def run_single_day(sim_day, timestep_min=30, enable_baleno=True,
           f"RH={met['RH'].min():.0%}-{met['RH'].max():.0%}")
 
     # --- Setup output directory ---
-    day_dir = OUTPUT_DIR / 'diurnal' / f'day{sim_day}'
+    day_dir = OUTPUT_DIR / subdir / f'day{sim_day}'
     day_dir.mkdir(parents=True, exist_ok=True)
 
     # --- Grow 9 unique plants + export meshes ---
@@ -295,110 +308,113 @@ def run_single_day(sim_day, timestep_min=30, enable_baleno=True,
     log_consistency(sim_day)
 
     setup = setup_plants_and_meshes(sim_day, day_dir)
-    dart_obj_paths = setup['dart_obj_paths']
-    mappings = setup['mappings']
-    grid_info = setup['grid_info']
-    grid_path = setup['grid_path']
 
-    # --- Create multi-plant DART simulation (once -- geometry static) ---
-    simu_name = f'cpb_diurnal_day{sim_day}'
-    first_zen = solar_df.iloc[0]['apparent_zenith']
-    first_azi = solar_df.iloc[0]['azimuth']
-    first_ts_time = solar_df.index[0]
-
-    print(f"\n  Creating multi-plant DART simulation: {simu_name}")
-    print(f"  Initial sun: zenith={first_zen:.1f}, azimuth={first_azi:.1f}")
-    print(f"  Using DART exactDate=1 (date={calendar_date}, "
-          f"UTC={first_ts_time.hour:02d}:{first_ts_time.minute:02d})")
-
-    simu = create_dart_simulation_multi(
-        obj_paths=dart_obj_paths,
-        mapping_json_paths=setup['dart_mapping_paths'],
-        simu_name=simu_name,
-        prospect_params=prospect_params,
-        scene_size=SCENE_SIZE,
-        grid_info=grid_info,
-        par_bands=PAR_BANDS,
-        field_filename=FIELD_FILENAME,
-        calendar_date=calendar_date,
-        hour_utc=first_ts_time.hour,
-        minute_utc=first_ts_time.minute,
-        lat=LAT, lon=LON,
-        use_exact_date=True,
-    )
-
-    # --- Run full DART (first time -- includes maket) ---
-    print(f"  Running full DART (with maket, {N_PLANTS} models)...")
-    t0 = time.time()
-    run_dart_full(simu, timeout=1200)
-    print(f"  DART full run: {time.time() - t0:.1f}s")
-
-    # --- Read .ori reindex for all plants (once) ---
-    reindex_infos = read_ori_reindex_multi(simu, dart_obj_paths)
-    if reindex_infos is None:
-        print("  ERROR: No .ori reindex tables!")
-        return {'hourly': [], 'daily_An_mol_field_mean': 0.0,
-                'daily_An_mol_per_plant': [0.0] * N_PLANTS}
-
-    # Save per-plant reindex JSONs
-    per_plant_reindex_paths = []
-    for pi in range(N_PLANTS):
-        ri = reindex_infos[pi]
-        ri_path = day_dir / f'maize_day{sim_day}_p{pi}_reindex.json'
-        ri_save = {
-            'dart_to_obj': {str(k): v.tolist()
-                            for k, v in ri['dart_to_obj'].items()},
-            'group_names': ri['groups_sorted'],
-            'group_offsets': {g: ri['group_offsets'][g]
-                              for g in ri['groups_sorted']},
-        }
-        with open(ri_path, 'w') as f:
-            json.dump(ri_save, f, indent=2)
-        per_plant_reindex_paths.append(ri_path)
-
-    # Backward compat: center reindex path alias
-    reindex_path = per_plant_reindex_paths[CENTER_PLANT_IDX]
-
-    # --- Setup Baleno (once -- geometry static, all plants) ---
+    # --- DART setup (only when use_dart=True) ---
+    simu = None
+    reindex_infos = None
+    per_plant_reindex_paths = None
     baleno_setup = None
-    center_dart_obj = dart_obj_paths[CENTER_PLANT_IDX]
-    center_dart_mapping = setup['dart_mapping_paths'][CENTER_PLANT_IDX]
-    if enable_baleno:
-        print(f"\n  Setting up Baleno (all {N_PLANTS} plants)...")
-        try:
-            baleno_setup = setup_baleno_full_multi(
-                obj_paths=[str(p) for p in dart_obj_paths],
-                mapping_json_paths=[str(p) for p in setup['dart_mapping_paths']],
-                reindex_json_paths=[str(p) for p in per_plant_reindex_paths],
-                grid_info_path=str(grid_path),
-                prospect_params=prospect_params,
-                scene_size=SCENE_SIZE,
-                dart_simu_name=f'cpb_diurnal_day{sim_day}_eb',
-                baleno_simu_name=f'cpb_diurnal_day{sim_day}_eb',
-                field_filename=FIELD_FILENAME,
-                calendar_date=calendar_date,
-                hour_utc=first_ts_time.hour,
-                minute_utc=first_ts_time.minute,
-                lat=LAT, lon=LON,
-                use_exact_date=True,
-            )
-            # Run initial full Baleno (with maket on _I)
-            print(f"  Running initial Baleno _I full DART...")
-            t0 = time.time()
-            baleno_setup['simu_I'].run.full(timeout=1800)
-            print(f"  Baleno _I full: {time.time() - t0:.1f}s")
-        except Exception as e:
-            import traceback
-            print(f"\n  {'!' * 60}")
-            print(f"  BALENO SETUP FAILED — all Tleaf will default to Tair!")
-            print(f"  Error: {e}")
-            traceback.print_exc()
-            print(f"  {'!' * 60}\n")
-            baleno_setup = None
+
+    if use_dart:
+        dart_obj_paths = setup['dart_obj_paths']
+        mappings = setup['mappings']
+        grid_info = setup['grid_info']
+        grid_path = setup['grid_path']
+
+        # --- Create multi-plant DART simulation (once -- geometry static) ---
+        simu_name = f'cpb_diurnal_day{sim_day}'
+        first_zen = solar_df.iloc[0]['apparent_zenith']
+        first_azi = solar_df.iloc[0]['azimuth']
+        first_ts_time = solar_df.index[0]
+
+        print(f"\n  Creating multi-plant DART simulation: {simu_name}")
+        print(f"  Initial sun: zenith={first_zen:.1f}, azimuth={first_azi:.1f}")
+        print(f"  Using DART exactDate=1 (date={calendar_date}, "
+              f"UTC={first_ts_time.hour:02d}:{first_ts_time.minute:02d})")
+
+        simu = create_dart_simulation_multi(
+            obj_paths=dart_obj_paths,
+            mapping_json_paths=setup['dart_mapping_paths'],
+            simu_name=simu_name,
+            prospect_params=prospect_params,
+            scene_size=SCENE_SIZE,
+            grid_info=grid_info,
+            par_bands=PAR_BANDS,
+            field_filename=FIELD_FILENAME,
+            calendar_date=calendar_date,
+            hour_utc=first_ts_time.hour,
+            minute_utc=first_ts_time.minute,
+            lat=LAT, lon=LON,
+            use_exact_date=True,
+        )
+
+        # --- Run full DART (first time -- includes maket) ---
+        print(f"  Running full DART (with maket, {N_PLANTS} models)...")
+        t0 = time.time()
+        run_dart_full(simu, timeout=1200)
+        print(f"  DART full run: {time.time() - t0:.1f}s")
+
+        # --- Read .ori reindex for all plants (once) ---
+        reindex_infos = read_ori_reindex_multi(simu, dart_obj_paths)
+        if reindex_infos is None:
+            print("  ERROR: No .ori reindex tables!")
+            return {'hourly': [], 'daily_An_mol_field_mean': 0.0,
+                    'daily_An_mol_per_plant': [0.0] * N_PLANTS}
+
+        # Save per-plant reindex JSONs
+        per_plant_reindex_paths = []
+        for pi in range(N_PLANTS):
+            ri = reindex_infos[pi]
+            ri_path = day_dir / f'maize_day{sim_day}_p{pi}_reindex.json'
+            ri_save = {
+                'dart_to_obj': {str(k): v.tolist()
+                                for k, v in ri['dart_to_obj'].items()},
+                'group_names': ri['groups_sorted'],
+                'group_offsets': {g: ri['group_offsets'][g]
+                                  for g in ri['groups_sorted']},
+            }
+            with open(ri_path, 'w') as f:
+                json.dump(ri_save, f, indent=2)
+            per_plant_reindex_paths.append(ri_path)
+
+        # --- Setup Baleno (once -- geometry static, all plants) ---
+        if enable_baleno:
+            print(f"\n  Setting up Baleno (all {N_PLANTS} plants)...")
+            try:
+                baleno_setup = setup_baleno_full_multi(
+                    obj_paths=[str(p) for p in dart_obj_paths],
+                    mapping_json_paths=[str(p) for p in setup['dart_mapping_paths']],
+                    reindex_json_paths=[str(p) for p in per_plant_reindex_paths],
+                    grid_info_path=str(grid_path),
+                    prospect_params=prospect_params,
+                    scene_size=SCENE_SIZE,
+                    dart_simu_name=f'cpb_diurnal_day{sim_day}_eb',
+                    baleno_simu_name=f'cpb_diurnal_day{sim_day}_eb',
+                    field_filename=FIELD_FILENAME,
+                    calendar_date=calendar_date,
+                    hour_utc=first_ts_time.hour,
+                    minute_utc=first_ts_time.minute,
+                    lat=LAT, lon=LON,
+                    use_exact_date=True,
+                )
+                # Run initial full Baleno (with maket on _I)
+                print(f"  Running initial Baleno _I full DART...")
+                t0 = time.time()
+                baleno_setup['simu_I'].run.full(timeout=1800)
+                print(f"  Baleno _I full: {time.time() - t0:.1f}s")
+            except Exception as e:
+                import traceback
+                print(f"\n  {'!' * 60}")
+                print(f"  BALENO SETUP FAILED — all Tleaf will default to Tair!")
+                print(f"  Error: {e}")
+                traceback.print_exc()
+                print(f"  {'!' * 60}\n")
+                baleno_setup = None
 
     # --- Diurnal loop ---
     print(f"\n{'=' * 70}")
-    print(f"DIURNAL LOOP: {n_daylight} timesteps x {N_PLANTS} plants")
+    loop_label = "DIURNAL LOOP" if use_dart else "DIURNAL LOOP (UNIFORM)"
+    print(f"{loop_label}: {n_daylight} timesteps x {N_PLANTS} plants")
     print(f"{'=' * 70}")
 
     hourly_results = []
@@ -420,123 +436,134 @@ def run_single_day(sim_day, timestep_min=30, enable_baleno=True,
             met_row = met.iloc[idx]
 
         T_air_C = float(met_row['T_air_C'])
-        T_air_K = float(met_row['T_air_K'])
-        ea_hPa = float(met_row['ea_hPa'])
-        wind_ms = float(met_row['wind_ms'])
         rh = float(met_row['RH'])
+        wind_ms = float(met_row['wind_ms'])
 
-        # --- Update DART sun + re-run RT ---
-        if step_i == 0:
-            pass  # First timestep already ran full DART
-        else:
-            t0 = time.time()
-            update_datetime_and_rerun(
-                simu, calendar_date, ts_time.hour, ts_time.minute)
-            print(f"    DART RT: {time.time() - t0:.1f}s")
-
-        # --- Read per-plant per-segment aPAR ---
-        all_plant_apar = read_and_aggregate_apar_multi(
-            simu, mappings, reindex_infos,
-        )
-        if all_plant_apar is None:
-            print(f"    WARNING: aPAR read failed, skipping timestep")
-            continue
-
-        # Field-level aPAR statistics
-        plant_mean_apars = [float(np.mean(a)) for a in all_plant_apar]
-        field_mean_apar = float(np.mean(plant_mean_apars))
-        field_std_apar = float(np.std(plant_mean_apars))
-        print(f"    aPAR: field mean={field_mean_apar:.4f} "
-              f"(+/-{field_std_apar:.4f})")
-
-        # --- Baleno energy balance (optional, all plants) ---
-        # Skip Baleno at very low PAR (dawn/dusk): EB solver is unreliable
-        # and Tleaf ≈ Tair anyway when shortwave radiation is negligible.
-        MIN_PAR_FOR_BALENO = 50.0  # W/m²
-        all_tleaf_baleno = None  # list of per-plant Tleaf arrays
-        baleno_ok_flag = False
-        clearsky_par_wm2_early = get_clearsky_par(ts_time, LAT, LON)
-        if baleno_setup is not None and clearsky_par_wm2_early < MIN_PAR_FOR_BALENO:
-            print(f"    PAR={clearsky_par_wm2_early:.1f} W/m² < {MIN_PAR_FOR_BALENO} "
-                  f"-> skip Baleno, Tleaf=Tair")
-        elif baleno_setup is not None:
-            try:
-                t0 = time.time()
-                update_baleno_datetime_and_rerun_I(
-                    baleno_setup['simu_I'], calendar_date,
-                    ts_time.hour, ts_time.minute)
-                update_baleno_atmosphere(
-                    baleno_setup['baleno_sim_dir'],
-                    T_air_K=T_air_K, ea_hPa=ea_hPa, wind_ms=wind_ms,
-                )
-                from ..dart.baleno import BALENO_DIR
-                baleno_config_path = BALENO_DIR / 'resources' / 'config.ini'
-                import textwrap
-                baleno_config_path.write_text(textwrap.dedent(f"""\
-                    [simulation]
-                    user_data_path =
-                    name = {baleno_setup['baleno_simu_name']}
-                """))
-                # Adaptive timeout: shorter at low PAR where Baleno struggles
-                baleno_timeout = 600 if clearsky_par_wm2_early < 100.0 else 1800
-                ok = run_baleno_subprocess(timeout=baleno_timeout)
-                if ok:
-                    all_tleaf_baleno = read_baleno_tleaf_multi(
-                        baleno_setup['baleno_sim_dir'],
-                        [str(p) for p in setup['dart_mapping_paths']],
-                        [str(p) for p in per_plant_reindex_paths],
-                        N_PLANTS, tair_c=T_air_C,
-                    )
-                baleno_ok_flag = all_tleaf_baleno is not None
-                baleno_time = time.time() - t0
-                print(f"    Baleno: {baleno_time:.1f}s, "
-                      f"Tleaf={'OK' if baleno_ok_flag else 'FAILED'}")
-                if baleno_ok_flag:
-                    from ..dart.baleno import log_baleno_diagnostics
-                    log_baleno_diagnostics(
-                        baleno_setup['baleno_sim_dir'],
-                        all_tleaf_baleno[CENTER_PLANT_IDX], T_air_C)
-                else:
-                    print(f"    WARNING: Baleno ran but Tleaf extraction failed "
-                          f"(subprocess_ok={ok}). Using Tair={T_air_C:.1f}C")
-            except Exception as e:
-                import traceback
-                print(f"    Baleno error: {e}")
-                traceback.print_exc()
-
-        # --- Scale DART aPAR to absolute umol/m2/s ---
-        n_par_bands = len(PAR_BANDS)
         clearsky_par_wm2 = get_clearsky_par(ts_time, LAT, LON)
-        actual_par_per_band = clearsky_par_wm2 / n_par_bands
 
-        # Convert per-plant aPAR arrays to physical umol
-        all_par_umol = []
-        for pi in range(N_PLANTS):
-            apar_abs_wm2 = all_plant_apar[pi] * actual_par_per_band
-            par_umol = np.clip(apar_abs_wm2 * 4.57, 0.0, 3000.0)
-            all_par_umol.append(par_umol)
+        if use_dart:
+            # --- DART mode: RT + aPAR + Baleno ---
+            T_air_K = float(met_row['T_air_K'])
+            ea_hPa = float(met_row['ea_hPa'])
 
-        mean_par_umol = float(np.mean([np.mean(p) for p in all_par_umol]))
-        print(f"    Clearsky PAR: {clearsky_par_wm2:.1f} W/m2, "
-              f"absolute aPAR: field mean={mean_par_umol:.1f} umol/m2/s")
+            # Update DART sun + re-run RT
+            if step_i == 0:
+                pass  # First timestep already ran full DART
+            else:
+                t0 = time.time()
+                update_datetime_and_rerun(
+                    simu, calendar_date, ts_time.hour, ts_time.minute)
+                print(f"    DART RT: {time.time() - t0:.1f}s")
 
-        # --- Per-plant Tleaf arrays ---
-        all_tleaf = []
-        for pi in range(N_PLANTS):
-            n_segs = len(all_par_umol[pi])
-            if all_tleaf_baleno is not None and pi < len(all_tleaf_baleno):
-                t = all_tleaf_baleno[pi]
-                if len(t) == n_segs:
-                    all_tleaf.append(t.copy())
+            # Read per-plant per-segment aPAR
+            all_plant_apar = read_and_aggregate_apar_multi(
+                simu, setup['mappings'], reindex_infos,
+            )
+            if all_plant_apar is None:
+                print(f"    WARNING: aPAR read failed, skipping timestep")
+                continue
+
+            # Field-level aPAR statistics
+            plant_mean_apars = [float(np.mean(a)) for a in all_plant_apar]
+            field_mean_apar = float(np.mean(plant_mean_apars))
+            field_std_apar = float(np.std(plant_mean_apars))
+            print(f"    aPAR: field mean={field_mean_apar:.4f} "
+                  f"(+/-{field_std_apar:.4f})")
+
+            # Baleno energy balance (optional, all plants)
+            MIN_PAR_FOR_BALENO = 50.0  # W/m²
+            all_tleaf_baleno = None
+            baleno_ok_flag = False
+            if baleno_setup is not None and clearsky_par_wm2 < MIN_PAR_FOR_BALENO:
+                print(f"    PAR={clearsky_par_wm2:.1f} W/m² < {MIN_PAR_FOR_BALENO} "
+                      f"-> skip Baleno, Tleaf=Tair")
+            elif baleno_setup is not None:
+                try:
+                    t0 = time.time()
+                    update_baleno_datetime_and_rerun_I(
+                        baleno_setup['simu_I'], calendar_date,
+                        ts_time.hour, ts_time.minute)
+                    update_baleno_atmosphere(
+                        baleno_setup['baleno_sim_dir'],
+                        T_air_K=T_air_K, ea_hPa=ea_hPa, wind_ms=wind_ms,
+                    )
+                    from ..dart.baleno import BALENO_DIR
+                    baleno_config_path = BALENO_DIR / 'resources' / 'config.ini'
+                    import textwrap
+                    baleno_config_path.write_text(textwrap.dedent(f"""\
+                        [simulation]
+                        user_data_path =
+                        name = {baleno_setup['baleno_simu_name']}
+                    """))
+                    baleno_timeout = 600 if clearsky_par_wm2 < 100.0 else 1800
+                    ok = run_baleno_subprocess(timeout=baleno_timeout)
+                    if ok:
+                        all_tleaf_baleno = read_baleno_tleaf_multi(
+                            baleno_setup['baleno_sim_dir'],
+                            [str(p) for p in setup['dart_mapping_paths']],
+                            [str(p) for p in per_plant_reindex_paths],
+                            N_PLANTS, tair_c=T_air_C,
+                        )
+                    baleno_ok_flag = all_tleaf_baleno is not None
+                    baleno_time = time.time() - t0
+                    print(f"    Baleno: {baleno_time:.1f}s, "
+                          f"Tleaf={'OK' if baleno_ok_flag else 'FAILED'}")
+                    if baleno_ok_flag:
+                        from ..dart.baleno import log_baleno_diagnostics
+                        log_baleno_diagnostics(
+                            baleno_setup['baleno_sim_dir'],
+                            all_tleaf_baleno[CENTER_PLANT_IDX], T_air_C)
+                    else:
+                        print(f"    WARNING: Baleno ran but Tleaf extraction failed "
+                              f"(subprocess_ok={ok}). Using Tair={T_air_C:.1f}C")
+                except Exception as e:
+                    import traceback
+                    print(f"    Baleno error: {e}")
+                    traceback.print_exc()
+
+            # Scale DART aPAR to absolute umol/m2/s
+            n_par_bands = len(PAR_BANDS)
+            actual_par_per_band = clearsky_par_wm2 / n_par_bands
+
+            all_par_umol = []
+            for pi in range(N_PLANTS):
+                apar_abs_wm2 = all_plant_apar[pi] * actual_par_per_band
+                par_umol = np.clip(apar_abs_wm2 * 4.57, 0.0, 3000.0)
+                all_par_umol.append(par_umol)
+
+            mean_par_umol = float(np.mean([np.mean(p) for p in all_par_umol]))
+            print(f"    Clearsky PAR: {clearsky_par_wm2:.1f} W/m2, "
+                  f"absolute aPAR: field mean={mean_par_umol:.1f} umol/m2/s")
+
+            # Per-plant Tleaf arrays (Baleno or Tair fallback)
+            all_tleaf = []
+            for pi in range(N_PLANTS):
+                n_segs = len(all_par_umol[pi])
+                if all_tleaf_baleno is not None and pi < len(all_tleaf_baleno):
+                    t = all_tleaf_baleno[pi]
+                    if len(t) == n_segs:
+                        all_tleaf.append(t.copy())
+                    else:
+                        all_tleaf.append(np.full(n_segs, T_air_C))
                 else:
                     all_tleaf.append(np.full(n_segs, T_air_C))
-            else:
-                all_tleaf.append(np.full(n_segs, T_air_C))
+
+        else:
+            # --- Uniform mode: clearsky PAR scalar + Tleaf=Tair ---
+            par_umol_scalar = clearsky_par_wm2 * 4.57  # W/m2 -> umol/m2/s
+            print(f"    Clearsky PAR: {clearsky_par_wm2:.1f} W/m2 = "
+                  f"{par_umol_scalar:.1f} umol/m2/s, Tleaf=Tair={T_air_C:.1f}C")
+
+            all_par_umol = [par_umol_scalar] * N_PLANTS
+            all_tleaf = [T_air_C] * N_PLANTS
+            field_mean_apar = 'N/A'
+            baleno_ok_flag = False
+            mean_par_umol = par_umol_scalar
 
         # --- CPlantBox photosynthesis (per-plant) ---
         per_plant_An = [0.0] * N_PLANTS
         if not skip_photosynthesis:
-            if iterate_gs and baleno_setup is not None:
+            if use_dart and iterate_gs and baleno_setup is not None:
                 # Iterative Tuzet-Baleno coupling for ALL plants
                 from .iterative import run_iterative_coupling_multi
 
@@ -577,10 +604,12 @@ def run_single_day(sim_day, timestep_min=30, enable_baleno=True,
                         enable_photosynthesis=True, seed=seed,
                     )
 
+                    ps_label = f"ts_{ts_label}_p{pi}" if use_dart else \
+                        f"uniform_ts_{ts_label}_p{pi}"
                     result = run_photosynthesis_solve(
                         plant_ts, sim_day,
                         par=all_par_umol[pi], tleaf=all_tleaf[pi],
-                        label=f"ts_{ts_label}_p{pi}",
+                        label=ps_label,
                         rh=rh, soil_psi_cm=-500.0,
                     )
                     if result is not None:
@@ -592,7 +621,10 @@ def run_single_day(sim_day, timestep_min=30, enable_baleno=True,
                   f"+/-{An_field_std:.3f} mmol CO2/d")
 
         # Compute mean_tleaf AFTER iterative coupling has updated all_tleaf
-        mean_tleaf = float(np.mean([np.mean(t) for t in all_tleaf]))
+        if use_dart:
+            mean_tleaf = float(np.mean([np.mean(t) for t in all_tleaf]))
+        else:
+            mean_tleaf = T_air_C
 
         # --- Per-timestep DVS carbon tracking ---
         An_field_mean = float(np.mean(per_plant_An))
@@ -651,7 +683,7 @@ def run_single_day(sim_day, timestep_min=30, enable_baleno=True,
                            daily_An_field_std, timestep_min)
 
     print(f"\n{'=' * 70}")
-    print(f"DAY {sim_day} COMPLETE")
+    print(f"DAY {sim_day} COMPLETE{mode_label}")
     print(f"  Timesteps: {len(hourly_results)}")
     print(f"  Daily An per plant: {[f'{a:.6f}' for a in daily_An_per_plant]}")
     print(f"  Daily An field mean: {daily_An_field_mean:.6f} mol CO2/plant/day")
@@ -672,39 +704,208 @@ def run_single_day(sim_day, timestep_min=30, enable_baleno=True,
     }
 
 
-def run_single_day_with_carbon(sim_day, timestep_min=30, enable_baleno=True,
-                               met_csv=None, skip_photosynthesis=False,
+def _save_per_plant_carbon_csv(per_plant_carbon, daily_An_per_plant, day_dir,
+                               sim_day):
+    """Save per-plant carbon partitioning results to CSV."""
+    csv_path = day_dir / f'per_plant_carbon_day{sim_day}.csv'
+    header = ('plant_idx,seed,daily_An_mol,FR_leaf,FR_stem,FR_root,FR_storage,'
+              'Rm_total_mmol,Rg_total_mmol,growth_mmol_d,'
+              'carbon_balance_error,C_ST_mean,partitioning_source')
+    rows = []
+    for pi in range(N_PLANTS):
+        c = per_plant_carbon[pi]
+        an = daily_An_per_plant[pi] if pi < len(daily_An_per_plant) else 0.0
+        if c is None:
+            rows.append(f"{pi},{FIELD_SEED+pi},{an:.6f},,,,,,,,,none")
+        else:
+            rows.append(
+                f"{pi},{FIELD_SEED+pi},{an:.6f},"
+                f"{c.get('FR_leaf',0):.4f},{c.get('FR_stem',0):.4f},"
+                f"{c.get('FR_root',0):.4f},{c.get('FR_storage',0):.4f},"
+                f"{c.get('Rm_total_mmol',0):.2f},{c.get('Rg_total_mmol',0):.2f},"
+                f"{c.get('growth_mmol_d',0):.2f},"
+                f"{c.get('carbon_balance_error',0):.4f},"
+                f"{c.get('C_ST_mean',0):.4f},"
+                f"{c.get('partitioning_source','none')}"
+            )
+    csv_path.write_text(header + '\n' + '\n'.join(rows) + '\n')
+    print(f"  Per-plant carbon CSV: {csv_path}")
+
+
+def _run_per_plant_carbon(daily_An_per_plant, sim_day, day_dir,
+                          carbon_method='auto', warm_start=None,
+                          gdd_accumulated=None):
+    """Run carbon partitioning independently for each of 9 plants.
+
+    Args:
+        daily_An_per_plant: list of daily An [mol CO2/plant/day] per plant.
+        sim_day: simulation day.
+        day_dir: Path for output files.
+        carbon_method: 'auto', 'phloem', or 'dvs'.
+        warm_start: dict {plant_idx: {'C_ST_mean', 'C_ST_min', 'C_ST_max'}} or None.
+        gdd_accumulated: accumulated GDD for DVS.
+
+    Returns:
+        dict with 'per_plant', 'per_plant_agroc', 'field_mean_carbon',
+        'field_mean_agroc', 'per_plant_warm_starts'.
+    """
+    from ..growth import run_photosynthesis, extract_lai_profile
+    from ..carbon import solve_carbon_partitioning
+    from ..agroc import export_agroc_timestep, average_agroc_timesteps
+
+    per_plant_carbon = []
+    per_plant_agroc = []
+    per_plant_warm_starts = []
+
+    print(f"\n  Per-plant carbon partitioning ({N_PLANTS} plants):")
+    for pi in range(N_PLANTS):
+        an_mol = daily_An_per_plant[pi] if pi < len(daily_An_per_plant) else 0.0
+        if an_mol <= 0:
+            print(f"    Plant {pi} (seed={FIELD_SEED+pi}): An=0, skipped")
+            per_plant_carbon.append(None)
+            per_plant_agroc.append(None)
+            per_plant_warm_starts.append(None)
+            continue
+
+        # Grow this plant
+        plant = grow_plant(XML_PATH, simulation_time=sim_day,
+                           min_stem_nodes=50, min_leaf_nodes=20,
+                           seed=FIELD_SEED + pi, enable_photosynthesis=True)
+
+        # Run photosynthesis at peak to get per-segment An shape
+        prefix = str(day_dir / f'carbon_photo_day{sim_day}_p{pi}')
+        hm = run_photosynthesis(plant, sim_time=sim_day, output_prefix=prefix,
+                                par_umol=1000.0, tair_c=25.0)
+
+        if hm is None:
+            print(f"    Plant {pi}: photosynthesis failed, skipped")
+            per_plant_carbon.append(None)
+            per_plant_agroc.append(None)
+            per_plant_warm_starts.append(None)
+            continue
+
+        # Scale per-segment An to match diurnal-integrated daily total
+        An_leaf = np.array(hm.get_net_assimilation())
+        An_peak_total = float(np.sum(An_leaf))
+        if An_peak_total > 0:
+            An_leaf_scaled = An_leaf * (an_mol / An_peak_total)
+        else:
+            An_leaf_scaled = An_leaf
+
+        # Carbon partitioning
+        ws_pi = None
+        if warm_start is not None and pi in warm_start:
+            ws_pi = warm_start[pi]
+
+        try:
+            carbon = solve_carbon_partitioning(
+                plant, An_leaf_scaled, Tair_C=25.0,
+                method=carbon_method, day=sim_day,
+                warm_start=ws_pi,
+                gdd_accumulated=gdd_accumulated,
+            )
+        except Exception as e:
+            print(f"    Plant {pi} carbon partitioning error: {e}")
+            carbon = None
+
+        per_plant_carbon.append(carbon)
+
+        if carbon is not None:
+            per_plant_warm_starts.append({
+                'C_ST_mean': carbon.get('C_ST_mean'),
+                'C_ST_min': carbon.get('C_ST_min'),
+                'C_ST_max': carbon.get('C_ST_max'),
+            })
+            print(f"    Plant {pi}: FR_leaf={carbon.get('FR_leaf',0):.3f} "
+                  f"FR_stem={carbon.get('FR_stem',0):.3f} "
+                  f"FR_root={carbon.get('FR_root',0):.3f} "
+                  f"err={carbon.get('carbon_balance_error',0):.2%}")
+        else:
+            per_plant_warm_starts.append(None)
+
+        # LAI + AgroC export
+        lai = extract_lai_profile(plant, n_bins=10)
+        agroc_ts = None
+        if carbon is not None:
+            try:
+                agroc_ts = export_agroc_timestep(
+                    plant, hm, carbon, lai,
+                    day=sim_day, par_umol=1000.0, tair_c=25.0,
+                )
+            except Exception as e:
+                print(f"    Plant {pi} AgroC export error: {e}")
+        per_plant_agroc.append(agroc_ts)
+
+    # Field-mean carbon: average FR, C_ST, etc. across successful plants
+    valid_carbons = [c for c in per_plant_carbon if c is not None]
+    if valid_carbons:
+        field_mean_carbon = {}
+        for key in ('FR_leaf', 'FR_stem', 'FR_root', 'FR_storage',
+                    'Rm_total_mmol', 'Rg_total_mmol', 'growth_mmol_d',
+                    'carbon_balance_error', 'C_ST_mean', 'C_ST_min', 'C_ST_max',
+                    'An_total_mmol'):
+            vals = [c.get(key, 0.0) for c in valid_carbons if c.get(key) is not None]
+            field_mean_carbon[key] = sum(vals) / len(vals) if vals else 0.0
+        field_mean_carbon['partitioning_source'] = valid_carbons[0].get(
+            'partitioning_source', 'none')
+        field_mean_carbon['n_plants_success'] = len(valid_carbons)
+    else:
+        field_mean_carbon = {}
+
+    # Field-mean AgroC timestep
+    field_mean_agroc = average_agroc_timesteps(per_plant_agroc)
+
+    # Save per-plant CSV
+    _save_per_plant_carbon_csv(per_plant_carbon, daily_An_per_plant,
+                               day_dir, sim_day)
+
+    return {
+        'per_plant': per_plant_carbon,
+        'per_plant_agroc': per_plant_agroc,
+        'field_mean_carbon': field_mean_carbon,
+        'field_mean_agroc': field_mean_agroc,
+        'per_plant_warm_starts': per_plant_warm_starts,
+    }
+
+
+def run_single_day_with_carbon(sim_day, use_dart=True, timestep_min=30,
+                               enable_baleno=True, met_csv=None,
+                               skip_photosynthesis=False,
                                iterate_gs=False, gs_max_iterations=6,
                                gs_tolerance=0.05, gs_damping_alpha=0.6,
                                carbon_method='auto', warm_start=None,
                                gdd_accumulated=None):
-    """Run diurnal loop + daily carbon partitioning and AgroC export.
+    """Run diurnal loop + per-plant carbon partitioning and AgroC export.
 
     Wraps run_single_day() and appends:
-      1. Grows one representative plant (center seed) with roots
-      2. Runs photosynthesis at peak-hour conditions
-      3. Scales per-segment An to match diurnal-integrated daily total
-      4. Solves carbon partitioning (phloem or DVS)
-      5. Exports AgroC coupling timestep
+      1. Grows each of 9 plants (seeds 42-50) with roots
+      2. Runs photosynthesis at peak-hour conditions per plant
+      3. Scales per-segment An to match diurnal-integrated daily total per plant
+      4. Solves carbon partitioning per plant (phloem or DVS)
+      5. Averages to field-mean AgroC coupling timestep
 
     Args:
         sim_day: simulation day (days since sowing).
+        use_dart: If True, run DART RT + Baleno EB. If False, uniform baseline.
         timestep_min: diurnal timestep [min].
-        enable_baleno: run Baleno energy balance.
+        enable_baleno: run Baleno energy balance (only when use_dart=True).
         met_csv: optional met forcing CSV.
         skip_photosynthesis: skip photosynthesis (aPAR only).
-        iterate_gs: iterative Tuzet-Baleno coupling.
+        iterate_gs: iterative Tuzet-Baleno coupling (only when use_dart=True).
         gs_max_iterations, gs_tolerance, gs_damping_alpha: gs params.
         carbon_method: 'auto', 'phloem', or 'dvs'.
+        warm_start: dict {plant_idx: {'C_ST_mean', ...}} or old-format dict.
         gdd_accumulated: Accumulated GDD from sowing (°C·day). If provided,
             DVS is computed from thermal time instead of calendar days.
 
     Returns:
         dict with all run_single_day keys plus 'daily_carbon' and 'daily_agroc_ts'.
     """
+    subdir = 'diurnal' if use_dart else 'diurnal_uniform'
+
     # 1. Run diurnal photosynthesis loop
     result = run_single_day(
-        sim_day, timestep_min=timestep_min,
+        sim_day, use_dart=use_dart, timestep_min=timestep_min,
         enable_baleno=enable_baleno, met_csv=met_csv,
         skip_photosynthesis=skip_photosynthesis,
         iterate_gs=iterate_gs,
@@ -713,70 +914,26 @@ def run_single_day_with_carbon(sim_day, timestep_min=30, enable_baleno=True,
         gs_damping_alpha=gs_damping_alpha,
     )
 
-    daily_An_mol = result.get('daily_An_mol_field_mean', 0.0)
-    daily_An_mmol = daily_An_mol * 1000.0
+    daily_An_per_plant = result.get('daily_An_mol_per_plant', [])
+    all_zero = all(an <= 0 for an in daily_An_per_plant) if daily_An_per_plant else True
 
-    if daily_An_mmol <= 0 or skip_photosynthesis:
+    if all_zero or skip_photosynthesis:
         result['daily_carbon'] = None
         result['daily_agroc_ts'] = None
         return result
 
-    # 2. Grow center plant with roots for carbon partitioning
-    from ..growth.grow import grow_plant, run_photosynthesis, extract_lai_profile
-    from ..carbon import solve_carbon_partitioning
-    from ..agroc import export_agroc_timestep
-
-    center_seed = FIELD_SEED + CENTER_PLANT_IDX
-    plant = grow_plant(XML_PATH, simulation_time=sim_day,
-                       min_stem_nodes=50, min_leaf_nodes=20,
-                       seed=center_seed, enable_photosynthesis=True)
-
-    # 3. Run photosynthesis at peak conditions to get per-segment An shape
-    day_dir = OUTPUT_DIR / 'diurnal' / f'day{sim_day}'
+    # 2. Per-plant carbon partitioning
+    day_dir = OUTPUT_DIR / subdir / f'day{sim_day}'
     day_dir.mkdir(parents=True, exist_ok=True)
-    prefix = str(day_dir / f'carbon_photo_day{sim_day}')
-    hm = run_photosynthesis(plant, sim_time=sim_day, output_prefix=prefix,
-                            par_umol=1000.0, tair_c=25.0)
 
-    if hm is None:
-        result['daily_carbon'] = None
-        result['daily_agroc_ts'] = None
-        return result
+    carbon_result = _run_per_plant_carbon(
+        daily_An_per_plant, sim_day, day_dir,
+        carbon_method=carbon_method, warm_start=warm_start,
+        gdd_accumulated=gdd_accumulated,
+    )
 
-    # 4. Scale per-segment An to match diurnal-integrated daily total
-    An_leaf = np.array(hm.get_net_assimilation())  # mol CO2/d per seg
-    An_peak_total = float(np.sum(An_leaf))
-    if An_peak_total > 0:
-        scale = (daily_An_mol) / An_peak_total
-        An_leaf_scaled = An_leaf * scale
-    else:
-        An_leaf_scaled = An_leaf
-
-    # 5. Carbon partitioning
-    try:
-        carbon = solve_carbon_partitioning(
-            plant, An_leaf_scaled, Tair_C=25.0,
-            method=carbon_method, day=sim_day,
-            gdd_accumulated=gdd_accumulated,
-        )
-    except Exception as e:
-        print(f"  Carbon partitioning error: {e}")
-        carbon = None
-
-    # 6. LAI + AgroC export
-    lai = extract_lai_profile(plant, n_bins=10)
-    agroc_ts = None
-    if carbon is not None:
-        try:
-            agroc_ts = export_agroc_timestep(
-                plant, hm, carbon, lai,
-                day=sim_day, par_umol=1000.0, tair_c=25.0,
-            )
-        except Exception as e:
-            print(f"  AgroC export error: {e}")
-
-    result['daily_carbon'] = carbon
-    result['daily_agroc_ts'] = agroc_ts
+    result['daily_carbon'] = carbon_result
+    result['daily_agroc_ts'] = carbon_result['field_mean_agroc']  # backward compat
     return result
 
 
@@ -950,80 +1107,17 @@ def _plot_diurnal_curve(day_dir, hourly_results, sim_day, calendar_date,
     print(f"  Plot: {plot_path}")
 
 
-# ============================================================================
-# Growth series (Mode B)
-# ============================================================================
-def run_growth_series(growth_days, timestep_min=30, enable_baleno=True):
-    """Run Mode A at multiple growth stages.
+def run_production_series(growth_days, use_dart=True, timestep_min=60,
+                          enable_baleno=True, iterate_gs=True,
+                          gs_max_iterations=6, gs_tolerance=0.05,
+                          gs_damping_alpha=0.6, carbon_method='auto',
+                          run_agroc_fortran=False, resume=False):
+    """Run full production diurnal campaign with carbon + AgroC.
 
-    Args:
-        growth_days: List of simulation days.
-        timestep_min: Timestep in minutes.
-        enable_baleno: Whether to run Baleno.
+    Calls run_single_day_with_carbon() per day, supports checkpointing/resume
+    for multi-day runs, and optionally runs AgroC Fortran after all days.
 
-    Returns:
-        dict mapping day -> daily result.
-    """
-    print(f"\n{'=' * 70}")
-    print(f"GROWTH SERIES: {growth_days}")
-    print(f"{'=' * 70}")
-
-    series_results = {}
-    for day in growth_days:
-        result = run_single_day(
-            day, timestep_min=timestep_min,
-            enable_baleno=enable_baleno,
-        )
-        series_results[day] = result
-
-    # --- Save series summary ---
-    series_dir = OUTPUT_DIR / 'diurnal' / 'growth_series'
-    series_dir.mkdir(parents=True, exist_ok=True)
-
-    summary = {
-        'growth_days': growth_days,
-        'timestep_min': timestep_min,
-        'n_plants': N_PLANTS,
-        'daily_An_mol_field_mean': {
-            str(d): r['daily_An_mol_field_mean']
-            for d, r in series_results.items()
-        },
-        'daily_An_mol_field_std': {
-            str(d): r['daily_An_mol_field_std']
-            for d, r in series_results.items()
-        },
-    }
-    json_path = series_dir / 'growth_series_results.json'
-    with open(json_path, 'w') as f:
-        json.dump(summary, f, indent=2)
-
-    # --- Growth series plot ---
-    try:
-        _plot_growth_series(series_dir, growth_days, series_results)
-    except Exception as e:
-        print(f"  WARNING: Growth series plot failed: {e}")
-
-    print(f"\n{'=' * 70}")
-    print(f"GROWTH SERIES COMPLETE")
-    for d in growth_days:
-        An_mean = series_results[d]['daily_An_mol_field_mean']
-        An_std = series_results[d]['daily_An_mol_field_std']
-        print(f"  Day {d:>3}: {An_mean:.6f} +/- {An_std:.6f} mol CO2/plant/day")
-    print(f"{'=' * 70}")
-
-    return series_results
-
-
-def run_production_series(growth_days, timestep_min=60, enable_baleno=True,
-                          iterate_gs=True, gs_max_iterations=6,
-                          gs_tolerance=0.05, gs_damping_alpha=0.6,
-                          carbon_method='auto', run_agroc_fortran=False,
-                          resume=False):
-    """Run full production diurnal campaign: DART + Baleno + gs + carbon + AgroC.
-
-    Like run_growth_series() but calls run_single_day_with_carbon() per day,
-    supports checkpointing/resume for multi-day runs, and optionally runs
-    AgroC Fortran after all days complete.
+    When use_dart=False, runs uniform baseline (clearsky PAR + Tleaf=Tair).
 
     GDD is accumulated across the growth series using daily mean temperatures
     from the met forcing profile, providing proper thermal-time-based DVS
@@ -1031,9 +1125,12 @@ def run_production_series(growth_days, timestep_min=60, enable_baleno=True,
 
     Args:
         growth_days: List of simulation days.
+        use_dart: If True, DART RT + Baleno. If False, uniform baseline.
         timestep_min: Timestep in minutes.
-        enable_baleno: Run Baleno energy balance per timestep.
-        iterate_gs: Use iterative Tuzet-Baleno gs coupling.
+        enable_baleno: Run Baleno energy balance per timestep
+            (only when use_dart=True).
+        iterate_gs: Use iterative Tuzet-Baleno gs coupling
+            (only when use_dart=True).
         gs_max_iterations: Max iterations for gs convergence.
         gs_tolerance: Relative convergence threshold.
         gs_damping_alpha: Under-relaxation factor for gs.
@@ -1046,14 +1143,22 @@ def run_production_series(growth_days, timestep_min=60, enable_baleno=True,
     """
     from ..carbon.dvs_partitioning import gdd_at_day, dvs_from_gdd, _dvs_from_day
 
+    mode_label = "" if use_dart else " (UNIFORM BASELINE)"
+    subdir = 'diurnal' if use_dart else 'diurnal_uniform'
+
+    # Force off DART-only features in uniform mode
+    if not use_dart:
+        enable_baleno = False
+        iterate_gs = False
+
     print(f"\n{'=' * 70}")
-    print(f"PRODUCTION SERIES: {growth_days}")
+    print(f"PRODUCTION SERIES{mode_label}: {growth_days}")
     print(f"  Carbon: {carbon_method}, AgroC Fortran: {run_agroc_fortran}, "
           f"Resume: {resume}")
     print(f"{'=' * 70}")
 
     # --- Checkpoint logic ---
-    checkpoint_dir = OUTPUT_DIR / 'diurnal'
+    checkpoint_dir = OUTPUT_DIR / subdir
     checkpoint_dir.mkdir(parents=True, exist_ok=True)
     checkpoint_path = checkpoint_dir / 'production_checkpoint.json'
 
@@ -1091,15 +1196,20 @@ def run_production_series(growth_days, timestep_min=60, enable_baleno=True,
         prev_days = [d for d in completed_days if d < day]
         if prev_days:
             prev_summary = daily_summaries.get(str(prev_days[-1]), {})
-            if prev_summary.get('C_ST_mean') is not None:
-                ws = {
+            per_plant_cst = prev_summary.get('per_plant_C_ST')
+            if per_plant_cst and len(per_plant_cst) == N_PLANTS:
+                ws = {i: per_plant_cst[i] for i in range(N_PLANTS)
+                      if per_plant_cst[i] is not None}
+            elif prev_summary.get('C_ST_mean') is not None:
+                old_ws = {
                     'C_ST_mean': prev_summary['C_ST_mean'],
                     'C_ST_min': prev_summary['C_ST_min'],
                     'C_ST_max': prev_summary['C_ST_max'],
                 }
+                ws = {i: old_ws for i in range(N_PLANTS)}
 
         result = run_single_day_with_carbon(
-            day, timestep_min=timestep_min,
+            day, use_dart=use_dart, timestep_min=timestep_min,
             enable_baleno=enable_baleno,
             iterate_gs=iterate_gs,
             gs_max_iterations=gs_max_iterations,
@@ -1115,15 +1225,19 @@ def run_production_series(growth_days, timestep_min=60, enable_baleno=True,
         if result.get('daily_agroc_ts') is not None:
             all_agroc_timesteps.append(result['daily_agroc_ts'])
 
-        # Save checkpoint after each day (include C_ST stats for warm-start)
+        # Save checkpoint after each day (include per-plant C_ST for warm-start)
         completed_days.append(day)
         carbon_result = result.get('daily_carbon') or {}
+        per_plant_ws = carbon_result.get('per_plant_warm_starts', [])
+        field_mean = carbon_result.get('field_mean_carbon', {})
         daily_summaries[str(day)] = {
             'An_field_mean': result.get('daily_An_mol_field_mean', 0.0),
-            'carbon_source': carbon_result.get('partitioning_source', 'none'),
-            'C_ST_mean': carbon_result.get('C_ST_mean'),
-            'C_ST_min': carbon_result.get('C_ST_min'),
-            'C_ST_max': carbon_result.get('C_ST_max'),
+            'An_per_plant': result.get('daily_An_mol_per_plant', []),
+            'carbon_source': field_mean.get('partitioning_source', 'none'),
+            'C_ST_mean': field_mean.get('C_ST_mean'),
+            'C_ST_min': field_mean.get('C_ST_min'),
+            'C_ST_max': field_mean.get('C_ST_max'),
+            'per_plant_C_ST': per_plant_ws,
             'gdd_accumulated': gdd_accumulated,
         }
         ckpt_data = {
@@ -1132,6 +1246,8 @@ def run_production_series(growth_days, timestep_min=60, enable_baleno=True,
             'timestep_min': timestep_min,
             'daily_summaries': daily_summaries,
         }
+        if not use_dart:
+            ckpt_data['mode'] = 'uniform_baseline'
         with open(checkpoint_path, 'w') as f:
             json.dump(ckpt_data, f, indent=2)
         print(f"  Checkpoint saved: {len(completed_days)}/{len(growth_days)} days")
@@ -1139,7 +1255,7 @@ def run_production_series(growth_days, timestep_min=60, enable_baleno=True,
     # --- Write combined coupling CSV ---
     if all_agroc_timesteps:
         from ..agroc import export_coupling_csv
-        series_dir = OUTPUT_DIR / 'diurnal' / 'production'
+        series_dir = OUTPUT_DIR / subdir / 'production'
         series_dir.mkdir(parents=True, exist_ok=True)
         csv_path = series_dir / 'coupling.csv'
         n_layers = all_agroc_timesteps[0].get('n_layers', 20)
@@ -1167,7 +1283,7 @@ def run_production_series(growth_days, timestep_min=60, enable_baleno=True,
                 print(f"  AgroC error: {e}")
 
     # --- Save production summary ---
-    series_dir = OUTPUT_DIR / 'diurnal' / 'production'
+    series_dir = OUTPUT_DIR / subdir / 'production'
     series_dir.mkdir(parents=True, exist_ok=True)
 
     summary = {
@@ -1180,13 +1296,14 @@ def run_production_series(growth_days, timestep_min=60, enable_baleno=True,
         'daily_summaries': daily_summaries,
         'n_agroc_timesteps': len(all_agroc_timesteps),
     }
+    if not use_dart:
+        summary['mode'] = 'uniform_baseline'
     json_path = series_dir / 'production_summary.json'
     with open(json_path, 'w') as f:
         json.dump(summary, f, indent=2)
     print(f"  Summary: {json_path}")
 
     # --- Growth series plot (reuse existing) ---
-    # Only plot days that were actually run this session
     if series_results:
         try:
             _plot_growth_series(series_dir, list(series_results.keys()),
@@ -1195,7 +1312,7 @@ def run_production_series(growth_days, timestep_min=60, enable_baleno=True,
             print(f"  WARNING: Growth series plot failed: {e}")
 
     print(f"\n{'=' * 70}")
-    print(f"PRODUCTION SERIES COMPLETE")
+    print(f"PRODUCTION SERIES COMPLETE{mode_label}")
     print(f"  Days completed: {len(completed_days)}/{len(growth_days)}")
     for d in growth_days:
         s = daily_summaries.get(str(d), {})
@@ -1237,491 +1354,6 @@ def _plot_growth_series(series_dir, growth_days, series_results):
 
 
 # ============================================================================
-# Uniform baseline (no DART, no Baleno)
-# ============================================================================
-def run_single_day_uniform(sim_day, timestep_min=30, met_csv=None):
-    """Run diurnal cycle with uniform clearsky PAR and Tleaf=Tair.
-
-    Baseline mode: no DART radiative transfer, no Baleno energy balance.
-    All leaf segments receive the same scalar clearsky PAR and Tair.
-    Everything else identical to run_single_day().
-    """
-    calendar_date = sim_day_to_date(sim_day, SOWING_DATE)
-    print(f"\n{'=' * 70}")
-    print(f"DIURNAL LOOP (UNIFORM BASELINE): Day {sim_day} ({calendar_date})")
-    print(f"  Timestep: {timestep_min} min, PAR: clearsky, Tleaf: Tair")
-    print(f"  Plants: {N_PLANTS} unique realizations "
-          f"(seeds {FIELD_SEED}-{FIELD_SEED + N_PLANTS - 1})")
-    print(f"{'=' * 70}")
-
-    # --- Solar positions ---
-    solar_df = get_solar_positions(
-        calendar_date, LAT, LON, freq=f'{timestep_min}min')
-    n_daylight = len(solar_df)
-    print(f"\n  Solar positions: {n_daylight} daylight timesteps")
-    if n_daylight == 0:
-        print("  ERROR: No daylight hours!")
-        return {'hourly': [], 'daily_An_mol_field_mean': 0.0,
-                'daily_An_mol_per_plant': [0.0] * N_PLANTS}
-
-    sunrise = solar_df.index[0]
-    sunset = solar_df.index[-1]
-    print(f"  Sunrise: {sunrise.strftime('%H:%M')} UTC, "
-          f"Sunset: {sunset.strftime('%H:%M')} UTC")
-
-    # --- Met forcing ---
-    if met_csv:
-        from ..utils.met_forcing import load_met_csv
-        met = load_met_csv(met_csv)
-    else:
-        met = diurnal_met_profile(calendar_date, LAT, LON,
-                                   freq=f'{timestep_min}min',
-                                   **_real_met_kwargs(sim_day))
-    print(f"  Met: T={met['T_air_C'].min():.1f}-{met['T_air_C'].max():.1f} C, "
-          f"RH={met['RH'].min():.0%}-{met['RH'].max():.0%}")
-
-    # --- Setup output directory ---
-    day_dir = OUTPUT_DIR / 'diurnal_uniform' / f'day{sim_day}'
-    day_dir.mkdir(parents=True, exist_ok=True)
-
-    # --- Grow 9 plants + export meshes (for segment count + comparison) ---
-    prospect_params = get_prospect_params(sim_day)
-    log_consistency(sim_day)
-    setup = setup_plants_and_meshes(sim_day, day_dir)
-
-    # --- Diurnal loop (no DART, no Baleno) ---
-    print(f"\n{'=' * 70}")
-    print(f"DIURNAL LOOP (UNIFORM): {n_daylight} timesteps x {N_PLANTS} plants")
-    print(f"{'=' * 70}")
-
-    hourly_results = []
-    for step_i, (ts_time, ts_row) in enumerate(solar_df.iterrows()):
-        sun_zen = ts_row['apparent_zenith']
-        sun_azi = ts_row['azimuth']
-        ts_label = ts_time.strftime('%H:%M')
-
-        print(f"\n  [{step_i+1}/{n_daylight}] {ts_label} UTC -- "
-              f"zen={sun_zen:.1f}, azi={sun_azi:.1f}")
-
-        t_step = time.time()
-
-        # --- Met conditions ---
-        if ts_time in met.index:
-            met_row = met.loc[ts_time]
-        else:
-            idx = met.index.get_indexer([ts_time], method='nearest')[0]
-            met_row = met.iloc[idx]
-
-        T_air_C = float(met_row['T_air_C'])
-        rh = float(met_row['RH'])
-        wind_ms = float(met_row['wind_ms'])
-
-        # --- Clearsky PAR as scalar for all segments ---
-        clearsky_par_wm2 = get_clearsky_par(ts_time, LAT, LON)
-        par_umol = clearsky_par_wm2 * 4.57  # W/m2 -> umol/m2/s
-
-        print(f"    Clearsky PAR: {clearsky_par_wm2:.1f} W/m2 = "
-              f"{par_umol:.1f} umol/m2/s, Tleaf=Tair={T_air_C:.1f}C")
-
-        # --- Per-plant photosynthesis (scalar PAR + Tair) ---
-        per_plant_An = [0.0] * N_PLANTS
-        for pi in range(N_PLANTS):
-            seed = FIELD_SEED + pi
-            plant_ts = grow_plant(
-                XML_PATH, simulation_time=sim_day,
-                enable_photosynthesis=True, seed=seed,
-            )
-            ps_result = run_photosynthesis_solve(
-                plant_ts, sim_day,
-                par=par_umol, tleaf=T_air_C,
-                label=f"uniform_ts_{ts_label}_p{pi}",
-                rh=rh, soil_psi_cm=-500.0,
-            )
-            if ps_result is not None:
-                per_plant_An[pi] = ps_result['An_total_mmol']
-
-        An_field_mean = float(np.mean(per_plant_An))
-        An_field_std = float(np.std(per_plant_An))
-        print(f"    An: field mean={An_field_mean:.3f} "
-              f"+/-{An_field_std:.3f} mmol CO2/d")
-
-        # --- Per-timestep DVS carbon tracking ---
-        dvs_carbon = None
-        if An_field_mean > 0:
-            try:
-                from ..carbon.dvs_partitioning import partition_carbon_dvs
-                dvs_carbon = partition_carbon_dvs(
-                    An_field_mean, sim_day, Tair_C=T_air_C)
-            except Exception as e:
-                print(f"    DVS carbon tracking error: {e}")
-
-        step_time = time.time() - t_step
-        print(f"    Step time: {step_time:.1f}s")
-
-        hourly_row = {
-            'time_utc': ts_label,
-            'zenith': float(sun_zen),
-            'azimuth': float(sun_azi),
-            'T_air_C': T_air_C,
-            'RH': rh,
-            'wind_ms': wind_ms,
-            'clearsky_par_Wm2': clearsky_par_wm2,
-            'mean_apar_umol': par_umol,   # uniform = clearsky
-            'dart_mean_apar': 'N/A',
-            'mean_tleaf_C': T_air_C,      # Tleaf = Tair
-            'baleno_ok': False,
-            'An_field_mean_mmol_d': An_field_mean,
-            'An_field_std_mmol_d': An_field_std,
-        }
-        if dvs_carbon is not None:
-            hourly_row['Rm_dvs_mmol'] = dvs_carbon['Rm_total_mmol']
-            hourly_row['Rg_dvs_mmol'] = dvs_carbon['Rg_total_mmol']
-            hourly_row['FR_leaf_dvs'] = dvs_carbon['FR_leaf']
-            hourly_row['FR_root_dvs'] = dvs_carbon['FR_root']
-        for pi in range(N_PLANTS):
-            hourly_row[f'An_p{pi}'] = per_plant_An[pi]
-        hourly_results.append(hourly_row)
-
-    # --- Integrate daily carbon (per-plant) ---
-    daily_An_per_plant = _integrate_daily_per_plant(
-        hourly_results, timestep_min)
-    daily_An_field_mean = float(np.mean(daily_An_per_plant))
-    daily_An_field_std = float(np.std(daily_An_per_plant))
-
-    # --- Save results ---
-    _save_diurnal_results(day_dir, sim_day, calendar_date, hourly_results,
-                           daily_An_per_plant, daily_An_field_mean,
-                           daily_An_field_std, timestep_min)
-
-    print(f"\n{'=' * 70}")
-    print(f"DAY {sim_day} COMPLETE (UNIFORM BASELINE)")
-    print(f"  Timesteps: {len(hourly_results)}")
-    print(f"  Daily An per plant: {[f'{a:.6f}' for a in daily_An_per_plant]}")
-    print(f"  Daily An field mean: {daily_An_field_mean:.6f} mol CO2/plant/day")
-    print(f"  Daily An field std:  {daily_An_field_std:.6f} mol CO2/plant/day")
-    if daily_An_field_mean > 0:
-        cv_pct = daily_An_field_std / daily_An_field_mean * 100
-        print(f"  Field CV: {cv_pct:.1f}%")
-    print(f"  Output: {day_dir}")
-    print(f"{'=' * 70}")
-
-    return {
-        'hourly': hourly_results,
-        'daily_An_mol_per_plant': daily_An_per_plant,
-        'daily_An_mol_field_mean': daily_An_field_mean,
-        'daily_An_mol_field_std': daily_An_field_std,
-        'daily_An_mol': daily_An_field_mean,
-    }
-
-
-def run_single_day_uniform_with_carbon(sim_day, timestep_min=30,
-                                        met_csv=None, carbon_method='auto',
-                                        warm_start=None,
-                                        gdd_accumulated=None):
-    """Run uniform diurnal loop + daily carbon partitioning and AgroC export.
-
-    Wraps run_single_day_uniform() the same way run_single_day_with_carbon()
-    wraps run_single_day(). Identical carbon partitioning + AgroC export.
-    """
-    # 1. Run uniform diurnal photosynthesis loop
-    result = run_single_day_uniform(
-        sim_day, timestep_min=timestep_min, met_csv=met_csv,
-    )
-
-    daily_An_mol = result.get('daily_An_mol_field_mean', 0.0)
-    daily_An_mmol = daily_An_mol * 1000.0
-
-    if daily_An_mmol <= 0:
-        result['daily_carbon'] = None
-        result['daily_agroc_ts'] = None
-        return result
-
-    # 2. Grow center plant with roots for carbon partitioning
-    from ..growth.grow import run_photosynthesis, extract_lai_profile
-    from ..carbon import solve_carbon_partitioning
-    from ..agroc import export_agroc_timestep
-
-    center_seed = FIELD_SEED + CENTER_PLANT_IDX
-    plant = grow_plant(XML_PATH, simulation_time=sim_day,
-                       min_stem_nodes=50, min_leaf_nodes=20,
-                       seed=center_seed, enable_photosynthesis=True)
-
-    # 3. Run photosynthesis at peak conditions to get per-segment An shape
-    day_dir = OUTPUT_DIR / 'diurnal_uniform' / f'day{sim_day}'
-    day_dir.mkdir(parents=True, exist_ok=True)
-    prefix = str(day_dir / f'carbon_photo_day{sim_day}')
-    hm = run_photosynthesis(plant, sim_time=sim_day, output_prefix=prefix,
-                            par_umol=1000.0, tair_c=25.0)
-
-    if hm is None:
-        result['daily_carbon'] = None
-        result['daily_agroc_ts'] = None
-        return result
-
-    # 4. Scale per-segment An to match diurnal-integrated daily total
-    An_leaf = np.array(hm.get_net_assimilation())
-    An_peak_total = float(np.sum(An_leaf))
-    if An_peak_total > 0:
-        scale = daily_An_mol / An_peak_total
-        An_leaf_scaled = An_leaf * scale
-    else:
-        An_leaf_scaled = An_leaf
-
-    # 5. Carbon partitioning
-    try:
-        carbon = solve_carbon_partitioning(
-            plant, An_leaf_scaled, Tair_C=25.0,
-            method=carbon_method, day=sim_day,
-            warm_start=warm_start,
-            gdd_accumulated=gdd_accumulated,
-        )
-    except Exception as e:
-        print(f"  Carbon partitioning error: {e}")
-        carbon = None
-
-    # 6. LAI + AgroC export
-    lai = extract_lai_profile(plant, n_bins=10)
-    agroc_ts = None
-    if carbon is not None:
-        try:
-            agroc_ts = export_agroc_timestep(
-                plant, hm, carbon, lai,
-                day=sim_day, par_umol=1000.0, tair_c=25.0,
-            )
-        except Exception as e:
-            print(f"  AgroC export error: {e}")
-
-    result['daily_carbon'] = carbon
-    result['daily_agroc_ts'] = agroc_ts
-    return result
-
-
-def run_growth_series_uniform(growth_days, timestep_min=30):
-    """Run uniform baseline at multiple growth stages (no carbon).
-
-    Same as run_growth_series() but with uniform clearsky PAR + Tleaf=Tair.
-    """
-    print(f"\n{'=' * 70}")
-    print(f"GROWTH SERIES (UNIFORM BASELINE): {growth_days}")
-    print(f"{'=' * 70}")
-
-    series_results = {}
-    for day in growth_days:
-        result = run_single_day_uniform(day, timestep_min=timestep_min)
-        series_results[day] = result
-
-    # --- Save series summary ---
-    series_dir = OUTPUT_DIR / 'diurnal_uniform' / 'growth_series'
-    series_dir.mkdir(parents=True, exist_ok=True)
-
-    summary = {
-        'growth_days': growth_days,
-        'timestep_min': timestep_min,
-        'n_plants': N_PLANTS,
-        'mode': 'uniform_baseline',
-        'daily_An_mol_field_mean': {
-            str(d): r['daily_An_mol_field_mean']
-            for d, r in series_results.items()
-        },
-        'daily_An_mol_field_std': {
-            str(d): r['daily_An_mol_field_std']
-            for d, r in series_results.items()
-        },
-    }
-    json_path = series_dir / 'growth_series_results.json'
-    with open(json_path, 'w') as f:
-        json.dump(summary, f, indent=2)
-
-    try:
-        _plot_growth_series(series_dir, growth_days, series_results)
-    except Exception as e:
-        print(f"  WARNING: Growth series plot failed: {e}")
-
-    print(f"\n{'=' * 70}")
-    print(f"GROWTH SERIES COMPLETE (UNIFORM BASELINE)")
-    for d in growth_days:
-        An_mean = series_results[d]['daily_An_mol_field_mean']
-        An_std = series_results[d]['daily_An_mol_field_std']
-        print(f"  Day {d:>3}: {An_mean:.6f} +/- {An_std:.6f} mol CO2/plant/day")
-    print(f"{'=' * 70}")
-
-    return series_results
-
-
-def run_production_series_uniform(growth_days, timestep_min=60,
-                                   carbon_method='auto',
-                                   run_agroc_fortran=False, resume=False):
-    """Run uniform baseline production campaign with carbon + AgroC.
-
-    Same as run_production_series() but using uniform clearsky PAR + Tleaf=Tair.
-    No DART, no Baleno, no iterative gs. Output to diurnal_uniform/.
-
-    GDD is accumulated across the growth series using daily mean temperatures
-    from the met forcing profile.
-    """
-    from ..carbon.dvs_partitioning import gdd_at_day, dvs_from_gdd, _dvs_from_day
-
-    print(f"\n{'=' * 70}")
-    print(f"PRODUCTION SERIES (UNIFORM BASELINE): {growth_days}")
-    print(f"  Carbon: {carbon_method}, AgroC Fortran: {run_agroc_fortran}, "
-          f"Resume: {resume}")
-    print(f"{'=' * 70}")
-
-    # --- Checkpoint logic ---
-    checkpoint_dir = OUTPUT_DIR / 'diurnal_uniform'
-    checkpoint_dir.mkdir(parents=True, exist_ok=True)
-    checkpoint_path = checkpoint_dir / 'production_checkpoint.json'
-
-    completed_days = []
-    daily_summaries = {}
-    if resume and checkpoint_path.exists():
-        with open(checkpoint_path) as f:
-            ckpt = json.load(f)
-        completed_days = ckpt.get('completed_days', [])
-        daily_summaries = ckpt.get('daily_summaries', {})
-        print(f"  Resumed from checkpoint: {len(completed_days)} days completed "
-              f"({completed_days})")
-
-    # --- Run each day ---
-    series_results = {}
-    all_agroc_timesteps = []
-
-    for day in growth_days:
-        if day in completed_days:
-            print(f"\n  [SKIP] Day {day} already completed (checkpoint)")
-            continue
-
-        # Compute GDD from real daily met data
-        gdd_accumulated = gdd_at_day(day)
-        if gdd_accumulated is not None:
-            dvs_gdd = dvs_from_gdd(gdd_accumulated)
-            dvs_cal = _dvs_from_day(day)
-            print(f"\n  GDD={gdd_accumulated:.1f} -> DVS={dvs_gdd:.3f} "
-                  f"(calendar-day DVS would be {dvs_cal:.3f})")
-        else:
-            print(f"\n  No daily met data -> using calendar-day DVS")
-
-        # Extract warm-start from previous day's checkpoint
-        ws = None
-        prev_days = [d for d in completed_days if d < day]
-        if prev_days:
-            prev_summary = daily_summaries.get(str(prev_days[-1]), {})
-            if prev_summary.get('C_ST_mean') is not None:
-                ws = {
-                    'C_ST_mean': prev_summary['C_ST_mean'],
-                    'C_ST_min': prev_summary['C_ST_min'],
-                    'C_ST_max': prev_summary['C_ST_max'],
-                }
-
-        result = run_single_day_uniform_with_carbon(
-            day, timestep_min=timestep_min,
-            carbon_method=carbon_method,
-            warm_start=ws,
-            gdd_accumulated=gdd_accumulated,
-        )
-        series_results[day] = result
-
-        # Collect AgroC timestep
-        if result.get('daily_agroc_ts') is not None:
-            all_agroc_timesteps.append(result['daily_agroc_ts'])
-
-        # Save checkpoint after each day (include C_ST stats for warm-start)
-        completed_days.append(day)
-        carbon_result = result.get('daily_carbon') or {}
-        daily_summaries[str(day)] = {
-            'An_field_mean': result.get('daily_An_mol_field_mean', 0.0),
-            'carbon_source': carbon_result.get('partitioning_source', 'none'),
-            'C_ST_mean': carbon_result.get('C_ST_mean'),
-            'C_ST_min': carbon_result.get('C_ST_min'),
-            'C_ST_max': carbon_result.get('C_ST_max'),
-            'gdd_accumulated': gdd_accumulated,
-        }
-        ckpt_data = {
-            'completed_days': completed_days,
-            'growth_days': growth_days,
-            'timestep_min': timestep_min,
-            'mode': 'uniform_baseline',
-            'daily_summaries': daily_summaries,
-        }
-        with open(checkpoint_path, 'w') as f:
-            json.dump(ckpt_data, f, indent=2)
-        print(f"  Checkpoint saved: {len(completed_days)}/{len(growth_days)} days")
-
-    # --- Write combined coupling CSV ---
-    if all_agroc_timesteps:
-        from ..agroc import export_coupling_csv
-        series_dir = OUTPUT_DIR / 'diurnal_uniform' / 'production'
-        series_dir.mkdir(parents=True, exist_ok=True)
-        csv_path = series_dir / 'coupling.csv'
-        n_layers = all_agroc_timesteps[0].get('n_layers', 20)
-        export_coupling_csv(all_agroc_timesteps, csv_path, n_layers)
-        print(f"\n  Combined coupling CSV: {csv_path}")
-
-        # --- Optional AgroC Fortran run ---
-        if run_agroc_fortran:
-            try:
-                from ..agroc.run import (
-                    get_agroc_src, prepare_agroc_workdir, run_agroc,
-                    validate_agroc_outputs,
-                )
-                agroc_src = get_agroc_src()
-                agroc_out = series_dir / 'agroc_run'
-                agroc_out.mkdir(parents=True, exist_ok=True)
-                workdir = prepare_agroc_workdir(agroc_src, agroc_out, csv_path)
-                proc = run_agroc(workdir, timeout=600)
-                if proc.returncode == 0:
-                    validation = validate_agroc_outputs(workdir, csv_path)
-                    print(f"  AgroC: "
-                          f"{'PASSED' if validation['passed'] else 'WARNINGS'}")
-                else:
-                    print(f"  AgroC FAILED (exit code {proc.returncode})")
-            except Exception as e:
-                print(f"  AgroC error: {e}")
-
-    # --- Save production summary ---
-    series_dir = OUTPUT_DIR / 'diurnal_uniform' / 'production'
-    series_dir.mkdir(parents=True, exist_ok=True)
-
-    summary = {
-        'growth_days': growth_days,
-        'timestep_min': timestep_min,
-        'n_plants': N_PLANTS,
-        'carbon_method': carbon_method,
-        'mode': 'uniform_baseline',
-        'iterate_gs': False,
-        'enable_baleno': False,
-        'daily_summaries': daily_summaries,
-        'n_agroc_timesteps': len(all_agroc_timesteps),
-    }
-    json_path = series_dir / 'production_summary.json'
-    with open(json_path, 'w') as f:
-        json.dump(summary, f, indent=2)
-    print(f"  Summary: {json_path}")
-
-    # --- Growth series plot ---
-    if series_results:
-        try:
-            _plot_growth_series(series_dir, list(series_results.keys()),
-                                series_results)
-        except Exception as e:
-            print(f"  WARNING: Growth series plot failed: {e}")
-
-    print(f"\n{'=' * 70}")
-    print(f"PRODUCTION SERIES COMPLETE (UNIFORM BASELINE)")
-    print(f"  Days completed: {len(completed_days)}/{len(growth_days)}")
-    for d in growth_days:
-        s = daily_summaries.get(str(d), {})
-        An = s.get('An_field_mean', 0.0)
-        src = s.get('carbon_source', 'N/A')
-        print(f"  Day {d:>3}: An={An:.6f} mol/plant/day  [{src}]")
-    if all_agroc_timesteps:
-        print(f"  AgroC timesteps: {len(all_agroc_timesteps)}")
-    print(f"{'=' * 70}")
-
-    return series_results
-
-
-# ============================================================================
 # Carbon-feedback growth mode
 # ============================================================================
 def compute_daily_an_uniform(plant, sim_day, tair_c=25.0):
@@ -1738,7 +1370,7 @@ def compute_daily_an_uniform(plant, sim_day, tair_c=25.0):
     Returns:
         An_leaf: np.array, mol CO2/d per leaf segment (daily integrated).
     """
-    from ..growth.grow import run_photosynthesis
+    from ..growth import run_photosynthesis
 
     calendar_date = sim_day_to_date(sim_day, SOWING_DATE)
 
@@ -1815,7 +1447,7 @@ def run_production_series_carbon(growth_days, timestep_min=60,
     Returns:
         dict mapping day -> daily result.
     """
-    from ..growth.grow import init_plant, run_photosynthesis, extract_lai_profile
+    from ..growth import init_plant, run_photosynthesis, extract_lai_profile
     from ..growth.carbon_growth import (
         enable_cw_limited_growth, step_plant_carbon,
     )
@@ -2566,30 +2198,28 @@ Examples:
     if args.uniform:
         # Uniform baseline: skip DART/Baleno, use clearsky PAR + Tair
         if args.days is not None:
-            result = run_single_day_uniform(
-                args.days,
+            result = run_single_day(
+                args.days, use_dart=False,
                 timestep_min=args.timestep_min,
                 met_csv=args.met_csv,
             )
         else:
             growth_days = [int(d.strip()) for d in args.growth_days.split(',')]
             if args.with_carbon:
-                result = run_production_series_uniform(
-                    growth_days,
+                result = run_production_series(
+                    growth_days, use_dart=False,
                     timestep_min=args.timestep_min,
                     carbon_method=args.carbon_method,
                     run_agroc_fortran=args.with_agroc,
                     resume=args.resume,
                 )
             else:
-                result = run_growth_series_uniform(
-                    growth_days,
-                    timestep_min=args.timestep_min,
-                )
+                raise ValueError(
+                    "Use --with-carbon for multi-day uniform series")
     elif args.days is not None:
         # Mode A: single day
         result = run_single_day(
-            args.days,
+            args.days, use_dart=True,
             timestep_min=args.timestep_min,
             enable_baleno=enable_baleno,
             met_csv=args.met_csv,
@@ -2619,7 +2249,7 @@ Examples:
         elif args.with_carbon:
             # Production mode: full carbon + AgroC pipeline (parametric growth)
             result = run_production_series(
-                growth_days,
+                growth_days, use_dart=True,
                 timestep_min=args.timestep_min,
                 enable_baleno=enable_baleno,
                 iterate_gs=args.iterate_gs,
@@ -2631,11 +2261,8 @@ Examples:
                 resume=args.resume,
             )
         else:
-            result = run_growth_series(
-                growth_days,
-                timestep_min=args.timestep_min,
-                enable_baleno=enable_baleno,
-            )
+            raise ValueError(
+                "Use --with-carbon for multi-day growth series")
 
 
 if __name__ == '__main__':

@@ -33,7 +33,7 @@ import plantbox as pb
 from dart.coupling.config import (
     DEFAULT_XML, get_hydraulics_json, get_photosynthesis_json, get_phloem_json,
 )
-from dart.coupling.growth.grow import grow_plant
+from dart.coupling.growth import grow_plant
 
 # ---------------------------------------------------------------------------
 # Reference values from Session 1 (which used PhotosynthesisPython)
@@ -289,7 +289,7 @@ def test_pipeline_import():
         ("growth.grow", "dart.coupling.growth.grow"),
         ("photosynthesis.coupled", "dart.coupling.photosynthesis.coupled"),
         ("photosynthesis.iterative", "dart.coupling.photosynthesis.iterative"),
-        ("dart.multifield", "dart.coupling.dart.multifield"),
+        ("dart.parsers", "dart.coupling.dart.parsers"),
         ("validation.validate", "dart.coupling.validation.validate"),
     ]
 

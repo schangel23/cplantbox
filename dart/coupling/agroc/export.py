@@ -307,3 +307,186 @@ def export_coupling_csv(timestep_list, output_path, n_layers):
     print(f"  Metadata JSON: {meta_path}")
 
     return output_path
+
+
+# ---------------------------------------------------------------------------
+# Multi-plant averaging
+# ---------------------------------------------------------------------------
+
+def average_agroc_timesteps(timesteps):
+    """Average multiple per-plant AgroC timesteps into a field-mean timestep.
+
+    Args:
+        timesteps: list of dicts from ``export_agroc_timestep()`` (may contain None).
+
+    Returns:
+        dict (same structure as a single timestep), or None if no valid entries.
+    """
+    valid = [ts for ts in timesteps if ts is not None]
+    if not valid:
+        return None
+
+    n = len(valid)
+    ts0 = valid[0]
+
+    # Average scalars
+    avg = {}
+    for key in ('LAI', 'An_total_mmol',
+                'GPP_mol_co2_per_cm2_d', 'aboveground_resp_mol_co2_per_cm2_d'):
+        avg[key] = sum(ts[key] for ts in valid) / n
+
+    # Average array profiles element-wise
+    for key in ('root_resp_mol_co2_per_cm3_d', 'root_exud_kg_c_per_cm3_d',
+                'root_dead_kg_c_per_cm3_d', 'root_wuptake_cm3_per_cm3_d', 'rrd'):
+        stacked = np.array([ts[key] for ts in valid])
+        avg[key] = stacked.mean(axis=0)
+
+    # Copy metadata from first valid timestep
+    for key in ('day', 'par_umol', 'tair_c', 'n_layers', 'depth_cm',
+                'row_spacing_cm', 'plant_spacing_cm'):
+        avg[key] = ts0[key]
+
+    # Conservation + source: take from first
+    avg['conservation'] = ts0.get('conservation', [])
+    avg['partitioning_source'] = ts0.get('partitioning_source', 'none')
+
+    return avg
+
+
+# ---------------------------------------------------------------------------
+# CLI entry point (called from __main__.py)
+# ---------------------------------------------------------------------------
+
+def main_export(args):
+    """CLI handler for the ``agroc-export`` subcommand."""
+    import numpy as np
+    from ..growth import (
+        grow_plant, run_photosynthesis,
+        extract_lai_profile, extract_rld_profile, export_rrd_in,
+    )
+    from ..carbon import solve_carbon_partitioning
+    from ..config import DEFAULT_XML, OUTPUT_DIR, get_species_name
+
+    agroc_out = OUTPUT_DIR / "agroc_export"
+    agroc_out.mkdir(parents=True, exist_ok=True)
+    species = get_species_name()
+
+    grid_kw = dict(
+        n_layers=args.layers, depth_cm=args.depth,
+        row_spacing_cm=args.row_spacing,
+        plant_spacing_cm=args.plant_spacing,
+    )
+
+    def _run_agroc_day(day, par, tair, method, out_dir):
+        """Run full pipeline for one day, return timestep dict."""
+        print(f"\n{'='*60}")
+        print(f"AGROC EXPORT — {species} Day {day}")
+        print(f"{'='*60}")
+
+        # 1. Grow plant
+        plant = grow_plant(
+            xml_path=str(DEFAULT_XML),
+            simulation_time=day,
+            enable_photosynthesis=True,
+            seed=42,
+        )
+
+        # 2. LAI extraction
+        lai = extract_lai_profile(
+            plant, n_bins=10,
+            row_spacing_cm=args.row_spacing,
+            plant_spacing_cm=args.plant_spacing,
+        )
+        print(f"  LAI: {lai['LAI']:.2f}")
+
+        # 3. Photosynthesis
+        prefix = str(out_dir / f"{species}_day{day}_photo")
+        hm = run_photosynthesis(
+            plant, sim_time=day, output_prefix=prefix,
+            par_umol=par, tair_c=tair,
+        )
+        if hm is None:
+            print(f"  WARNING: Photosynthesis failed, using zeros")
+
+        # 4. Carbon partitioning
+        carbon_result = None
+        if hm is not None:
+            An_leaf = np.array(hm.get_net_assimilation())
+            try:
+                carbon_result = solve_carbon_partitioning(
+                    plant, An_leaf, Tair_C=tair,
+                    method=method, day=day,
+                )
+            except Exception as e:
+                print(f"  WARNING: Carbon partitioning failed: {e}")
+
+        # 5. RLD + rrd.in export
+        rld = extract_rld_profile(plant, **grid_kw)
+        export_rrd_in(rld, out_dir / f"{species}_day{day}_rrd.in")
+
+        # 6. AgroC timestep
+        ts = export_agroc_timestep(
+            plant, hm, carbon_result, lai,
+            day=day, par_umol=par, tair_c=tair,
+            **grid_kw,
+        )
+
+        # Print conservation report
+        print(f"\n  Conservation checks:")
+        for line in ts["conservation"]:
+            print(line)
+        if not ts["conservation"]:
+            print("    (no non-zero fluxes to check)")
+
+        # Print summary
+        print(f"\n  GPP          : {ts['GPP_mol_co2_per_cm2_d']:.6e} "
+              f"mol CO2/cm2/d")
+        print(f"  Above resp   : "
+              f"{ts['aboveground_resp_mol_co2_per_cm2_d']:.6e} "
+              f"mol CO2/cm2/d")
+        print(f"  Root resp max: "
+              f"{np.max(ts['root_resp_mol_co2_per_cm3_d']):.6e} "
+              f"mol CO2/cm3/d")
+        print(f"  Water uptake : "
+              f"{ts.get('root_wuptake_cm3_per_cm3_d', np.zeros(1)).sum():.4f} "
+              f"(sum profile)")
+        print(f"  Source       : {ts['partitioning_source']}")
+
+        return ts
+
+    if args.multi_day:
+        test_days = [20, 35, 55]
+        timesteps = []
+        for day in test_days:
+            ts = _run_agroc_day(
+                day, args.par, args.tair, args.method, agroc_out,
+            )
+            timesteps.append(ts)
+
+        # Write coupling CSV
+        csv_path = agroc_out / f"{species}_coupling.csv"
+        export_coupling_csv(timesteps, csv_path, args.layers)
+
+        # Conservation report
+        report_path = agroc_out / "conservation_report.txt"
+        lines = []
+        for ts in timesteps:
+            lines.append(f"Day {ts['day']}:")
+            lines.extend(ts["conservation"])
+            lines.append("")
+        report_path.write_text("\n".join(lines))
+        print(f"\n  Conservation report: {report_path}")
+    else:
+        ts = _run_agroc_day(
+            args.day, args.par, args.tair, args.method, agroc_out,
+        )
+
+        # Write single-day CSV
+        csv_path = agroc_out / f"{species}_day{args.day}_coupling.csv"
+        export_coupling_csv([ts], csv_path, args.layers)
+
+        # Conservation report
+        report_path = agroc_out / "conservation_report.txt"
+        lines = [f"Day {ts['day']}:"] + ts["conservation"]
+        report_path.write_text("\n".join(lines))
+        print(f"\n  Conservation report: {report_path}")

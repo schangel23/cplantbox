@@ -283,8 +283,8 @@ fi
 
 # Find the coupling CSV produced by Step 5
 COUPLING_CSV=""
-if [[ -d "$SCRIPT_DIR/output/session6" ]]; then
-  COUPLING_CSV=$(find "$SCRIPT_DIR/output/session6" -name "*_coupling.csv" -type f | head -1)
+if [[ -d "$SCRIPT_DIR/output/agroc_export" ]]; then
+  COUPLING_CSV=$(find "$SCRIPT_DIR/output/agroc_export" -name "*_coupling.csv" -type f | head -1)
 fi
 
 if [[ -n "$AGROC_SRC" ]] && [[ -f "$AGROC_SRC/agroC" ]] && [[ -n "$COUPLING_CSV" ]]; then

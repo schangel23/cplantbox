@@ -184,9 +184,10 @@ def run_iterative_coupling(
           - converged: bool
     """
     from ..dart.baleno import (
-        run_baleno_subprocess, read_baleno_tleaf, _write_json5,
+        run_baleno_subprocess, read_baleno_tleaf,
         BALENO_DIR,
     )
+    from ..dart.parsers import write_json5
     import plantbox as pb
 
     print(f"\n{'=' * 70}")
@@ -314,7 +315,7 @@ def run_iterative_coupling(
         mean_n = float(np.mean([p["N"] for p in per_pos]))
         base_p = get_prospect_params(sim_time)
         input_dir = Path(baleno_sim_dir) / 'input'
-        _write_json5(input_dir / 'vegetation.json5', {
+        write_json5(input_dir / 'vegetation.json5', {
             "Plugin": "ExternalGS",
             "Model": "VegetationExternalGS",
             "PAR_min": 0.400,
@@ -332,7 +333,7 @@ def run_iterative_coupling(
         # Write plugin-specific input with gs_file path
         plugins_dir = input_dir / 'plugins'
         plugins_dir.mkdir(parents=True, exist_ok=True)
-        _write_json5(plugins_dir / 'ExternalGS_input.json5', {
+        write_json5(plugins_dir / 'ExternalGS_input.json5', {
             "gs_file": str(gs_csv_path),
             "fallback_rcw": 100.0,
         })
@@ -522,8 +523,8 @@ def build_scene_row_mapping(baleno_sim_dir, reindex_json_paths, n_plants):
     if scene_file is None:
         return None
 
-    from ..dart.baleno import _detect_delimiter
-    delimiter = _detect_delimiter(scene_file)
+    from ..dart.parsers import detect_delimiter
+    delimiter = detect_delimiter(scene_file)
 
     scene_str = np.genfromtxt(str(scene_file), skip_header=1,
                                delimiter=delimiter, dtype=str)
@@ -662,9 +663,10 @@ def run_iterative_coupling_multi(
         Or None on complete failure.
     """
     from ..dart.baleno import (
-        run_baleno_subprocess, read_baleno_tleaf_multi, _write_json5,
+        run_baleno_subprocess, read_baleno_tleaf_multi,
         BALENO_DIR, log_baleno_diagnostics,
     )
+    from ..dart.parsers import write_json5
     import plantbox as pb
 
     print(f"\n{'=' * 70}")
@@ -804,7 +806,7 @@ def run_iterative_coupling_multi(
         mean_n = float(np.mean([p["N"] for p in per_pos]))
         base_p = get_prospect_params(sim_time)
         input_dir = Path(baleno_sim_dir) / 'input'
-        _write_json5(input_dir / 'vegetation.json5', {
+        write_json5(input_dir / 'vegetation.json5', {
             "Plugin": "ExternalGS",
             "Model": "VegetationExternalGS",
             "PAR_min": 0.400, "PAR_max": 0.700,
@@ -820,7 +822,7 @@ def run_iterative_coupling_multi(
 
         plugins_dir = input_dir / 'plugins'
         plugins_dir.mkdir(parents=True, exist_ok=True)
-        _write_json5(plugins_dir / 'ExternalGS_input.json5', {
+        write_json5(plugins_dir / 'ExternalGS_input.json5', {
             "gs_file": str(gs_csv_path),
             "fallback_rcw": 100.0,
         })

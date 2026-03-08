@@ -28,7 +28,7 @@ from collections import OrderedDict
 import plantbox as pb
 
 from ..config import DEFAULT_XML, OUTPUT_DIR, PHOTO_PATH, get_phloem_json
-from ..growth.grow import grow_plant
+from ..growth import grow_plant
 
 # ---------------------------------------------------------------------------
 # Constants

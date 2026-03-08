@@ -32,10 +32,6 @@ def cli():
     # Phase 5 — validation
     sub.add_parser("validate", help="Phase 5: coupling validation")
 
-    # Phase 6 — multi-plant unique realizations
-    p_mf = sub.add_parser("multifield", help="Phase 6: multi-plant field")
-    p_mf.add_argument("--seeds", type=str, default="42-50")
-
     # Phase 9 — diurnal loop (has its own argparse, delegate)
     sub.add_parser("diurnal", help="Phase 9: diurnal coupling loop")
 
@@ -111,7 +107,7 @@ def cli():
     p_agroc_run.add_argument("--coupling-csv", type=str, required=True,
                              help="Path to coupling.csv from agroc-export")
     p_agroc_run.add_argument("--output-dir", type=str, default=None,
-                             help="Output directory (default: coupling/output/session7)")
+                             help="Output directory (default: coupling/output/agroc_run)")
     p_agroc_run.add_argument("--timeout", type=int, default=300,
                              help="AgroC timeout in seconds (default: 300)")
 
@@ -129,6 +125,24 @@ def cli():
     sub.add_parser("grow", help="Grow calibrated plant")
     sub.add_parser("calibrate", help="Calibrate maize XML")
 
+    # Pipeline runner (config-file-driven)
+    p_run = sub.add_parser("run", help="Run pipeline from config JSON")
+    p_run.add_argument("config_file", help="Path to pipeline config JSON")
+    p_run.add_argument("--validate-only", action="store_true",
+                       help="Only validate system, do not run")
+
+    # Config generator
+    p_config = sub.add_parser("create-config",
+                              help="Generate default config JSON")
+    p_config.add_argument("output", nargs="?", default="pipeline_config.json",
+                          help="Output path (default: pipeline_config.json)")
+
+    # Dashboard
+    p_dash = sub.add_parser("dashboard", help="Launch web dashboard")
+    p_dash.add_argument("--port", type=int, default=8050)
+    p_dash.add_argument("--host", type=str, default="127.0.0.1")
+    p_dash.add_argument("--debug", action="store_true")
+
     args, remaining = parser.parse_known_args()
 
     # Set env vars BEFORE importing subcommands (config.py reads them at import)
@@ -141,7 +155,7 @@ def cli():
         from .dart.simulation import main
         main()
     elif args.command == "baleno":
-        from .dart.baleno import main
+        from .dart.baleno_standalone import main
         main()
     elif args.command == "photosynthesis":
         from .photosynthesis.coupled import main
@@ -149,460 +163,26 @@ def cli():
     elif args.command == "validate":
         from .validation.validate import main
         main()
-    elif args.command == "multifield":
-        from .dart.multifield import main
-        main()
     elif args.command == "diurnal":
         # diurnal has its own argparse — pass remaining args via sys.argv
         sys.argv = [sys.argv[0]] + remaining
         from .photosynthesis.diurnal import main
         main()
     elif args.command == "rld":
-        from .growth.grow import (
-            grow_plant, extract_rld_profile, export_rld_csv,
-            export_rrd_in, plot_rld_profile, plot_rld_growth_trajectory,
-        )
-        from .config import DEFAULT_XML, OUTPUT_DIR
-
-        rld_out = OUTPUT_DIR / "session2"
-        rld_out.mkdir(parents=True, exist_ok=True)
-
-        if args.multi_day:
-            # Run multiple growth stages
-            test_days = [20, 35, 55]
-            profiles = {}
-            for day in test_days:
-                print(f"\n{'='*60}")
-                print(f"RLD EXTRACTION — Day {day}")
-                print(f"{'='*60}")
-                plant = grow_plant(
-                    xml_path=str(DEFAULT_XML),
-                    simulation_time=day,
-                    enable_photosynthesis=True,
-                    seed=42,
-                )
-                prof = extract_rld_profile(
-                    plant, n_layers=args.layers, depth_cm=args.depth,
-                    row_spacing_cm=args.row_spacing,
-                    plant_spacing_cm=args.plant_spacing,
-                )
-                profiles[day] = prof
-                export_rld_csv(prof, rld_out / f"maize_day{day}_rld_profile.csv")
-                export_rrd_in(prof, rld_out / f"maize_day{day}_rrd.in")
-                plot_rld_profile(prof, rld_out / f"maize_day{day}_rld_profile.png",
-                                 day=day)
-            plot_rld_growth_trajectory(profiles,
-                                       rld_out / "rld_growth_trajectory.png")
-        else:
-            plant = grow_plant(
-                xml_path=str(DEFAULT_XML),
-                simulation_time=args.day,
-                enable_photosynthesis=True,
-                seed=42,
-            )
-            prof = extract_rld_profile(
-                plant, n_layers=args.layers, depth_cm=args.depth,
-                row_spacing_cm=args.row_spacing,
-                plant_spacing_cm=args.plant_spacing,
-            )
-            export_rld_csv(prof,
-                           rld_out / f"maize_day{args.day}_rld_profile.csv")
-            export_rrd_in(prof,
-                          rld_out / f"maize_day{args.day}_rrd.in")
-            plot_rld_profile(prof,
-                             rld_out / f"maize_day{args.day}_rld_profile.png",
-                             day=args.day)
-
-            print(f"\n  Total root length: {prof['total_root_length_cm']:.0f} cm")
-            print(f"  Max root depth: {prof['max_root_depth_cm']:.1f} cm")
-            print(f"  Surface RLD: {prof['RLD_cm_per_cm3'][0]:.4f} cm/cm3")
+        from .growth.profiles import main_rld
+        main_rld(args)
     elif args.command == "carbon":
-        import numpy as np
-        from .growth.grow import grow_plant, run_photosynthesis
-        from .carbon import solve_carbon_partitioning
-        from .config import DEFAULT_XML, OUTPUT_DIR
-
-        carbon_out = OUTPUT_DIR / "carbon"
-        carbon_out.mkdir(parents=True, exist_ok=True)
-
-        print(f"\n{'='*60}")
-        print(f"CARBON PARTITIONING — Day {args.day}, method={args.method}")
-        print(f"{'='*60}")
-
-        # 1. Grow plant
-        plant = grow_plant(
-            xml_path=str(DEFAULT_XML),
-            simulation_time=args.day,
-            enable_photosynthesis=True,
-            seed=42,
-        )
-
-        # 2. Run photosynthesis to get An per leaf segment
-        prefix = str(carbon_out / f"day{args.day}_photo")
-        hm = run_photosynthesis(
-            plant, sim_time=args.day, output_prefix=prefix,
-            par_umol=args.par, tair_c=args.tair,
-        )
-        if hm is None:
-            print("ERROR: Photosynthesis solve failed.")
-            sys.exit(1)
-
-        An_leaf = np.array(hm.get_net_assimilation())  # mol CO2/d per leaf seg
-        An_total_mmol = float(np.sum(An_leaf)) * 1000.0
-
-        # 3. Solve carbon partitioning
-        result = solve_carbon_partitioning(
-            plant, An_leaf, Tair_C=args.tair,
-            method=args.method, day=args.day,
-        )
-
-        # 4. Print results
-        print(f"\n{'='*60}")
-        print(f"CARBON PARTITIONING RESULTS ({result['partitioning_source']})")
-        print(f"{'='*60}")
-        print(f"  An total (input)     : {An_total_mmol:.1f} mmol CO2/d")
-        print(f"  Rm total             : {result['Rm_total_mmol']:.1f} mmol/d")
-        print(f"    Rm leaf            : {result['Rm_leaf']:.1f}")
-        print(f"    Rm stem            : {result['Rm_stem']:.1f}")
-        print(f"    Rm root            : {result['Rm_root']:.1f}")
-        print(f"    Rm storage         : {result['Rm_storage']:.1f}")
-        print(f"  Rg total             : {result['Rg_total_mmol']:.1f} mmol/d")
-        print(f"  Growth               : {result['growth_mmol_d']:.1f} mmol/d")
-        if 'stem_storage_mmol' in result:
-            print(f"  Stem storage         : {result['stem_storage_mmol']:.1f} mmol/d")
-        if result.get('seed_reserve_mmol', 0) > 0:
-            print(f"  Seed reserve         : {result['seed_reserve_mmol']:.1f} mmol/d")
-        print(f"  Partitioning fractions:")
-        print(f"    FR_leaf            : {result['FR_leaf']:.3f}")
-        print(f"    FR_stem            : {result['FR_stem']:.3f}")
-        print(f"    FR_root            : {result['FR_root']:.3f}")
-        print(f"    FR_storage         : {result['FR_storage']:.3f}")
-        print(f"    Sum                : {result['FR_leaf']+result['FR_stem']+result['FR_root']+result['FR_storage']:.3f}")
-        print(f"  Carbon balance error : {result['carbon_balance_error']:.2%}")
-        if 'C_ST_mean' in result and not np.isnan(result.get('C_ST_mean', np.nan)):
-            print(f"  C_ST mean            : {result['C_ST_mean']:.3f} mmol/cm3")
-            print(f"  C_ST range           : [{result.get('C_ST_min', 0):.3f}, {result.get('C_ST_max', 0):.3f}]")
-            print(f"  Picard iterations    : {result.get('n_iterations', 'N/A')}")
-            print(f"  Converged            : {result.get('converged', 'N/A')}")
-
-        # 5. Save results
-        import json
-        out_path = carbon_out / f"day{args.day}_{args.method}_carbon.json"
-        # Convert numpy types for JSON serialization
-        serializable = {}
-        for k, v in result.items():
-            if isinstance(v, np.ndarray):
-                serializable[k] = v.tolist()
-            elif isinstance(v, (np.floating, np.integer)):
-                serializable[k] = float(v)
-            else:
-                serializable[k] = v
-        with open(out_path, 'w') as f:
-            json.dump(serializable, f, indent=2)
-        print(f"\n  Results saved: {out_path}")
-
+        from .carbon.cli import main_carbon
+        main_carbon(args)
     elif args.command == "summary":
-        import json
-        import numpy as np
-        from .growth.grow import (
-            grow_plant, run_photosynthesis,
-            extract_lai_profile, export_lai_csv, plot_lai_profile,
-            extract_plant_summary, plot_growth_trajectory,
-        )
-        from .carbon import solve_carbon_partitioning
-        from .config import DEFAULT_XML, OUTPUT_DIR, get_species_name
-
-        summary_out = OUTPUT_DIR / "session5"
-        summary_out.mkdir(parents=True, exist_ok=True)
-        species = get_species_name()
-
-        def _run_single_day(day, par, tair, method, row_sp, plant_sp, bins,
-                            out_dir):
-            """Run full pipeline for one day, return summary dict."""
-            print(f"\n{'='*60}")
-            print(f"SESSION 5: LAI + PLANT SUMMARY — {species} Day {day}")
-            print(f"{'='*60}")
-
-            # 1. Grow plant
-            plant = grow_plant(
-                xml_path=str(DEFAULT_XML),
-                simulation_time=day,
-                enable_photosynthesis=True,
-                seed=42,
-            )
-
-            # 2. LAI extraction
-            lai = extract_lai_profile(
-                plant, n_bins=bins,
-                row_spacing_cm=row_sp,
-                plant_spacing_cm=plant_sp,
-            )
-            export_lai_csv(lai, out_dir / f"{species}_day{day}_lai_profile.csv")
-            plot_lai_profile(lai, out_dir / f"{species}_day{day}_lai_profile.png",
-                             day=day)
-
-            print(f"\n  LAI: {lai['LAI']:.2f}")
-            print(f"  Total leaf area: {lai['total_leaf_area_cm2']:.0f} cm2 "
-                  f"({lai['total_leaf_area_m2']:.4f} m2)")
-            print(f"  Plant height: {lai['plant_height_cm']:.1f} cm")
-            print(f"  Leaf organs: {lai['n_leaf_organs']}, "
-                  f"segments: {lai['n_leaf_segments']}")
-
-            # 3. Photosynthesis
-            prefix = str(out_dir / f"{species}_day{day}_photo")
-            hm = run_photosynthesis(
-                plant, sim_time=day, output_prefix=prefix,
-                par_umol=par, tair_c=tair,
-            )
-            if hm is None:
-                print(f"  WARNING: Photosynthesis failed for day {day}, "
-                      f"skipping carbon partitioning")
-
-            # 4. Carbon partitioning
-            carbon_result = None
-            if hm is not None:
-                An_leaf = np.array(hm.get_net_assimilation())
-                try:
-                    carbon_result = solve_carbon_partitioning(
-                        plant, An_leaf, Tair_C=tair,
-                        method=method, day=day,
-                    )
-                except Exception as e:
-                    print(f"  WARNING: Carbon partitioning failed: {e}")
-
-            # 5. Assemble summary
-            summary = extract_plant_summary(
-                plant, hm, carbon_result, lai, day,
-                par_umol=par, tair_c=tair,
-            )
-
-            # 6. Save JSON
-            json_path = out_dir / f"{species}_day{day}_summary.json"
-            with open(json_path, 'w') as f:
-                json.dump(summary, f, indent=2)
-            print(f"\n  Summary JSON: {json_path}")
-
-            return summary
-
-        if args.multi_day:
-            test_days = [10, 20, 30, 40, 55]
-            summaries = {}
-            for day in test_days:
-                summaries[day] = _run_single_day(
-                    day, args.par, args.tair, args.method,
-                    args.row_spacing, args.plant_spacing, args.bins,
-                    summary_out,
-                )
-
-            # Growth trajectory plot
-            plot_growth_trajectory(
-                summaries, summary_out / "growth_trajectory.png")
-
-            # Combined results JSON
-            combined_path = summary_out / "session5_results.json"
-            with open(combined_path, 'w') as f:
-                json.dump(
-                    {str(d): s for d, s in summaries.items()},
-                    f, indent=2,
-                )
-            print(f"\n  Combined results: {combined_path}")
-        else:
-            _run_single_day(
-                args.day, args.par, args.tair, args.method,
-                args.row_spacing, args.plant_spacing, args.bins,
-                summary_out,
-            )
-
+        from .growth.profiles import main_summary
+        main_summary(args)
     elif args.command == "agroc-export":
-        import json
-        import numpy as np
-        from .growth.grow import (
-            grow_plant, run_photosynthesis,
-            extract_lai_profile, extract_rld_profile, export_rrd_in,
-        )
-        from .carbon import solve_carbon_partitioning
-        from .agroc import export_agroc_timestep, export_coupling_csv
-        from .config import DEFAULT_XML, OUTPUT_DIR, get_species_name
-
-        agroc_out = OUTPUT_DIR / "session6"
-        agroc_out.mkdir(parents=True, exist_ok=True)
-        species = get_species_name()
-
-        grid_kw = dict(
-            n_layers=args.layers, depth_cm=args.depth,
-            row_spacing_cm=args.row_spacing,
-            plant_spacing_cm=args.plant_spacing,
-        )
-
-        def _run_agroc_day(day, par, tair, method, out_dir):
-            """Run full pipeline for one day, return timestep dict."""
-            print(f"\n{'='*60}")
-            print(f"SESSION 6: AgroC EXPORT — {species} Day {day}")
-            print(f"{'='*60}")
-
-            # 1. Grow plant
-            plant = grow_plant(
-                xml_path=str(DEFAULT_XML),
-                simulation_time=day,
-                enable_photosynthesis=True,
-                seed=42,
-            )
-
-            # 2. LAI extraction
-            lai = extract_lai_profile(
-                plant, n_bins=10,
-                row_spacing_cm=args.row_spacing,
-                plant_spacing_cm=args.plant_spacing,
-            )
-            print(f"  LAI: {lai['LAI']:.2f}")
-
-            # 3. Photosynthesis
-            prefix = str(out_dir / f"{species}_day{day}_photo")
-            hm = run_photosynthesis(
-                plant, sim_time=day, output_prefix=prefix,
-                par_umol=par, tair_c=tair,
-            )
-            if hm is None:
-                print(f"  WARNING: Photosynthesis failed, using zeros")
-
-            # 4. Carbon partitioning
-            carbon_result = None
-            if hm is not None:
-                An_leaf = np.array(hm.get_net_assimilation())
-                try:
-                    carbon_result = solve_carbon_partitioning(
-                        plant, An_leaf, Tair_C=tair,
-                        method=method, day=day,
-                    )
-                except Exception as e:
-                    print(f"  WARNING: Carbon partitioning failed: {e}")
-
-            # 5. RLD + rrd.in export (re-use session 2)
-            rld = extract_rld_profile(plant, **grid_kw)
-            export_rrd_in(rld, out_dir / f"{species}_day{day}_rrd.in")
-
-            # 6. AgroC timestep
-            ts = export_agroc_timestep(
-                plant, hm, carbon_result, lai,
-                day=day, par_umol=par, tair_c=tair,
-                **grid_kw,
-            )
-
-            # Print conservation report
-            print(f"\n  Conservation checks:")
-            for line in ts["conservation"]:
-                print(line)
-            if not ts["conservation"]:
-                print("    (no non-zero fluxes to check)")
-
-            # Print summary
-            print(f"\n  GPP          : {ts['GPP_mol_co2_per_cm2_d']:.6e} "
-                  f"mol CO2/cm2/d")
-            print(f"  Above resp   : "
-                  f"{ts['aboveground_resp_mol_co2_per_cm2_d']:.6e} "
-                  f"mol CO2/cm2/d")
-            print(f"  Root resp max: "
-                  f"{np.max(ts['root_resp_mol_co2_per_cm3_d']):.6e} "
-                  f"mol CO2/cm3/d")
-            print(f"  Water uptake : "
-                  f"{ts.get('root_wuptake_cm3_per_cm3_d', np.zeros(1)).sum():.4f} "
-                  f"(sum profile)")
-            print(f"  Source       : {ts['partitioning_source']}")
-
-            return ts
-
-        if args.multi_day:
-            test_days = [20, 35, 55]
-            timesteps = []
-            for day in test_days:
-                ts = _run_agroc_day(
-                    day, args.par, args.tair, args.method, agroc_out,
-                )
-                timesteps.append(ts)
-
-            # Write coupling CSV
-            csv_path = agroc_out / f"{species}_coupling.csv"
-            export_coupling_csv(timesteps, csv_path, args.layers)
-
-            # Conservation report
-            report_path = agroc_out / "conservation_report.txt"
-            lines = []
-            for ts in timesteps:
-                lines.append(f"Day {ts['day']}:")
-                lines.extend(ts["conservation"])
-                lines.append("")
-            report_path.write_text("\n".join(lines))
-            print(f"\n  Conservation report: {report_path}")
-        else:
-            ts = _run_agroc_day(
-                args.day, args.par, args.tair, args.method, agroc_out,
-            )
-
-            # Write single-day CSV
-            csv_path = agroc_out / f"{species}_day{args.day}_coupling.csv"
-            export_coupling_csv([ts], csv_path, args.layers)
-
-            # Conservation report
-            report_path = agroc_out / "conservation_report.txt"
-            lines = [f"Day {ts['day']}:"] + ts["conservation"]
-            report_path.write_text("\n".join(lines))
-            print(f"\n  Conservation report: {report_path}")
-
+        from .agroc.export import main_export
+        main_export(args)
     elif args.command == "agroc-run":
-        from pathlib import Path as _Path
-        from .agroc.run import (
-            get_agroc_src, prepare_agroc_workdir, run_agroc,
-            validate_agroc_outputs,
-        )
-        from .config import OUTPUT_DIR
-
-        # Resolve agroc source
-        if args.agroc_src:
-            agroc_src = _Path(args.agroc_src)
-        else:
-            agroc_src = get_agroc_src()
-
-        # Resolve output dir
-        if args.output_dir:
-            out_dir = _Path(args.output_dir)
-        else:
-            out_dir = OUTPUT_DIR / "session7"
-        out_dir.mkdir(parents=True, exist_ok=True)
-
-        coupling_csv = _Path(args.coupling_csv)
-
-        print(f"\n{'='*60}")
-        print("AGROC RUN — ExternalPlantMode")
-        print(f"{'='*60}")
-        print(f"  AgroC source:  {agroc_src}")
-        print(f"  Coupling CSV:  {coupling_csv}")
-        print(f"  Output:        {out_dir}")
-
-        # 1. Prepare working directory
-        workdir = prepare_agroc_workdir(agroc_src, out_dir, coupling_csv)
-        print(f"  Working dir:   {workdir}")
-
-        # 2. Run AgroC
-        proc = run_agroc(workdir, timeout=args.timeout)
-
-        if proc.returncode != 0:
-            print(f"\n  AgroC FAILED (exit code {proc.returncode})")
-            # Save stdout/stderr for debugging
-            (workdir / "agroc_stdout.txt").write_text(proc.stdout or "")
-            (workdir / "agroc_stderr.txt").write_text(proc.stderr or "")
-            sys.exit(1)
-
-        # 3. Validate outputs
-        validation = validate_agroc_outputs(workdir, coupling_csv)
-        print(f"\n  Validation:")
-        for check in validation["checks"]:
-            print(f"    {check}")
-
-        if validation["passed"]:
-            print(f"\n  AGROC RUN PASSED")
-        else:
-            print(f"\n  AGROC RUN — validation warnings (see above)")
-
+        from .agroc.run import main_agroc_run
+        main_agroc_run(args)
     elif args.command == "integration-test":
         from .tests.test_session8_integration import main as integ_main
         integ_main(
@@ -618,6 +198,33 @@ def cli():
         sys.argv = [sys.argv[0]] + remaining
         from .growth.calibrate import main
         main()
+    elif args.command == "run":
+        from .pipeline import PipelineConfig, PipelineRunner
+        config = PipelineConfig.load(args.config_file)
+        if args.species:
+            config.species = args.species
+        if args.threads is not None:
+            config.threads = args.threads
+        runner = PipelineRunner(config)
+        if args.validate_only:
+            v = runner.validate_system()
+            for name, info in v.items():
+                status = "OK" if info["ok"] else "FAIL"
+                detail = f" ({info['error']})" if info.get("error") else ""
+                print(f"  {name}: {status}{detail}")
+        else:
+            runner.run()
+    elif args.command == "create-config":
+        from .pipeline import PipelineConfig
+        config = PipelineConfig()
+        if args.species:
+            config.species = args.species
+        config.save(args.output)
+        print(f"Config saved to {args.output}")
+    elif args.command == "dashboard":
+        from ..dashboard import create_app
+        app = create_app()
+        app.run(port=args.port, host=args.host, debug=args.debug)
 
 
 if __name__ == "__main__":

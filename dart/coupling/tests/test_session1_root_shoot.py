@@ -30,7 +30,7 @@ sys.path.insert(0, str(COUPLING_DIR.parent.parent))
 
 import plantbox as pb
 from dart.coupling.config import DEFAULT_XML, get_hydraulics_json, get_photosynthesis_json
-from dart.coupling.growth.grow import grow_plant, extract_g3_mesh, run_photosynthesis
+from dart.coupling.growth import grow_plant, extract_g3_mesh, run_photosynthesis
 
 # ---------------------------------------------------------------------------
 # Stage 1 reference values

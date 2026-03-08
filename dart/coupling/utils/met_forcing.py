@@ -106,3 +106,87 @@ def load_met_csv(filepath):
         df['T_air_K'] = df['T_air_C'] + 273.15
 
     return df
+
+
+def derive_daily_met_from_csv(filepath, sowing_date='2025-05-01'):
+    """Derive daily T_min/T_max/T_mean from an hourly met CSV.
+
+    Aggregates by calendar date, maps to sim_day, and injects into
+    the DVS daily_met cache so GDD uses the same weather source.
+
+    Args:
+        filepath: Path to hourly met CSV (datetime_utc, T_air_C, RH, wind_ms).
+        sowing_date: Sowing date string for sim_day mapping.
+
+    Returns:
+        dict mapping sim_day -> {T_mean_C, T_min_C, T_max_C, ...}
+    """
+    import datetime
+
+    df = pd.read_csv(filepath, parse_dates=['datetime_utc'])
+    df['date'] = df['datetime_utc'].dt.date
+
+    sowing = datetime.date.fromisoformat(sowing_date)
+
+    daily = df.groupby('date').agg(
+        T_min_C=('T_air_C', 'min'),
+        T_max_C=('T_air_C', 'max'),
+        T_mean_C=('T_air_C', 'mean'),
+    )
+
+    # Add RH and wind if available
+    if 'RH' in df.columns:
+        rh_stats = df.groupby('date')['RH'].agg(['min', 'max'])
+        daily['RH_min'] = rh_stats['min']
+        daily['RH_max'] = rh_stats['max']
+    if 'wind_ms' in df.columns:
+        wind_stats = df.groupby('date')['wind_ms'].agg(['mean', 'max'])
+        daily['wind_mean_ms'] = wind_stats['mean']
+        daily['wind_max_ms'] = wind_stats['max']
+
+    result = {}
+    for cal_date, row in daily.iterrows():
+        if isinstance(cal_date, str):
+            cal_date = datetime.date.fromisoformat(cal_date)
+        sim_day = (cal_date - sowing).days + 1
+        if sim_day < 1:
+            continue
+        entry = {
+            'T_mean_C': row['T_mean_C'],
+            'T_min_C': row['T_min_C'],
+            'T_max_C': row['T_max_C'],
+        }
+        if 'RH_min' in row:
+            entry['RH_min'] = row['RH_min']
+            entry['RH_max'] = row['RH_max']
+        if 'wind_mean_ms' in row:
+            entry['wind_mean_ms'] = row['wind_mean_ms']
+            entry['wind_max_ms'] = row['wind_max_ms']
+        result[sim_day] = entry
+
+    return result
+
+
+def inject_met_csv_into_dvs(filepath, sowing_date='2025-05-01'):
+    """Load hourly met CSV, derive daily stats, merge into DVS cache.
+
+    Days present in the CSV override the default Jülich data.
+    Days not in the CSV fall back to the default.
+    """
+    from ..carbon.dvs_partitioning import get_daily_met, _DEFAULT_DAILY_MET
+    import dart.coupling.carbon.dvs_partitioning as dvs_mod
+
+    csv_daily = derive_daily_met_from_csv(filepath, sowing_date)
+
+    # Load existing defaults
+    existing = get_daily_met() or {}
+
+    # Merge: CSV overrides defaults
+    merged = dict(existing)
+    merged.update(csv_daily)
+
+    # Inject into global cache
+    dvs_mod._DEFAULT_DAILY_MET = merged
+
+    n_override = len(csv_daily)
+    print(f"  Met CSV: injected {n_override} days into DVS daily met cache")

@@ -23,11 +23,14 @@ import pytools4dart as ptd
 
 from ..config import (DEFAULT_XML, OUTPUT_DIR, DART_THREADS,
                       DART_RAY_DENSITY_PER_PIXEL, DART_MAX_RENDERING_TIME)
-from ..growth.grow import grow_plant, extract_g3_mesh
+from ..growth import grow_plant, extract_g3_mesh
 from ..geometry import convert_obj_to_dart, convert_mapping_json_groups
 from ..prospect_params import (get_prospect_params, get_prospect_params_per_position,
                                get_stem_prospect_params,
                                log_consistency, log_lops_consistency)
+from .parsers import (parse_radiative_budget_txt, parse_maket_scn,
+                      compute_plant_positions,
+                      PLANT_POS, GRID_NX, GRID_NY, GRID_SPACING_X, GRID_SPACING_Y)
 
 # ---------------------------------------------------------------------------
 # Atmosphere helper
@@ -104,26 +107,9 @@ SUN_AZIMUTH = 225.0
 # Scene geometry
 SCENE_SIZE = [4, 4]     # meters
 CELL_SIZE = 0.5         # meters (not directly settable via simple API; scene.size controls it)
-PLANT_POS = (2.0, 2.0)  # center of scene
-
-# Plant grid: 3x3 for realistic canopy context (inter-plant shading)
-GRID_NX, GRID_NY = 3, 3
-GRID_SPACING_X = 0.75   # meters (between-row spacing, typical maize)
-GRID_SPACING_Y = 0.25   # meters (within-row spacing, typical maize)
 N_PLANTS = GRID_NX * GRID_NY       # 9
 CENTER_PLANT_IDX = N_PLANTS // 2   # 4 (0-indexed, center of 3x3)
 FIELD_FILENAME = 'plant_field.txt'
-
-
-def _compute_plant_positions():
-    """Compute 3x3 grid positions centered at PLANT_POS (in meters, DART coords)."""
-    positions = []
-    for iy in range(GRID_NY):
-        for ix in range(GRID_NX):
-            x = PLANT_POS[0] + (ix - (GRID_NX - 1) / 2) * GRID_SPACING_X
-            y = PLANT_POS[1] + (iy - (GRID_NY - 1) / 2) * GRID_SPACING_Y
-            positions.append((x, y))
-    return positions
 
 
 def _write_field_file(path):
@@ -132,7 +118,7 @@ def _write_field_file(path):
     Format: 'complete transformation' header, then per-instance lines:
       model_index xpos ypos zpos xscale yscale zscale xrot yrot zrot
     """
-    positions = _compute_plant_positions()
+    positions = compute_plant_positions()
     with open(path, 'w') as f:
         f.write('complete transformation\n')
         for x, y in positions:
@@ -176,7 +162,7 @@ def step1_grow_and_export():
     print(f"  Groups: {n_groups} ({n_leaf_organs} leaf, {n_groups - n_leaf_organs} stem)")
 
     # Save grid info for downstream steps
-    positions = _compute_plant_positions()
+    positions = compute_plant_positions()
     grid_info = {
         'grid_nx': GRID_NX, 'grid_ny': GRID_NY,
         'spacing_x_m': GRID_SPACING_X, 'spacing_y_m': GRID_SPACING_Y,
@@ -351,7 +337,7 @@ def step3_create_dart_simulation():
     obj_fields.add_Field(field)
     simu.core.object_3d.object_3d.ObjectFields = obj_fields
 
-    positions = _compute_plant_positions()
+    positions = compute_plant_positions()
     print(f"  ObjectFields: {N_PLANTS} plants, center idx={CENTER_PLANT_IDX}")
     print(f"  Grid: {GRID_NX}x{GRID_NY}, spacing {GRID_SPACING_X}m x {GRID_SPACING_Y}m")
     print(f"  Center plant at ({positions[CENTER_PLANT_IDX][0]:.2f}, "
@@ -643,7 +629,7 @@ def step6_read_radiative_budget(simu):
             band_idx = int(re.search(r'BAND(\d+)', band_dir.name).group(1))
             rb_file = band_dir / 'RADIATIVE_BUDGET' / 'ITERX' / 'RadiativeBudgetFigures.txt'
             if rb_file.exists():
-                data = _parse_radiative_budget_txt(rb_file)
+                data = parse_radiative_budget_txt(rb_file)
                 if data is not None:
                     per_band_data[band_idx] = data
                     print(f"    BAND{band_idx}: {sum(len(v) for v in data['per_object'].values())} triangles")
@@ -678,59 +664,6 @@ def step6_read_radiative_budget(simu):
                 print(f"    {f.relative_to(output_path)} ({f.stat().st_size} bytes)")
 
     return per_band_data
-
-
-def _parse_radiative_budget_txt(filepath):
-    """Parse RadiativeBudgetFigures.txt into per-object arrays.
-
-    Format:
-      Header line (tab-separated column names)
-      ObjectName object0_0_0
-      <triangle data rows>
-      ObjectName object1_0_0
-      <triangle data rows>
-      ...
-
-    Returns dict with 'header' and 'per_object' (object_key -> numpy array).
-    """
-    with open(filepath, 'r') as f:
-        lines = f.readlines()
-
-    if not lines:
-        return None
-
-    # Parse header
-    header_line = lines[0].strip('* \n\t')
-    header = re.split(r'[\t;]+', header_line)
-    header = [h.strip() for h in header if h.strip()]
-
-    per_object = {}
-    current_key = None
-
-    for line in lines[1:]:
-        stripped = line.strip()
-        if not stripped:
-            continue
-        if stripped.startswith('ObjectName'):
-            current_key = stripped
-            per_object[current_key] = []
-        elif current_key is not None:
-            # Parse data row
-            values = re.split(r'[\t ]+', stripped)
-            try:
-                row = [float(v) for v in values if v]
-                per_object[current_key].append(row)
-            except ValueError:
-                continue  # skip malformed lines
-
-    # Convert to numpy
-    for key in per_object:
-        if per_object[key]:
-            per_object[key] = np.array(per_object[key])
-        else:
-            per_object[key] = np.empty((0, len(header)))
-
-    return {'header': header, 'per_object': per_object}
 
 
 def _parse_radiative_budget_netcdf(nc_files, n_bands):
@@ -785,45 +718,6 @@ def _parse_radiative_budget_netcdf(nc_files, n_bands):
                 print(f"  Error reading {nc_file.name}: {e}")
 
     return per_band_data
-
-
-def _parse_maket_scn(simu_path):
-    """Parse maket.scn to map budget object IDs to (instance, group) pairs.
-
-    DART ObjectFields assigns each field instance + group a unique budget
-    object.  The maket.scn file contains lines like::
-
-        scene.objects.objectN_0_0.dartNameId=fo0_moX_goY
-
-    where *N* is the budget object index, *X* is the field instance index,
-    and *Y* is the group index (alphabetically ordered, matching .ori
-    file numbering).
-
-    Returns:
-        dict mapping ``{budget_obj_idx: (instance_idx, group_idx)}``,
-        or ``None`` if maket.scn is missing or contains no ObjectField entries.
-    """
-    maket_path = Path(simu_path) / 'output' / 'maket.scn'
-    if not maket_path.exists():
-        return None
-
-    mapping = {}
-    with open(maket_path) as f:
-        for line in f:
-            if 'dartNameId=fo' not in line:
-                continue
-            m = re.match(
-                r'scene\.objects\.object(\d+)_0_0\.dartNameId='
-                r'fo\d+_mo(\d+)_go(\d+)',
-                line.strip(),
-            )
-            if m:
-                budget_idx = int(m.group(1))
-                instance = int(m.group(2))
-                group = int(m.group(3))
-                mapping[budget_idx] = (instance, group)
-
-    return mapping if mapping else None
 
 
 def _build_budget_to_ori_mapping(per_band_data, ori_data,
@@ -955,7 +849,7 @@ def step7_aggregate_to_segments(per_band_data, step5_result, mapping):
     # mapping.  Single-plant: fall back to greedy triangle-count matching.
     simu_path = (Path(ptd.getdartdir()) / 'user_data' / 'simulations'
                  / SIMU_NAME)
-    maket_mapping = _parse_maket_scn(simu_path)
+    maket_mapping = parse_maket_scn(simu_path)
     budget_to_ori = _build_budget_to_ori_mapping(
         per_band_data, ori_data,
         maket_mapping=maket_mapping,
@@ -1595,7 +1489,7 @@ def read_and_aggregate_apar(simu, mapping, reindex_info,
         band_idx = int(re.search(r'BAND(\d+)', band_dir.name).group(1))
         rb_file = band_dir / 'RADIATIVE_BUDGET' / 'ITERX' / 'RadiativeBudgetFigures.txt'
         if rb_file.exists():
-            data = _parse_radiative_budget_txt(rb_file)
+            data = parse_radiative_budget_txt(rb_file)
             if data is not None:
                 per_band_data[band_idx] = data
 
@@ -1615,7 +1509,7 @@ def read_and_aggregate_apar(simu, mapping, reindex_info,
     groups_sorted = reindex_info['groups_sorted']
 
     # Build budget-to-ORI mapping
-    maket_mapping = _parse_maket_scn(simu_path)
+    maket_mapping = parse_maket_scn(simu_path)
     budget_to_ori = _build_budget_to_ori_mapping(
         per_band_data, ori_data,
         maket_mapping=maket_mapping,
@@ -1974,7 +1868,7 @@ def read_and_aggregate_apar_multi(simu, mappings, reindex_infos, par_bands=None)
         band_idx = int(re.search(r'BAND(\d+)', band_dir.name).group(1))
         rb_file = band_dir / 'RADIATIVE_BUDGET' / 'ITERX' / 'RadiativeBudgetFigures.txt'
         if rb_file.exists():
-            data = _parse_radiative_budget_txt(rb_file)
+            data = parse_radiative_budget_txt(rb_file)
             if data is not None:
                 per_band_data[band_idx] = data
 
@@ -1982,7 +1876,7 @@ def read_and_aggregate_apar_multi(simu, mappings, reindex_infos, par_bands=None)
         return None
 
     # Parse maket.scn for budget → (instance, group) mapping
-    maket_mapping = _parse_maket_scn(simu_path)
+    maket_mapping = parse_maket_scn(simu_path)
     if maket_mapping is None:
         print("  WARNING: No maket.scn mapping — cannot extract per-plant aPAR")
         return None

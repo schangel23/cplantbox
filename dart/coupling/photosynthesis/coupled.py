@@ -30,7 +30,7 @@ from collections import OrderedDict
 import plantbox as pb
 
 from ..config import DEFAULT_XML, OUTPUT_DIR, get_hydraulics_json, get_photosynthesis_json, get_phloem_json
-from ..growth.grow import grow_plant
+from ..growth import grow_plant
 from ..prospect_params import (get_chl_for_photosynthesis, get_chl_per_segment,
                                get_prospect_params, log_consistency, log_lops_consistency,
                                vcmax25_from_cab)
@@ -287,7 +287,7 @@ def run_photosynthesis_solve(plant, sim_time, par, tleaf, label,
     # --- Leaf water potential ---
     psi_xyl = np.array(hm.get_water_potential())           # per-node [cm]
     seg_nodes = plant.getSegments()
-    leaf_tip_nodes = [seg.y for seg in np.array(seg_nodes)[seg_leaves_idx]]
+    leaf_tip_nodes = [seg_nodes[i].y for i in seg_leaves_idx]
     psi_leaf = psi_xyl[leaf_tip_nodes]                     # per-leaf-segment [cm]
     psi_leaf_MPa = psi_leaf * 1e-4 * 0.0980665             # cm → MPa
 

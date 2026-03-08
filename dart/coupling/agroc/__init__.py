@@ -7,11 +7,12 @@ from .profiles import (
     compute_root_water_uptake_profile,
     compute_aboveground_fluxes,
 )
-from .export import export_agroc_timestep, export_coupling_csv
+from .export import export_agroc_timestep, export_coupling_csv, average_agroc_timesteps, main_export
 from .run import (
     get_agroc_src,
     prepare_agroc_workdir,
     run_agroc,
     validate_agroc_outputs,
     parse_t_level,
+    main_agroc_run,
 )

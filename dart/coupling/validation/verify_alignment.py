@@ -35,7 +35,7 @@ from pytools4dart import OBJtools as ptd_OBJtools
 from ..config import OUTPUT_DIR
 from ..geometry import loft_organs, G3Mesh, extract_organs_for_lofter
 from ..geometry import convert_obj_to_dart, convert_mapping_json_groups
-from ..growth.grow import grow_plant, extract_g3_mesh
+from ..growth import grow_plant, extract_g3_mesh
 
 
 # ============================================================================

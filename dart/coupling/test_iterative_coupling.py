@@ -21,7 +21,7 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 from coupling.config import DEFAULT_XML, OUTPUT_DIR, PHOTO_PATH
-from coupling.growth.grow import grow_plant
+from coupling.growth import grow_plant
 from coupling.photosynthesis.coupled import (
     load_phase_csvs, verify_segment_alignment,
     build_apar_array, build_tleaf_array,

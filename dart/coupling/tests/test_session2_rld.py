@@ -24,7 +24,7 @@ sys.path.insert(0, str(COUPLING_DIR.parent.parent))
 
 import plantbox as pb
 from dart.coupling.config import DEFAULT_XML, OUTPUT_DIR
-from dart.coupling.growth.grow import (
+from dart.coupling.growth import (
     grow_plant,
     extract_rld_profile,
     export_rld_csv,

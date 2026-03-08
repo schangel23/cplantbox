@@ -1,4 +1,4 @@
-"""DART simulation subpackage: RT simulation, Baleno, multifield."""
+"""DART simulation subpackage: RT simulation, Baleno, shared parsers."""
 
 from .simulation import (
     configure_exact_date,
