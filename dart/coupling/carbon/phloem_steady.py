@@ -297,7 +297,8 @@ class QuasiSteadyPhloem:
     # Used to convert Rm/Rg outputs to mmol CO2/d (matching DVS solver interface).
     SUC_TO_CO2 = 12.0
 
-    def __init__(self, plant, tree=None, params=None, sim_day=None):
+    def __init__(self, plant, tree=None, params=None, sim_day=None,
+                 gdd_accumulated=None):
         """Initialize the solver from a CPlantBox plant.
 
         Args:
@@ -307,15 +308,19 @@ class QuasiSteadyPhloem:
             sim_day: Simulation day for DVS-dependent sink modulation.
                 If provided, root and leaf sink strengths are attenuated
                 based on WOFOST developmental tables (FRTB, FLTB).
+            gdd_accumulated: Accumulated GDD from sowing (°C·day). If provided,
+                DVS is computed from thermal time instead of calendar days.
         """
         self.plant = plant
         self.tree = tree if tree is not None else build_tree(plant)
         self.params = params if params is not None else load_phloem_params()
         self.sim_day = sim_day
-        self._dvs_sink_factors = self._compute_dvs_factors(sim_day)
+        self.gdd_accumulated = gdd_accumulated
+        self._dvs_sink_factors = self._compute_dvs_factors(sim_day,
+                                                            gdd_accumulated)
         self._precompute_node_params()
 
-    def _compute_dvs_factors(self, sim_day):
+    def _compute_dvs_factors(self, sim_day, gdd_accumulated=None):
         """Compute DVS-dependent sink attenuation factors.
 
         Real maize progressively shuts down root allocation as it approaches
@@ -339,12 +344,12 @@ class QuasiSteadyPhloem:
         Returns:
             dict with 'root' and 'leaf' attenuation factors in [0, 1].
         """
-        if sim_day is None:
+        if sim_day is None and gdd_accumulated is None:
             return {'root': 1.0, 'leaf': 1.0}
 
-        from .dvs_partitioning import _dvs_from_day, _interp_table, FRTB, FLTB
+        from .dvs_partitioning import dvs_for_day, _interp_table, FRTB, FLTB
 
-        dvs = _dvs_from_day(sim_day)
+        dvs = dvs_for_day(sim_day, gdd_accumulated=gdd_accumulated)
 
         # Root attenuation: FRTB(DVS) / FRTB(0)
         fr_root_now = _interp_table(FRTB, dvs)
@@ -1152,7 +1157,8 @@ class QuasiSteadyPhloem:
 
 
 def solve_carbon_partitioning(plant, An_per_leaf_seg, Tair_C=25.0,
-                              method='auto', day=55, warm_start=None):
+                              method='auto', day=55, warm_start=None,
+                              gdd_accumulated=None):
     """High-level API for carbon partitioning.
 
     Args:
@@ -1162,6 +1168,8 @@ def solve_carbon_partitioning(plant, An_per_leaf_seg, Tair_C=25.0,
         method: 'phloem', 'dvs', or 'auto' (tries phloem, falls back to DVS
                 if carbon balance error > 10%).
         day: Simulation day (for DVS calculation).
+        gdd_accumulated: Accumulated GDD from sowing (°C·day). If provided,
+            DVS is computed from thermal time instead of calendar days.
 
     Returns:
         dict with carbon partitioning results.
@@ -1171,18 +1179,21 @@ def solve_carbon_partitioning(plant, An_per_leaf_seg, Tair_C=25.0,
     GPP_mmol = float(np.sum(An_per_leaf_seg)) * 1000.0  # mol -> mmol CO2/d
 
     if method == 'dvs':
-        return partition_carbon_dvs(GPP_mmol, day, Tair_C=Tair_C)
+        return partition_carbon_dvs(GPP_mmol, day, Tair_C=Tair_C,
+                                    gdd_accumulated=gdd_accumulated)
 
     # Try quasi-steady phloem
     try:
-        solver = QuasiSteadyPhloem(plant, sim_day=day)
+        solver = QuasiSteadyPhloem(plant, sim_day=day,
+                                    gdd_accumulated=gdd_accumulated)
         result = solver.solve(An_per_leaf_seg, Tair_C=Tair_C, sim_day=day,
                               warm_start=warm_start)
 
         if method == 'auto' and result['carbon_balance_error'] > 0.10:
             print(f"  Phloem balance error {result['carbon_balance_error']:.1%} > 10%, "
                   f"falling back to DVS")
-            return partition_carbon_dvs(GPP_mmol, day, Tair_C=Tair_C)
+            return partition_carbon_dvs(GPP_mmol, day, Tair_C=Tair_C,
+                                        gdd_accumulated=gdd_accumulated)
 
         return result
 
@@ -1190,4 +1201,5 @@ def solve_carbon_partitioning(plant, An_per_leaf_seg, Tair_C=25.0,
         if method == 'phloem':
             raise
         print(f"  Phloem solver failed ({e}), falling back to DVS")
-        return partition_carbon_dvs(GPP_mmol, day, Tair_C=Tair_C)
+        return partition_carbon_dvs(GPP_mmol, day, Tair_C=Tair_C,
+                                    gdd_accumulated=gdd_accumulated)

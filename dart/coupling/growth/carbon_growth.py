@@ -45,7 +45,7 @@ def inject_cw_gr(plant, organ_growth_map):
 
 
 def step_plant_carbon(plant, An_leaf, sim_day, tair_c=25.0, dt=1.0,
-                      warm_start=None):
+                      warm_start=None, gdd_accumulated=None):
     """One daily carbon-limited growth step.
 
     1. Phloem solve with An_leaf -> Rg_node
@@ -60,13 +60,16 @@ def step_plant_carbon(plant, An_leaf, sim_day, tair_c=25.0, dt=1.0,
         tair_c: air temperature [C].
         dt: timestep (days).
         warm_start: optional C_ST warm-start dict.
+        gdd_accumulated: Accumulated GDD from sowing (°C·day). If provided,
+            DVS is computed from thermal time instead of calendar days.
 
     Returns:
         carbon_result dict from phloem solver (includes Rg_node, C_ST stats).
     """
     from ..carbon.phloem_steady import QuasiSteadyPhloem
 
-    solver = QuasiSteadyPhloem(plant, sim_day=sim_day)
+    solver = QuasiSteadyPhloem(plant, sim_day=sim_day,
+                                gdd_accumulated=gdd_accumulated)
     result = solver.solve(An_leaf, Tair_C=tair_c, sim_day=sim_day,
                           warm_start=warm_start)
 

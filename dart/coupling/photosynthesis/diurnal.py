@@ -95,6 +95,28 @@ FIELD_FILENAME = 'plant_field.txt'
 FIELD_SEED = 42
 
 
+def _real_met_kwargs(sim_day):
+    """Get diurnal_met_profile kwargs from real daily met data for sim_day.
+
+    Returns empty dict if no data available (uses default sinusoidal).
+    """
+    from ..carbon.dvs_partitioning import get_daily_met
+    day_met = get_daily_met(sim_day)
+    if day_met is None:
+        return {}
+    kwargs = {
+        'T_min': day_met['T_min_C'],
+        'T_max': day_met['T_max_C'],
+    }
+    if 'RH_min' in day_met:
+        kwargs['RH_min'] = day_met['RH_min']
+        kwargs['RH_max'] = day_met['RH_max']
+    if 'wind_mean_ms' in day_met:
+        kwargs['wind_min'] = day_met['wind_mean_ms'] * 0.5
+        kwargs['wind_max'] = day_met['wind_max_ms'] / 3.0
+    return kwargs
+
+
 # ============================================================================
 # Plant setup: grow 9 unique plants + export meshes
 # ============================================================================
@@ -259,7 +281,8 @@ def run_single_day(sim_day, timestep_min=30, enable_baleno=True,
         met = load_met_csv(met_csv)
     else:
         met = diurnal_met_profile(calendar_date, LAT, LON,
-                                   freq=f'{timestep_min}min')
+                                   freq=f'{timestep_min}min',
+                                   **_real_met_kwargs(sim_day))
     print(f"  Met: T={met['T_air_C'].min():.1f}-{met['T_air_C'].max():.1f} C, "
           f"RH={met['RH'].min():.0%}-{met['RH'].max():.0%}")
 
@@ -653,7 +676,8 @@ def run_single_day_with_carbon(sim_day, timestep_min=30, enable_baleno=True,
                                met_csv=None, skip_photosynthesis=False,
                                iterate_gs=False, gs_max_iterations=6,
                                gs_tolerance=0.05, gs_damping_alpha=0.6,
-                               carbon_method='auto', warm_start=None):
+                               carbon_method='auto', warm_start=None,
+                               gdd_accumulated=None):
     """Run diurnal loop + daily carbon partitioning and AgroC export.
 
     Wraps run_single_day() and appends:
@@ -672,6 +696,8 @@ def run_single_day_with_carbon(sim_day, timestep_min=30, enable_baleno=True,
         iterate_gs: iterative Tuzet-Baleno coupling.
         gs_max_iterations, gs_tolerance, gs_damping_alpha: gs params.
         carbon_method: 'auto', 'phloem', or 'dvs'.
+        gdd_accumulated: Accumulated GDD from sowing (°C·day). If provided,
+            DVS is computed from thermal time instead of calendar days.
 
     Returns:
         dict with all run_single_day keys plus 'daily_carbon' and 'daily_agroc_ts'.
@@ -731,6 +757,7 @@ def run_single_day_with_carbon(sim_day, timestep_min=30, enable_baleno=True,
         carbon = solve_carbon_partitioning(
             plant, An_leaf_scaled, Tair_C=25.0,
             method=carbon_method, day=sim_day,
+            gdd_accumulated=gdd_accumulated,
         )
     except Exception as e:
         print(f"  Carbon partitioning error: {e}")
@@ -998,6 +1025,10 @@ def run_production_series(growth_days, timestep_min=60, enable_baleno=True,
     supports checkpointing/resume for multi-day runs, and optionally runs
     AgroC Fortran after all days complete.
 
+    GDD is accumulated across the growth series using daily mean temperatures
+    from the met forcing profile, providing proper thermal-time-based DVS
+    for carbon partitioning.
+
     Args:
         growth_days: List of simulation days.
         timestep_min: Timestep in minutes.
@@ -1013,6 +1044,8 @@ def run_production_series(growth_days, timestep_min=60, enable_baleno=True,
     Returns:
         dict mapping day -> daily result.
     """
+    from ..carbon.dvs_partitioning import gdd_at_day, dvs_from_gdd, _dvs_from_day
+
     print(f"\n{'=' * 70}")
     print(f"PRODUCTION SERIES: {growth_days}")
     print(f"  Carbon: {carbon_method}, AgroC Fortran: {run_agroc_fortran}, "
@@ -1043,6 +1076,16 @@ def run_production_series(growth_days, timestep_min=60, enable_baleno=True,
             print(f"\n  [SKIP] Day {day} already completed (checkpoint)")
             continue
 
+        # Compute GDD from real daily met data (falls back to None → calendar DVS)
+        gdd_accumulated = gdd_at_day(day)
+        if gdd_accumulated is not None:
+            dvs_gdd = dvs_from_gdd(gdd_accumulated)
+            dvs_cal = _dvs_from_day(day)
+            print(f"\n  GDD={gdd_accumulated:.1f} -> DVS={dvs_gdd:.3f} "
+                  f"(calendar-day DVS would be {dvs_cal:.3f})")
+        else:
+            print(f"\n  No daily met data -> using calendar-day DVS")
+
         # Extract warm-start from previous day's checkpoint
         ws = None
         prev_days = [d for d in completed_days if d < day]
@@ -1064,6 +1107,7 @@ def run_production_series(growth_days, timestep_min=60, enable_baleno=True,
             gs_damping_alpha=gs_damping_alpha,
             carbon_method=carbon_method,
             warm_start=ws,
+            gdd_accumulated=gdd_accumulated,
         )
         series_results[day] = result
 
@@ -1080,6 +1124,7 @@ def run_production_series(growth_days, timestep_min=60, enable_baleno=True,
             'C_ST_mean': carbon_result.get('C_ST_mean'),
             'C_ST_min': carbon_result.get('C_ST_min'),
             'C_ST_max': carbon_result.get('C_ST_max'),
+            'gdd_accumulated': gdd_accumulated,
         }
         ckpt_data = {
             'completed_days': completed_days,
@@ -1230,7 +1275,8 @@ def run_single_day_uniform(sim_day, timestep_min=30, met_csv=None):
         met = load_met_csv(met_csv)
     else:
         met = diurnal_met_profile(calendar_date, LAT, LON,
-                                   freq=f'{timestep_min}min')
+                                   freq=f'{timestep_min}min',
+                                   **_real_met_kwargs(sim_day))
     print(f"  Met: T={met['T_air_C'].min():.1f}-{met['T_air_C'].max():.1f} C, "
           f"RH={met['RH'].min():.0%}-{met['RH'].max():.0%}")
 
@@ -1370,7 +1416,8 @@ def run_single_day_uniform(sim_day, timestep_min=30, met_csv=None):
 
 def run_single_day_uniform_with_carbon(sim_day, timestep_min=30,
                                         met_csv=None, carbon_method='auto',
-                                        warm_start=None):
+                                        warm_start=None,
+                                        gdd_accumulated=None):
     """Run uniform diurnal loop + daily carbon partitioning and AgroC export.
 
     Wraps run_single_day_uniform() the same way run_single_day_with_carbon()
@@ -1426,6 +1473,7 @@ def run_single_day_uniform_with_carbon(sim_day, timestep_min=30,
             plant, An_leaf_scaled, Tair_C=25.0,
             method=carbon_method, day=sim_day,
             warm_start=warm_start,
+            gdd_accumulated=gdd_accumulated,
         )
     except Exception as e:
         print(f"  Carbon partitioning error: {e}")
@@ -1507,7 +1555,12 @@ def run_production_series_uniform(growth_days, timestep_min=60,
 
     Same as run_production_series() but using uniform clearsky PAR + Tleaf=Tair.
     No DART, no Baleno, no iterative gs. Output to diurnal_uniform/.
+
+    GDD is accumulated across the growth series using daily mean temperatures
+    from the met forcing profile.
     """
+    from ..carbon.dvs_partitioning import gdd_at_day, dvs_from_gdd, _dvs_from_day
+
     print(f"\n{'=' * 70}")
     print(f"PRODUCTION SERIES (UNIFORM BASELINE): {growth_days}")
     print(f"  Carbon: {carbon_method}, AgroC Fortran: {run_agroc_fortran}, "
@@ -1538,6 +1591,16 @@ def run_production_series_uniform(growth_days, timestep_min=60,
             print(f"\n  [SKIP] Day {day} already completed (checkpoint)")
             continue
 
+        # Compute GDD from real daily met data
+        gdd_accumulated = gdd_at_day(day)
+        if gdd_accumulated is not None:
+            dvs_gdd = dvs_from_gdd(gdd_accumulated)
+            dvs_cal = _dvs_from_day(day)
+            print(f"\n  GDD={gdd_accumulated:.1f} -> DVS={dvs_gdd:.3f} "
+                  f"(calendar-day DVS would be {dvs_cal:.3f})")
+        else:
+            print(f"\n  No daily met data -> using calendar-day DVS")
+
         # Extract warm-start from previous day's checkpoint
         ws = None
         prev_days = [d for d in completed_days if d < day]
@@ -1554,6 +1617,7 @@ def run_production_series_uniform(growth_days, timestep_min=60,
             day, timestep_min=timestep_min,
             carbon_method=carbon_method,
             warm_start=ws,
+            gdd_accumulated=gdd_accumulated,
         )
         series_results[day] = result
 
@@ -1570,6 +1634,7 @@ def run_production_series_uniform(growth_days, timestep_min=60,
             'C_ST_mean': carbon_result.get('C_ST_mean'),
             'C_ST_min': carbon_result.get('C_ST_min'),
             'C_ST_max': carbon_result.get('C_ST_max'),
+            'gdd_accumulated': gdd_accumulated,
         }
         ckpt_data = {
             'completed_days': completed_days,
@@ -1762,6 +1827,8 @@ def run_production_series_carbon(growth_days, timestep_min=60,
           f"iterate_gs: {iterate_gs}")
     print(f"{'=' * 70}")
 
+    from ..carbon.dvs_partitioning import gdd_at_day, dvs_from_gdd
+
     # --- Checkpoint logic ---
     checkpoint_dir = OUTPUT_DIR / 'diurnal_carbon'
     checkpoint_dir.mkdir(parents=True, exist_ok=True)
@@ -1808,9 +1875,18 @@ def run_production_series_carbon(growth_days, timestep_min=60,
             print(f"\n  [SKIP] DART day {dart_day} already completed (checkpoint)")
             continue
 
+        # Compute GDD from real daily met data
+        gdd_accumulated = gdd_at_day(dart_day)
+        if gdd_accumulated is not None:
+            dvs_gdd = dvs_from_gdd(gdd_accumulated)
+        else:
+            dvs_gdd = None
+
         print(f"\n{'=' * 70}")
         print(f"DART OBSERVATION DAY {dart_day} "
               f"({day_idx+1}/{len(growth_days)})")
+        if dvs_gdd is not None:
+            print(f"  GDD={gdd_accumulated:.1f} -> DVS={dvs_gdd:.3f}")
         print(f"{'=' * 70}")
 
         # --- 3a. Re-loft persistent plants, run DART + photosynthesis ---
@@ -1848,7 +1924,8 @@ def run_production_series_carbon(growth_days, timestep_min=60,
             continue
 
         met = diurnal_met_profile(calendar_date, LAT, LON,
-                                   freq=f'{timestep_min}min')
+                                   freq=f'{timestep_min}min',
+                                   **_real_met_kwargs(dart_day))
 
         first_ts_time = solar_df.index[0]
         simu_name = f'cpb_carbon_day{dart_day}'
@@ -2178,9 +2255,12 @@ def run_production_series_carbon(growth_days, timestep_min=60,
         daily_An_field_mean = float(np.mean(daily_An_per_plant_mol))
         daily_An_field_std = float(np.std(daily_An_per_plant_mol))
 
+        # Compute daily mean temperature from hourly results
+        daily_mean_tair = float(np.mean([r['T_air_C'] for r in hourly_results]))
+
         print(f"\n  Day {dart_day}: An field mean = {daily_An_field_mean:.6f} "
               f"+/- {daily_An_field_std:.6f} mol CO2/plant/day "
-              f"({n_steps_done} timesteps)")
+              f"({n_steps_done} timesteps, mean Tair={daily_mean_tair:.1f}°C)")
 
         # Save CSV, JSON summary, and diurnal curve plot
         try:
@@ -2202,10 +2282,11 @@ def run_production_series_carbon(growth_days, timestep_min=60,
 
             # Run photosynthesis at peak on persistent plant to get
             # per-segment An shape for carbon partitioning
+            carbon_prefix = str(day_dir / f'carbon_photo_day{dart_day}_p{pi}')
             hm = run_photosynthesis(
                 plant, sim_time=dart_day,
-                output_prefix=None,
-                par_umol=1000.0, tair_c=25.0)
+                output_prefix=carbon_prefix,
+                par_umol=1000.0, tair_c=daily_mean_tair)
 
             if hm is None:
                 per_plant_carbon.append(None)
@@ -2220,9 +2301,10 @@ def run_production_series_carbon(growth_days, timestep_min=60,
 
             try:
                 carbon = solve_carbon_partitioning(
-                    plant, An_leaf_scaled, Tair_C=25.0,
+                    plant, An_leaf_scaled, Tair_C=daily_mean_tair,
                     method=carbon_method, day=dart_day,
                     warm_start=per_plant_warm_starts[pi] or None,
+                    gdd_accumulated=gdd_accumulated,
                 )
                 per_plant_carbon.append(carbon)
                 per_plant_warm_starts[pi] = {
@@ -2246,13 +2328,18 @@ def run_production_series_carbon(growth_days, timestep_min=60,
                   f"{next_dart_day-1} ({n_inter_days} days)")
 
         for inter_day in range(dart_day + 1, next_dart_day):
-            print(f"    Day {inter_day}:", end='')
+            inter_gdd = gdd_at_day(inter_day)
+
+            print(f"    Day {inter_day}", end='')
+            if inter_gdd is not None:
+                print(f" (GDD={inter_gdd:.0f})", end='')
+            print(":", end='')
             for pi in range(N_PLANTS):
                 plant = persistent_plants[pi]
 
                 # Uniform photosynthesis for this inter-day
                 An_daily = compute_daily_an_uniform(
-                    plant, inter_day, tair_c=25.0)
+                    plant, inter_day, tair_c=daily_mean_tair)
 
                 if len(An_daily) == 0:
                     print(f" p{pi}:skip", end='')
@@ -2262,8 +2349,9 @@ def run_production_series_carbon(growth_days, timestep_min=60,
                 try:
                     result = step_plant_carbon(
                         plant, An_daily, sim_day=inter_day,
-                        tair_c=25.0, dt=1.0,
+                        tair_c=daily_mean_tair, dt=1.0,
                         warm_start=per_plant_warm_starts[pi] or None,
+                        gdd_accumulated=inter_gdd,
                     )
                     per_plant_warm_starts[pi] = {
                         'C_ST_mean': result.get('C_ST_mean'),
@@ -2288,7 +2376,7 @@ def run_production_series_carbon(growth_days, timestep_min=60,
             # Get per-segment An shape from persistent plant
             hm = run_photosynthesis(
                 plant, sim_time=dart_day,
-                output_prefix=None, par_umol=1000.0, tair_c=25.0)
+                output_prefix=None, par_umol=1000.0, tair_c=daily_mean_tair)
             if hm is None:
                 continue
 
@@ -2302,8 +2390,9 @@ def run_production_series_carbon(growth_days, timestep_min=60,
             try:
                 result = step_plant_carbon(
                     plant, An_leaf_scaled, sim_day=dart_day,
-                    tair_c=25.0, dt=1.0,
+                    tair_c=daily_mean_tair, dt=1.0,
                     warm_start=per_plant_warm_starts[pi] or None,
+                    gdd_accumulated=gdd_accumulated,
                 )
                 per_plant_warm_starts[pi] = {
                     'C_ST_mean': result.get('C_ST_mean'),
@@ -2312,6 +2401,37 @@ def run_production_series_carbon(growth_days, timestep_min=60,
                 }
             except Exception as e:
                 print(f"    Plant {pi} growth step error: {e}")
+
+        # --- Append carbon partitioning to daily_summary.json ---
+        try:
+            json_path = day_dir / 'daily_summary.json'
+            if json_path.exists():
+                with open(json_path) as f:
+                    daily_json = json.load(f)
+            else:
+                daily_json = {}
+            carbon_per_plant = []
+            for pi, c in enumerate(per_plant_carbon):
+                if c is not None:
+                    carbon_per_plant.append({
+                        'plant': pi,
+                        'Rm_total_mmol': c.get('Rm_total_mmol'),
+                        'Rg_total_mmol': c.get('Rg_total_mmol'),
+                        'FR_leaf': c.get('FR_leaf'),
+                        'FR_stem': c.get('FR_stem'),
+                        'FR_root': c.get('FR_root'),
+                        'FR_storage': c.get('FR_storage'),
+                        'growth_mmol_d': c.get('growth_mmol_d'),
+                        'carbon_balance_error': c.get('carbon_balance_error'),
+                        'DVS': c.get('DVS'),
+                        'partitioning_source': c.get('partitioning_source'),
+                    })
+            daily_json['carbon_partitioning'] = carbon_per_plant
+            with open(json_path, 'w') as f:
+                json.dump(daily_json, f, indent=2)
+            print(f"  Carbon partitioning added to {json_path}")
+        except Exception as e:
+            print(f"  WARNING: Failed to save carbon partitioning: {e}")
 
         # --- Save results ---
         series_results[dart_day] = {
@@ -2326,6 +2446,7 @@ def run_production_series_carbon(growth_days, timestep_min=60,
             'An_field_mean': daily_An_field_mean,
             'An_per_plant': daily_An_per_plant_mol,
             'n_timesteps': n_steps_done,
+            'gdd_accumulated': gdd_accumulated,
         }
         ckpt_data = {
             'completed_dart_days': completed_dart_days,
