@@ -46,6 +46,7 @@ def layout() -> dbc.Container:
                     dcc.Tab(label="Tleaf vs Tair", value="tab-tleaf"),
                     dcc.Tab(label="Carbon Partitioning", value="tab-carbon"),
                     dcc.Tab(label="Growth Trajectory", value="tab-growth"),
+                    dcc.Tab(label="SIF / Fluorescence", value="tab-sif"),
                 ],
             ),
             html.Div(id="out-plot-container", className="mt-3"),
@@ -143,6 +144,8 @@ def register_callbacks(app):
                 return _plot_carbon(output_dir, mode, day), "", "secondary", False
             elif tab == "tab-growth":
                 return _plot_growth(output_dir, mode), "", "secondary", False
+            elif tab == "tab-sif":
+                return _plot_sif(output_dir, mode, day), "", "secondary", False
         except Exception as e:
             return html.P(f"Error: {e}"), str(e), "danger", True
 
@@ -285,5 +288,119 @@ def _plot_growth(output_dir: Path, mode: str):
         title="Growth Trajectory — Daily An across Growth Days",
         xaxis_title="Growth Day", yaxis_title="Daily An (mmol)",
         margin=dict(l=50, r=30, t=40, b=30),
+    )
+    return dcc.Graph(figure=fig)
+
+
+def _plot_sif(output_dir: Path, mode: str, day: int):
+    """2x2 SIF / Fluorescence plots."""
+    from plotly.subplots import make_subplots
+    import plotly.graph_objects as go
+
+    subdir = "diurnal" if mode == "compare" else mode
+    df = _read_hourly(output_dir, subdir, day)
+    if df is None:
+        return html.P("No data available.")
+
+    if "SIF_canopy_W_m2" not in df.columns or df["SIF_canopy_W_m2"].isna().all():
+        return html.P("No SIF data. Run with --with-sif to generate fluorescence output.")
+
+    fig = make_subplots(
+        rows=2, cols=2,
+        subplot_titles=(
+            "Canopy SIF Emission",
+            "Sunlit / Shaded Fraction",
+            "Fluorescence Yield (eta)",
+            "SIF vs An",
+        ),
+    )
+
+    # Panel 1: Canopy SIF diurnal curve
+    fig.add_trace(
+        go.Scatter(x=df["time_utc"], y=df["SIF_canopy_W_m2"],
+                   name="SIF canopy", line=dict(color="#8e44ad")),
+        row=1, col=1,
+    )
+    # Add TOC SIF if available (Level 2)
+    if "SIF_760_Wm2sr" in df.columns and not df["SIF_760_Wm2sr"].isna().all():
+        fig.add_trace(
+            go.Scatter(x=df["time_utc"], y=df["SIF_760_Wm2sr"],
+                       name="TOC SIF 760nm", line=dict(color="#e74c3c", dash="dash")),
+            row=1, col=1,
+        )
+        fig.add_trace(
+            go.Scatter(x=df["time_utc"], y=df["SIF_687_Wm2sr"],
+                       name="TOC SIF 687nm", line=dict(color="#3498db", dash="dash")),
+            row=1, col=1,
+        )
+    # Compare overlay
+    if mode == "compare":
+        df_uni = _read_hourly(output_dir, "diurnal_uniform", day)
+        if df_uni is not None and "SIF_canopy_W_m2" in df_uni.columns:
+            fig.add_trace(
+                go.Scatter(x=df_uni["time_utc"], y=df_uni["SIF_canopy_W_m2"],
+                           name="SIF uniform", line=dict(color="#8e44ad", dash="dot")),
+                row=1, col=1,
+            )
+
+    # Panel 2: Sunlit/shaded fraction area chart
+    if "f_sunlit_area" in df.columns:
+        fig.add_trace(
+            go.Scatter(x=df["time_utc"], y=df["f_sunlit_area"],
+                       name="Sunlit frac", fill="tozeroy",
+                       line=dict(color="#f39c12")),
+            row=1, col=2,
+        )
+
+    # Panel 3: Fluorescence yield (eta) — sunlit vs shaded
+    if "mean_eta_sunlit" in df.columns:
+        fig.add_trace(
+            go.Scatter(x=df["time_utc"], y=df["mean_eta_sunlit"],
+                       name="eta sunlit", line=dict(color="#e67e22")),
+            row=2, col=1,
+        )
+    if "mean_eta_shaded" in df.columns:
+        fig.add_trace(
+            go.Scatter(x=df["time_utc"], y=df["mean_eta_shaded"],
+                       name="eta shaded", line=dict(color="#2c3e50", dash="dash")),
+            row=2, col=1,
+        )
+
+    # Panel 4: SIF vs An scatter (or TOC vs canopy if Level 2 available)
+    has_toc = ("SIF_760_Wm2sr" in df.columns
+               and not df["SIF_760_Wm2sr"].isna().all())
+    if has_toc:
+        fig.add_trace(
+            go.Scatter(x=df["SIF_canopy_W_m2"], y=df["SIF_total_Wm2sr"],
+                       mode="markers", name="TOC vs canopy SIF",
+                       marker=dict(color=list(range(len(df))),
+                                   colorscale="Viridis", size=8)),
+            row=2, col=2,
+        )
+        fig.update_xaxes(title_text="Canopy SIF (W/m2)", row=2, col=2)
+        fig.update_yaxes(title_text="TOC SIF (W/m2/sr)", row=2, col=2)
+    elif "An_field_mean_mmol_d" in df.columns:
+        fig.add_trace(
+            go.Scatter(x=df["An_field_mean_mmol_d"], y=df["SIF_canopy_W_m2"],
+                       mode="markers", name="SIF vs An",
+                       marker=dict(color=list(range(len(df))),
+                                   colorscale="Viridis", size=8)),
+            row=2, col=2,
+        )
+        fig.update_xaxes(title_text="An (mmol/d)", row=2, col=2)
+        fig.update_yaxes(title_text="Canopy SIF (W/m2)", row=2, col=2)
+
+    fig.update_xaxes(title_text="Time (UTC)", row=1, col=1)
+    fig.update_yaxes(title_text="SIF (W/m2)", row=1, col=1)
+    fig.update_xaxes(title_text="Time (UTC)", row=1, col=2)
+    fig.update_yaxes(title_text="Fraction", row=1, col=2)
+    fig.update_xaxes(title_text="Time (UTC)", row=2, col=1)
+    fig.update_yaxes(title_text="eta (dimensionless)", row=2, col=1)
+
+    fig.update_layout(
+        title=f"Day {day} — SIF / Fluorescence",
+        height=700,
+        margin=dict(l=50, r=30, t=60, b=30),
+        showlegend=True,
     )
     return dcc.Graph(figure=fig)

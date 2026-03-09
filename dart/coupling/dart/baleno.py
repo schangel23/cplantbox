@@ -842,6 +842,12 @@ def update_baleno_sun_and_rerun_I(simu_I, sun_zenith, sun_azimuth, timeout=300):
             elem.set('sunViewingAzimuthAngle', f'{sun_azimuth:.6f}')
         tree.write(str(directions_xml), xml_declaration=True, encoding='unicode')
 
+    # Clean partial DART outputs to prevent corruption from killed processes
+    output_dir = simu_I_path / 'output'
+    if output_dir.exists():
+        for partial in output_dir.glob('*.nc.tmp'):
+            partial.unlink(missing_ok=True)
+
     for name, runner in [
         ('direction', simu_I.run.direction),
         ('phase', simu_I.run.phase),
@@ -851,6 +857,8 @@ def update_baleno_sun_and_rerun_I(simu_I, sun_zenith, sun_azimuth, timeout=300):
             runner(timeout=timeout)
         except Exception as e:
             print(f"  Baleno _I {name} error: {e}")
+            return False
+    return True
 
 
 def update_baleno_datetime_and_rerun_I(simu_I, calendar_date, hour_utc,
@@ -859,6 +867,10 @@ def update_baleno_datetime_and_rerun_I(simu_I, calendar_date, hour_utc,
 
     For use with exactDate=1 mode. Edits the ExactDateHour XML element
     instead of SunViewingAngles.
+
+    The timeout applies per-module (direction, phase, dart). For large scenes
+    the dart module dominates; pass a higher timeout for scenes with >200k
+    visibility particles (e.g. day 26+ with 9 mature plants).
     """
     simu_I_path = Path(str(simu_I.simu_dir))
     directions_xml = simu_I_path / 'input' / 'directions.xml'
@@ -875,6 +887,12 @@ def update_baleno_datetime_and_rerun_I(simu_I, calendar_date, hour_utc,
             elem.set('second', '0')
         tree.write(str(directions_xml), xml_declaration=True, encoding='unicode')
 
+    # Clean partial DART outputs to prevent corruption from killed processes
+    output_dir = simu_I_path / 'output'
+    if output_dir.exists():
+        for partial in output_dir.glob('*.nc.tmp'):
+            partial.unlink(missing_ok=True)
+
     for name, runner in [
         ('direction', simu_I.run.direction),
         ('phase', simu_I.run.phase),
@@ -884,6 +902,8 @@ def update_baleno_datetime_and_rerun_I(simu_I, calendar_date, hour_utc,
             runner(timeout=timeout)
         except Exception as e:
             print(f"  Baleno _I {name} error: {e}")
+            return False
+    return True
 
 
 def run_baleno_subprocess(baleno_simu_name=None, timeout=3600):
@@ -1157,33 +1177,39 @@ def read_baleno_tleaf(baleno_sim_dir, mapping_json_path, reindex_json_path,
     return np.array(segment_tleaf)
 
 
-def read_baleno_tleaf_multi(baleno_sim_dir, mapping_json_paths,
-                             reindex_json_paths, n_plants,
-                             tair_c=None, apar_shaded_threshold=10.0):
-    """Read Baleno outputs and return per-plant per-segment Tleaf arrays.
+def read_baleno_outputs_multi(baleno_sim_dir, mapping_json_paths,
+                               reindex_json_paths, n_plants,
+                               tair_c=None, apar_shaded_threshold=10.0,
+                               read_fluorescence=False):
+    """Read Baleno outputs: per-plant Tleaf + optionally eta (fluorescence).
 
-    Parses a single multi-plant Baleno run. Uses DART_NAME _mo{pi}_go{gi}
-    to identify which scene rows belong to each plant, then maps to OBJ
-    faces via per-plant .ori reindex and aggregates to segments.
+    When read_fluorescence=True, also reads vegetation_3D.csv column 6
+    (FLUORESCENCE) and aggregates eta to per-segment arrays. Returns per-triangle
+    raw data dicts for optional triangle-level SIF output.
 
     Args:
         baleno_sim_dir: Path to Baleno simulation directory.
         mapping_json_paths: List of mapping JSON paths (one per plant).
         reindex_json_paths: List of reindex JSON paths (one per plant).
         n_plants: Number of plants.
-        tair_c: Air temperature (°C) for fallback.
+        tair_c: Air temperature (C) for fallback.
         apar_shaded_threshold: APAR below this = shaded triangle.
+        read_fluorescence: If True, also read vegetation_3D.csv for eta.
 
     Returns:
-        List of n_plants np.ndarray (per-leaf-segment Tleaf in °C),
-        or None on failure.
+        dict with:
+          'tleaf': list of n_plants np.ndarray (per-segment Tleaf C)
+          'eta': list of n_plants np.ndarray (per-segment eta) [only if read_fluorescence]
+          'tri_data_raw': list of n_plants lists of per-tri dicts [only if read_fluorescence]
+        Or None on failure.
     """
     import json as _json
+    import re as _re
 
     output_base = Path(baleno_sim_dir) / 'output'
     results_dir = output_base / 'final_results'
     if not results_dir.exists():
-        print(f"  read_baleno_tleaf_multi: results dir not found")
+        print(f"  read_baleno_outputs_multi: results dir not found")
         return None
 
     # Read scene file
@@ -1194,7 +1220,7 @@ def read_baleno_tleaf_multi(baleno_sim_dir, mapping_json_paths,
             scene_file = candidate
             break
     if scene_file is None:
-        print(f"  read_baleno_tleaf_multi: scene file not found")
+        print(f"  read_baleno_outputs_multi: scene file not found")
         return None
 
     delimiter = detect_delimiter(scene_file)
@@ -1217,7 +1243,7 @@ def read_baleno_tleaf_multi(baleno_sim_dir, mapping_json_paths,
     # Read energy balance
     eb_file = results_dir / 'energy_balance_3D.csv'
     if not eb_file.exists():
-        print(f"  read_baleno_tleaf_multi: energy_balance_3D.csv not found")
+        print(f"  read_baleno_outputs_multi: energy_balance_3D.csv not found")
         return None
 
     with open(eb_file) as f:
@@ -1249,7 +1275,27 @@ def read_baleno_tleaf_multi(baleno_sim_dir, mapping_json_paths,
             if 'absorption_par' in h.lower():
                 col_apar = i
 
-    # Build per-plant .ori reindex and group info
+    # Read vegetation (fluorescence) if requested
+    veg_data = None
+    col_eta = -1
+    col_an_veg = -1
+    if read_fluorescence:
+        veg_file = results_dir / 'vegetation_3D.csv'
+        if veg_file.exists():
+            with open(veg_file) as f:
+                veg_header = [h.strip() for h in f.readline().strip().split(delimiter)]
+            veg_data = np.genfromtxt(str(veg_file), skip_header=1,
+                                      delimiter=delimiter, dtype=float,
+                                      filling_values=np.nan)
+            for i, h in enumerate(veg_header):
+                if 'fluorescence' in h.lower():
+                    col_eta = i
+                if 'net photosynthesis' in h.lower():
+                    col_an_veg = i
+            if col_eta < 0:
+                col_eta = 6  # default FLUORESCENCE column index
+
+    # Build per-plant reindex
     per_plant_dart_to_obj = {}
     for pi in range(n_plants):
         with open(reindex_json_paths[pi]) as f:
@@ -1259,7 +1305,6 @@ def read_baleno_tleaf_multi(baleno_sim_dir, mapping_json_paths,
             dart_to_obj[int(gi_str)] = np.array(obj_indices, dtype=np.int64)
         per_plant_dart_to_obj[pi] = dart_to_obj
 
-    # Build per-plant baleno_to_obj mapping via DART_NAME parsing
     EB_ERR_MAX = 20.0
     fallback_temp_c = tair_c if tair_c is not None else 25.0
 
@@ -1272,6 +1317,9 @@ def read_baleno_tleaf_multi(baleno_sim_dir, mapping_json_paths,
         return not np.isnan(apar) and apar < apar_shaded_threshold
 
     all_plant_tleaf = []
+    all_plant_eta = []
+    all_plant_tri_raw = []
+
     for pi in range(n_plants):
         dart_to_obj = per_plant_dart_to_obj[pi]
 
@@ -1281,8 +1329,8 @@ def read_baleno_tleaf_multi(baleno_sim_dir, mapping_json_paths,
             if not leaf_mask[row_idx]:
                 continue
             dn = dart_names[row_idx]
-            mo_m = re.search(r'_mo(\d+)', dn)
-            go_m = re.search(r'_go(\d+)', dn)
+            mo_m = _re.search(r'_mo(\d+)', dn)
+            go_m = _re.search(r'_go(\d+)', dn)
             if mo_m and go_m:
                 instance = int(mo_m.group(1))
                 group = int(go_m.group(1))
@@ -1303,44 +1351,126 @@ def read_baleno_tleaf_multi(baleno_sim_dir, mapping_json_paths,
         with open(mapping_json_paths[pi]) as f:
             seg_mapping = _json.load(f)
 
-        n_rejected = 0
-        n_shaded_fallback = 0
         segment_tleaf = []
+        segment_eta = []
+        segment_tri_data = []  # per-segment aggregated tri info
+        plant_tri_raw = []     # flat list of per-triangle dicts
+
         for organ in seg_mapping['organs']:
             if organ['type'] != 'leaf':
                 continue
             for seg in organ['segments']:
                 tri_indices = seg['triangle_indices']
                 temps = []
+                etas = []
+                seg_tri_apar = []
+                seg_tri_count = 0
+                seg_tri_sunlit = 0
+
                 for tidx in tri_indices:
-                    if tidx in obj_to_baleno:
-                        row = obj_to_baleno[tidx]
-                        if row < eb_data.shape[0] and col_temp < eb_data.shape[1]:
-                            t = eb_data[row, col_temp]
-                            if np.isnan(t):
-                                continue
+                    if tidx not in obj_to_baleno:
+                        continue
+                    row = obj_to_baleno[tidx]
+                    if row >= eb_data.shape[0]:
+                        continue
+
+                    # Temperature
+                    if col_temp < eb_data.shape[1]:
+                        t = eb_data[row, col_temp]
+                        if not np.isnan(t):
                             if col_eb_err >= 0 and col_eb_err < eb_data.shape[1]:
                                 err = abs(eb_data[row, col_eb_err])
                                 if err > EB_ERR_MAX:
                                     if _is_shaded(row):
                                         temps.append(fallback_temp_c)
-                                        n_shaded_fallback += 1
-                                    else:
-                                        n_rejected += 1
                                     continue
                             temps.append(t - 273.15)
-                if temps:
-                    segment_tleaf.append(float(np.mean(temps)))
-                else:
-                    segment_tleaf.append(fallback_temp_c)
 
-        if n_shaded_fallback > 0 or n_rejected > 0:
-            print(f"  Plant {pi} Tleaf: {n_shaded_fallback} shaded->Tair, "
-                  f"{n_rejected} rejected")
+                    # Fluorescence
+                    if read_fluorescence and veg_data is not None:
+                        if row < veg_data.shape[0] and col_eta < veg_data.shape[1]:
+                            eta_val = veg_data[row, col_eta]
+                            if not np.isnan(eta_val):
+                                etas.append(eta_val)
+
+                        # Per-tri raw data
+                        apar_tri = 0.0
+                        if rad_data is not None and col_apar >= 0:
+                            if row < rad_data.shape[0]:
+                                a = rad_data[row, col_apar]
+                                if not np.isnan(a):
+                                    apar_tri = float(a)
+                        an_tri = 0.0
+                        if col_an_veg >= 0 and row < veg_data.shape[0]:
+                            av = veg_data[row, col_an_veg]
+                            if not np.isnan(av):
+                                an_tri = float(av)
+                        tleaf_tri = temps[-1] if temps else fallback_temp_c
+                        eta_tri = etas[-1] if etas else 0.0
+                        area_tri = seg.get('triangle_area_cm2', 1.0)
+                        if isinstance(area_tri, list):
+                            ti_local = tri_indices.index(tidx) if tidx in tri_indices else 0
+                            area_tri = area_tri[ti_local] if ti_local < len(area_tri) else 1.0
+
+                        plant_tri_raw.append({
+                            'tri_idx': tidx,
+                            'segment_idx': len(segment_tleaf),
+                            'apar_Wm2': apar_tri,
+                            'tleaf_C': tleaf_tri,
+                            'eta': eta_tri,
+                            'An_umol': an_tri,
+                            'area_cm2': float(area_tri) if not isinstance(area_tri, list) else 1.0,
+                        })
+
+                        seg_tri_count += 1
+                        apar_umol = apar_tri * 4.57
+                        seg_tri_apar.append(apar_umol)
+                        if apar_umol > apar_shaded_threshold:
+                            seg_tri_sunlit += 1
+
+                segment_tleaf.append(float(np.mean(temps)) if temps else fallback_temp_c)
+
+                if read_fluorescence:
+                    segment_eta.append(float(np.mean(etas)) if etas else 0.0)
+                    segment_tri_data.append({
+                        'n_triangles': seg_tri_count,
+                        'total_area_cm2': seg.get('total_area_cm2', 0.0),
+                        'mean_apar_umol': float(np.mean(seg_tri_apar)) if seg_tri_apar else 0.0,
+                        'n_sunlit': seg_tri_sunlit,
+                        'n_total': seg_tri_count,
+                    })
 
         all_plant_tleaf.append(np.array(segment_tleaf))
+        if read_fluorescence:
+            all_plant_eta.append(np.array(segment_eta))
+            all_plant_tri_raw.append(plant_tri_raw)
 
-    return all_plant_tleaf
+    result = {'tleaf': all_plant_tleaf}
+    if read_fluorescence:
+        result['eta'] = all_plant_eta
+        result['tri_data'] = [segment_tri_data for _ in range(n_plants)]  # placeholder
+        result['tri_data_raw'] = all_plant_tri_raw
+    return result
+
+
+def read_baleno_tleaf_multi(baleno_sim_dir, mapping_json_paths,
+                             reindex_json_paths, n_plants,
+                             tair_c=None, apar_shaded_threshold=10.0):
+    """Read Baleno outputs and return per-plant per-segment Tleaf arrays.
+
+    Thin wrapper around read_baleno_outputs_multi() for backward compatibility.
+
+    Returns:
+        List of n_plants np.ndarray (per-leaf-segment Tleaf in °C),
+        or None on failure.
+    """
+    result = read_baleno_outputs_multi(
+        baleno_sim_dir, mapping_json_paths, reindex_json_paths, n_plants,
+        tair_c=tair_c, apar_shaded_threshold=apar_shaded_threshold,
+        read_fluorescence=False)
+    if result is None:
+        return None
+    return result['tleaf']
 
 
 def log_baleno_diagnostics(baleno_sim_dir, tleaf_per_segment, tair_c):

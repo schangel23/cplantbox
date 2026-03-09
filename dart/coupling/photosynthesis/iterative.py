@@ -349,7 +349,7 @@ def run_iterative_coupling(
 
         # --- Run Baleno with ExternalGS ---
         print(f"  Running Baleno (ExternalGS)...")
-        ok = run_baleno_subprocess(timeout=1800)
+        ok = run_baleno_subprocess(timeout=3600)
         if not ok:
             print(f"  ERROR: Baleno subprocess failed at iteration {iteration+1}")
             break
@@ -408,6 +408,8 @@ def run_iterative_coupling(
         'gs_per_segment': gs_prev if gs_prev is not None else gs_tuzet,
         'an_per_segment': final_result['An_per_umol'],
         'an_total_mmol': final_result['An_total_mmol'],
+        'psi_leaf_cm': final_result.get('psi_leaf_cm'),
+        'psi_leaf_MPa': final_result.get('psi_leaf_MPa'),
         'iterations': n_iters,
         'gs_history': gs_history,
         'converged': converged,
@@ -633,6 +635,8 @@ def run_iterative_coupling_multi(
     soil_psi_cm=-500.0,
     tair_c=25.0, rh=0.6,
     initial_tleaf=None,
+    with_sif=False,
+    baleno_timeout=3600,
 ):
     """Multi-plant iterative Tuzet-Baleno coupling loop.
 
@@ -806,19 +810,25 @@ def run_iterative_coupling_multi(
         mean_n = float(np.mean([p["N"] for p in per_pos]))
         base_p = get_prospect_params(sim_time)
         input_dir = Path(baleno_sim_dir) / 'input'
-        write_json5(input_dir / 'vegetation.json5', {
+        fqe_val = 0.01 if with_sif else 0
+        veg_json = {
             "Plugin": "ExternalGS",
             "Model": "VegetationExternalGS",
             "PAR_min": 0.400, "PAR_max": 0.700,
             "Cab": round(mean_cab, 1), "Cca": 10, "Cs": 0,
             "Cw": base_p["Cw"], "Cdm": base_p["Cm"],
-            "N": round(mean_n, 2), "fqe": 0,
+            "N": round(mean_n, 2), "fqe": fqe_val,
             "Vcmax25": round(vcmax25_from_cab(mean_cab), 1),
             "BallBerrySlope": 8, "BallBerry0": 0.01,
             "RdPerVcmax25": get_species()["rd_per_vcmax25"],
             "Type": get_species()["photo_type"],
             "rho_thermal": 0.01, "tau_thermal": 0.01, "stress_factor": 1,
-        })
+        }
+        if with_sif:
+            veg_json["Kn0"] = 5.01
+            veg_json["Knalpha"] = 1.93
+            veg_json["Knbeta"] = 10.0
+        write_json5(input_dir / 'vegetation.json5', veg_json)
 
         plugins_dir = input_dir / 'plugins'
         plugins_dir.mkdir(parents=True, exist_ok=True)
@@ -837,7 +847,7 @@ def run_iterative_coupling_multi(
         """))
 
         print(f"  Running Baleno (ExternalGS, {n_plants} plants)...")
-        ok = run_baleno_subprocess(timeout=1800)
+        ok = run_baleno_subprocess(timeout=baleno_timeout)
         if not ok:
             print(f"  ERROR: Baleno subprocess failed at iteration {iteration+1}")
             break
@@ -881,17 +891,39 @@ def run_iterative_coupling_multi(
                   f"{'converged' if converged_flags[pi] else 'not converged'}")
     print(f"{'=' * 70}")
 
+    # Read fluorescence (eta) from final Baleno run if with_sif
+    per_plant_eta = [None] * n_plants
+    per_plant_tri_data = [None] * n_plants
+    per_plant_tri_raw = [None] * n_plants
+    if with_sif:
+        from ..dart.baleno import read_baleno_outputs_multi
+        sif_result = read_baleno_outputs_multi(
+            str(baleno_sim_dir), mapping_json_paths, reindex_json_paths,
+            n_plants, tair_c=tair_c, read_fluorescence=True)
+        if sif_result is not None:
+            per_plant_eta = sif_result.get('eta', [None] * n_plants)
+            per_plant_tri_data = sif_result.get('tri_data', [None] * n_plants)
+            per_plant_tri_raw = sif_result.get('tri_data_raw', [None] * n_plants)
+            print(f"  SIF: read fluorescence for {n_plants} plants")
+
     results = []
     for pi in range(n_plants):
         r = final_results[pi]
-        results.append({
+        rd = {
             'tleaf_per_segment': tleaf[pi],
             'gs_per_segment': gs_prev[pi] if gs_prev[pi] is not None else np.zeros(n_leaf_segs[pi]),
             'an_per_segment': r['An_per_umol'] if r else np.zeros(n_leaf_segs[pi]),
             'an_total_mmol': r['An_total_mmol'] if r else 0.0,
+            'psi_leaf_cm': r.get('psi_leaf_cm') if r else None,
+            'psi_leaf_MPa': r.get('psi_leaf_MPa') if r else None,
             'iterations': n_iters,
             'gs_history': gs_history_per_plant[pi],
             'converged': converged_flags[pi],
-        })
+        }
+        if with_sif:
+            rd['eta_per_segment'] = per_plant_eta[pi] if pi < len(per_plant_eta) else None
+            rd['tri_data'] = per_plant_tri_data[pi] if pi < len(per_plant_tri_data) else None
+            rd['tri_data_raw'] = per_plant_tri_raw[pi] if pi < len(per_plant_tri_raw) else None
+        results.append(rd)
 
     return results

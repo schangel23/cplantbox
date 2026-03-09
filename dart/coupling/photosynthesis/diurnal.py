@@ -235,7 +235,8 @@ def run_single_day(sim_day, use_dart=True, timestep_min=30,
                    enable_baleno=True, met_csv=None,
                    skip_photosynthesis=False, iterate_gs=False,
                    gs_max_iterations=6, gs_tolerance=0.05,
-                   gs_damping_alpha=0.6):
+                   gs_damping_alpha=0.6, with_sif=False,
+                   with_dart_f=False, sif_triangles=False):
     """Run full diurnal coupling for a single day with 9 unique plants.
 
     Args:
@@ -480,9 +481,13 @@ def run_single_day(sim_day, use_dart=True, timestep_min=30,
             elif baleno_setup is not None:
                 try:
                     t0 = time.time()
+                    # Scale _I re-run timeout with scene complexity
+                    n_segs = sum(len(p.getSegmentIds(4)) for p in persistent_plants)
+                    _I_timeout = max(600, int(300 + n_segs * 0.1))
                     update_baleno_datetime_and_rerun_I(
                         baleno_setup['simu_I'], calendar_date,
-                        ts_time.hour, ts_time.minute)
+                        ts_time.hour, ts_time.minute,
+                        timeout=_I_timeout)
                     update_baleno_atmosphere(
                         baleno_setup['baleno_sim_dir'],
                         T_air_K=T_air_K, ea_hPa=ea_hPa, wind_ms=wind_ms,
@@ -495,7 +500,7 @@ def run_single_day(sim_day, use_dart=True, timestep_min=30,
                         user_data_path =
                         name = {baleno_setup['baleno_simu_name']}
                     """))
-                    baleno_timeout = 600 if clearsky_par_wm2 < 100.0 else 1800
+                    baleno_timeout = max(1800, _I_timeout * 4)
                     ok = run_baleno_subprocess(timeout=baleno_timeout)
                     if ok:
                         all_tleaf_baleno = read_baleno_tleaf_multi(
@@ -591,6 +596,7 @@ def run_single_day(sim_day, use_dart=True, timestep_min=30,
                     soil_psi_cm=-500.0,
                     tair_c=T_air_C, rh=rh,
                     initial_tleaf=all_tleaf,
+                    with_sif=with_sif,
                 )
                 if iter_results is not None:
                     for pi in range(N_PLANTS):
@@ -662,6 +668,74 @@ def run_single_day(sim_day, use_dart=True, timestep_min=30,
         # Per-plant An values
         for pi in range(N_PLANTS):
             hourly_row[f'An_p{pi}'] = per_plant_An[pi]
+
+        # --- SIF output ---
+        if with_sif and use_dart and iterate_gs and iter_results is not None:
+            from ..sif.sif_writer import (
+                write_segment_sif_csv, write_triangle_sif_csv,
+                compute_sunlit_shaded_summary,
+            )
+            seg_dir = day_dir / 'segments'
+            seg_dir.mkdir(exist_ok=True)
+            for pi in range(N_PLANTS):
+                if iter_results[pi].get('eta_per_segment') is not None:
+                    seg_csv = seg_dir / f'plant_{pi}_{ts_label.replace(":", "")}.csv'
+                    write_segment_sif_csv(seg_csv, iter_results[pi], pi,
+                                          clearsky_par_wm2)
+                    if sif_triangles and iter_results[pi].get('tri_data_raw'):
+                        tri_csv = seg_dir / f'plant_{pi}_{ts_label.replace(":", "")}_triangles.csv'
+                        write_triangle_sif_csv(tri_csv, iter_results[pi]['tri_data_raw'],
+                                               pi, clearsky_par_wm2)
+
+            sif_summary = compute_sunlit_shaded_summary(
+                iter_results, clearsky_par_wm2,
+                ground_area_m2=SCENE_SIZE[0] * SCENE_SIZE[1])
+            if sif_summary:
+                hourly_row.update(sif_summary)
+
+            # --- DART-F fluorescence RT (Level 2) ---
+            if with_dart_f:
+                try:
+                    from ..dart.dart_f import (
+                        create_dart_f_simulation, run_dart_f,
+                        read_sif_radiance, write_eta_file,
+                        collect_per_triangle_eta,
+                    )
+                    from ..sif.sif_analysis import analyze_dart_f_output
+                    all_tri_eta = collect_per_triangle_eta(iter_results)
+                    eta_path = day_dir / f'eta_{ts_label.replace(":", "")}.txt'
+                    write_eta_file(eta_path, all_tri_eta)
+
+                    sif_simu = create_dart_f_simulation(
+                        obj_paths=setup['dart_obj_paths'],
+                        prospect_params=prospect_params,
+                        eta_file_path=eta_path,
+                        calendar_date=calendar_date,
+                        hour=ts_time.hour, minute=ts_time.minute,
+                        lat=LAT, lon=LON,
+                        scene_size=SCENE_SIZE,
+                        grid_info=setup['grid_info'],
+                        mapping_json_paths=setup['dart_mapping_paths'],
+                        field_filename=FIELD_FILENAME,
+                    )
+                    run_dart_f(sif_simu, timeout=1200)
+                    sif_radiance = read_sif_radiance(sif_simu)
+                    if sif_radiance:
+                        # Scalar metrics to CSV row (skip image arrays)
+                        for k, v in sif_radiance.items():
+                            if not isinstance(v, (dict, np.ndarray)):
+                                hourly_row[k] = v
+                        # Spatial analysis + plots
+                        sif_label = ts_label.replace(':', '')
+                        analyze_dart_f_output(
+                            sif_simu,
+                            output_dir=day_dir / 'sif_maps',
+                            label=sif_label,
+                            scene_size_m=SCENE_SIZE,
+                        )
+                except Exception as e:
+                    print(f"    DART-F error: {e}")
+
         hourly_results.append(hourly_row)
 
     # --- Cleanup Baleno configs ---
@@ -874,7 +948,9 @@ def run_single_day_with_carbon(sim_day, use_dart=True, timestep_min=30,
                                iterate_gs=False, gs_max_iterations=6,
                                gs_tolerance=0.05, gs_damping_alpha=0.6,
                                carbon_method='auto', warm_start=None,
-                               gdd_accumulated=None):
+                               gdd_accumulated=None,
+                               with_sif=False, with_dart_f=False,
+                               sif_triangles=False):
     """Run diurnal loop + per-plant carbon partitioning and AgroC export.
 
     Wraps run_single_day() and appends:
@@ -912,6 +988,8 @@ def run_single_day_with_carbon(sim_day, use_dart=True, timestep_min=30,
         gs_max_iterations=gs_max_iterations,
         gs_tolerance=gs_tolerance,
         gs_damping_alpha=gs_damping_alpha,
+        with_sif=with_sif, with_dart_f=with_dart_f,
+        sif_triangles=sif_triangles,
     )
 
     daily_An_per_plant = result.get('daily_An_mol_per_plant', [])
@@ -981,6 +1059,17 @@ def _save_diurnal_results(day_dir, sim_day, calendar_date, hourly_results,
         'An_field_mean_mmol_d', 'An_field_std_mmol_d',
         'Rm_dvs_mmol', 'Rg_dvs_mmol', 'FR_leaf_dvs', 'FR_root_dvs',
     ]
+    # SIF columns (only written when --with-sif is used)
+    sif_fields = [
+        'n_tri_sunlit', 'n_tri_shaded', 'f_sunlit_area',
+        'mean_apar_sunlit', 'mean_apar_shaded',
+        'mean_tleaf_sunlit', 'mean_tleaf_shaded',
+        'mean_An_sunlit', 'mean_An_shaded',
+        'mean_eta_sunlit', 'mean_eta_shaded',
+        'SIF_canopy_W_m2',
+        'SIF_687_Wm2sr', 'SIF_760_Wm2sr', 'SIF_total_Wm2sr',
+    ]
+    fieldnames.extend(sif_fields)
     for pi in range(N_PLANTS):
         fieldnames.append(f'An_p{pi}')
 
@@ -1013,6 +1102,12 @@ def _save_diurnal_results(day_dir, sim_day, calendar_date, hourly_results,
         summary['peak_time_utc'] = hourly_results[peak_idx]['time_utc']
         summary['sunrise_utc'] = hourly_results[0]['time_utc']
         summary['sunset_utc'] = hourly_results[-1]['time_utc']
+
+        # SIF peak (if SIF data present)
+        sif_vals = [r.get('SIF_canopy_W_m2', 0) for r in hourly_results
+                    if r.get('SIF_canopy_W_m2')]
+        if sif_vals:
+            summary['peak_SIF_W_m2'] = max(sif_vals)
 
     json_path = day_dir / 'daily_summary.json'
     with open(json_path, 'w') as f:
@@ -1111,7 +1206,9 @@ def run_production_series(growth_days, use_dart=True, timestep_min=60,
                           enable_baleno=True, iterate_gs=True,
                           gs_max_iterations=6, gs_tolerance=0.05,
                           gs_damping_alpha=0.6, carbon_method='auto',
-                          run_agroc_fortran=False, resume=False):
+                          run_agroc_fortran=False, resume=False,
+                          with_sif=False, with_dart_f=False,
+                          sif_triangles=False):
     """Run full production diurnal campaign with carbon + AgroC.
 
     Calls run_single_day_with_carbon() per day, supports checkpointing/resume
@@ -1218,6 +1315,8 @@ def run_production_series(growth_days, use_dart=True, timestep_min=60,
             carbon_method=carbon_method,
             warm_start=ws,
             gdd_accumulated=gdd_accumulated,
+            with_sif=with_sif, with_dart_f=with_dart_f,
+            sif_triangles=sif_triangles,
         )
         series_results[day] = result
 
@@ -1416,7 +1515,9 @@ def run_production_series_carbon(growth_days, timestep_min=60,
                                   gs_max_iterations=6, gs_tolerance=0.05,
                                   gs_damping_alpha=0.6,
                                   carbon_method='auto',
-                                  run_agroc_fortran=False, resume=False):
+                                  run_agroc_fortran=False, resume=False,
+                                  with_sif=False, with_dart_f=False,
+                                  sif_triangles=False):
     """Production series with carbon-feedback growth.
 
     Flow:
@@ -1443,6 +1544,9 @@ def run_production_series_carbon(growth_days, timestep_min=60,
         carbon_method: Carbon partitioning method ('auto', 'phloem', 'dvs').
         run_agroc_fortran: If True, run AgroC Fortran after completion.
         resume: If True, skip already-completed days from checkpoint.
+        with_sif: If True, compute per-segment SIF from iterative results.
+        with_dart_f: If True, run DART-F fluorescence RT (requires with_sif).
+        sif_triangles: If True, also write per-triangle SIF CSVs.
 
     Returns:
         dict mapping day -> daily result.
@@ -1650,6 +1754,9 @@ def run_production_series_carbon(growth_days, timestep_min=60,
         hourly_results = []
         dt_day = timestep_min / (24 * 60)
         n_steps_done = 0
+        # Cache: skip Ball-Berry after first successful Tuzet iteration
+        _baleno_bb_done = False      # True after first Ball-Berry scene mapping
+        _prev_tleaf = None           # per-plant Tleaf from previous timestep
 
         for step_i, (ts_time, ts_row) in enumerate(solar_df.iterrows()):
             sun_zen = ts_row['apparent_zenith']
@@ -1694,6 +1801,7 @@ def run_production_series_carbon(growth_days, timestep_min=60,
             all_tleaf_baleno = None
             mean_tleaf_ts = T_air_C
             baleno_ok_ts = False
+            sif_hourly_data = None
 
             for pi in range(N_PLANTS):
                 plant_p = persistent_plants[pi]
@@ -1715,8 +1823,14 @@ def run_production_series_carbon(growth_days, timestep_min=60,
 
             # Baleno + iterative coupling (if enabled)
             MIN_PAR_FOR_BALENO = 50.0
-            # Adaptive timeout: shorter at low PAR where Baleno struggles
-            baleno_timeout = 600 if clearsky_par_wm2 < 100.0 else 1800
+            # Scale timeout with scene complexity (Baleno _I full took up
+            # to 284s for day 38 with 903k particles; dart-only needs more).
+            # Use total leaf segs as proxy: ~300s base + 0.1s per seg.
+            total_leaf_segs = sum(
+                len(persistent_plants[pi].getSegmentIds(4))
+                for pi in range(N_PLANTS))
+            _I_rerun_timeout = max(600, int(300 + total_leaf_segs * 0.1))
+            baleno_timeout = max(1800, _I_rerun_timeout * 4)
             if (iterate_gs and baleno_setup is not None
                     and clearsky_par_wm2 >= MIN_PAR_FOR_BALENO):
                 try:
@@ -1726,7 +1840,8 @@ def run_production_series_carbon(growth_days, timestep_min=60,
                     if step_i > 0:
                         update_baleno_datetime_and_rerun_I(
                             baleno_setup['simu_I'], calendar_date,
-                            ts_time.hour, ts_time.minute)
+                            ts_time.hour, ts_time.minute,
+                            timeout=_I_rerun_timeout)
                     update_baleno_atmosphere(
                         baleno_setup['baleno_sim_dir'],
                         T_air_K=T_air_K, ea_hPa=ea_hPa, wind_ms=wind_ms,
@@ -1740,44 +1855,116 @@ def run_production_series_carbon(growth_days, timestep_min=60,
                         name = {baleno_setup['baleno_simu_name']}
                     """))
 
-                    # Initial Baleno pass (Ball-Berry) for scene mapping
-                    ok = run_baleno_subprocess(timeout=baleno_timeout)
-                    if ok:
-                        # Get initial Tleaf
-                        init_tleaf = read_baleno_tleaf_multi(
-                            baleno_setup['baleno_sim_dir'],
-                            [str(p) for p in setup['dart_mapping_paths']],
-                            [str(p) for p in per_plant_reindex_paths],
-                            N_PLANTS, tair_c=T_air_C,
-                        )
-
-                        iter_results = run_iterative_coupling_multi(
-                            persistent_plants, dart_day,
-                            par_umol_per_plant=all_par_umol,
-                            mapping_json_paths=[str(p) for p in setup['dart_mapping_paths']],
-                            reindex_json_paths=[str(p) for p in per_plant_reindex_paths],
-                            baleno_sim_dir=str(baleno_setup['baleno_sim_dir']),
-                            baleno_simu_name=baleno_setup['baleno_simu_name'],
-                            n_plants=N_PLANTS,
-                            max_iterations=gs_max_iterations,
-                            gs_tolerance=gs_tolerance,
-                            damping_alpha=gs_damping_alpha,
-                            soil_psi_cm=-500.0,
-                            tair_c=T_air_C, rh=rh,
-                            initial_tleaf=init_tleaf,
-                        )
-                        if iter_results is not None:
-                            for pi in range(N_PLANTS):
-                                per_plant_An_ts[pi] = iter_results[pi]['an_total_mmol']
-                            tleaf_means = [float(np.mean(iter_results[pi]['tleaf_per_segment']))
-                                           for pi in range(N_PLANTS)]
-                            mean_tleaf_ts = float(np.mean(tleaf_means))
-                            baleno_ok_ts = True
+                    # Ball-Berry pass: only needed ONCE per day to generate
+                    # scene file for build_scene_row_mapping().  After that,
+                    # reuse cached Tleaf from previous timestep as init.
+                    init_tleaf = _prev_tleaf  # None on first call → Tair
+                    if not _baleno_bb_done:
+                        print(f"  Running Ball-Berry (first pass, scene mapping)...")
+                        ok = run_baleno_subprocess(timeout=baleno_timeout)
+                        if ok:
+                            _baleno_bb_done = True
+                            init_tleaf = read_baleno_tleaf_multi(
+                                baleno_setup['baleno_sim_dir'],
+                                [str(p) for p in setup['dart_mapping_paths']],
+                                [str(p) for p in per_plant_reindex_paths],
+                                N_PLANTS, tair_c=T_air_C,
+                            )
                         else:
-                            # Fall through to simple photosynthesis
-                            baleno_ok_ts = False
-                    else:
-                        print(f"    Initial Baleno failed, using Tleaf=Tair")
+                            print(f"    Initial Baleno failed, using Tleaf=Tair")
+
+                    iter_results = run_iterative_coupling_multi(
+                        persistent_plants, dart_day,
+                        par_umol_per_plant=all_par_umol,
+                        mapping_json_paths=[str(p) for p in setup['dart_mapping_paths']],
+                        reindex_json_paths=[str(p) for p in per_plant_reindex_paths],
+                        baleno_sim_dir=str(baleno_setup['baleno_sim_dir']),
+                        baleno_simu_name=baleno_setup['baleno_simu_name'],
+                        n_plants=N_PLANTS,
+                        max_iterations=gs_max_iterations,
+                        gs_tolerance=gs_tolerance,
+                        damping_alpha=gs_damping_alpha,
+                        soil_psi_cm=-500.0,
+                        tair_c=T_air_C, rh=rh,
+                        initial_tleaf=init_tleaf,
+                        with_sif=with_sif,
+                        baleno_timeout=baleno_timeout,
+                    )
+                    if iter_results is not None:
+                        for pi in range(N_PLANTS):
+                            per_plant_An_ts[pi] = iter_results[pi]['an_total_mmol']
+                        tleaf_means = [float(np.mean(iter_results[pi]['tleaf_per_segment']))
+                                       for pi in range(N_PLANTS)]
+                        mean_tleaf_ts = float(np.mean(tleaf_means))
+                        baleno_ok_ts = True
+                        # Cache Tleaf for next timestep warm-start
+                        _prev_tleaf = [iter_results[pi]['tleaf_per_segment']
+                                       for pi in range(N_PLANTS)]
+
+                        # --- SIF output (carbon-feedback path) ---
+                        if with_sif:
+                            from ..sif.sif_writer import (
+                                write_segment_sif_csv, write_triangle_sif_csv,
+                                compute_sunlit_shaded_summary,
+                            )
+                            seg_dir = day_dir / 'segments'
+                            seg_dir.mkdir(exist_ok=True)
+                            for pi in range(N_PLANTS):
+                                if iter_results[pi].get('eta_per_segment') is not None:
+                                    seg_csv = seg_dir / f'plant_{pi}_{ts_label.replace(":", "")}.csv'
+                                    write_segment_sif_csv(seg_csv, iter_results[pi], pi,
+                                                          clearsky_par_wm2)
+                                    if sif_triangles and iter_results[pi].get('tri_data_raw'):
+                                        tri_csv = seg_dir / f'plant_{pi}_{ts_label.replace(":", "")}_triangles.csv'
+                                        write_triangle_sif_csv(tri_csv, iter_results[pi]['tri_data_raw'],
+                                                               pi, clearsky_par_wm2)
+
+                            sif_summary = compute_sunlit_shaded_summary(
+                                iter_results, clearsky_par_wm2,
+                                ground_area_m2=SCENE_SIZE[0] * SCENE_SIZE[1])
+                            if sif_summary:
+                                sif_hourly_data = sif_summary  # store for hourly_row
+
+                            # DART-F fluorescence RT (Level 2)
+                            if with_dart_f:
+                                try:
+                                    from ..dart.dart_f import (
+                                        create_dart_f_simulation, run_dart_f,
+                                        read_sif_radiance, write_eta_file,
+                                        collect_per_triangle_eta,
+                                    )
+                                    from ..sif.sif_analysis import analyze_dart_f_output
+                                    all_tri_eta = collect_per_triangle_eta(iter_results)
+                                    eta_path = day_dir / f'eta_{ts_label.replace(":", "")}.txt'
+                                    write_eta_file(eta_path, all_tri_eta)
+
+                                    sif_simu = create_dart_f_simulation(
+                                        obj_paths=setup['dart_obj_paths'],
+                                        prospect_params=prospect_params,
+                                        eta_file_path=eta_path,
+                                        calendar_date=calendar_date,
+                                        hour=ts_time.hour, minute=ts_time.minute,
+                                        lat=LAT, lon=LON,
+                                        scene_size=SCENE_SIZE,
+                                        grid_info=setup['grid_info'],
+                                        mapping_json_paths=setup['dart_mapping_paths'],
+                                        field_filename=FIELD_FILENAME,
+                                    )
+                                    run_dart_f(sif_simu, timeout=1200)
+                                    sif_radiance = read_sif_radiance(sif_simu)
+                                    if sif_radiance:
+                                        for k, v in sif_radiance.items():
+                                            if not isinstance(v, (dict, np.ndarray)):
+                                                sif_hourly_data[k] = v
+                                        sif_label = ts_label.replace(':', '')
+                                        analyze_dart_f_output(
+                                            sif_simu,
+                                            output_dir=day_dir / 'sif_maps',
+                                            label=sif_label,
+                                            scene_size_m=SCENE_SIZE,
+                                        )
+                                except Exception as e:
+                                    print(f"    DART-F error: {e}")
                 except Exception as e:
                     import traceback
                     print(f"    Iterative coupling error: {e}")
@@ -1790,7 +1977,8 @@ def run_production_series_carbon(growth_days, timestep_min=60,
                     if step_i > 0:
                         update_baleno_datetime_and_rerun_I(
                             baleno_setup['simu_I'], calendar_date,
-                            ts_time.hour, ts_time.minute)
+                            ts_time.hour, ts_time.minute,
+                            timeout=_I_rerun_timeout)
                     update_baleno_atmosphere(
                         baleno_setup['baleno_sim_dir'],
                         T_air_K=T_air_K, ea_hPa=ea_hPa, wind_ms=wind_ms,
@@ -1871,6 +2059,8 @@ def run_production_series_carbon(growth_days, timestep_min=60,
             }
             for pi in range(N_PLANTS):
                 hourly_row[f'An_p{pi}'] = per_plant_An_ts[pi]
+            if sif_hourly_data:
+                hourly_row.update(sif_hourly_data)
             hourly_results.append(hourly_row)
 
         # Cleanup Baleno after diurnal loop
@@ -2188,6 +2378,15 @@ Examples:
                         help='Growth mode: parametric (default) or '
                              'carbon-limited feedback')
 
+    # SIF fluorescence flags
+    parser.add_argument('--with-sif', action='store_true',
+                        help='Enable SIF fluorescence computation + per-segment output')
+    parser.add_argument('--sif-triangles', action='store_true',
+                        help='Write per-triangle SIF CSVs (large, requires --with-sif)')
+    parser.add_argument('--with-dart-f', action='store_true',
+                        help='Run DART fluorescence RT for TOC SIF radiance '
+                             '(requires --with-sif)')
+
     args = parser.parse_args()
 
     print("Phase 9: Time-Series Diurnal Coupling Loop (Multi-Plant)")
@@ -2212,6 +2411,8 @@ Examples:
                     carbon_method=args.carbon_method,
                     run_agroc_fortran=args.with_agroc,
                     resume=args.resume,
+                    with_sif=args.with_sif, with_dart_f=args.with_dart_f,
+                    sif_triangles=args.sif_triangles,
                 )
             else:
                 raise ValueError(
@@ -2228,6 +2429,8 @@ Examples:
             gs_max_iterations=args.gs_max_iter,
             gs_tolerance=args.gs_tolerance,
             gs_damping_alpha=args.gs_damping,
+            with_sif=args.with_sif, with_dart_f=args.with_dart_f,
+            sif_triangles=args.sif_triangles,
         )
     else:
         # Mode B: growth series
@@ -2245,6 +2448,8 @@ Examples:
                 carbon_method=args.carbon_method,
                 run_agroc_fortran=args.with_agroc,
                 resume=args.resume,
+                with_sif=args.with_sif, with_dart_f=args.with_dart_f,
+                sif_triangles=args.sif_triangles,
             )
         elif args.with_carbon:
             # Production mode: full carbon + AgroC pipeline (parametric growth)
@@ -2259,6 +2464,8 @@ Examples:
                 carbon_method=args.carbon_method,
                 run_agroc_fortran=args.with_agroc,
                 resume=args.resume,
+                with_sif=args.with_sif, with_dart_f=args.with_dart_f,
+                sif_triangles=args.sif_triangles,
             )
         else:
             raise ValueError(
