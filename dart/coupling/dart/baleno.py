@@ -927,13 +927,19 @@ def run_baleno_subprocess(baleno_simu_name=None, timeout=3600):
     env['LD_LIBRARY_PATH'] = filtered_ld
 
     cmd = [str(VENV_PYTHON), '-m', 'src.main']
+    import time as _time
+    t0 = _time.time()
+    print(f"    Baleno subprocess: {' '.join(cmd)}")
+    print(f"    cwd={BALENO_DIR}, timeout={timeout}s")
     try:
         result = subprocess.run(
             cmd, cwd=str(BALENO_DIR), env=env,
             capture_output=True, text=True, timeout=timeout,
         )
+        elapsed = _time.time() - t0
+
         if result.returncode != 0:
-            print(f"  Baleno error (exit {result.returncode})")
+            print(f"  Baleno error (exit {result.returncode}, {elapsed:.0f}s)")
             stderr_lines = result.stderr.strip().split('\n')
             for line in stderr_lines[-10:]:
                 print(f"    {line}")
@@ -945,11 +951,12 @@ def run_baleno_subprocess(baleno_simu_name=None, timeout=3600):
         failure_patterns = ['does not exist', 'Error', 'Traceback', 'KeyError']
         for pattern in failure_patterns:
             if pattern in combined:
-                print(f"  Baleno exited 0 but output indicates failure:")
+                print(f"  Baleno exited 0 but output indicates failure ({elapsed:.0f}s):")
                 for line in combined.strip().split('\n')[-15:]:
                     print(f"    {line}")
                 return False
 
+        print(f"    Baleno completed in {elapsed:.1f}s")
         return True
     except subprocess.TimeoutExpired:
         print(f"  Baleno timed out after {timeout}s")

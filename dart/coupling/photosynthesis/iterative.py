@@ -517,12 +517,25 @@ def build_scene_row_mapping(baleno_sim_dir, reindex_json_paths, n_plants):
     # Find scene file
     scene_file = None
     results_dir = output_base / 'final_results'
-    for candidate in [output_base / 'scene', results_dir / 'scene.csv',
-                      results_dir / 'scene']:
+    candidates = [output_base / 'scene', results_dir / 'scene.csv',
+                  results_dir / 'scene']
+    for candidate in candidates:
         if candidate.exists() and candidate.stat().st_size > 0:
             scene_file = candidate
             break
     if scene_file is None:
+        print(f"  [scene_mapping] No scene file found in {baleno_sim_dir}")
+        print(f"    Checked: {[str(c) for c in candidates]}")
+        if output_base.exists():
+            import os as _os
+            all_files = []
+            for root, dirs, files in _os.walk(str(output_base)):
+                for fn in files:
+                    all_files.append(str(Path(root) / fn))
+            print(f"    Output dir contents ({len(all_files)} files): "
+                  f"{all_files[:10]}")
+        else:
+            print(f"    Output dir does not exist: {output_base}")
         return None
 
     from ..dart.parsers import detect_delimiter

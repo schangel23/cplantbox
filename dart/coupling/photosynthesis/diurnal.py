@@ -399,9 +399,11 @@ def run_single_day(sim_day, use_dart=True, timestep_min=30,
                     use_exact_date=True,
                 )
                 # Run initial full Baleno (with maket on _I)
-                print(f"  Running initial Baleno _I full DART...")
+                # Adaptive timeout: 21 bands × large scene needs more than 30min
+                _I_full_timeout = max(1800, int(600 + N_PLANTS * 300))
+                print(f"  Running initial Baleno _I full DART (timeout={_I_full_timeout}s)...")
                 t0 = time.time()
-                baleno_setup['simu_I'].run.full(timeout=1800)
+                baleno_setup['simu_I'].run.full(timeout=_I_full_timeout)
                 print(f"  Baleno _I full: {time.time() - t0:.1f}s")
             except Exception as e:
                 import traceback
@@ -582,6 +584,10 @@ def run_single_day(sim_day, use_dart=True, timestep_min=30,
                     )
                     iter_plants.append(plant_ts)
 
+                # Adaptive Baleno timeout (same logic as carbon path)
+                _n_segs = sum(len(p.getSegmentIds(4)) for p in iter_plants)
+                _iter_timeout = max(1800, max(600, int(300 + _n_segs * 0.1)) * 4)
+
                 iter_results = run_iterative_coupling_multi(
                     iter_plants, sim_day,
                     par_umol_per_plant=all_par_umol,
@@ -597,6 +603,7 @@ def run_single_day(sim_day, use_dart=True, timestep_min=30,
                     tair_c=T_air_C, rh=rh,
                     initial_tleaf=all_tleaf,
                     with_sif=with_sif,
+                    baleno_timeout=_iter_timeout,
                 )
                 if iter_results is not None:
                     for pi in range(N_PLANTS):
@@ -1736,9 +1743,11 @@ def run_production_series_carbon(growth_days, timestep_min=60,
                     lat=LAT, lon=LON,
                     use_exact_date=True,
                 )
-                print(f"  Running initial Baleno _I full DART...")
+                # Adaptive timeout: 21 bands × large scene needs more than 30min
+                _I_full_timeout = max(1800, int(600 + N_PLANTS * 300))
+                print(f"  Running initial Baleno _I full DART (timeout={_I_full_timeout}s)...")
                 t0 = time.time()
-                baleno_setup['simu_I'].run.full(timeout=1800)
+                baleno_setup['simu_I'].run.full(timeout=_I_full_timeout)
                 print(f"  Baleno _I full: {time.time() - t0:.1f}s")
             except Exception as e:
                 import traceback
