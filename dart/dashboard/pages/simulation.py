@@ -180,6 +180,34 @@ def layout() -> dbc.Container:
                 ],
                 className="mt-3",
             ),
+            # --- SIF / Fluorescence ---
+            dbc.Card(
+                [
+                    dbc.CardHeader("SIF / Fluorescence"),
+                    dbc.CardBody(
+                        [
+                            dbc.Row(
+                                dbc.Col(dbc.Checklist(
+                                    id="sim-sif-checks",
+                                    options=[
+                                        {"label": " Enable SIF emission (per-segment eta)", "value": "with_sif"},
+                                        {"label": " DART-F TOC radiance (Level 2)", "value": "with_dart_f"},
+                                        {"label": " Per-triangle SIF CSVs (large files)", "value": "sif_triangles"},
+                                    ],
+                                    value=[],
+                                    inline=True,
+                                ), width=12),
+                            ),
+                            html.P(
+                                "SIF requires iterate_gs (Tuzet) enabled. Level 2 (DART-F) adds ~106-band "
+                                "fluorescence RT per timestep — significantly slower.",
+                                className="text-muted small mt-2 mb-0",
+                            ),
+                        ]
+                    ),
+                ],
+                className="mt-3",
+            ),
             # --- DART Tuning ---
             dbc.Card(
                 [
@@ -255,6 +283,7 @@ _BUILD_INPUTS = [
     "sim-scene-x", "sim-scene-y", "sim-soil-psi",
     "sim-physics-checks", "sim-gs-max-iter", "sim-gs-tol", "sim-gs-damping",
     "sim-carbon-checks", "sim-carbon-method",
+    "sim-sif-checks",
     "sim-threads", "sim-ray-density", "sim-max-render",
     "sim-log-file",
 ]
@@ -286,12 +315,14 @@ def register_callbacks(app):
          scene_x, scene_y, soil_psi,
          physics, gs_max, gs_tol, gs_damp,
          carbon_checks, carbon_method,
+         sif_checks,
          threads, ray_density, max_render,
          log_file,
          current_store) = args
 
         physics = physics or []
         carbon_checks = carbon_checks or []
+        sif_checks = sif_checks or []
 
         # Parse growth days
         try:
@@ -328,6 +359,9 @@ def register_callbacks(app):
             with_carbon="with_carbon" in carbon_checks,
             carbon_method=carbon_method or "auto",
             with_agroc="with_agroc" in carbon_checks,
+            with_sif="with_sif" in sif_checks,
+            with_dart_f="with_dart_f" in sif_checks,
+            sif_triangles="sif_triangles" in sif_checks,
             threads=int(threads or 8),
             dart_ray_density=int(ray_density or 500),
             dart_max_rendering_time=int(max_render or 0),
@@ -359,6 +393,7 @@ def register_callbacks(app):
         Output("sim-physics-checks", "value"),
         Output("sim-carbon-checks", "value"),
         Output("sim-carbon-method", "value"),
+        Output("sim-sif-checks", "value"),
         Output("sim-threads", "value"),
         Output("sim-ray-density", "value"),
         Output("sim-max-render", "value"),
@@ -370,7 +405,7 @@ def register_callbacks(app):
         prevent_initial_call=True,
     )
     def load_config(contents):
-        n_outputs = 25
+        n_outputs = 26
         if not contents:
             from dash import no_update
             return (no_update,) * n_outputs
@@ -391,6 +426,14 @@ def register_callbacks(app):
             carbon.append("with_carbon")
         if raw.get("with_agroc"):
             carbon.append("with_agroc")
+
+        sif = []
+        if raw.get("with_sif"):
+            sif.append("with_sif")
+        if raw.get("with_dart_f"):
+            sif.append("with_dart_f")
+        if raw.get("sif_triangles"):
+            sif.append("sif_triangles")
 
         gd = raw.get("growth_days", [10, 14, 18, 22, 26, 30, 35, 40, 45, 50, 55, 58])
 
@@ -413,6 +456,7 @@ def register_callbacks(app):
             physics,
             carbon,
             raw.get("carbon_method", "auto"),
+            sif,
             raw.get("threads", 8),
             raw.get("dart_ray_density", 500),
             raw.get("dart_max_rendering_time", 0),

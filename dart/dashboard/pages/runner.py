@@ -149,7 +149,7 @@ def register_callbacks(app):
         lines = []
         for key in ["mode", "species", "growth_days", "grid_nx", "grid_ny",
                      "timestep_min", "enable_baleno", "iterate_gs",
-                     "with_carbon", "resume"]:
+                     "with_carbon", "with_sif", "with_dart_f", "resume"]:
             if key in store:
                 lines.append(f"{key}: {store[key]}")
         return "\n".join(lines)

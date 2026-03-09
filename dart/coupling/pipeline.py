@@ -58,6 +58,11 @@ class PipelineConfig:
     carbon_method: str = "auto"  # auto | phloem | dvs
     with_agroc: bool = False
 
+    # SIF / Fluorescence
+    with_sif: bool = False
+    with_dart_f: bool = False
+    sif_triangles: bool = False
+
     # DART tuning
     threads: int = 8
     dart_ray_density: int = 500
@@ -139,6 +144,9 @@ class PipelineConfig:
             with_carbon=getattr(args, 'with_carbon', False),
             carbon_method=getattr(args, 'carbon_method', 'auto'),
             with_agroc=getattr(args, 'with_agroc', False),
+            with_sif=getattr(args, 'with_sif', False),
+            with_dart_f=getattr(args, 'with_dart_f', False),
+            sif_triangles=getattr(args, 'sif_triangles', False),
             met_csv=getattr(args, 'met_csv', None),
             resume=getattr(args, 'resume', False),
         )
@@ -364,6 +372,9 @@ class PipelineRunner:
                     gs_tolerance=c.gs_tolerance,
                     gs_damping_alpha=c.gs_damping_alpha,
                     carbon_method=c.carbon_method,
+                    with_sif=c.with_sif,
+                    with_dart_f=c.with_dart_f,
+                    sif_triangles=c.sif_triangles,
                 )
             else:
                 result = run_single_day(
@@ -375,6 +386,9 @@ class PipelineRunner:
                     gs_max_iterations=c.gs_max_iterations,
                     gs_tolerance=c.gs_tolerance,
                     gs_damping_alpha=c.gs_damping_alpha,
+                    with_sif=c.with_sif,
+                    with_dart_f=c.with_dart_f,
+                    sif_triangles=c.sif_triangles,
                 )
 
         elif c.mode == "uniform_baseline":
@@ -383,6 +397,9 @@ class PipelineRunner:
                     c.single_day, use_dart=False,
                     timestep_min=c.timestep_min,
                     met_csv=c.met_csv,
+                    with_sif=c.with_sif,
+                    with_dart_f=c.with_dart_f,
+                    sif_triangles=c.sif_triangles,
                 )
             else:
                 result = run_production_series(
@@ -391,6 +408,9 @@ class PipelineRunner:
                     carbon_method=c.carbon_method,
                     run_agroc_fortran=c.with_agroc,
                     resume=c.resume,
+                    with_sif=c.with_sif,
+                    with_dart_f=c.with_dart_f,
+                    sif_triangles=c.sif_triangles,
                 )
 
         elif c.mode == "carbon_feedback":
@@ -405,6 +425,9 @@ class PipelineRunner:
                 carbon_method=c.carbon_method,
                 run_agroc_fortran=c.with_agroc,
                 resume=c.resume,
+                with_sif=c.with_sif,
+                with_dart_f=c.with_dart_f,
+                sif_triangles=c.sif_triangles,
             )
 
         elif c.mode == "full_production":
@@ -419,6 +442,9 @@ class PipelineRunner:
                 carbon_method=c.carbon_method,
                 run_agroc_fortran=c.with_agroc,
                 resume=c.resume,
+                with_sif=c.with_sif,
+                with_dart_f=c.with_dart_f,
+                sif_triangles=c.sif_triangles,
             )
 
         else:
