@@ -74,6 +74,11 @@ class PipelineConfig:
     baleno_python: str = ""
     cplantbox_root: str = ""
 
+    # PROSPECT overrides (None = use stage-based lookup from prospect_params.py)
+    prospect_overrides: dict | None = None  # {Cab, Car, Cw, Cm, N, CBrown, anthocyanin}
+    vcmax_chl1_override: float | None = None  # Vcmax-Chl slope override
+    vcmax_chl2_override: float | None = None  # Vcmax-Chl intercept override
+
     # I/O
     output_dir: str = ""
     log_file: str = ""  # log file path (default: {output_dir}/.dashboard_run.log)
@@ -197,6 +202,14 @@ class PipelineRunner:
             os.environ["GROWTH_MODE"] = "carbon"
         else:
             os.environ["GROWTH_MODE"] = "parametric"
+
+        # PROSPECT overrides — set module-level override dict
+        from .prospect_params import set_overrides
+        set_overrides(
+            prospect=c.prospect_overrides,
+            vcmax_chl1=c.vcmax_chl1_override,
+            vcmax_chl2=c.vcmax_chl2_override,
+        )
 
     def validate_system(self) -> dict[str, dict[str, Any]]:
         """Check external tools and data files.
