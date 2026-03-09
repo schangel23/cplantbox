@@ -82,11 +82,12 @@ def clear_error(output_dir: str) -> None:
 
 
 def stop_pipeline(output_dir: str) -> bool:
-    """Send SIGTERM to running pipeline. Returns True if signal sent."""
+    """Kill pipeline + all child processes (DART, Baleno). Returns True if killed."""
     running, pid = is_pipeline_running(output_dir)
     if running and pid is not None:
         try:
-            os.kill(pid, signal.SIGTERM)
+            pgid = os.getpgid(pid)
+            os.killpg(pgid, signal.SIGTERM)
             clear_pid(output_dir)
             return True
         except OSError:

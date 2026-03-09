@@ -43,6 +43,9 @@ def _run_pipeline_subprocess(config_dict: dict, output_dir: str):
     """Target for multiprocessing.Process. Runs pipeline in isolated process."""
     import io
 
+    # New process group so stop button can killpg() all children (DART, Baleno)
+    os.setpgrp()
+
     log_path = _resolve_log_path(config_dict, output_dir)
 
     # Redirect stdout/stderr to log file so the dashboard can read it
@@ -219,19 +222,24 @@ def register_callbacks(app):
         if not running:
             return "No running pipeline to stop.", "secondary", True, True
 
-        # Kill the process tree (pipeline may spawn DART subprocesses)
+        # Kill the entire process group (DART/Baleno child subprocesses too)
         try:
-            # First try SIGTERM for graceful shutdown
-            os.kill(pid, signal.SIGTERM)
-            # Give it a moment, then force-kill if still alive
-            time.sleep(1)
+            pgid = os.getpgid(pid)
+            # SIGTERM the whole group first
+            os.killpg(pgid, signal.SIGTERM)
+            time.sleep(2)
+            # Force-kill any survivors
             try:
-                os.kill(pid, 0)  # check if still alive
-                os.kill(pid, signal.SIGKILL)  # force kill
+                os.kill(pid, 0)
+                os.killpg(pgid, signal.SIGKILL)
             except OSError:
                 pass  # already dead, good
         except OSError:
-            pass
+            # Fallback: kill just the PID
+            try:
+                os.kill(pid, signal.SIGKILL)
+            except OSError:
+                pass
 
         clear_pid(output_dir)
         return f"Pipeline stopped (PID {pid}).", "info", True, True
