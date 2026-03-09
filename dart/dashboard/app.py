@@ -6,7 +6,7 @@ import dash
 import dash_bootstrap_components as dbc
 from dash import dcc, html
 
-from .pages import system, simulation, meteorology, runner, outputs
+from .pages import system, simulation, meteorology, runner, outputs, viewer3d
 
 
 def create_app() -> dash.Dash:
@@ -37,6 +37,7 @@ def create_app() -> dash.Dash:
                     dcc.Tab(label="Meteorology", value="tab-meteo"),
                     dcc.Tab(label="Run", value="tab-runner"),
                     dcc.Tab(label="Results", value="tab-outputs"),
+                    dcc.Tab(label="3D Viewer", value="tab-3d"),
                 ],
             ),
             html.Div(id="tab-content", className="mt-3"),
@@ -60,6 +61,8 @@ def create_app() -> dash.Dash:
             return runner.layout()
         elif tab == "tab-outputs":
             return outputs.layout()
+        elif tab == "tab-3d":
+            return viewer3d.layout()
         return html.P("Select a tab.")
 
     # Register all page callbacks
@@ -68,5 +71,6 @@ def create_app() -> dash.Dash:
     meteorology.register_callbacks(app)
     runner.register_callbacks(app)
     outputs.register_callbacks(app)
+    viewer3d.register_callbacks(app)
 
     return app
