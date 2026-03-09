@@ -24,15 +24,26 @@ from ..state import (
     write_pid,
 )
 
-# Log file for capturing subprocess stdout
-_LOG_FILE = ".dashboard_run.log"
+# Default log file for capturing subprocess stdout
+_DEFAULT_LOG_FILE = ".dashboard_run.log"
+
+
+def _resolve_log_path(config_dict: dict, output_dir: str) -> Path:
+    """Resolve log file path from config or default."""
+    log_file = config_dict.get("log_file", "")
+    if log_file:
+        p = Path(log_file)
+        if p.is_absolute():
+            return p
+        return Path(output_dir) / p
+    return Path(output_dir) / _DEFAULT_LOG_FILE
 
 
 def _run_pipeline_subprocess(config_dict: dict, output_dir: str):
     """Target for multiprocessing.Process. Runs pipeline in isolated process."""
     import io
 
-    log_path = Path(output_dir) / _LOG_FILE
+    log_path = _resolve_log_path(config_dict, output_dir)
 
     # Redirect stdout/stderr to log file so the dashboard can read it
     log_fh = open(log_path, "w", buffering=1)  # line-buffered
@@ -108,9 +119,12 @@ def layout() -> dbc.Container:
     )
 
 
-def _read_log_tail(output_dir: str, n_lines: int = 80) -> str:
+def _read_log_tail(output_dir: str, n_lines: int = 80, config_dict: dict | None = None) -> str:
     """Read the last N lines of the subprocess log file."""
-    log_path = Path(output_dir) / _LOG_FILE
+    if config_dict:
+        log_path = _resolve_log_path(config_dict, output_dir)
+    else:
+        log_path = Path(output_dir) / _DEFAULT_LOG_FILE
     if not log_path.exists():
         return ""
     try:
@@ -162,12 +176,13 @@ def register_callbacks(app):
         if running:
             return (
                 f"Pipeline already running (PID {pid}). Stop it first.",
-                "warning", True, False, 0, _read_log_tail(output_dir) or f"Running PID {pid}",
+                "warning", True, False, 0, _read_log_tail(output_dir, config_dict=store) or f"Running PID {pid}",
             )
 
         # Clear previous error and log
         clear_error(output_dir)
-        log_path = Path(output_dir) / _LOG_FILE
+        log_path = _resolve_log_path(store, output_dir)
+        log_path.parent.mkdir(parents=True, exist_ok=True)
         log_path.unlink(missing_ok=True)
 
         # Spawn subprocess
@@ -241,7 +256,7 @@ def register_callbacks(app):
         running, pid = is_pipeline_running(output_dir)
 
         # Read live log from subprocess stdout
-        log_text = _read_log_tail(output_dir)
+        log_text = _read_log_tail(output_dir, config_dict=store)
 
         # Determine checkpoint path based on mode
         if config.mode == "uniform_baseline":

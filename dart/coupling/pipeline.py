@@ -71,6 +71,7 @@ class PipelineConfig:
 
     # I/O
     output_dir: str = ""
+    log_file: str = ""  # log file path (default: {output_dir}/.dashboard_run.log)
     met_csv: str | None = None
     met_daily_csv: str | None = None  # daily format override for DVS GDD
     resume: bool = True

@@ -196,6 +196,24 @@ def layout() -> dbc.Container:
                 ],
                 className="mt-3",
             ),
+            # --- I/O ---
+            dbc.Card(
+                [
+                    dbc.CardHeader("I/O"),
+                    dbc.CardBody(
+                        dbc.Row(
+                            [
+                                dbc.Col([
+                                    dbc.Label("Log file"),
+                                    dbc.Input(id="sim-log-file", type="text", value="",
+                                              placeholder=".dashboard_run.log (in output dir)"),
+                                ], width=6),
+                            ],
+                        ),
+                    ),
+                ],
+                className="mt-3",
+            ),
             # --- Load / Preview ---
             dbc.Row(
                 [
@@ -238,6 +256,7 @@ _BUILD_INPUTS = [
     "sim-physics-checks", "sim-gs-max-iter", "sim-gs-tol", "sim-gs-damping",
     "sim-carbon-checks", "sim-carbon-method",
     "sim-threads", "sim-ray-density", "sim-max-render",
+    "sim-log-file",
 ]
 
 
@@ -268,6 +287,7 @@ def register_callbacks(app):
          physics, gs_max, gs_tol, gs_damp,
          carbon_checks, carbon_method,
          threads, ray_density, max_render,
+         log_file,
          current_store) = args
 
         physics = physics or []
@@ -312,6 +332,7 @@ def register_callbacks(app):
             dart_ray_density=int(ray_density or 500),
             dart_max_rendering_time=int(max_render or 0),
             resume="resume" in physics,
+            log_file=log_file or "",
             met_csv=met_csv,
             met_daily_csv=met_daily_csv,
         )
@@ -344,11 +365,12 @@ def register_callbacks(app):
         Output("sim-gs-max-iter", "value"),
         Output("sim-gs-tol", "value"),
         Output("sim-gs-damping", "value"),
+        Output("sim-log-file", "value"),
         Input("sim-upload-config", "contents"),
         prevent_initial_call=True,
     )
     def load_config(contents):
-        n_outputs = 24
+        n_outputs = 25
         if not contents:
             from dash import no_update
             return (no_update,) * n_outputs
@@ -397,4 +419,5 @@ def register_callbacks(app):
             raw.get("gs_max_iterations", 6),
             raw.get("gs_tolerance", 0.05),
             raw.get("gs_damping_alpha", 0.6),
+            raw.get("log_file", ""),
         )
