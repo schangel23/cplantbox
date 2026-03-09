@@ -74,6 +74,12 @@ from ..dart.baleno import (
 )
 from .coupled import run_photosynthesis_solve
 
+
+class _BalenoNotReady(Exception):
+    """Raised when BB scene file is missing — skip iterative coupling."""
+    pass
+
+
 # ---------------------------------------------------------------------------
 # Constants
 # ---------------------------------------------------------------------------
@@ -570,7 +576,7 @@ def run_single_day(sim_day, use_dart=True, timestep_min=30,
         # --- CPlantBox photosynthesis (per-plant) ---
         per_plant_An = [0.0] * N_PLANTS
         if not skip_photosynthesis:
-            if use_dart and iterate_gs and baleno_setup is not None:
+            if use_dart and iterate_gs and baleno_setup is not None and baleno_ok_flag:
                 # Iterative Tuzet-Baleno coupling for ALL plants
                 from .iterative import run_iterative_coupling_multi
 
@@ -1872,15 +1878,38 @@ def run_production_series_carbon(growth_days, timestep_min=60,
                         print(f"  Running Ball-Berry (first pass, scene mapping)...")
                         ok = run_baleno_subprocess(timeout=baleno_timeout)
                         if ok:
-                            _baleno_bb_done = True
-                            init_tleaf = read_baleno_tleaf_multi(
-                                baleno_setup['baleno_sim_dir'],
-                                [str(p) for p in setup['dart_mapping_paths']],
-                                [str(p) for p in per_plant_reindex_paths],
-                                N_PLANTS, tair_c=T_air_C,
-                            )
+                            # Verify scene file actually exists before declaring success
+                            _bsd = Path(baleno_setup['baleno_sim_dir'])
+                            _scene_exists = any(
+                                c.exists() and c.stat().st_size > 0
+                                for c in [_bsd / 'output' / 'scene',
+                                          _bsd / 'output' / 'final_results' / 'scene.csv',
+                                          _bsd / 'output' / 'final_results' / 'scene'])
+                            if _scene_exists:
+                                _baleno_bb_done = True
+                                init_tleaf = read_baleno_tleaf_multi(
+                                    baleno_setup['baleno_sim_dir'],
+                                    [str(p) for p in setup['dart_mapping_paths']],
+                                    [str(p) for p in per_plant_reindex_paths],
+                                    N_PLANTS, tair_c=T_air_C,
+                                )
+                            else:
+                                print(f"    Baleno returned ok but no scene file in {_bsd / 'output'}")
+                                import os as _os
+                                _out = _bsd / 'output'
+                                if _out.exists():
+                                    _files = list(_out.rglob('*'))[:15]
+                                    print(f"    Output contents: {[str(f.relative_to(_out)) for f in _files]}")
+                                else:
+                                    print(f"    Output dir does not exist")
                         else:
                             print(f"    Initial Baleno failed, using Tleaf=Tair")
+
+                    if not _baleno_bb_done:
+                        # No scene file — can't do iterative coupling.
+                        # Fall through to uniform photosynthesis below.
+                        print(f"    Skipping iterative coupling (no BB scene)")
+                        raise _BalenoNotReady()
 
                     iter_results = run_iterative_coupling_multi(
                         persistent_plants, dart_day,
@@ -1974,6 +2003,8 @@ def run_production_series_carbon(growth_days, timestep_min=60,
                                         )
                                 except Exception as e:
                                     print(f"    DART-F error: {e}")
+                except _BalenoNotReady:
+                    pass  # Already logged, fall through to uniform photosynthesis
                 except Exception as e:
                     import traceback
                     print(f"    Iterative coupling error: {e}")
