@@ -1,4 +1,4 @@
-"""Simulation Config tab — mode, species, scene, physics, carbon, DART tuning."""
+"""Simulation Config tab — mode, species, scene, physics, PROSPECT, carbon, DART tuning."""
 
 from __future__ import annotations
 
@@ -6,7 +6,7 @@ import json
 from dataclasses import asdict
 
 import dash_bootstrap_components as dbc
-from dash import Input, Output, State, dcc, html
+from dash import Input, Output, State, dcc, html, dash_table
 
 from ..state import config_from_store, config_to_store
 
@@ -27,6 +27,65 @@ _CARBON_METHODS = [
     {"label": "Phloem (PiafMunch-style)", "value": "phloem"},
     {"label": "DVS (WOFOST-style)", "value": "dvs"},
 ]
+
+# PROSPECT table columns — Stage/Days are read-only, parameters are editable
+_PROSPECT_COLUMNS = [
+    {"name": "Stage", "id": "label", "editable": False},
+    {"name": "Days", "id": "days", "editable": False},
+    {"name": "Cab", "id": "Cab", "type": "numeric"},
+    {"name": "Car", "id": "Car", "type": "numeric"},
+    {"name": "Cw", "id": "Cw", "type": "numeric"},
+    {"name": "Cm", "id": "Cm", "type": "numeric"},
+    {"name": "N", "id": "N", "type": "numeric"},
+    {"name": "CBrown", "id": "CBrown", "type": "numeric"},
+    {"name": "Anth", "id": "anthocyanin", "type": "numeric"},
+]
+
+
+def _stages_to_table_data(stages: list[dict]) -> list[dict]:
+    """Convert prospect_params stage list to DataTable rows."""
+    rows = []
+    for s in stages:
+        lo, hi = s["day_range"]
+        rows.append({
+            "label": s["label"],
+            "days": f"{lo}–{hi}" if hi < 9999 else f"{lo}+",
+            "day_from": lo,
+            "day_to": hi,
+            "Cab": s["Cab"],
+            "Car": s["Car"],
+            "Cw": s["Cw"],
+            "Cm": s["Cm"],
+            "N": s["N"],
+            "CBrown": s["CBrown"],
+            "anthocyanin": s["anthocyanin"],
+        })
+    return rows
+
+
+def _get_default_table_data(species: str = "maize") -> list[dict]:
+    """Get default PROSPECT table data for a species."""
+    from dart.coupling.prospect_params import _PROSPECT_STAGES
+    stages = _PROSPECT_STAGES.get(species, _PROSPECT_STAGES["maize"])
+    return _stages_to_table_data(stages)
+
+
+def _table_data_to_stages(rows: list[dict]) -> list[dict]:
+    """Convert DataTable rows back to prospect_params stage format."""
+    stages = []
+    for r in rows:
+        stages.append({
+            "day_range": [r["day_from"], r["day_to"]],
+            "label": r["label"],
+            "Cab": float(r["Cab"]),
+            "Car": float(r["Car"]),
+            "Cw": float(r["Cw"]),
+            "Cm": float(r["Cm"]),
+            "N": float(r["N"]),
+            "CBrown": float(r["CBrown"]),
+            "anthocyanin": float(r["anthocyanin"]),
+        })
+    return stages
 
 
 def layout() -> dbc.Container:
@@ -167,50 +226,40 @@ def layout() -> dbc.Container:
                                 dbc.Col(dbc.Checklist(
                                     id="sim-prospect-checks",
                                     options=[
-                                        {"label": " Override PROSPECT (manual values)", "value": "override"},
+                                        {"label": " Override PROSPECT (edit table below)", "value": "override"},
                                     ],
                                     value=[],
                                     inline=True,
                                 ), width=12),
                                 className="mb-2",
                             ),
-                            dbc.Collapse(
+                            dash_table.DataTable(
+                                id="sim-prospect-table",
+                                columns=_PROSPECT_COLUMNS,
+                                data=_get_default_table_data("maize"),
+                                editable=False,
+                                style_table={"overflowX": "auto"},
+                                style_cell={"textAlign": "center", "padding": "4px 8px", "fontSize": "13px"},
+                                style_header={"fontWeight": "bold", "backgroundColor": "#f0f0f0"},
+                                style_data_conditional=[
+                                    {"if": {"column_id": "label"}, "fontWeight": "bold", "textAlign": "left"},
+                                    {"if": {"column_id": "days"}, "color": "#666", "textAlign": "left"},
+                                ],
+                            ),
+                            html.Hr(),
+                            dbc.Row(
                                 [
-                                    dbc.Row(
-                                        [
-                                            dbc.Col([dbc.Label("Cab (µg/cm²)"), dbc.Input(id="sim-prospect-cab", type="number", value=55.0, step=1.0, min=0)], width=2),
-                                            dbc.Col([dbc.Label("Car (µg/cm²)"), dbc.Input(id="sim-prospect-car", type="number", value=10.0, step=1.0, min=0)], width=2),
-                                            dbc.Col([dbc.Label("Cw (cm)"), dbc.Input(id="sim-prospect-cw", type="number", value=0.012, step=0.001, min=0)], width=2),
-                                            dbc.Col([dbc.Label("Cm (g/cm²)"), dbc.Input(id="sim-prospect-cm", type="number", value=0.010, step=0.001, min=0)], width=2),
-                                        ],
-                                        className="mb-2",
-                                    ),
-                                    dbc.Row(
-                                        [
-                                            dbc.Col([dbc.Label("N (structure)"), dbc.Input(id="sim-prospect-n", type="number", value=1.4, step=0.1, min=1.0, max=3.0)], width=2),
-                                            dbc.Col([dbc.Label("CBrown"), dbc.Input(id="sim-prospect-cbrown", type="number", value=0.0, step=0.01, min=0)], width=2),
-                                            dbc.Col([dbc.Label("Anthocyanin"), dbc.Input(id="sim-prospect-anth", type="number", value=0.0, step=0.001, min=0)], width=2),
-                                        ],
-                                        className="mb-2",
-                                    ),
-                                    html.Hr(),
-                                    dbc.Row(
-                                        [
-                                            dbc.Col([dbc.Label("Vcmax-Chl slope"), dbc.Input(id="sim-vcmax-chl1", type="number", value=0.64, step=0.01)], width=2),
-                                            dbc.Col([dbc.Label("Vcmax-Chl intercept"), dbc.Input(id="sim-vcmax-chl2", type="number", value=4.165, step=0.1)], width=2),
-                                            dbc.Col(
-                                                html.Div(id="sim-prospect-vcmax-display", className="mt-4 fw-bold"),
-                                                width=4,
-                                            ),
-                                        ],
+                                    dbc.Col([dbc.Label("Vcmax-Chl slope"), dbc.Input(id="sim-vcmax-chl1", type="number", value=0.64, step=0.01)], width=2),
+                                    dbc.Col([dbc.Label("Vcmax-Chl intercept"), dbc.Input(id="sim-vcmax-chl2", type="number", value=4.165, step=0.1)], width=2),
+                                    dbc.Col(
+                                        html.Div(id="sim-prospect-vcmax-display", className="mt-4 fw-bold"),
+                                        width=6,
                                     ),
                                 ],
-                                id="sim-prospect-collapse",
-                                is_open=False,
                             ),
                             html.P(
-                                "When override is off, PROSPECT values are looked up per growth stage and species. "
-                                "Vcmax = slope × Cab + intercept [µmol/m²/s].",
+                                "Table shows per-growth-stage PROSPECT parameters. "
+                                "Enable override to edit values. Vcmax = slope * Cab + intercept [umol/m2/s].",
                                 className="text-muted small mt-2 mb-0",
                             ),
                         ]
@@ -336,17 +385,15 @@ def layout() -> dbc.Container:
     )
 
 
-# All input IDs used in build_config (order matters for callback signature)
+# All scalar input IDs used in build_config (order matters for callback signature).
+# The PROSPECT table data is a separate Input (not in this list).
 _BUILD_INPUTS = [
     "sim-mode", "sim-species", "sim-growth-days", "sim-single-day", "sim-timestep",
     "sim-lat", "sim-lon", "sim-sowing-date",
     "sim-grid-nx", "sim-grid-ny", "sim-spacing-x", "sim-spacing-y",
     "sim-scene-x", "sim-scene-y", "sim-soil-psi",
     "sim-physics-checks", "sim-gs-max-iter", "sim-gs-tol", "sim-gs-damping",
-    "sim-prospect-checks",
-    "sim-prospect-cab", "sim-prospect-car", "sim-prospect-cw", "sim-prospect-cm",
-    "sim-prospect-n", "sim-prospect-cbrown", "sim-prospect-anth",
-    "sim-vcmax-chl1", "sim-vcmax-chl2",
+    "sim-prospect-checks", "sim-vcmax-chl1", "sim-vcmax-chl2",
     "sim-carbon-checks", "sim-carbon-method",
     "sim-sif-checks",
     "sim-threads", "sim-ray-density", "sim-max-render",
@@ -358,7 +405,7 @@ def register_callbacks(app):
     @app.callback(
         Output("sim-single-day", "disabled"),
         Output("sim-gs-collapse", "is_open"),
-        Output("sim-prospect-collapse", "is_open"),
+        Output("sim-prospect-table", "editable"),
         Input("sim-mode", "value"),
         Input("sim-physics-checks", "value"),
         Input("sim-prospect-checks", "value"),
@@ -366,71 +413,66 @@ def register_callbacks(app):
     def toggle_fields(mode, physics, prospect_checks):
         single_disabled = mode != "single_day"
         gs_open = "iterate_gs" in (physics or [])
-        prospect_open = "override" in (prospect_checks or [])
-        return single_disabled, gs_open, prospect_open
+        prospect_editable = "override" in (prospect_checks or [])
+        return single_disabled, gs_open, prospect_editable
 
     @app.callback(
         Output("sim-prospect-vcmax-display", "children"),
-        Input("sim-prospect-cab", "value"),
+        Input("sim-prospect-table", "data"),
         Input("sim-vcmax-chl1", "value"),
         Input("sim-vcmax-chl2", "value"),
     )
-    def update_vcmax_display(cab, chl1, chl2):
+    def update_vcmax_display(table_data, chl1, chl2):
+        """Show Vcmax for each stage's Cab."""
         try:
-            vcmax = float(chl1 or 0) * float(cab or 0) + float(chl2 or 0)
-            return f"Cab={cab} → Vcmax = {vcmax:.1f} µmol/m²/s"
+            chl1 = float(chl1 or 0)
+            chl2 = float(chl2 or 0)
+            parts = []
+            for row in (table_data or []):
+                cab = float(row.get("Cab", 0))
+                vcmax = chl1 * cab + chl2
+                parts.append(f"{row['label']}: Cab={cab:.0f} -> Vcmax={vcmax:.1f}")
+            return " | ".join(parts) + " [umol/m2/s]"
         except (TypeError, ValueError):
             return "—"
 
     @app.callback(
-        Output("sim-prospect-cab", "value", allow_duplicate=True),
-        Output("sim-prospect-car", "value", allow_duplicate=True),
-        Output("sim-prospect-cw", "value", allow_duplicate=True),
-        Output("sim-prospect-cm", "value", allow_duplicate=True),
-        Output("sim-prospect-n", "value", allow_duplicate=True),
-        Output("sim-prospect-cbrown", "value", allow_duplicate=True),
-        Output("sim-prospect-anth", "value", allow_duplicate=True),
+        Output("sim-prospect-table", "data", allow_duplicate=True),
         Output("sim-vcmax-chl1", "value", allow_duplicate=True),
         Output("sim-vcmax-chl2", "value", allow_duplicate=True),
         Input("sim-species", "value"),
         prevent_initial_call=True,
     )
     def update_prospect_defaults(species):
-        """Reset PROSPECT defaults when species changes."""
-        from dart.coupling.prospect_params import _PROSPECT_STAGES
+        """Reset PROSPECT table and Vcmax coefficients when species changes."""
         from dart.coupling.config import SPECIES_REGISTRY
         sp_name = (species or "maize").lower()
-        # Pick representative mid-stage defaults
-        stages = _PROSPECT_STAGES.get(sp_name, _PROSPECT_STAGES["maize"])
-        mid = stages[len(stages) // 2]
         sp = SPECIES_REGISTRY.get(sp_name, SPECIES_REGISTRY["maize"])
-        return (
-            mid["Cab"], mid["Car"], mid["Cw"], mid["Cm"],
-            mid["N"], mid["CBrown"], mid["anthocyanin"],
-            sp["vcmax_chl1"], sp["vcmax_chl2"],
-        )
+        return _get_default_table_data(sp_name), sp["vcmax_chl1"], sp["vcmax_chl2"]
 
     @app.callback(
         Output("pipeline-config-store", "data"),
         Output("sim-config-preview", "value"),
-        [Input(id_, "value") for id_ in _BUILD_INPUTS],
+        [Input(id_, "value") for id_ in _BUILD_INPUTS] + [Input("sim-prospect-table", "data")],
         State("pipeline-config-store", "data"),
     )
     def build_config(*args):
-        # Unpack in same order as _BUILD_INPUTS + trailing state
+        # Unpack: _BUILD_INPUTS values + table data + trailing state
+        n_scalar = len(_BUILD_INPUTS)
+        scalar_args = args[:n_scalar]
+        prospect_table_data = args[n_scalar]
+        current_store = args[n_scalar + 1]
+
         (mode, species, growth_days_str, single_day, timestep,
          lat, lon, sowing_date,
          grid_nx, grid_ny, spacing_x, spacing_y,
          scene_x, scene_y, soil_psi,
          physics, gs_max, gs_tol, gs_damp,
-         prospect_checks,
-         p_cab, p_car, p_cw, p_cm, p_n, p_cbrown, p_anth,
-         vcmax_chl1, vcmax_chl2,
+         prospect_checks, vcmax_chl1, vcmax_chl2,
          carbon_checks, carbon_method,
          sif_checks,
          threads, ray_density, max_render,
-         log_file,
-         current_store) = args
+         log_file) = scalar_args
 
         physics = physics or []
         prospect_checks = prospect_checks or []
@@ -447,21 +489,13 @@ def register_callbacks(app):
         met_csv = (current_store or {}).get("met_csv")
         met_daily_csv = (current_store or {}).get("met_daily_csv")
 
-        # PROSPECT overrides
+        # PROSPECT overrides — per-stage from table
         prospect_override = "override" in prospect_checks
-        prospect_dict = None
+        stages_override = None
         vcmax1_ov = None
         vcmax2_ov = None
-        if prospect_override:
-            prospect_dict = {
-                "Cab": float(p_cab) if p_cab is not None else None,
-                "Car": float(p_car) if p_car is not None else None,
-                "Cw": float(p_cw) if p_cw is not None else None,
-                "Cm": float(p_cm) if p_cm is not None else None,
-                "N": float(p_n) if p_n is not None else None,
-                "CBrown": float(p_cbrown) if p_cbrown is not None else None,
-                "anthocyanin": float(p_anth) if p_anth is not None else None,
-            }
+        if prospect_override and prospect_table_data:
+            stages_override = _table_data_to_stages(prospect_table_data)
             vcmax1_ov = float(vcmax_chl1) if vcmax_chl1 is not None else None
             vcmax2_ov = float(vcmax_chl2) if vcmax_chl2 is not None else None
 
@@ -487,7 +521,7 @@ def register_callbacks(app):
             gs_max_iterations=int(gs_max or 6),
             gs_tolerance=float(gs_tol or 0.05),
             gs_damping_alpha=float(gs_damp or 0.6),
-            prospect_overrides=prospect_dict,
+            prospect_stages_override=stages_override,
             vcmax_chl1_override=vcmax1_ov,
             vcmax_chl2_override=vcmax2_ov,
             with_carbon="with_carbon" in carbon_checks,
@@ -526,13 +560,7 @@ def register_callbacks(app):
         Output("sim-soil-psi", "value"),
         Output("sim-physics-checks", "value"),
         Output("sim-prospect-checks", "value"),
-        Output("sim-prospect-cab", "value"),
-        Output("sim-prospect-car", "value"),
-        Output("sim-prospect-cw", "value"),
-        Output("sim-prospect-cm", "value"),
-        Output("sim-prospect-n", "value"),
-        Output("sim-prospect-cbrown", "value"),
-        Output("sim-prospect-anth", "value"),
+        Output("sim-prospect-table", "data"),
         Output("sim-vcmax-chl1", "value"),
         Output("sim-vcmax-chl2", "value"),
         Output("sim-carbon-checks", "value"),
@@ -549,7 +577,7 @@ def register_callbacks(app):
         prevent_initial_call=True,
     )
     def load_config(contents):
-        n_outputs = 36
+        n_outputs = 30
         if not contents:
             from dash import no_update
             return (no_update,) * n_outputs
@@ -567,10 +595,14 @@ def register_callbacks(app):
 
         # PROSPECT
         prospect_checks = []
-        p_ov = raw.get("prospect_overrides")
-        if p_ov is not None:
+        stages_ov = raw.get("prospect_stages_override")
+        if stages_ov is not None:
             prospect_checks.append("override")
-        p_ov = p_ov or {}
+            # Convert saved stages to table data
+            table_data = _stages_to_table_data(stages_ov)
+        else:
+            sp = (raw.get("species") or "maize").lower()
+            table_data = _get_default_table_data(sp)
 
         carbon = []
         if raw.get("with_carbon"):
@@ -606,13 +638,7 @@ def register_callbacks(app):
             raw.get("soil_psi_cm", -500.0),
             physics,
             prospect_checks,
-            p_ov.get("Cab", 55.0),
-            p_ov.get("Car", 10.0),
-            p_ov.get("Cw", 0.012),
-            p_ov.get("Cm", 0.010),
-            p_ov.get("N", 1.4),
-            p_ov.get("CBrown", 0.0),
-            p_ov.get("anthocyanin", 0.0),
+            table_data,
             raw.get("vcmax_chl1_override") or 0.64,
             raw.get("vcmax_chl2_override") or 4.165,
             carbon,

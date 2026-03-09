@@ -74,8 +74,9 @@ class PipelineConfig:
     baleno_python: str = ""
     cplantbox_root: str = ""
 
-    # PROSPECT overrides (None = use stage-based lookup from prospect_params.py)
-    prospect_overrides: dict | None = None  # {Cab, Car, Cw, Cm, N, CBrown, anthocyanin}
+    # PROSPECT overrides (None = use built-in stage-based lookup from prospect_params.py)
+    # Each entry: {day_range: [lo, hi], label: str, Cab, Car, Cw, Cm, N, CBrown, anthocyanin}
+    prospect_stages_override: list | None = None
     vcmax_chl1_override: float | None = None  # Vcmax-Chl slope override
     vcmax_chl2_override: float | None = None  # Vcmax-Chl intercept override
 
@@ -203,10 +204,20 @@ class PipelineRunner:
         else:
             os.environ["GROWTH_MODE"] = "parametric"
 
-        # PROSPECT overrides — set module-level override dict
+        # PROSPECT overrides — set module-level stage list
         from .prospect_params import set_overrides
+        # Convert day_range from JSON lists to tuples for stage matching
+        stages_ov = None
+        if c.prospect_stages_override:
+            stages_ov = []
+            for s in c.prospect_stages_override:
+                entry = dict(s)
+                dr = entry.get("day_range")
+                if isinstance(dr, list):
+                    entry["day_range"] = tuple(dr)
+                stages_ov.append(entry)
         set_overrides(
-            prospect=c.prospect_overrides,
+            stages=stages_ov,
             vcmax_chl1=c.vcmax_chl1_override,
             vcmax_chl2=c.vcmax_chl2_override,
         )

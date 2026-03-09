@@ -26,22 +26,32 @@ from .config import get_species, get_species_name
 
 # ---------------------------------------------------------------------------
 # Runtime overrides — set by PipelineRunner or dashboard before pipeline runs.
-# When _PROSPECT_OVERRIDE is not None, get_prospect_params() returns it
-# instead of the stage-based lookup (still using stage defaults for missing keys).
+# _STAGES_OVERRIDE replaces the entire stages list for _get_stages().
+# Each entry must have: day_range, label, Cab, Car, Cw, Cm, N, CBrown, anthocyanin.
 # ---------------------------------------------------------------------------
-_PROSPECT_OVERRIDE: dict | None = None
+_STAGES_OVERRIDE: list | None = None
 _VCMAX_CHL1_OVERRIDE: float | None = None
 _VCMAX_CHL2_OVERRIDE: float | None = None
 
 
 def set_overrides(
-    prospect: dict | None = None,
+    stages: list | None = None,
     vcmax_chl1: float | None = None,
     vcmax_chl2: float | None = None,
 ) -> None:
-    """Set runtime PROSPECT overrides.  Pass None to clear."""
-    global _PROSPECT_OVERRIDE, _VCMAX_CHL1_OVERRIDE, _VCMAX_CHL2_OVERRIDE
-    _PROSPECT_OVERRIDE = prospect
+    """Set runtime PROSPECT overrides.
+
+    Parameters
+    ----------
+    stages : list or None
+        Full replacement for the species' stage list.  Each dict must have
+        day_range (tuple), label (str), and the 7 PROSPECT keys.
+        Pass None to clear and revert to built-in defaults.
+    vcmax_chl1, vcmax_chl2 : float or None
+        Override Vcmax-Chl linear model coefficients.
+    """
+    global _STAGES_OVERRIDE, _VCMAX_CHL1_OVERRIDE, _VCMAX_CHL2_OVERRIDE
+    _STAGES_OVERRIDE = stages
     _VCMAX_CHL1_OVERRIDE = vcmax_chl1
     _VCMAX_CHL2_OVERRIDE = vcmax_chl2
 
@@ -119,7 +129,13 @@ PROSPECT_STAGES = _PROSPECT_STAGES["maize"]
 
 
 def _get_stages() -> list:
-    """Return PROSPECT stages list for the active species."""
+    """Return PROSPECT stages list for the active species.
+
+    If a runtime override is active (via set_overrides), returns the
+    override list instead of the built-in defaults.
+    """
+    if _STAGES_OVERRIDE is not None:
+        return _STAGES_OVERRIDE
     name = get_species_name()
     if name not in _PROSPECT_STAGES:
         raise ValueError(
@@ -149,30 +165,17 @@ def get_prospect_params(day: float) -> dict:
     Returns keys: Cab, Car, Cw, Cm, N, CBrown, anthocyanin.
     Suitable for passing directly to pytools4dart's ``prospect=`` kwarg.
 
-    If runtime overrides are active (via set_overrides()), the override values
-    replace the stage-based lookup.  Missing keys fall back to stage defaults.
+    Respects per-stage runtime overrides via set_overrides().
     """
     _KEYS = ("Cab", "Car", "Cw", "Cm", "N", "CBrown", "anthocyanin")
-
-    # Stage-based lookup (always needed as fallback)
     stages = _get_stages()
-    stage_params = None
     for stage in stages:
         lo, hi = stage["day_range"]
         if lo <= day < hi:
-            stage_params = {k: stage[k] for k in _KEYS}
-            break
-    if stage_params is None:
-        stage = stages[-1]
-        stage_params = {k: stage[k] for k in _KEYS}
-
-    # Apply runtime overrides
-    if _PROSPECT_OVERRIDE is not None:
-        for k in _KEYS:
-            if k in _PROSPECT_OVERRIDE and _PROSPECT_OVERRIDE[k] is not None:
-                stage_params[k] = _PROSPECT_OVERRIDE[k]
-
-    return stage_params
+            return {k: stage[k] for k in _KEYS}
+    # Fallback to last stage
+    stage = stages[-1]
+    return {k: stage[k] for k in _KEYS}
 
 
 def get_stem_prospect_params(day: float) -> dict:
