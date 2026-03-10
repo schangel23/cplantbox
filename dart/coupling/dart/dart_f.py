@@ -133,10 +133,11 @@ def create_dart_f_simulation(obj_paths, prospect_params, eta_file_path,
     )
 
     # Access the Lambertian OP and configure PROSPECT+fluorescence
-    lmf_list = cd.Surfaces.LambertianMultiFunctions
-    if lmf_list and len(lmf_list) > 0:
-        lmf = lmf_list[-1]
-        lamb = lmf.LambertianMulti.Lambertian
+    lmf_container = cd.Surfaces.LambertianMultiFunctions
+    lmf_items = lmf_container.LambertianMulti if lmf_container else []
+    if lmf_items and len(lmf_items) > 0:
+        lmf = lmf_items[-1]
+        lamb = lmf.Lambertian
 
         # Set up ProspectExternalModule with fluorescence
         prospect_mod = ptd.coeff_diff.create_ProspectExternalModule(
