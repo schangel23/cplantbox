@@ -1,17 +1,26 @@
-/* Minimal FLATLY overrides for CPlantBox dashboard */
+/* CPlantBox-DART Coupling Dashboard — styled to match official CPlantBox dashboard */
 
 .dashboard-title {
-    font-family: "Segoe UI", Roboto, sans-serif;
-    font-weight: 600;
-    color: #2c3e50;
+    font-weight: bold;
+    font-size: 18px;
+    color: #023d6c;
 }
 
 .card {
     margin-bottom: 1rem;
+    border: 1px solid #ccc;
+    border-radius: 8px;
+    box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+    margin-top: 10px;
 }
 
 .card-header {
     font-weight: 600;
+    color: #023d6c;
+    background-color: transparent;
+    border-bottom: 1px solid #eee;
+    font-size: 14px;
+    padding: 10px 15px;
 }
 
 .log-area {
@@ -50,5 +59,38 @@
 }
 
 .upload-zone:hover {
-    border-color: #2c3e50;
+    border-color: #023d6c;
+}
+
+/* Logo container — fixed bottom-left */
+.logoContainer {
+    position: fixed;
+    bottom: 12px;
+    left: 16px;
+    display: flex;
+    flex-direction: row;
+    gap: 10px;
+    z-index: 1000;
+}
+
+.logo {
+    height: 36px;
+    opacity: 0.7;
+    transition: opacity 0.2s;
+}
+
+.logo:hover {
+    opacity: 1.0;
+}
+
+/* Rounded tab styling */
+.tab {
+    border-radius: 6px 6px 0 0 !important;
+    transition: background-color 0.2s, color 0.2s;
+}
+
+.tab--selected {
+    border-radius: 6px 6px 0 0 !important;
+    border-bottom: 2px solid #023d6c !important;
+    color: #023d6c !important;
 }

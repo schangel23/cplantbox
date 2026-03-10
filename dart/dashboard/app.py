@@ -12,7 +12,7 @@ from .pages import system, simulation, meteorology, runner, outputs, viewer3d
 def create_app() -> dash.Dash:
     app = dash.Dash(
         __name__,
-        external_stylesheets=[dbc.themes.FLATLY],
+        external_stylesheets=[dbc.themes.SANDSTONE],
         suppress_callback_exceptions=True,
     )
 
@@ -21,7 +21,7 @@ def create_app() -> dash.Dash:
             # Title row
             dbc.Row(
                 dbc.Col(
-                    html.H3("CPlantBox-DART Coupling Dashboard", className="dashboard-title my-3"),
+                    html.H5("CPlantBox-DART Coupling Dashboard", className="dashboard-title my-3"),
                 ),
             ),
             # Shared stores
@@ -41,6 +41,32 @@ def create_app() -> dash.Dash:
                 ],
             ),
             html.Div(id="tab-content", className="mt-3"),
+            # Institutional logos — fixed bottom-left
+            html.Div(
+                className="logoContainer",
+                children=[
+                    html.A(
+                        html.Img(src=app.get_asset_url("cplantbox.png"), className="logo"),
+                        href="https://github.com/Plant-Root-Soil-Interactions-Modelling/CPlantBox",
+                        target="_blank",
+                    ),
+                    html.A(
+                        html.Img(src=app.get_asset_url("fzj.png"), className="logo"),
+                        href="https://www.fz-juelich.de/de",
+                        target="_blank",
+                    ),
+                    html.A(
+                        html.Img(src=app.get_asset_url("logo_dart.png"), className="logo"),
+                        href="https://dart.omp.eu/#/",
+                        target="_blank",
+                    ),
+                    html.A(
+                        html.Img(src=app.get_asset_url("agroc.png"), className="logo"),
+                        href="https://agroc.io/",
+                        target="_blank",
+                    ),
+                ],
+            ),
         ],
         fluid=True,
     )
