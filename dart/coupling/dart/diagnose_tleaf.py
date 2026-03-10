@@ -103,7 +103,7 @@ def diagnose(baleno_sim_dir=None):
         rad_data = np.genfromtxt(str(rad_file), skip_header=1, delimiter=delim,
                                  dtype=float, filling_values=np.nan)
         for i, h in enumerate(rad_header):
-            if 'absorption_par' in h.lower():
+            if 'absorption' in h.lower() and 'par' in h.lower():
                 col_apar = i
             if 'sunlit' in h.lower():
                 col_sunlit = i

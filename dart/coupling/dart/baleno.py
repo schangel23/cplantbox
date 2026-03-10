@@ -1045,7 +1045,7 @@ def read_baleno_tleaf(baleno_sim_dir, mapping_json_path, reindex_json_path,
         rad_data = np.genfromtxt(str(rad_file), skip_header=1, delimiter=delimiter,
                                  dtype=float, filling_values=np.nan)
         for i, h in enumerate(rad_header):
-            if 'absorption_par' in h.lower():
+            if 'absorption' in h.lower() and 'par' in h.lower():
                 col_apar = i
 
     # Load reindex
@@ -1279,7 +1279,7 @@ def read_baleno_outputs_multi(baleno_sim_dir, mapping_json_paths,
                                   delimiter=delimiter, dtype=float,
                                   filling_values=np.nan)
         for i, h in enumerate(rad_header):
-            if 'absorption_par' in h.lower():
+            if 'absorption' in h.lower() and 'par' in h.lower():
                 col_apar = i
 
     # Read vegetation (fluorescence) if requested
@@ -1528,7 +1528,7 @@ def log_baleno_diagnostics(baleno_sim_dir, tleaf_per_segment, tair_c):
                                       delimiter=delimiter, dtype=float,
                                       filling_values=np.nan)
         for i, h in enumerate(rad_hdr):
-            if 'absorption_par' in h.lower():
+            if 'absorption' in h.lower() and 'par' in h.lower():
                 col_apar_diag = i
 
     if col_err >= 0:
