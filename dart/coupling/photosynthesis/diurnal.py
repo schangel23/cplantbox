@@ -731,7 +731,7 @@ def run_single_day(sim_day, use_dart=True, timestep_min=30,
                         mapping_json_paths=setup['dart_mapping_paths'],
                         field_filename=FIELD_FILENAME,
                     )
-                    run_dart_f(sif_simu, timeout=1200)
+                    run_dart_f(sif_simu)
                     sif_radiance = read_sif_radiance(sif_simu)
                     if sif_radiance:
                         # Scalar metrics to CSV row (skip image arrays)
@@ -1988,7 +1988,7 @@ def run_production_series_carbon(growth_days, timestep_min=60,
                                         mapping_json_paths=setup['dart_mapping_paths'],
                                         field_filename=FIELD_FILENAME,
                                     )
-                                    run_dart_f(sif_simu, timeout=1200)
+                                    run_dart_f(sif_simu)
                                     sif_radiance = read_sif_radiance(sif_simu)
                                     if sif_radiance:
                                         for k, v in sif_radiance.items():

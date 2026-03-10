@@ -15,7 +15,7 @@ from pathlib import Path
 import pytools4dart as ptd
 
 from ..config import (DART_HOME, DART_RAY_DENSITY_PER_PIXEL,
-                      DART_MAX_RENDERING_TIME)
+                      DART_MAX_RENDERING_TIME, DART_THREADS)
 from ..prospect_params import get_prospect_params
 from .simulation import configure_atmosphere_midlatsum
 
@@ -173,7 +173,7 @@ def create_dart_f_simulation(obj_paths, prospect_params, eta_file_path,
     # Scene configuration
     simu.core.phase.Phase.calculatorMethod = 0  # forward
     phase = simu.core.phase.Phase
-    phase.ExpertModeZone.nbThreads = 4
+    phase.ExpertModeZone.nbThreads = DART_THREADS
 
     # LuxCore sampling settings
     lux = phase.EngineParameter.LuxCoreRenderEngineParameters
@@ -258,10 +258,12 @@ def create_dart_f_simulation(obj_paths, prospect_params, eta_file_path,
     return simu
 
 
-def run_dart_f(simu, timeout=1200):
+def run_dart_f(simu, timeout=None):
     """Run DART-F simulation (direction + phase + dart).
 
-    Longer timeout needed for ~100+ spectral bands.
+    Args:
+        simu: pytools4dart simulation object.
+        timeout: subprocess timeout in seconds. None = no limit.
     """
     print(f"  Running DART-F fluorescence simulation...")
     t0 = time.time()

@@ -182,6 +182,8 @@ class PipelineRunner:
         """Set env vars from config BEFORE importing submodules.
 
         config.py reads env vars at import time, so these must be set first.
+        In forked subprocesses the config module may already be cached in
+        sys.modules — patch its module-level variables directly to be safe.
         """
         c = self.config
         os.environ["COUPLING_SPECIES"] = c.species.lower()
@@ -203,6 +205,25 @@ class PipelineRunner:
             os.environ["GROWTH_MODE"] = "carbon"
         else:
             os.environ["GROWTH_MODE"] = "parametric"
+
+        # Patch config module directly in case it was already imported
+        # (e.g. forked subprocess inheriting parent's sys.modules cache).
+        import sys
+        cfg_mod = sys.modules.get("dart.coupling.config")
+        if cfg_mod is not None:
+            from multiprocessing import cpu_count
+            cfg_mod.DART_THREADS = min(c.threads, cpu_count())
+            cfg_mod.DART_RAY_DENSITY_PER_PIXEL = c.dart_ray_density
+            cfg_mod.DART_MAX_RENDERING_TIME = c.dart_max_rendering_time
+            if c.dart_home:
+                cfg_mod.DART_HOME = Path(c.dart_home)
+                cfg_mod.DART_EB_DIR = cfg_mod.DART_HOME / "bin" / "python_script" / "dart-eb-main"
+            if c.dartrc:
+                cfg_mod.DARTRC = Path(c.dartrc)
+            if c.baleno_python:
+                cfg_mod.BALENO_PYTHON = Path(c.baleno_python)
+            if c.cplantbox_root:
+                cfg_mod.CPLANTBOX_ROOT = Path(c.cplantbox_root)
 
         # PROSPECT overrides — set module-level stage list
         from .prospect_params import set_overrides
