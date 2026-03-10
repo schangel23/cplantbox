@@ -179,9 +179,7 @@ def create_dart_f_simulation(obj_paths, prospect_params, eta_file_path,
     lux.maximumRenderingTime = DART_MAX_RENDERING_TIME
 
     # Scene size and pixel resolution (5 cm)
-    scene = simu.core.maket.Maket.Scene
-    scene.CellDimension.x = scene_size[0]
-    scene.CellDimension.y = scene_size[1]
+    simu.scene.size = list(scene_size)
     pixel_size = 0.05  # 5 cm
     phase.DartInputParameters.imageResolution = pixel_size
 
