@@ -130,6 +130,7 @@ def create_dart_f_simulation(obj_paths, prospect_params, eta_file_path,
         ident='leaf_fluorescent',
         databaseName='Lambertian_vegetation.db',
         ModelName='leaf_deciduous',
+        useMultiplicativeFactorForLUT=0,
     )
 
     # Access the Lambertian OP and configure PROSPECT+fluorescence
@@ -166,6 +167,7 @@ def create_dart_f_simulation(obj_paths, prospect_params, eta_file_path,
         ident='stem_bark',
         databaseName='Lambertian_vegetation.db',
         ModelName='bark_deciduous',
+        useMultiplicativeFactorForLUT=0,
     )
 
     # Scene configuration
@@ -186,20 +188,60 @@ def create_dart_f_simulation(obj_paths, prospect_params, eta_file_path,
     # Solar geometry via exact date
     phase.ExpertModeZone.ExpertModeZone_TypeOfIllumination = 0
     ds = simu.core.directions.Directions
-    sun = ds.SunViewingAngles.SunViewingAnglesProperties
-    sun.sunViewingAzimuthAngle = 0  # overridden by exact date
-    sun.sunViewingZenithAngle = 30  # overridden by exact date
+    ds.SunViewingAngles.sunViewingAzimuthAngle = 0  # overridden by exact date
+    ds.SunViewingAngles.sunViewingZenithAngle = 30  # overridden by exact date
 
-    # Add 3D objects
+    # Add 3D objects via ObjectFields (with per-group doubleFace)
+    model_list = ptd.object_3d.create_ModelList()
     for pi, obj_path in enumerate(obj_paths):
         obj_path = Path(obj_path)
         if not obj_path.exists():
             continue
-        simu.add.object_3d(
-            filepath=str(obj_path),
-            name=f'plant_{pi}',
-            doubleFace=1,
+
+        file_src_fullpath = simu.get_input_file_path(str(obj_path))
+        dart_obj = ptd.OBJtools.objreader(file_src_fullpath)
+        gnames = ptd.OBJtools.gnames_dart_order(dart_obj.names)
+        xdim, ydim, zdim = dart_obj.dims
+        xc, yc, zc = dart_obj.center
+
+        groups_list = []
+        for gi, gname in enumerate(gnames):
+            g = ptd.object_3d.create_Group(num=gi + 1, name=gname)
+            is_stem = gname.endswith('_00')
+            op_ident = 'stem_bark' if is_stem else 'leaf_fluorescent'
+            df = 0 if is_stem else 1
+            g.set_nodes(ident=op_ident)
+            gop = g.GroupOpticalProperties
+            gop.SurfaceOpticalProperties.doubleFace = df
+            gop.SurfaceExitanceProperties.doubleFace = df
+            groups_list.append(g)
+        groups = ptd.object_3d.create_Groups(Group=groups_list)
+
+        geom = ptd.object_3d.create_GeometricProperties(
+            Dimension3D=ptd.object_3d.create_Dimension3D(
+                xdim=xdim, ydim=ydim, zdim=zdim),
+            Center3D=ptd.object_3d.create_Center3D(
+                xCenter=xc, yCenter=yc, zCenter=zc),
+            ScaleProperties=ptd.object_3d.create_ScaleProperties(
+                xscale=1.0, yscale=1.0, zscale=1.0),
         )
+        model_obj = ptd.object_3d.create_Object(
+            file_src=str(obj_path),
+            hasGroups=1,
+            GeometricProperties=geom,
+            Groups=groups,
+            objectDEMMode=0,
+        )
+        model_list.add_Object(model_obj)
+
+    field = ptd.object_3d.create_Field(
+        name='SIF_Field',
+        fieldDescriptionFileName=field_filename,
+    )
+    field.set_ModelList(model_list)
+    obj_fields = ptd.object_3d.create_ObjectFields()
+    obj_fields.add_Field(field)
+    simu.core.object_3d.object_3d.ObjectFields = obj_fields
 
     # Configure atmosphere
     configure_atmosphere_midlatsum(simu)
