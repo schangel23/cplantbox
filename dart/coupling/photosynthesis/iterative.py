@@ -322,7 +322,7 @@ def run_iterative_coupling(
             "PAR_max": 0.700,
             "Cab": round(mean_cab, 1), "Cca": 10, "Cs": 0,
             "Cw": base_p["Cw"], "Cdm": base_p["Cm"],
-            "N": round(mean_n, 2), "fqe": 0,
+            "N": round(mean_n, 2), "fqe": 0.01,
             "Vcmax25": round(vcmax25_from_cab(mean_cab), 1),
             "BallBerrySlope": 8, "BallBerry0": 0.01,
             "RdPerVcmax25": get_species()["rd_per_vcmax25"],
@@ -336,6 +336,10 @@ def run_iterative_coupling(
         write_json5(plugins_dir / 'ExternalGS_input.json5', {
             "gs_file": str(gs_csv_path),
             "fallback_rcw": 100.0,
+            "Vcmax25": round(vcmax25_from_cab(mean_cab), 1),
+            "RdPerVcmax25": get_species()["rd_per_vcmax25"],
+            "Type": get_species()["photo_type"],
+            "fqe": 0.01,
         })
 
         # --- Write Baleno config.ini ---
@@ -848,6 +852,13 @@ def run_iterative_coupling_multi(
         write_json5(plugins_dir / 'ExternalGS_input.json5', {
             "gs_file": str(gs_csv_path),
             "fallback_rcw": 100.0,
+            "Vcmax25": round(vcmax25_from_cab(mean_cab), 1),
+            "RdPerVcmax25": get_species()["rd_per_vcmax25"],
+            "Type": get_species()["photo_type"],
+            "fqe": fqe_val,
+            "Kn0": 5.01,
+            "Knalpha": 1.93,
+            "Knbeta": 10.0,
         })
 
         # 6. Write Baleno config.ini + run
