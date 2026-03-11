@@ -304,26 +304,30 @@ def _find_sif_path(f):
     test_band = _wvl_to_band_idx(SIF_TARGET_760)
 
     # Try hardcoded paths first (fast path)
-    for ima in ['ima002', 'ima001']:
-        path = (f'Fluorescence/{ima}_VZ=000_0_VA=000_0'
-                f'/BOA/ITERX/Radiance/PSI')
-        try:
-            _ = f[f'{path}/Band_{test_band:03d}/image']
-            return path
-        except KeyError:
-            continue
-
-    # Auto-discover: walk Fluorescence group for any ima with Radiance/PSI
-    if 'Fluorescence' not in f:
-        return None
-    for ima_name in sorted(f['Fluorescence'].keys(), reverse=True):
-        for iterx in ['ITERX', 'ITER1', 'ITER2']:
-            path = f'Fluorescence/{ima_name}/BOA/{iterx}/Radiance/PSI'
+    for ima in ['ima001', 'ima002']:
+        for rad in ['Reflectance', 'Radiance']:
+            path = (f'Fluorescence/{ima}_VZ=000_0_VA=000_0'
+                    f'/BOA/ITERX/{rad}/PSI')
             try:
                 _ = f[f'{path}/Band_{test_band:03d}/image']
                 return path
             except KeyError:
                 continue
+
+    # Auto-discover: walk Fluorescence group for any ima with PSI bands
+    if 'Fluorescence' not in f:
+        return None
+    for ima_name in sorted(f['Fluorescence'].keys(), reverse=True):
+        if ima_name == 'BRFmap':
+            continue
+        for iterx in ['ITERX', 'COUPL', 'ITER1', 'ITER2']:
+            for rad in ['Reflectance', 'Radiance']:
+                path = f'Fluorescence/{ima_name}/BOA/{iterx}/{rad}/PSI'
+                try:
+                    _ = f[f'{path}/Band_{test_band:03d}/image']
+                    return path
+                except KeyError:
+                    continue
     return None
 
 
