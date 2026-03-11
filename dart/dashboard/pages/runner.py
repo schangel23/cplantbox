@@ -46,6 +46,15 @@ def _run_pipeline_subprocess(config_dict: dict, output_dir: str):
     # New process group so stop button can killpg() all children (DART, Baleno)
     os.setpgrp()
 
+    # Limit CPU affinity BEFORE any imports — LuxCore defaults to all cores
+    # and ignores DART's nbThreads XML setting.
+    threads = config_dict.get("threads", 8)
+    try:
+        n = min(int(threads), os.cpu_count() or int(threads))
+        os.sched_setaffinity(0, set(range(n)))
+    except (OSError, AttributeError, ValueError):
+        pass
+
     log_path = _resolve_log_path(config_dict, output_dir)
 
     # Redirect stdout/stderr to log file so the dashboard can read it

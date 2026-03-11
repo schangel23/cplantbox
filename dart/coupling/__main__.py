@@ -150,6 +150,12 @@ def cli():
         os.environ["COUPLING_SPECIES"] = args.species.lower()
     if args.threads is not None:
         os.environ["DART_THREADS"] = str(args.threads)
+        # Limit CPU affinity — LuxCore ignores nbThreads XML and uses all cores
+        try:
+            n = min(args.threads, os.cpu_count() or args.threads)
+            os.sched_setaffinity(0, set(range(n)))
+        except (OSError, AttributeError):
+            pass
 
     if args.command == "simulation":
         from .dart.simulation import main

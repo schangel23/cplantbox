@@ -206,6 +206,15 @@ class PipelineRunner:
         else:
             os.environ["GROWTH_MODE"] = "parametric"
 
+        # Limit CPU affinity so DART/LuxCore child processes are
+        # restricted to the requested thread count.  LuxCore ignores
+        # the nbThreads XML attribute and defaults to all cores.
+        try:
+            n = min(c.threads, os.cpu_count() or c.threads)
+            os.sched_setaffinity(0, set(range(n)))
+        except (OSError, AttributeError):
+            pass  # non-Linux or container without permission
+
         # Patch config module directly in case it was already imported
         # (e.g. forked subprocess inheriting parent's sys.modules cache).
         import sys
