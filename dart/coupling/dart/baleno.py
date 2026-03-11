@@ -1645,6 +1645,10 @@ def run_baleno_with_external_gs(gs_per_segment, mapping_json_path,
     write_json5(plugins_dir / 'ExternalGS_input.json5', {
         "gs_file": str(gs_csv_path),
         "fallback_rcw": 100.0,
+        "Vcmax25": round(vcmax25_from_cab(_mean_cab), 1),
+        "RdPerVcmax25": get_species()["rd_per_vcmax25"],
+        "Type": get_species()["photo_type"],
+        "fqe": 0.01,
     })
 
     # Write config.ini
