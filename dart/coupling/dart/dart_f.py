@@ -72,7 +72,7 @@ def create_dart_f_simulation(obj_paths, prospect_params, eta_file_path,
                               scene_size, grid_info=None,
                               mapping_json_paths=None,
                               field_filename='plant_field.txt',
-                              fqe=0.02, simu_name=None):
+                              fqe=0.01, simu_name=None):
     """Create DART fluorescence simulation for TOC SIF radiance.
 
     Key differences from Phase 1 (PAR) simulation:
