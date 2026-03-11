@@ -412,7 +412,7 @@ def analyze_dart_f_output(simu_or_nc_path, output_dir, label='',
             nc_path = _find_netcdf(nc_path)
     else:
         # pytools4dart simulation object
-        simu_path = Path(simu_or_nc_path.getsimupath())
+        simu_path = Path(simu_or_nc_path.simu_dir)
         nc_path = _find_netcdf(simu_path / 'output')
 
     if nc_path is None:
