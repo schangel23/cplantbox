@@ -99,16 +99,16 @@ def load_sif_from_netcdf(nc_path):
         dict with keys 'F687', 'F760', 'reflectance' (dict of wvl->image),
         'nc_path', 'pixel_size_m'.  None on failure.
     """
-    from netCDF4 import Dataset
+    import h5py
 
     nc_path = Path(nc_path)
     if not nc_path.exists():
         print(f"  NetCDF not found: {nc_path}")
         return None
 
-    ds = Dataset(str(nc_path), 'r')
+    f = h5py.File(str(nc_path), 'r')
     try:
-        sif_path = _find_sif_path(ds)
+        sif_path = _find_sif_path(f)
         if sif_path is None:
             print(f"  No SIF group found in {nc_path.name}")
             return None
@@ -121,20 +121,20 @@ def load_sif_from_netcdf(nc_path):
         for label, target_nm in [('F687', SIF_TARGET_687),
                                   ('F760', SIF_TARGET_760)]:
             bidx = _wvl_to_band_idx(target_nm)
-            img = _get_band_image(ds, sif_path, bidx)
+            img = _get_band_image(f, sif_path, bidx)
             result[label] = img
 
-        refl_path = _find_reflectance_path(ds)
+        refl_path = _find_reflectance_path(f)
         result['reflectance'] = {}
         if refl_path is not None:
             for wvl in [450, 550, 650, 850]:
-                rim = _get_band_image(ds, refl_path, _wvl_to_band_idx(wvl))
+                rim = _get_band_image(f, refl_path, _wvl_to_band_idx(wvl))
                 if rim is not None:
                     result['reflectance'][wvl] = rim
 
         return result
     finally:
-        ds.close()
+        f.close()
 
 
 def compute_sif_metrics(data):

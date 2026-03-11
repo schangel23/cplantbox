@@ -250,7 +250,7 @@ def create_dart_f_simulation(obj_paths, prospect_params, eta_file_path,
     simu.write(overwrite=True)
 
     # Write lut.properties for fluorescence storage
-    lut_props_path = Path(simu.getsimupath()) / 'input' / 'lut.properties'
+    lut_props_path = Path(simu.simu_dir) / 'input' / 'lut.properties'
     lut_props_path.parent.mkdir(parents=True, exist_ok=True)
     with open(lut_props_path, 'a') as f:
         f.write('\nlut.store.fluorescence=true\n')
@@ -299,26 +299,26 @@ def _find_netcdf(output_dir):
     return max(nc_files, key=_num)
 
 
-def _find_sif_path(ds):
-    """Auto-detect the SIF fluorescence group path inside a NetCDF dataset."""
+def _find_sif_path(f):
+    """Auto-detect the SIF fluorescence group path inside an HDF5 file."""
     for ima in ['ima002', 'ima001']:
         path = (f'Fluorescence/{ima}_VZ=000_0_VA=000_0'
                 f'/BOA/ITERX/Radiance/PSI')
         try:
             test_band = _wvl_to_band_idx(SIF_TARGET_760)
-            _ = ds[f'{path}/Band_{test_band:03d}']['image']
+            _ = f[f'{path}/Band_{test_band:03d}/image']
             return path
-        except (KeyError, IndexError):
+        except KeyError:
             continue
     return None
 
 
-def _find_reflectance_path(ds):
-    """Auto-detect the reflectance group path inside a NetCDF dataset."""
+def _find_reflectance_path(f):
+    """Auto-detect the reflectance group path inside an HDF5 file."""
     candidates = []
     # Build candidates from what's actually in the file
-    if 'MajorImages' in ds.groups:
-        for ima_name in ds.groups['MajorImages'].groups.keys():
+    if 'MajorImages' in f:
+        for ima_name in f['MajorImages'].keys():
             if ima_name.startswith('ima'):
                 for it in ['ITERX', 'ITER1', 'ITER2']:
                     candidates.append(
@@ -332,26 +332,24 @@ def _find_reflectance_path(ds):
     test_band = _wvl_to_band_idx(650)
     for path in candidates:
         try:
-            _ = ds[f'{path}/Band_{test_band:03d}']['image']
+            _ = f[f'{path}/Band_{test_band:03d}/image']
             return path
-        except (KeyError, IndexError):
+        except KeyError:
             continue
     return None
 
 
-def _get_band_image(ds, group_path, band_idx):
-    """Extract a 2-D band image from a NetCDF dataset.
+def _get_band_image(f, group_path, band_idx):
+    """Extract a 2-D band image from an HDF5 file.
 
     Returns:
         np.ndarray (float64) or None.
     """
     try:
-        key = f'{group_path}/Band_{band_idx:03d}'
-        data = ds[key]['image'][:]
-        if hasattr(data, 'filled'):
-            data = data.filled(np.nan)
+        key = f'{group_path}/Band_{band_idx:03d}/image'
+        data = f[key][:]
         return data.astype(np.float64)
-    except (KeyError, IndexError):
+    except KeyError:
         return None
 
 
@@ -361,6 +359,9 @@ def read_sif_radiance(simu, target_bands_nm=None):
     Finds the latest ``image_dart*.nc`` under the simulation output,
     auto-detects the fluorescence group path, and extracts per-pixel
     SIF images at the target wavelengths.
+
+    Uses h5py instead of netCDF4 to avoid libnetcdf-C compatibility issues
+    with DART-written HDF5/NetCDF4 files.
 
     Args:
         simu: pytools4dart simulation object.
@@ -374,12 +375,12 @@ def read_sif_radiance(simu, target_bands_nm=None):
             ``nc_path``         — Path to the NetCDF file read.
         Empty dict on failure.
     """
-    from netCDF4 import Dataset
+    import h5py
 
     if target_bands_nm is None:
         target_bands_nm = [SIF_TARGET_687, SIF_TARGET_760]
 
-    simu_path = Path(simu.getsimupath())
+    simu_path = Path(simu.simu_dir)
     output_dir = simu_path / 'output'
 
     nc_path = _find_netcdf(output_dir)
@@ -388,13 +389,13 @@ def read_sif_radiance(simu, target_bands_nm=None):
         return {}
 
     try:
-        ds = Dataset(str(nc_path), 'r')
+        f = h5py.File(str(nc_path), 'r')
     except Exception as e:
         print(f"  Failed to open NetCDF {nc_path}: {e}")
         return {}
 
     try:
-        sif_path = _find_sif_path(ds)
+        sif_path = _find_sif_path(f)
         if sif_path is None:
             print(f"  Could not find SIF group in {nc_path.name}")
             return {}
@@ -402,7 +403,7 @@ def read_sif_radiance(simu, target_bands_nm=None):
         result = {'nc_path': str(nc_path), 'sif_images': {}}
         for target_nm in target_bands_nm:
             band_idx = _wvl_to_band_idx(target_nm)
-            img = _get_band_image(ds, sif_path, band_idx)
+            img = _get_band_image(f, sif_path, band_idx)
             key = f'SIF_{int(target_nm)}_Wm2sr'
             if img is not None:
                 # Vegetation-pixel mean (positive values only)
@@ -413,12 +414,12 @@ def read_sif_radiance(simu, target_bands_nm=None):
                 result[key] = 0.0
 
         # Also grab reflectance images if available
-        refl_path = _find_reflectance_path(ds)
+        refl_path = _find_reflectance_path(f)
         if refl_path is not None:
             result['reflectance_images'] = {}
             for wvl in [450, 550, 650, 850]:
                 bidx = _wvl_to_band_idx(wvl)
-                rim = _get_band_image(ds, refl_path, bidx)
+                rim = _get_band_image(f, refl_path, bidx)
                 if rim is not None:
                     result['reflectance_images'][wvl] = rim
 
@@ -434,4 +435,4 @@ def read_sif_radiance(simu, target_bands_nm=None):
         traceback.print_exc()
         return {}
     finally:
-        ds.close()
+        f.close()

@@ -669,25 +669,25 @@ def step6_read_radiative_budget(simu):
 def _parse_radiative_budget_netcdf(nc_files, n_bands):
     """Parse radiative budget from NetCDF files."""
     try:
-        from netCDF4 import Dataset
+        import h5py
     except ImportError:
-        print("  netCDF4 not available, cannot parse NetCDF radiative budget")
+        print("  h5py not available, cannot parse NetCDF radiative budget")
         return {}
 
     per_band_data = {}
     for nc_file in nc_files:
         if 'Triangle' in nc_file.name or 'triangle' in nc_file.name:
             try:
-                ds = Dataset(str(nc_file), 'r')
+                f = h5py.File(str(nc_file), 'r')
                 # Navigate to Triangles/ITERX group
-                triangles_group = ds
+                triangles_group = f
                 for group_name in ['Triangles', 'ITERX']:
-                    if group_name in triangles_group.groups:
-                        triangles_group = triangles_group.groups[group_name]
+                    if group_name in triangles_group:
+                        triangles_group = triangles_group[group_name]
 
                 # Read object list
-                if 'Objects_list' in triangles_group.variables:
-                    obj_list = triangles_group.variables['Objects_list'][:].tobytes().decode('utf-8').split(';')
+                if 'Objects_list' in triangles_group:
+                    obj_list = triangles_group['Objects_list'][()].tobytes().decode('utf-8').split(';')
                 else:
                     obj_list = []
 
@@ -696,10 +696,10 @@ def _parse_radiative_budget_netcdf(nc_files, n_bands):
                     # Try different naming conventions
                     for fmt in [f'Band_{band_idx}', f'Band_{band_idx:02d}',
                                 f'Band_{band_idx:03d}']:
-                        if fmt in triangles_group.variables:
-                            var = triangles_group.variables[fmt]
-                            data = var[:]
-                            header = var._tableHeader.split(';') if hasattr(var, '_tableHeader') else []
+                        if fmt in triangles_group:
+                            dset = triangles_group[fmt]
+                            data = dset[:]
+                            header = dset.attrs['_tableHeader'].split(';') if '_tableHeader' in dset.attrs else []
 
                             # Split by object
                             per_object = {}
@@ -713,7 +713,7 @@ def _parse_radiative_budget_netcdf(nc_files, n_bands):
                             }
                             break
 
-                ds.close()
+                f.close()
             except Exception as e:
                 print(f"  Error reading {nc_file.name}: {e}")
 
