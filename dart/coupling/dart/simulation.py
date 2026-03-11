@@ -21,8 +21,8 @@ from pathlib import Path
 import plantbox as pb
 import pytools4dart as ptd
 
-from ..config import (DEFAULT_XML, OUTPUT_DIR, DART_THREADS,
-                      DART_RAY_DENSITY_PER_PIXEL, DART_MAX_RENDERING_TIME)
+from .. import config as _cfg
+from ..config import DEFAULT_XML, OUTPUT_DIR
 from ..growth import grow_plant, extract_g3_mesh
 from ..geometry import convert_obj_to_dart, convert_mapping_json_groups
 from ..prospect_params import (get_prospect_params, get_prospect_params_per_position,
@@ -356,14 +356,14 @@ def step3_create_dart_simulation():
 
     # --- LuxCore sampling ---
     lux = simu.core.phase.Phase.EngineParameter.LuxCoreRenderEngineParameters
-    lux.targetRayDensityPerPixel = DART_RAY_DENSITY_PER_PIXEL
-    lux.maximumRenderingTime = DART_MAX_RENDERING_TIME
-    print(f"  LuxCore sampling: {DART_RAY_DENSITY_PER_PIXEL} rays/pixel, "
-          f"maxTime={DART_MAX_RENDERING_TIME}s")
+    lux.targetRayDensityPerPixel = _cfg.DART_RAY_DENSITY_PER_PIXEL
+    lux.maximumRenderingTime = _cfg.DART_MAX_RENDERING_TIME
+    print(f"  LuxCore sampling: {_cfg.DART_RAY_DENSITY_PER_PIXEL} rays/pixel, "
+          f"maxTime={_cfg.DART_MAX_RENDERING_TIME}s")
 
     # --- Threads ---
-    simu.core.phase.Phase.ExpertModeZone.nbThreads = DART_THREADS
-    print(f"  Threads: {DART_THREADS}")
+    simu.core.phase.Phase.ExpertModeZone.nbThreads = _cfg.DART_THREADS
+    print(f"  Threads: {_cfg.DART_THREADS}")
 
     # --- Atmosphere: MIDLATSUM ---
     configure_atmosphere_midlatsum(simu)
@@ -1253,9 +1253,9 @@ def create_dart_simulation(obj_path, mapping_json_path, simu_name,
     # Engine: Lux + sampling
     simu.core.phase.Phase.accelerationEngine = 2
     lux = simu.core.phase.Phase.EngineParameter.LuxCoreRenderEngineParameters
-    lux.targetRayDensityPerPixel = DART_RAY_DENSITY_PER_PIXEL
-    lux.maximumRenderingTime = DART_MAX_RENDERING_TIME
-    simu.core.phase.Phase.ExpertModeZone.nbThreads = DART_THREADS
+    lux.targetRayDensityPerPixel = _cfg.DART_RAY_DENSITY_PER_PIXEL
+    lux.maximumRenderingTime = _cfg.DART_MAX_RENDERING_TIME
+    simu.core.phase.Phase.ExpertModeZone.nbThreads = _cfg.DART_THREADS
 
     # Atmosphere: MIDLATSUM
     configure_atmosphere_midlatsum(simu)
@@ -1729,9 +1729,9 @@ def create_dart_simulation_multi(obj_paths, mapping_json_paths, simu_name,
     # Engine: Lux + sampling
     simu.core.phase.Phase.accelerationEngine = 2
     lux = simu.core.phase.Phase.EngineParameter.LuxCoreRenderEngineParameters
-    lux.targetRayDensityPerPixel = DART_RAY_DENSITY_PER_PIXEL
-    lux.maximumRenderingTime = DART_MAX_RENDERING_TIME
-    simu.core.phase.Phase.ExpertModeZone.nbThreads = DART_THREADS
+    lux.targetRayDensityPerPixel = _cfg.DART_RAY_DENSITY_PER_PIXEL
+    lux.maximumRenderingTime = _cfg.DART_MAX_RENDERING_TIME
+    simu.core.phase.Phase.ExpertModeZone.nbThreads = _cfg.DART_THREADS
 
     # Atmosphere: MIDLATSUM
     configure_atmosphere_midlatsum(simu)

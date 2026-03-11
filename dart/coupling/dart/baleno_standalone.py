@@ -17,9 +17,9 @@ from pathlib import Path
 import pytools4dart as ptd
 import xml.etree.ElementTree as ET
 
+from .. import config as _cfg
 from ..config import (DART_HOME, DART_EB_DIR, DARTRC, OUTPUT_DIR,
-                      DART_THREADS, DART_RAY_DENSITY_PER_PIXEL,
-                      DART_MAX_RENDERING_TIME, get_species)
+                      get_species)
 from ..prospect_params import (get_prospect_params, get_prospect_params_per_position,
                                get_stem_prospect_params,
                                log_consistency, log_lops_consistency, vcmax25_from_cab)
@@ -184,9 +184,9 @@ def step1_create_simu_I():
     # Engine: Lux + sampling
     simu.core.phase.Phase.accelerationEngine = 2
     lux = simu.core.phase.Phase.EngineParameter.LuxCoreRenderEngineParameters
-    lux.targetRayDensityPerPixel = DART_RAY_DENSITY_PER_PIXEL
-    lux.maximumRenderingTime = DART_MAX_RENDERING_TIME
-    simu.core.phase.Phase.ExpertModeZone.nbThreads = DART_THREADS
+    lux.targetRayDensityPerPixel = _cfg.DART_RAY_DENSITY_PER_PIXEL
+    lux.maximumRenderingTime = _cfg.DART_MAX_RENDERING_TIME
+    simu.core.phase.Phase.ExpertModeZone.nbThreads = _cfg.DART_THREADS
 
     # Atmosphere: MIDLATSUM
     configure_atmosphere_midlatsum(simu)

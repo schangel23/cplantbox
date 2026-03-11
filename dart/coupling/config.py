@@ -33,7 +33,7 @@ DART_THREADS = min(int(os.environ.get("DART_THREADS", "8")), _cpu_count())
 # DART LuxCore sampling — controls per-triangle radiation budget accuracy.
 # Higher = less Monte Carlo noise on per-triangle irradiance, but slower.
 # Default ptd value is 50; 500 recommended for per-triangle energy balance.
-DART_RAY_DENSITY_PER_PIXEL = int(os.environ.get("DART_RAY_DENSITY", "500"))
+DART_RAY_DENSITY_PER_PIXEL = int(os.environ.get("DART_RAY_DENSITY", "50"))
 DART_MAX_RENDERING_TIME = int(os.environ.get("DART_MAX_RENDERING_TIME", "0"))  # 0 = unlimited
 
 # CPlantBox paths

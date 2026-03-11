@@ -24,9 +24,9 @@ import numpy as np
 from pathlib import Path
 import pytools4dart as ptd
 
+from .. import config as _cfg
 from ..config import (DART_HOME, DART_EB_DIR, DARTRC, BALENO_PYTHON,
-                      DART_THREADS, DART_RAY_DENSITY_PER_PIXEL,
-                      DART_MAX_RENDERING_TIME, get_species)
+                      get_species)
 from ..prospect_params import (get_prospect_params, get_prospect_params_per_position,
                                get_stem_prospect_params, vcmax25_from_cab)
 from ..dart.simulation import configure_atmosphere_midlatsum
@@ -400,9 +400,9 @@ def setup_baleno_full(obj_path, mapping_json, reindex_json, grid_info_path,
     products.radiativeBudgetProperties.budget3DParSurface = 1
     simu_I.core.phase.Phase.accelerationEngine = 2
     lux = simu_I.core.phase.Phase.EngineParameter.LuxCoreRenderEngineParameters
-    lux.targetRayDensityPerPixel = DART_RAY_DENSITY_PER_PIXEL
-    lux.maximumRenderingTime = DART_MAX_RENDERING_TIME
-    simu_I.core.phase.Phase.ExpertModeZone.nbThreads = DART_THREADS
+    lux.targetRayDensityPerPixel = _cfg.DART_RAY_DENSITY_PER_PIXEL
+    lux.maximumRenderingTime = _cfg.DART_MAX_RENDERING_TIME
+    simu_I.core.phase.Phase.ExpertModeZone.nbThreads = _cfg.DART_THREADS
 
     # Atmosphere: MIDLATSUM
     configure_atmosphere_midlatsum(simu_I)
@@ -579,9 +579,9 @@ def setup_baleno_full_multi(obj_paths, mapping_json_paths, reindex_json_paths,
     products.radiativeBudgetProperties.budget3DParSurface = 1
     simu_I.core.phase.Phase.accelerationEngine = 2
     lux = simu_I.core.phase.Phase.EngineParameter.LuxCoreRenderEngineParameters
-    lux.targetRayDensityPerPixel = DART_RAY_DENSITY_PER_PIXEL
-    lux.maximumRenderingTime = DART_MAX_RENDERING_TIME
-    simu_I.core.phase.Phase.ExpertModeZone.nbThreads = DART_THREADS
+    lux.targetRayDensityPerPixel = _cfg.DART_RAY_DENSITY_PER_PIXEL
+    lux.maximumRenderingTime = _cfg.DART_MAX_RENDERING_TIME
+    simu_I.core.phase.Phase.ExpertModeZone.nbThreads = _cfg.DART_THREADS
 
     # Atmosphere: MIDLATSUM
     configure_atmosphere_midlatsum(simu_I)

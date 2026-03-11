@@ -65,7 +65,7 @@ class PipelineConfig:
 
     # DART tuning
     threads: int = 8
-    dart_ray_density: int = 500
+    dart_ray_density: int = 50
     dart_max_rendering_time: int = 0
 
     # External paths (empty = read from config.py defaults)

@@ -14,8 +14,8 @@ from pathlib import Path
 
 import pytools4dart as ptd
 
-from ..config import (DART_HOME, DART_RAY_DENSITY_PER_PIXEL,
-                      DART_MAX_RENDERING_TIME, DART_THREADS)
+from .. import config as _cfg
+from ..config import DART_HOME
 from ..prospect_params import get_prospect_params
 from .simulation import configure_atmosphere_midlatsum
 
@@ -173,12 +173,12 @@ def create_dart_f_simulation(obj_paths, prospect_params, eta_file_path,
     # Scene configuration
     simu.core.phase.Phase.calculatorMethod = 0  # forward
     phase = simu.core.phase.Phase
-    phase.ExpertModeZone.nbThreads = DART_THREADS
+    phase.ExpertModeZone.nbThreads = _cfg.DART_THREADS
 
     # LuxCore sampling settings
     lux = phase.EngineParameter.LuxCoreRenderEngineParameters
-    lux.targetRayDensityPerPixel = DART_RAY_DENSITY_PER_PIXEL
-    lux.maximumRenderingTime = DART_MAX_RENDERING_TIME
+    lux.targetRayDensityPerPixel = _cfg.DART_RAY_DENSITY_PER_PIXEL
+    lux.maximumRenderingTime = _cfg.DART_MAX_RENDERING_TIME
 
     # Scene size and pixel resolution (5 cm)
     simu.scene.size = list(scene_size)

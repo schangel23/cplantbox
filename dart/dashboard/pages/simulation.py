@@ -326,7 +326,7 @@ def layout() -> dbc.Container:
                         dbc.Row(
                             [
                                 dbc.Col([dbc.Label("Threads"), dbc.Input(id="sim-threads", type="number", value=8, min=1, max=256)], width=2),
-                                dbc.Col([dbc.Label("Ray density/pixel"), dbc.Input(id="sim-ray-density", type="number", value=500, min=10, max=5000)], width=3),
+                                dbc.Col([dbc.Label("Ray density/pixel"), dbc.Input(id="sim-ray-density", type="number", value=50, min=10, max=5000)], width=3),
                                 dbc.Col([dbc.Label("Max render time (0=inf)"), dbc.Input(id="sim-max-render", type="number", value=0, min=0)], width=3),
                             ],
                         ),
@@ -531,7 +531,7 @@ def register_callbacks(app):
             with_dart_f="with_dart_f" in sif_checks,
             sif_triangles="sif_triangles" in sif_checks,
             threads=int(threads or 8),
-            dart_ray_density=int(ray_density or 500),
+            dart_ray_density=int(ray_density or 50),
             dart_max_rendering_time=int(max_render or 0),
             resume="resume" in physics,
             log_file=log_file or "",
@@ -645,7 +645,7 @@ def register_callbacks(app):
             raw.get("carbon_method", "auto"),
             sif,
             raw.get("threads", 8),
-            raw.get("dart_ray_density", 500),
+            raw.get("dart_ray_density", 50),
             raw.get("dart_max_rendering_time", 0),
             raw.get("gs_max_iterations", 6),
             raw.get("gs_tolerance", 0.05),
