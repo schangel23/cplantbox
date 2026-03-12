@@ -8,6 +8,7 @@ SIF radiance at O2-A (760nm) and O2-B (687nm).
 """
 
 import json
+import shutil
 import time
 import numpy as np
 from pathlib import Path
@@ -16,8 +17,8 @@ import pytools4dart as ptd
 
 from .. import config as _cfg
 from ..config import DART_HOME
-from ..prospect_params import get_prospect_params
-from .simulation import configure_atmosphere_midlatsum
+from ..prospect_params import get_prospect_params, get_stem_prospect_params
+from .simulation import configure_atmosphere_midlatsum, configure_exact_date
 
 
 # SIF target bands (nm)
@@ -72,29 +73,32 @@ def create_dart_f_simulation(obj_paths, prospect_params, eta_file_path,
                               scene_size, grid_info=None,
                               mapping_json_paths=None,
                               field_filename='plant_field.txt',
-                              fqe=0.01, simu_name=None):
+                              fqe=0.01, simu_name=None,
+                              day=55):
     """Create DART fluorescence simulation for TOC SIF radiance.
 
-    Key differences from Phase 1 (PAR) simulation:
+    Mirrors create_dart_simulation_multi() exactly (ground OP, PROSPECT leaf/stem
+    OPs, exact date solar geometry, ObjectFields with num/name, field file writing,
+    LuxCore params, atmosphere) but adds:
     - ~225 spectral bands (400-850nm at 2nm) for Fluspect spectral resolution
-    - PROSPECT+Fluspect leaf optics: isFluorescent=1
-    - FluorescenceYields forceYields=1, combined yield yieldPS=fqe
-    - WindProfileEta useBioClimaticWeighting=1, profileFilePath=eta_file
-    - Coeff_diff: fluorescenceProducts=1, useCombinedYield=1
+    - fluorescenceProducts=1, useCombinedYield=1 on Coeff_diff
+    - isFluorescent=1, FluorescenceYields, WindProfileEta on leaf OP
+    - lut.properties fluorescence storage flag
 
     Args:
         obj_paths: list of OBJ file paths (one per plant).
         prospect_params: dict with PROSPECT parameters (Cab, Car, Cw, Cm, N).
         eta_file_path: Path to DART-format eta file.
-        calendar_date: date string (YYYY-MM-DD).
-        hour, minute: UTC time.
+        calendar_date: datetime.date for exactDate solar geometry.
+        hour, minute: UTC time (int).
         lat, lon: location coordinates.
         scene_size: [x_m, y_m] scene dimensions.
-        grid_info: grid info dict (positions, etc.).
-        mapping_json_paths: list of mapping JSON paths.
+        grid_info: grid info dict with 'positions_m'.
+        mapping_json_paths: list of mapping JSON paths (unused, kept for API compat).
         field_filename: field placement file name.
-        fqe: fluorescence quantum efficiency (default 0.02).
+        fqe: fluorescence quantum efficiency (default 0.01).
         simu_name: optional simulation name.
+        day: growth day for stem PROSPECT params (default 55).
 
     Returns:
         pytools4dart simulation object.
@@ -102,12 +106,18 @@ def create_dart_f_simulation(obj_paths, prospect_params, eta_file_path,
     if simu_name is None:
         simu_name = f'cpb_dart_f_{calendar_date}_{hour:02d}{minute:02d}'
 
+    n_plants = len(obj_paths)
+
+    # Clean up previous simulation directory (matches simulation.py:1632-1634)
+    simu_dir = Path(ptd.getdartdir()) / 'user_data' / 'simulations' / simu_name
+    if simu_dir.exists():
+        shutil.rmtree(str(simu_dir))
+
+    simu = ptd.simulation(simu_name, empty=True)
+    simu.scene.size = list(scene_size)
+
     # Spectral bands: 400-850nm at 2nm resolution
     n_bands = int((SIF_WVL_MAX - SIF_WVL_MIN) / SIF_BAND_WIDTH)
-
-    simu = ptd.simulation(name=simu_name, empty=True)
-
-    # Add spectral bands
     for i in range(n_bands):
         wvl = SIF_WVL_MIN + i * SIF_BAND_WIDTH + SIF_BAND_WIDTH / 2.0
         simu.add.band(wvl=wvl / 1000.0, bw=SIF_BAND_WIDTH / 1000.0)
@@ -117,81 +127,47 @@ def create_dart_f_simulation(obj_paths, prospect_params, eta_file_path,
     cd.fluorescenceProducts = 1
     cd.useCombinedYield = 1
 
-    # Add Lambertian optical properties with PROSPECT+Fluspect + fluorescence
-    cab = prospect_params.get('Cab', 55.0)
-    car = prospect_params.get('Car', 10.0)
-    cw = prospect_params.get('Cw', 0.012)
-    cm = prospect_params.get('Cm', 0.005)
-    n_struct = prospect_params.get('N', 1.8)
+    # Solar geometry via exact date (matches simulation.py:1644-1646)
+    configure_exact_date(simu, calendar_date, hour, minute, lat=lat, lon=lon)
 
-    # Create leaf optical property with fluorescence
-    op = simu.add.optical_property(
-        type='Lambertian',
-        ident='leaf_fluorescent',
-        databaseName='Lambertian_vegetation.db',
-        ModelName='leaf_deciduous',
-        useMultiplicativeFactorForLUT=0,
-    )
-
-    # Access the Lambertian OP and configure PROSPECT+fluorescence
-    lmf_container = cd.Surfaces.LambertianMultiFunctions
-    lmf_items = lmf_container.LambertianMulti if lmf_container else []
-    if lmf_items and len(lmf_items) > 0:
-        lmf = lmf_items[-1]
-        lamb = lmf.Lambertian
-
-        # Set up ProspectExternalModule with fluorescence
-        prospect_mod = ptd.coeff_diff.create_ProspectExternalModule(
-            useProspectExternalModule=1,
-            isFluorescent=1,
-            ProspectExternParameters=ptd.coeff_diff.create_ProspectExternParameters(
-                inputProspectFile='Prospect_Fluspect/Optipar2021_ProspectPRO.txt',
-                Cab=cab, Car=car, Cw=cw, Cm=cm, N=n_struct,
-            ),
-            FluorescenceYields=ptd.coeff_diff.create_FluorescenceYields(
-                forceYields=1,
-                Yield=ptd.coeff_diff.create_Yield(yieldPS=fqe),
-            ),
-            WindProfileEta=ptd.coeff_diff.create_WindProfileEta(
-                useBioClimaticWeighting=1,
-                BioClimaticWeighting=ptd.coeff_diff.create_BioClimaticWeighting(
-                    profileFilePath=str(eta_file_path),
-                ),
-            ),
-        )
-        lamb.ProspectExternalModule = prospect_mod
-
-    # Add stem optical property (non-fluorescent)
+    # Ground OP (matches simulation.py:1651-1657)
     simu.add.optical_property(
-        type='Lambertian',
-        ident='stem_bark',
-        databaseName='Lambertian_vegetation.db',
-        ModelName='bark_deciduous',
+        type='Lambertian', ident='ground',
+        databaseName='Lambertian_mineral.db', ModelName='clay_brown',
+        useMultiplicativeFactorForLUT=0,
+    )
+    simu.scene.ground.OpticalPropertyLink.ident = 'ground'
+
+    # Leaf OP via prospect= kwarg (matches simulation.py:1660-1664), then overlay fluorescence
+    leaf_op = simu.add.optical_property(
+        type='Lambertian', ident='leaf_fluorescent',
+        prospect=prospect_params,
         useMultiplicativeFactorForLUT=0,
     )
 
-    # Scene configuration
-    simu.core.phase.Phase.calculatorMethod = 0  # forward
-    phase = simu.core.phase.Phase
-    phase.ExpertModeZone.nbThreads = _cfg.DART_THREADS
+    # Overlay fluorescence on the ProspectExternalModule created by prospect= kwarg
+    pem = leaf_op.Lambertian.ProspectExternalModule
+    pem.isFluorescent = 1
+    pem.FluorescenceYields = ptd.coeff_diff.create_FluorescenceYields(
+        forceYields=1,
+        Yield=ptd.coeff_diff.create_Yield(yieldPS=fqe),
+    )
+    pem.WindProfileEta = ptd.coeff_diff.create_WindProfileEta(
+        useBioClimaticWeighting=1,
+        BioClimaticWeighting=ptd.coeff_diff.create_BioClimaticWeighting(
+            profileFilePath=str(eta_file_path),
+        ),
+    )
 
-    # LuxCore sampling settings
-    lux = phase.EngineParameter.LuxCoreRenderEngineParameters
-    lux.targetRayDensityPerPixel = _cfg.DART_RAY_DENSITY_PER_PIXEL
-    lux.maximumRenderingTime = _cfg.DART_MAX_RENDERING_TIME
+    # Stem OP via prospect= kwarg (matches simulation.py:1665-1670, non-fluorescent)
+    stem_prospect = get_stem_prospect_params(day)
+    simu.add.optical_property(
+        type='Lambertian', ident='stem_bark',
+        prospect=stem_prospect,
+        useMultiplicativeFactorForLUT=0,
+    )
 
-    # Scene size and pixel resolution (5 cm)
-    simu.scene.size = list(scene_size)
-    pixel_size = 0.05  # 5 cm
-    phase.DartInputParameters.imageResolution = pixel_size
-
-    # Solar geometry via exact date
-    phase.ExpertModeZone.ExpertModeZone_TypeOfIllumination = 0
-    ds = simu.core.directions.Directions
-    ds.SunViewingAngles.sunViewingAzimuthAngle = 0  # overridden by exact date
-    ds.SunViewingAngles.sunViewingZenithAngle = 30  # overridden by exact date
-
-    # Add 3D objects via ObjectFields (with per-group doubleFace)
+    # Build multi-model ObjectFields (matches simulation.py:1673-1722)
     model_list = ptd.object_3d.create_ModelList()
     for pi, obj_path in enumerate(obj_paths):
         obj_path = Path(obj_path)
@@ -230,6 +206,8 @@ def create_dart_f_simulation(obj_paths, prospect_params, eta_file_path,
             hasGroups=1,
             GeometricProperties=geom,
             Groups=groups,
+            num=pi,
+            name=f'CPlantBox_Maize_p{pi}',
             objectDEMMode=0,
         )
         model_list.add_Object(model_obj)
@@ -243,18 +221,36 @@ def create_dart_f_simulation(obj_paths, prospect_params, eta_file_path,
     obj_fields.add_Field(field)
     simu.core.object_3d.object_3d.ObjectFields = obj_fields
 
-    # Configure atmosphere
+    # Engine: LuxCore + sampling (matches simulation.py:1730-1734)
+    simu.core.phase.Phase.accelerationEngine = 2
+    lux = simu.core.phase.Phase.EngineParameter.LuxCoreRenderEngineParameters
+    lux.targetRayDensityPerPixel = _cfg.DART_RAY_DENSITY_PER_PIXEL
+    lux.maximumRenderingTime = _cfg.DART_MAX_RENDERING_TIME
+    lux.pixelSize = 0.05  # 5cm image resolution (LuxCore ignores DartInputParameters)
+    simu.core.phase.Phase.ExpertModeZone.nbThreads = _cfg.DART_THREADS
+
+    # Atmosphere: MIDLATSUM (matches simulation.py:1737)
     configure_atmosphere_midlatsum(simu)
 
     # Write simulation
     simu.write(overwrite=True)
 
+    # Write field file: one model per position (matches simulation.py:1744-1748)
+    simu_path = Path(str(simu.simu_dir))
+    field_path = simu_path / 'input' / field_filename
+    with open(field_path, 'w') as f_out:
+        f_out.write('complete transformation\n')
+        if grid_info and 'positions_m' in grid_info:
+            for idx, (x, y) in enumerate(grid_info['positions_m']):
+                f_out.write(f'{idx} {x:.6f} {y:.6f} 0.0 1.0 1.0 1.0 0.0 0.0 0.0\n')
+
     # Write lut.properties for fluorescence storage
-    lut_props_path = Path(simu.simu_dir) / 'input' / 'lut.properties'
+    lut_props_path = simu_path / 'input' / 'lut.properties'
     lut_props_path.parent.mkdir(parents=True, exist_ok=True)
     with open(lut_props_path, 'a') as f:
         f.write('\nlut.store.fluorescence=true\n')
 
+    print(f"  DART-F simulation: {simu_name} ({n_plants} models, {n_bands} bands)")
     return simu
 
 
