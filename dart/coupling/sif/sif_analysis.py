@@ -24,10 +24,10 @@ from ..dart.dart_f import (
 # ---------------------------------------------------------------------------
 # Vegetation masking thresholds
 # ---------------------------------------------------------------------------
-VEG_F760_MIN = 0.05   # W/m2/sr/um — minimum for vegetation classification
-VEG_F687_MIN = 0.02
-RATIO_F760_MIN = 0.1  # stricter thresholds for ratio maps
-RATIO_F687_MIN = 0.05
+VEG_F760_MIN = 0.0001   # W/m2/sr/um — minimum for vegetation classification
+VEG_F687_MIN = 0.00005
+RATIO_F760_MIN = 0.0005  # stricter thresholds for ratio maps
+RATIO_F687_MIN = 0.0002
 
 # Percentiles for colorbar scaling (avoid outlier-driven colorbars)
 SCALE_PCT_LO = 2
