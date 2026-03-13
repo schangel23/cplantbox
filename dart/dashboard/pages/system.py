@@ -31,6 +31,7 @@ def layout() -> dbc.Container:
                             _path_row("DART License (.dartrc)", "sys-dartrc", "~/.dartrcv1457"),
                             _path_row("Baleno Python", "sys-baleno-python", "darteb_venv/bin/python3.12"),
                             _path_row("CPlantBox Root", "sys-cplantbox-root", "CPlantBox/"),
+                            _path_row("AgroC Source", "sys-agroc-src", "agroC_20250327_1511/src"),
                             _path_row("Output Directory", "sys-output-dir", "coupling/output"),
                         ]
                     ),
@@ -85,12 +86,13 @@ def register_callbacks(app):
         Output("sys-dartrc", "value"),
         Output("sys-baleno-python", "value"),
         Output("sys-cplantbox-root", "value"),
+        Output("sys-agroc-src", "value"),
         Output("sys-output-dir", "value"),
         Input("sys-dart-home", "id"),  # fires once on mount
     )
     def load_defaults(_):
-        from dart.coupling.config import DART_HOME, DARTRC, BALENO_PYTHON, CPLANTBOX_ROOT, OUTPUT_DIR
-        return str(DART_HOME), str(DARTRC), str(BALENO_PYTHON), str(CPLANTBOX_ROOT), str(OUTPUT_DIR)
+        from dart.coupling.config import DART_HOME, DARTRC, BALENO_PYTHON, CPLANTBOX_ROOT, AGROC_SRC, OUTPUT_DIR
+        return str(DART_HOME), str(DARTRC), str(BALENO_PYTHON), str(CPLANTBOX_ROOT), str(AGROC_SRC), str(OUTPUT_DIR)
 
     @app.callback(
         Output("sys-dart-home-badge", "children"),
@@ -101,6 +103,8 @@ def register_callbacks(app):
         Output("sys-baleno-python-badge", "color"),
         Output("sys-cplantbox-root-badge", "children"),
         Output("sys-cplantbox-root-badge", "color"),
+        Output("sys-agroc-src-badge", "children"),
+        Output("sys-agroc-src-badge", "color"),
         Output("sys-output-dir-badge", "children"),
         Output("sys-output-dir-badge", "color"),
         Output("sys-plantbox-badge", "children"),
@@ -118,17 +122,18 @@ def register_callbacks(app):
         State("sys-dartrc", "value"),
         State("sys-baleno-python", "value"),
         State("sys-cplantbox-root", "value"),
+        State("sys-agroc-src", "value"),
         State("sys-output-dir", "value"),
         prevent_initial_call=True,
     )
-    def validate_system(n_clicks, dart_home, dartrc, baleno_python, cplantbox_root, output_dir):
+    def validate_system(n_clicks, dart_home, dartrc, baleno_python, cplantbox_root, agroc_src, output_dir):
         from dart.coupling.pipeline import PipelineConfig, PipelineRunner
 
         # Save/restore env vars around validate_system (it calls _apply_env)
         saved_env = {k: os.environ.get(k) for k in [
             "COUPLING_SPECIES", "DART_THREADS", "DART_RAY_DENSITY",
             "DART_MAX_RENDERING_TIME", "DART_HOME", "DARTRC",
-            "BALENO_PYTHON", "CPLANTBOX_ROOT", "GROWTH_MODE",
+            "BALENO_PYTHON", "CPLANTBOX_ROOT", "AGROC_SRC", "GROWTH_MODE",
         ]}
 
         try:
@@ -137,6 +142,7 @@ def register_callbacks(app):
                 dartrc=dartrc or "",
                 baleno_python=baleno_python or "",
                 cplantbox_root=cplantbox_root or "",
+                agroc_src=agroc_src or "",
                 output_dir=output_dir or "",
             )
             runner = PipelineRunner(config)
@@ -163,6 +169,10 @@ def register_callbacks(app):
         # CPlantBox root — check species_xml as proxy
         sp_xml = results.get("species_xml", {"ok": False})
         outputs.extend(["OK" if sp_xml["ok"] else "FAIL", "success" if sp_xml["ok"] else "danger"])
+
+        # AgroC source — check binary exists
+        agroc_info = results.get("agroc_src", {"ok": False})
+        outputs.extend(["OK" if agroc_info["ok"] else "FAIL", "success" if agroc_info["ok"] else "warning"])
 
         # Output dir — always OK if path is set
         outputs.extend(["OK" if output_dir else "FAIL", "success" if output_dir else "danger"])

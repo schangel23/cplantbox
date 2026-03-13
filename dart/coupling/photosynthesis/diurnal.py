@@ -1618,6 +1618,7 @@ def run_production_series_carbon(growth_days, timestep_min=60,
 
     # --- 3. Process each DART observation day ---
     series_results = {}
+    all_agroc_timesteps = []
 
     for day_idx, dart_day in enumerate(growth_days):
         if dart_day in completed_dart_days:
@@ -2178,6 +2179,34 @@ def run_production_series_carbon(growth_days, timestep_min=60,
                 print(f"    Plant {pi} carbon partitioning error: {e}")
                 per_plant_carbon.append(None)
 
+        # --- 3b'. AgroC export per plant (same as parametric mode) ---
+        if per_plant_carbon:
+            from ..agroc import export_agroc_timestep, average_agroc_timesteps
+            from ..growth import extract_lai_profile
+            per_plant_agroc = []
+            for pi in range(N_PLANTS):
+                carbon = per_plant_carbon[pi]
+                plant = persistent_plants[pi]
+                agroc_ts = None
+                if carbon is not None:
+                    try:
+                        hm_agroc = run_photosynthesis(
+                            plant, sim_time=dart_day,
+                            output_prefix=None,
+                            par_umol=1000.0, tair_c=daily_mean_tair)
+                        lai = extract_lai_profile(plant, n_bins=10)
+                        agroc_ts = export_agroc_timestep(
+                            plant, hm_agroc, carbon, lai,
+                            day=dart_day, par_umol=1000.0,
+                            tair_c=daily_mean_tair,
+                        )
+                    except Exception as e:
+                        print(f"    Plant {pi} AgroC export error: {e}")
+                per_plant_agroc.append(agroc_ts)
+            field_mean_agroc = average_agroc_timesteps(per_plant_agroc)
+            if field_mean_agroc is not None:
+                all_agroc_timesteps.append(field_mean_agroc)
+
         # --- 3c. Daily stepping from dart_day to next dart_day ---
         if day_idx + 1 < len(growth_days):
             next_dart_day = growth_days[day_idx + 1]
@@ -2321,6 +2350,36 @@ def run_production_series_carbon(growth_days, timestep_min=60,
             json.dump(ckpt_data, f, indent=2)
         print(f"  Checkpoint saved: {len(completed_dart_days)}/{len(growth_days)}")
 
+    # --- Write combined coupling CSV ---
+    if all_agroc_timesteps:
+        from ..agroc import export_coupling_csv
+        series_dir = checkpoint_dir / 'production'
+        series_dir.mkdir(parents=True, exist_ok=True)
+        csv_path = series_dir / 'coupling.csv'
+        n_layers = all_agroc_timesteps[0].get('n_layers', 20)
+        export_coupling_csv(all_agroc_timesteps, csv_path, n_layers)
+        print(f"\n  Combined coupling CSV: {csv_path}")
+
+        # --- Optional AgroC Fortran run ---
+        if run_agroc_fortran:
+            try:
+                from ..agroc.run import (
+                    get_agroc_src, prepare_agroc_workdir, run_agroc,
+                    validate_agroc_outputs,
+                )
+                agroc_src = get_agroc_src()
+                agroc_out = series_dir / 'agroc_run'
+                agroc_out.mkdir(parents=True, exist_ok=True)
+                workdir = prepare_agroc_workdir(agroc_src, agroc_out, csv_path)
+                proc = run_agroc(workdir, timeout=600)
+                if proc.returncode == 0:
+                    validation = validate_agroc_outputs(workdir, csv_path)
+                    print(f"  AgroC: {'PASSED' if validation['passed'] else 'WARNINGS'}")
+                else:
+                    print(f"  AgroC FAILED (exit code {proc.returncode})")
+            except Exception as e:
+                print(f"  AgroC error: {e}")
+
     # --- Final summary ---
     summary = {
         'growth_days': growth_days,
@@ -2331,6 +2390,7 @@ def run_production_series_carbon(growth_days, timestep_min=60,
         'enable_baleno': enable_baleno,
         'iterate_gs': iterate_gs,
         'daily_summaries': daily_summaries,
+        'n_agroc_timesteps': len(all_agroc_timesteps),
     }
     json_path = checkpoint_dir / 'production_summary.json'
     with open(json_path, 'w') as f:

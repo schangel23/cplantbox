@@ -40,6 +40,16 @@ DART_MAX_RENDERING_TIME = int(os.environ.get("DART_MAX_RENDERING_TIME", "0"))  #
 CPLANTBOX_ROOT = Path(os.environ.get(
     "CPLANTBOX_ROOT", str(PACKAGE_DIR.parent.parent.parent)
 ))
+
+# AgroC source directory — override via AGROC_SRC env var.
+# Defaults try local then server paths (same logic as agroc/run.py).
+_AGROC_LOCAL = Path("/home/lukas/PHD/agroC_20250327_1511/src")
+_AGROC_SERVER = Path("/media/data/Lukas/agroC_20250327_1511/src")
+AGROC_SRC = Path(os.environ.get("AGROC_SRC", "")) if os.environ.get("AGROC_SRC") else (
+    _AGROC_LOCAL if _AGROC_LOCAL.exists() else (
+        _AGROC_SERVER if _AGROC_SERVER.exists() else Path("")
+    )
+)
 HYDRAULICS_PATH = str(CPLANTBOX_ROOT / "modelparameter" / "functional" / "plant_hydraulics") + "/"
 
 # ---------------------------------------------------------------------------

@@ -57,6 +57,7 @@ class PipelineConfig:
     with_carbon: bool = True
     carbon_method: str = "auto"  # auto | phloem | dvs
     with_agroc: bool = False
+    agroc_src: str = ""  # AgroC source dir (empty = auto-detect)
 
     # SIF / Fluorescence
     with_sif: bool = False
@@ -89,7 +90,7 @@ class PipelineConfig:
 
     def __post_init__(self):
         """Fill empty path fields from config.py defaults."""
-        from .config import DART_HOME, DARTRC, BALENO_PYTHON, CPLANTBOX_ROOT, OUTPUT_DIR
+        from .config import DART_HOME, DARTRC, BALENO_PYTHON, CPLANTBOX_ROOT, OUTPUT_DIR, AGROC_SRC
         if not self.dart_home:
             self.dart_home = str(DART_HOME)
         if not self.dartrc:
@@ -100,6 +101,8 @@ class PipelineConfig:
             self.cplantbox_root = str(CPLANTBOX_ROOT)
         if not self.output_dir:
             self.output_dir = str(OUTPUT_DIR)
+        if not self.agroc_src:
+            self.agroc_src = str(AGROC_SRC)
 
     def save(self, path: str | Path) -> None:
         """Save config to JSON file."""
@@ -199,6 +202,8 @@ class PipelineRunner:
             os.environ["BALENO_PYTHON"] = c.baleno_python
         if c.cplantbox_root:
             os.environ["CPLANTBOX_ROOT"] = c.cplantbox_root
+        if c.agroc_src:
+            os.environ["AGROC_SRC"] = c.agroc_src
 
         # Growth mode: carbon_feedback → "carbon", else "parametric"
         if c.mode == "carbon_feedback":
@@ -233,6 +238,8 @@ class PipelineRunner:
                 cfg_mod.BALENO_PYTHON = Path(c.baleno_python)
             if c.cplantbox_root:
                 cfg_mod.CPLANTBOX_ROOT = Path(c.cplantbox_root)
+            if c.agroc_src:
+                cfg_mod.AGROC_SRC = Path(c.agroc_src)
 
         # PROSPECT overrides — set module-level stage list
         from .prospect_params import set_overrides
@@ -336,7 +343,19 @@ class PipelineRunner:
                 "error": f"Unknown species '{sp_name}'",
             }
 
-        # 8. Met CSV (if specified)
+        # 8. AgroC source
+        agroc_path = Path(c.agroc_src) if c.agroc_src else Path("")
+        agroc_bin = agroc_path / "agroC"
+        agroc_ok = agroc_bin.exists() if c.agroc_src else False
+        results["agroc_src"] = {
+            "ok": agroc_ok,
+            "path": str(agroc_path),
+            "error": None if agroc_ok else (
+                "AgroC binary not found" if c.agroc_src else "AgroC path not set"
+            ),
+        }
+
+        # 9. Met CSV (if specified)
         if c.met_csv:
             met_path = Path(c.met_csv)
             results["met_csv"] = {
