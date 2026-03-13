@@ -29,6 +29,9 @@ VEG_F687_MIN = 1e-6
 RATIO_F760_MIN = 1e-4  # stricter thresholds for ratio maps
 RATIO_F687_MIN = 1e-5
 
+# NDVI-based vegetation mask (preferred when reflectance bands available)
+NDVI_VEG_THRESHOLD = 0.3  # NDVI > 0.3 → vegetation pixel
+
 # Percentiles for colorbar scaling (avoid outlier-driven colorbars)
 SCALE_PCT_LO = 2
 SCALE_PCT_HI = 98
@@ -53,13 +56,28 @@ plt.rcParams.update({
 # ---------------------------------------------------------------------------
 # Vegetation masking
 # ---------------------------------------------------------------------------
-def create_vegetation_mask(f687, f760, strict=False):
+def create_vegetation_mask(f687, f760, strict=False, reflectance=None):
     """Boolean mask: True where pixel is vegetation.
+
+    Uses NDVI from reflectance bands (650, 850 nm) when available — this
+    cleanly separates soil from leaves regardless of SIF magnitude and
+    eliminates Monte Carlo ray-tracing noise on soil pixels.  Falls back
+    to SIF-threshold masking when reflectance data is absent.
 
     Args:
         f687, f760: 2-D SIF images.
-        strict: use tighter thresholds (for ratio maps).
+        strict: use tighter thresholds (for ratio maps, only affects fallback).
+        reflectance: dict {wvl_nm: 2-D array} from ``load_sif_from_netcdf``.
     """
+    # --- NDVI mask (preferred) ---
+    if reflectance and 650 in reflectance and 850 in reflectance:
+        red = reflectance[650].astype(np.float64)
+        nir = reflectance[850].astype(np.float64)
+        with np.errstate(divide='ignore', invalid='ignore'):
+            ndvi = np.where((nir + red) > 0, (nir - red) / (nir + red), 0.0)
+        return ndvi > NDVI_VEG_THRESHOLD
+
+    # --- Fallback: SIF-threshold mask ---
     if strict:
         return (f760 > RATIO_F760_MIN) & (f687 > RATIO_F687_MIN)
     return (f760 > VEG_F760_MIN) & (f687 > VEG_F687_MIN)
@@ -151,14 +169,15 @@ def compute_sif_metrics(data):
     if f687 is None or f760 is None:
         return {}
 
-    veg = create_vegetation_mask(f687, f760)
-    strict = create_vegetation_mask(f687, f760, strict=True)
+    refl = data.get('reflectance', {})
+    veg = create_vegetation_mask(f687, f760, reflectance=refl)
+    strict = create_vegetation_mask(f687, f760, strict=True, reflectance=refl)
 
     n_total = veg.size
     n_veg = int(np.sum(veg))
 
     with np.errstate(divide='ignore', invalid='ignore'):
-        ratio_img = np.where(strict, f760 / f687, np.nan)
+        ratio_img = np.where(strict & (f687 > 0), f760 / f687, np.nan)
 
     return {
         'n_pixels_total': n_total,
@@ -200,15 +219,16 @@ def plot_sif_maps(data, output_dir, label='', scene_size_m=None):
         print("  No SIF images to plot")
         return
 
-    veg = create_vegetation_mask(f687, f760)
-    strict = create_vegetation_mask(f687, f760, strict=True)
+    refl = data.get('reflectance', {})
+    veg = create_vegetation_mask(f687, f760, reflectance=refl)
+    strict = create_vegetation_mask(f687, f760, strict=True, reflectance=refl)
 
     # Mask non-vegetation as NaN (renders white)
     f687_masked = np.where(veg, f687, np.nan)
     f760_masked = np.where(veg, f760, np.nan)
 
     with np.errstate(divide='ignore', invalid='ignore'):
-        ratio_masked = np.where(strict, f760 / f687, np.nan)
+        ratio_masked = np.where(strict & (f687 > 0), f760 / f687, np.nan)
 
     # Axis extent in metres
     pix = data.get('pixel_size_m', DART_PIXEL_SIZE_M)
@@ -320,7 +340,8 @@ def plot_sif_aggregated(data, output_dir, label='',
     if f687 is None or f760 is None:
         return
 
-    veg = create_vegetation_mask(f687, f760)
+    refl = data.get('reflectance', {})
+    veg = create_vegetation_mask(f687, f760, reflectance=refl)
     f760_masked = np.where(veg, f760, np.nan)
     f687_masked = np.where(veg, f687, np.nan)
 
