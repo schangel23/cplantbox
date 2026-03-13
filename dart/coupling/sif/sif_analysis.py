@@ -24,10 +24,10 @@ from ..dart.dart_f import (
 # ---------------------------------------------------------------------------
 # Vegetation masking thresholds
 # ---------------------------------------------------------------------------
-VEG_F760_MIN = 1e-5    # W/m2/sr/um — above numerical noise, below weakest hour
-VEG_F687_MIN = 1e-6
-RATIO_F760_MIN = 1e-4  # stricter thresholds for ratio maps
-RATIO_F687_MIN = 1e-5
+VEG_F760_MIN = 5e-4    # W/m2/sr/um — above MC scatter (~1e-4), below canopy core (>1e-3)
+VEG_F687_MIN = 5e-5
+RATIO_F760_MIN = 5e-4  # same as VEG for ratio maps (previous 1e-4 too loose)
+RATIO_F687_MIN = 5e-5
 
 # Percentiles for colorbar scaling (avoid outlier-driven colorbars)
 SCALE_PCT_LO = 2
