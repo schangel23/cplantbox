@@ -11,7 +11,8 @@ def write_segment_sif_csv(output_path, iter_result, plant_idx,
     """Write per-segment SIF CSV for one plant at one timestep.
 
     Columns: segment_idx, n_triangles, total_area_cm2,
-             apar_umol, tleaf_C, gs_mol, An_umol, eta, SIF_W_m2, f_sunlit
+             apar_umol, tleaf_C, gs_mol, An_umol, eta, SIF_W_m2, f_sunlit,
+             psi_leaf_MPa
     """
     output_path = Path(output_path)
 
@@ -19,6 +20,7 @@ def write_segment_sif_csv(output_path, iter_result, plant_idx,
     tleaf = iter_result.get('tleaf_per_segment')
     gs = iter_result.get('gs_per_segment')
     eta = iter_result.get('eta_per_segment')
+    psi = iter_result.get('psi_leaf_MPa')
 
     if an is None or eta is None:
         return
@@ -30,7 +32,7 @@ def write_segment_sif_csv(output_path, iter_result, plant_idx,
 
     fieldnames = ['segment_idx', 'n_triangles', 'total_area_cm2',
                   'apar_umol', 'tleaf_C', 'gs_mol', 'An_umol',
-                  'eta', 'SIF_W_m2', 'f_sunlit']
+                  'eta', 'SIF_W_m2', 'f_sunlit', 'psi_leaf_MPa']
 
     with open(output_path, 'w', newline='') as f:
         writer = csv.DictWriter(f, fieldnames=fieldnames)
@@ -40,6 +42,7 @@ def write_segment_sif_csv(output_path, iter_result, plant_idx,
             an_val = float(an[si]) if si < len(an) else 0.0
             tleaf_val = float(tleaf[si]) if tleaf is not None and si < len(tleaf) else 25.0
             gs_val = float(gs[si]) if gs is not None and si < len(gs) else 0.0
+            psi_val = float(psi[si]) if psi is not None and si < len(psi) else None
 
             # Per-segment aggregated values from tri_data
             n_tris = 0
@@ -72,6 +75,7 @@ def write_segment_sif_csv(output_path, iter_result, plant_idx,
                 'eta': round(eta_val, 6),
                 'SIF_W_m2': round(sif_wm2, 6),
                 'f_sunlit': round(f_sunlit, 3),
+                'psi_leaf_MPa': round(psi_val, 4) if psi_val is not None else '',
             })
 
 

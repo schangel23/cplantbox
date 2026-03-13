@@ -427,6 +427,7 @@ def run_single_day(sim_day, use_dart=True, timestep_min=30,
     print(f"{'=' * 70}")
 
     hourly_results = []
+    psi_sif_accum = []  # accumulate psi-SIF points across timesteps
     for step_i, (ts_time, ts_row) in enumerate(solar_df.iterrows()):
         sun_zen = ts_row['apparent_zenith']
         sun_azi = ts_row['azimuth']
@@ -706,6 +707,11 @@ def run_single_day(sim_day, use_dart=True, timestep_min=30,
             if sif_summary:
                 hourly_row.update(sif_summary)
 
+            # Accumulate psi-SIF correlation data
+            from ..sif.sif_analysis import collect_psi_sif_from_iter_results
+            psi_sif_accum.extend(
+                collect_psi_sif_from_iter_results(iter_results, time_label=ts_label))
+
             # --- DART-F fluorescence RT (Level 2) ---
             if with_dart_f:
                 try:
@@ -768,6 +774,15 @@ def run_single_day(sim_day, use_dart=True, timestep_min=30,
     _save_diurnal_results(day_dir, sim_day, calendar_date, hourly_results,
                            daily_An_per_plant, daily_An_field_mean,
                            daily_An_field_std, timestep_min)
+
+    # --- Psi-SIF correlation plot ---
+    if with_sif and psi_sif_accum:
+        from ..sif.sif_analysis import plot_psi_sif_correlation
+        try:
+            plot_psi_sif_correlation(
+                psi_sif_accum, day_dir, label=f'day{sim_day}')
+        except Exception as e:
+            print(f"  WARNING: psi-SIF plot failed: {e}")
 
     print(f"\n{'=' * 70}")
     print(f"DAY {sim_day} COMPLETE{mode_label}")
@@ -1768,6 +1783,7 @@ def run_production_series_carbon(growth_days, timestep_min=60,
         # Diurnal loop: accumulate per-plant An across timesteps
         daily_An_per_plant_mmol = [0.0] * N_PLANTS
         hourly_results = []
+        psi_sif_accum = []  # accumulate psi-SIF points across timesteps
         dt_day = timestep_min / (24 * 60)
         n_steps_done = 0
         # Cache: skip Ball-Berry after first successful Tuzet iteration
@@ -1964,6 +1980,12 @@ def run_production_series_carbon(growth_days, timestep_min=60,
                             if sif_summary:
                                 sif_hourly_data = sif_summary  # store for hourly_row
 
+                            # Accumulate psi-SIF correlation data
+                            from ..sif.sif_analysis import collect_psi_sif_from_iter_results
+                            psi_sif_accum.extend(
+                                collect_psi_sif_from_iter_results(
+                                    iter_results, time_label=ts_label))
+
                             # DART-F fluorescence RT (Level 2)
                             if with_dart_f:
                                 try:
@@ -2133,6 +2155,15 @@ def run_production_series_carbon(growth_days, timestep_min=60,
                 daily_An_field_std, timestep_min)
         except Exception as e:
             print(f"  WARNING: Failed to save diurnal results: {e}")
+
+        # --- Psi-SIF correlation plot ---
+        if with_sif and psi_sif_accum:
+            from ..sif.sif_analysis import plot_psi_sif_correlation
+            try:
+                plot_psi_sif_correlation(
+                    psi_sif_accum, day_dir, label=f'day{dart_day}')
+            except Exception as e:
+                print(f"  WARNING: psi-SIF plot failed: {e}")
 
         # --- 3b. Per-plant carbon partitioning on DART day ---
         per_plant_carbon = []

@@ -379,6 +379,196 @@ def plot_sif_aggregated(data, output_dir, label='',
 
 
 # ---------------------------------------------------------------------------
+# Psi_leaf vs SIF correlation
+# ---------------------------------------------------------------------------
+def collect_psi_sif_from_iter_results(iter_results, time_label=None, fqe=0.01):
+    """Extract per-segment psi_leaf and SIF from iterative coupling results.
+
+    Args:
+        iter_results: list of per-plant result dicts from iterative coupling.
+        time_label: optional time string (e.g. '12:00') attached to each point.
+        fqe: fluorescence quantum efficiency for SIF computation.
+
+    Returns:
+        list of dicts with keys: psi_MPa, sif_Wm2, eta, apar_umol, An_umol,
+        tleaf_C, plant_idx, segment_idx, time.
+    """
+    if iter_results is None:
+        return []
+
+    points = []
+    for pi, r in enumerate(iter_results):
+        if r is None:
+            continue
+        psi = r.get('psi_leaf_MPa')
+        eta = r.get('eta_per_segment')
+        an = r.get('an_per_segment')
+        tleaf = r.get('tleaf_per_segment')
+        tri_data = r.get('tri_data')
+
+        if psi is None or eta is None:
+            continue
+
+        n = min(len(psi), len(eta))
+        for si in range(n):
+            eta_val = float(eta[si])
+            psi_val = float(psi[si])
+
+            # Compute SIF from tri_data apar if available
+            apar_umol = 0.0
+            sif_wm2 = 0.0
+            if tri_data is not None and si < len(tri_data):
+                apar_umol = tri_data[si].get('mean_apar_umol', 0.0)
+                apar_wm2 = apar_umol / 4.57 if apar_umol > 0 else 0.0
+                sif_wm2 = eta_val * fqe * apar_wm2
+
+            points.append({
+                'psi_MPa': psi_val,
+                'sif_Wm2': sif_wm2,
+                'eta': eta_val,
+                'apar_umol': apar_umol,
+                'An_umol': float(an[si]) if an is not None and si < len(an) else 0.0,
+                'tleaf_C': float(tleaf[si]) if tleaf is not None and si < len(tleaf) else 25.0,
+                'plant_idx': pi,
+                'segment_idx': si,
+                'time': time_label or '',
+            })
+
+    return points
+
+
+def plot_psi_sif_correlation(psi_sif_points, output_dir, label=''):
+    """Plot psi_leaf vs SIF scatter with linear regression.
+
+    Produces a 2x2 figure:
+        - psi_leaf vs SIF (W/m2)
+        - psi_leaf vs eta (fluorescence yield)
+        - psi_leaf vs An (net assimilation)
+        - SIF vs An
+
+    Args:
+        psi_sif_points: list of dicts from collect_psi_sif_from_iter_results,
+            accumulated across timesteps.
+        output_dir: directory to save plot.
+        label: filename suffix.
+
+    Returns:
+        path to saved figure, or None on failure.
+    """
+    if not psi_sif_points:
+        return None
+
+    output_dir = Path(output_dir)
+    output_dir.mkdir(parents=True, exist_ok=True)
+
+    psi = np.array([p['psi_MPa'] for p in psi_sif_points])
+    sif = np.array([p['sif_Wm2'] for p in psi_sif_points])
+    eta = np.array([p['eta'] for p in psi_sif_points])
+    an = np.array([p['An_umol'] for p in psi_sif_points])
+    times = [p['time'] for p in psi_sif_points]
+
+    # Filter out zero-SIF points (nighttime / no light)
+    mask = sif > 0
+    if np.sum(mask) < 5:
+        print("    psi-SIF: too few points with SIF > 0, skipping plot")
+        return None
+
+    psi_f, sif_f, eta_f, an_f = psi[mask], sif[mask], eta[mask], an[mask]
+    times_f = [t for t, m in zip(times, mask) if m]
+
+    # Color by time if multiple timesteps
+    unique_times = sorted(set(times_f))
+    if len(unique_times) > 1:
+        cmap = plt.cm.viridis
+        time_to_idx = {t: i for i, t in enumerate(unique_times)}
+        colors = [cmap(time_to_idx[t] / max(len(unique_times) - 1, 1))
+                  for t in times_f]
+    else:
+        colors = '#2196F3'
+
+    fig, axes = plt.subplots(2, 2, figsize=(11, 9))
+
+    # --- psi vs SIF ---
+    ax = axes[0, 0]
+    ax.scatter(psi_f, sif_f, c=colors, alpha=0.3, s=8, edgecolors='none')
+    _add_regression(ax, psi_f, sif_f)
+    ax.set_xlabel(r'$\psi_{leaf}$ (MPa)')
+    ax.set_ylabel('SIF (W/m$^2$)')
+    ax.set_title(r'$\psi_{leaf}$ vs SIF')
+
+    # --- psi vs eta ---
+    ax = axes[0, 1]
+    ax.scatter(psi_f, eta_f, c=colors, alpha=0.3, s=8, edgecolors='none')
+    _add_regression(ax, psi_f, eta_f)
+    ax.set_xlabel(r'$\psi_{leaf}$ (MPa)')
+    ax.set_ylabel(r'$\eta$ (fluorescence yield)')
+    ax.set_title(r'$\psi_{leaf}$ vs $\eta$')
+
+    # --- psi vs An ---
+    ax = axes[1, 0]
+    ax.scatter(psi_f, an_f, c=colors, alpha=0.3, s=8, edgecolors='none')
+    _add_regression(ax, psi_f, an_f)
+    ax.set_xlabel(r'$\psi_{leaf}$ (MPa)')
+    ax.set_ylabel(r'A$_n$ ($\mu$mol CO$_2$/m$^2$/s)')
+    ax.set_title(r'$\psi_{leaf}$ vs A$_n$')
+
+    # --- SIF vs An ---
+    ax = axes[1, 1]
+    ax.scatter(sif_f, an_f, c=colors, alpha=0.3, s=8, edgecolors='none')
+    _add_regression(ax, sif_f, an_f)
+    ax.set_xlabel('SIF (W/m$^2$)')
+    ax.set_ylabel(r'A$_n$ ($\mu$mol CO$_2$/m$^2$/s)')
+    ax.set_title(r'SIF vs A$_n$')
+
+    # Colorbar for time if multi-timestep
+    if len(unique_times) > 1:
+        sm = plt.cm.ScalarMappable(
+            cmap=plt.cm.viridis,
+            norm=plt.Normalize(0, len(unique_times) - 1))
+        sm.set_array([])
+        cbar = fig.colorbar(sm, ax=axes, fraction=0.02, pad=0.04)
+        cbar.set_ticks(range(0, len(unique_times), max(1, len(unique_times) // 6)))
+        cbar.set_ticklabels(
+            [unique_times[i] for i in range(0, len(unique_times),
+                                             max(1, len(unique_times) // 6))])
+        cbar.set_label('Time (UTC)')
+
+    n_pts = len(psi_f)
+    n_ts = len(unique_times)
+    fig.suptitle(
+        f'Leaf Water Potential vs Fluorescence   |   '
+        f'{n_pts} segments, {n_ts} timestep{"s" if n_ts > 1 else ""}',
+        fontsize=11, fontweight='bold')
+
+    plt.tight_layout(rect=[0, 0, 0.95 if len(unique_times) > 1 else 1, 0.95])
+    suffix = f'_{label}' if label else ''
+    out = output_dir / f'psi_sif_correlation{suffix}.png'
+    fig.savefig(out, dpi=200, bbox_inches='tight', facecolor='white')
+    plt.close(fig)
+    print(f"    Saved {out.name}")
+    return str(out)
+
+
+def _add_regression(ax, x, y):
+    """Add linear regression line and R2 annotation to axis."""
+    if len(x) < 5:
+        return
+    mask = np.isfinite(x) & np.isfinite(y)
+    x_c, y_c = x[mask], y[mask]
+    if len(x_c) < 5:
+        return
+    coeffs = np.polyfit(x_c, y_c, 1)
+    y_hat = np.polyval(coeffs, x_c)
+    ss_res = np.sum((y_c - y_hat) ** 2)
+    ss_tot = np.sum((y_c - np.mean(y_c)) ** 2)
+    r2 = 1 - ss_res / ss_tot if ss_tot > 0 else 0.0
+    x_line = np.linspace(x_c.min(), x_c.max(), 50)
+    ax.plot(x_line, np.polyval(coeffs, x_line), 'r-', lw=1.5, alpha=0.8)
+    ax.annotate(f'R$^2$={r2:.3f}', xy=(0.05, 0.92), xycoords='axes fraction',
+                fontsize=9, color='red')
+
+
+# ---------------------------------------------------------------------------
 # High-level entry point for the pipeline
 # ---------------------------------------------------------------------------
 def analyze_dart_f_output(simu_or_nc_path, output_dir, label='',
