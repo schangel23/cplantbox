@@ -234,16 +234,24 @@ def parse_t_level(path: Path) -> dict:
     if len(lines) < 2:
         return {"exists": True, "n_rows": 0}
 
-    # Find header line (first non-empty, non-comment line)
+    # Find header line containing column names (skip banner and units lines)
     header_line = None
     data_start = 0
     for i, line in enumerate(lines):
         stripped = line.strip()
-        if not stripped or stripped.startswith("!"):
+        if not stripped or stripped.startswith(("!", "*")):
             continue
-        header_line = stripped
-        data_start = i + 1
-        break
+        # Skip units lines like "[T]  [-]  [L/T] ..."
+        if stripped.startswith("["):
+            continue
+        # The header line contains "Time" and column names
+        if "Time" in stripped and not stripped[0].isdigit():
+            header_line = stripped
+            # Skip the units line that follows the header
+            data_start = i + 1
+            if data_start < len(lines) and lines[data_start].strip().startswith("["):
+                data_start += 1
+            break
 
     if header_line is None:
         return {"exists": True, "n_rows": 0}
