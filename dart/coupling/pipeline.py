@@ -37,11 +37,11 @@ class PipelineConfig:
     lon: float = 6.36
     sowing_date: str = "2025-05-01"
     scene_size_x: float = 4.0  # DART scene [m]
-    scene_size_y: float = 4.0
-    grid_nx: int = 3           # plants per row
-    grid_ny: int = 3           # rows
+    scene_size_y: float = 2.25
+    grid_nx: int = 3           # rows (across-row direction)
+    grid_ny: int = 5           # plants per row (along-row direction)
     grid_spacing_x: float = 0.75  # inter-row [m]
-    grid_spacing_y: float = 0.25  # intra-row [m]
+    grid_spacing_y: float = 0.15  # intra-row [m] (~89k pl/ha)
 
     # Soil / water
     soil_psi_cm: float = -500.0  # collar water potential [cm] (-500 = well-watered)
