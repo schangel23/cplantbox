@@ -1,17 +1,14 @@
 """
 Solar position calculator for diurnal coupling loop.
 
-Uses pvlib for accurate sun zenith/azimuth at Jülich (50.92°N, 6.36°E).
-Provides helper to convert CPlantBox simulation day to calendar date.
+Uses pvlib for accurate sun zenith/azimuth. Default location comes from
+the active site config (COUPLING_SITE env var, default Jülich).
 """
 
 import pandas as pd
 import pvlib
 
-# Default location: Jülich, Germany (FZJ campus)
-DEFAULT_LAT = 50.92
-DEFAULT_LON = 6.36
-DEFAULT_ALTITUDE = 91  # meters above sea level
+from ..config import DEFAULT_LAT, DEFAULT_LON, DEFAULT_ALTITUDE, DEFAULT_SOWING_DATE
 
 
 def get_solar_positions(date, lat=DEFAULT_LAT, lon=DEFAULT_LON,
@@ -47,7 +44,7 @@ def get_solar_positions(date, lat=DEFAULT_LAT, lon=DEFAULT_LON,
     return daylight[['apparent_zenith', 'azimuth', 'apparent_elevation']]
 
 
-def sim_day_to_date(sim_day, sowing_date='2025-05-01'):
+def sim_day_to_date(sim_day, sowing_date=DEFAULT_SOWING_DATE):
     """Convert CPlantBox simulation day to calendar date.
 
     Args:
@@ -91,7 +88,7 @@ def get_clearsky_par(time, lat=DEFAULT_LAT, lon=DEFAULT_LON,
     return par_wm2
 
 
-def day_of_year(sim_day, sowing_date='2025-05-01'):
+def day_of_year(sim_day, sowing_date=DEFAULT_SOWING_DATE):
     """Convert CPlantBox simulation day to day-of-year (1-365).
 
     Args:

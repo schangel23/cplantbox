@@ -26,6 +26,11 @@ class PipelineConfig:
     # Run mode
     mode: str = "full_production"  # full_production | uniform_baseline | carbon_feedback | single_day
     species: str = "maize"
+    site: str = ""  # site name (e.g. "us-ne1"). Empty = use defaults (juelich).
+
+    # FLUXNET forcing (alternative to met_csv)
+    fluxnet_csv: str | None = None   # path to FLUXNET FULLSET hourly CSV
+    fluxnet_year: int | None = None  # year to extract from FLUXNET CSV
 
     # Temporal
     growth_days: list = field(default_factory=lambda: [10, 14, 18, 22, 26, 30, 35, 40, 45, 50, 55, 58])
@@ -90,6 +95,18 @@ class PipelineConfig:
 
     def __post_init__(self):
         """Fill empty path fields from config.py defaults."""
+        # Resolve site → lat/lon/sowing_date if user selected a site
+        if self.site:
+            from .config import SITE_REGISTRY
+            site_cfg = SITE_REGISTRY.get(self.site.lower(), {})
+            if site_cfg:
+                # Only override if values are still at Jülich defaults
+                if self.lat == 50.92 and self.lon == 6.36:
+                    self.lat = site_cfg["lat"]
+                    self.lon = site_cfg["lon"]
+                if self.sowing_date == "2025-05-01":
+                    self.sowing_date = site_cfg["sowing_date"]
+
         from .config import DART_HOME, DARTRC, BALENO_PYTHON, CPLANTBOX_ROOT, OUTPUT_DIR, AGROC_SRC
         if not self.dart_home:
             self.dart_home = str(DART_HOME)
@@ -142,6 +159,7 @@ class PipelineConfig:
         return cls(
             mode=mode,
             species=os.environ.get("COUPLING_SPECIES", "maize"),
+            site=os.environ.get("COUPLING_SITE", ""),
             growth_days=growth_days,
             single_day=getattr(args, 'days', None),
             timestep_min=getattr(args, 'timestep_min', 60),
@@ -157,6 +175,8 @@ class PipelineConfig:
             with_dart_f=getattr(args, 'with_dart_f', False),
             sif_triangles=getattr(args, 'sif_triangles', False),
             met_csv=getattr(args, 'met_csv', None),
+            fluxnet_csv=getattr(args, 'fluxnet_csv', None),
+            fluxnet_year=getattr(args, 'fluxnet_year', None),
             resume=getattr(args, 'resume', False),
         )
 
@@ -190,6 +210,8 @@ class PipelineRunner:
         """
         c = self.config
         os.environ["COUPLING_SPECIES"] = c.species.lower()
+        if c.site:
+            os.environ["COUPLING_SITE"] = c.site.lower()
         os.environ["DART_THREADS"] = str(c.threads)
         os.environ["DART_RAY_DENSITY"] = str(c.dart_ray_density)
         os.environ["DART_MAX_RENDERING_TIME"] = str(c.dart_max_rendering_time)
@@ -229,6 +251,15 @@ class PipelineRunner:
             cfg_mod.DART_THREADS = min(c.threads, cpu_count())
             cfg_mod.DART_RAY_DENSITY_PER_PIXEL = c.dart_ray_density
             cfg_mod.DART_MAX_RENDERING_TIME = c.dart_max_rendering_time
+            # Patch site-derived defaults
+            if c.site:
+                site_cfg = cfg_mod.SITE_REGISTRY.get(c.site.lower(), {})
+                if site_cfg:
+                    cfg_mod.DEFAULT_LAT = site_cfg["lat"]
+                    cfg_mod.DEFAULT_LON = site_cfg["lon"]
+                    cfg_mod.DEFAULT_ALTITUDE = site_cfg["altitude"]
+                    cfg_mod.DEFAULT_SOWING_DATE = site_cfg["sowing_date"]
+                    cfg_mod.DEFAULT_CO2_PPM = site_cfg["co2_ppm"]
             if c.dart_home:
                 cfg_mod.DART_HOME = Path(c.dart_home)
                 cfg_mod.DART_EB_DIR = cfg_mod.DART_HOME / "bin" / "python_script" / "dart-eb-main"
@@ -397,6 +428,14 @@ class PipelineRunner:
                 "System validation failed for critical components:\n"
                 + "\n".join(msgs)
             )
+
+        # Convert FLUXNET CSV to pipeline met format if provided
+        if c.fluxnet_csv and c.fluxnet_year:
+            from .utils.met_forcing import fluxnet_to_pipeline_csv, inject_fluxnet_into_dvs
+            met_csv_path = str(Path(c.output_dir) / f'fluxnet_{c.fluxnet_year}_met.csv')
+            fluxnet_to_pipeline_csv(c.fluxnet_csv, c.fluxnet_year, met_csv_path)
+            inject_fluxnet_into_dvs(c.fluxnet_csv, c.fluxnet_year, c.sowing_date)
+            c.met_csv = met_csv_path  # downstream code uses met_csv
 
         # Inject custom daily met into DVS cache if provided
         if c.met_daily_csv:

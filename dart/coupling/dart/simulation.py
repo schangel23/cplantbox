@@ -62,8 +62,17 @@ def configure_exact_date(simu, calendar_date, hour_utc, minute_utc,
     simu.core.directions.set_nodes(sunAzimuthalOffset=-90)
 
 
-def configure_atmosphere_midlatsum(simu):
-    """Configure DART atmosphere: MIDLATSUM + RURALV23, TOAtoBOA=2."""
+def configure_atmosphere_midlatsum(simu, co2_ppm=None):
+    """Configure DART atmosphere: MIDLATSUM + RURALV23, TOAtoBOA=2.
+
+    Args:
+        simu: pytools4dart simulation object.
+        co2_ppm: CO2 mixing ratio (ppm). If None, uses active site config.
+    """
+    if co2_ppm is None:
+        from .. import config as _cfg
+        co2_ppm = _cfg.DEFAULT_CO2_PPM
+
     # Enable atmospheric RT simulation
     simu.core.phase.Phase.AtmosphereRadiativeTransfer.TOAtoBOA = 2
 
@@ -72,9 +81,9 @@ def configure_atmosphere_midlatsum(simu):
     atmo.AtmosphericOpticalPropertyModel.gasModelName = 'MIDLATSUM'
     atmo.AtmosphericOpticalPropertyModel.gasCumulativeModelName = 'MIDLATSUM'
     atmo.AtmosphericOpticalPropertyModel.temperatureModelName = 'MIDLATSUM'
-    atmo.AtmosphericOpticalPropertyModel.co2MixRate = 420.0  # current CO2
+    atmo.AtmosphericOpticalPropertyModel.co2MixRate = co2_ppm
 
-    # Aerosol model: MIDLATSUM + Rural (visibility 23km — Jülich)
+    # Aerosol model: MIDLATSUM + Rural (visibility 23km)
     # Aerosols live under Atmosphere.Aerosol (separate from IsAtmosphere)
     simu.core.atmosphere.Atmosphere.Aerosol.AerosolProperties[0].aerosolsModelName = 'MIDLATSUM_RURALV23'
 

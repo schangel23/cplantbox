@@ -22,6 +22,12 @@ _SPECIES = [
     {"label": "Wheat (C3)", "value": "wheat"},
 ]
 
+_SITES = [
+    {"label": "Custom (manual lat/lon)", "value": ""},
+    {"label": "Juelich, Germany (FZJ)", "value": "juelich"},
+    {"label": "US-Ne1 Mead, Nebraska (irrigated maize)", "value": "us-ne1"},
+]
+
 _CARBON_METHODS = [
     {"label": "Auto (phloem if available)", "value": "auto"},
     {"label": "Phloem (PiafMunch-style)", "value": "phloem"},
@@ -99,8 +105,9 @@ def layout() -> dbc.Container:
                         [
                             dbc.Row(
                                 [
-                                    dbc.Col([dbc.Label("Mode"), dcc.Dropdown(id="sim-mode", options=_MODES, value="full_production")], width=5),
-                                    dbc.Col([dbc.Label("Species"), dcc.Dropdown(id="sim-species", options=_SPECIES, value="maize")], width=3),
+                                    dbc.Col([dbc.Label("Mode"), dcc.Dropdown(id="sim-mode", options=_MODES, value="full_production")], width=4),
+                                    dbc.Col([dbc.Label("Species"), dcc.Dropdown(id="sim-species", options=_SPECIES, value="maize")], width=2),
+                                    dbc.Col([dbc.Label("Site"), dcc.Dropdown(id="sim-site", options=_SITES, value="", clearable=False)], width=3),
                                     dbc.Col([dbc.Label("Single Day"), dbc.Input(id="sim-single-day", type="number", value=55, disabled=True)], width=2),
                                 ],
                                 className="mb-2",
@@ -388,7 +395,7 @@ def layout() -> dbc.Container:
 # All scalar input IDs used in build_config (order matters for callback signature).
 # The PROSPECT table data is a separate Input (not in this list).
 _BUILD_INPUTS = [
-    "sim-mode", "sim-species", "sim-growth-days", "sim-single-day", "sim-timestep",
+    "sim-mode", "sim-species", "sim-site", "sim-growth-days", "sim-single-day", "sim-timestep",
     "sim-lat", "sim-lon", "sim-sowing-date",
     "sim-grid-nx", "sim-grid-ny", "sim-spacing-x", "sim-spacing-y",
     "sim-scene-x", "sim-scene-y", "sim-soil-psi",
@@ -415,6 +422,24 @@ def register_callbacks(app):
         gs_open = "iterate_gs" in (physics or [])
         prospect_editable = "override" in (prospect_checks or [])
         return single_disabled, gs_open, prospect_editable
+
+    @app.callback(
+        Output("sim-lat", "value"),
+        Output("sim-lon", "value"),
+        Output("sim-sowing-date", "value"),
+        Input("sim-site", "value"),
+        prevent_initial_call=True,
+    )
+    def update_site_fields(site):
+        """Auto-fill lat/lon/sowing when a site is selected."""
+        from dash import no_update
+        if not site:
+            return no_update, no_update, no_update
+        from dart.coupling.config import SITE_REGISTRY
+        cfg = SITE_REGISTRY.get(site.lower())
+        if cfg is None:
+            return no_update, no_update, no_update
+        return cfg["lat"], cfg["lon"], cfg["sowing_date"]
 
     @app.callback(
         Output("sim-prospect-vcmax-display", "children"),
@@ -463,7 +488,7 @@ def register_callbacks(app):
         prospect_table_data = args[n_scalar]
         current_store = args[n_scalar + 1]
 
-        (mode, species, growth_days_str, single_day, timestep,
+        (mode, species, site, growth_days_str, single_day, timestep,
          lat, lon, sowing_date,
          grid_nx, grid_ny, spacing_x, spacing_y,
          scene_x, scene_y, soil_psi,
@@ -485,9 +510,11 @@ def register_callbacks(app):
         except ValueError:
             growth_days = [10, 14, 18, 22, 26, 30, 35, 40, 45, 50, 55, 58]
 
-        # Preserve met_csv / met_daily_csv from store (set by Meteorology tab)
+        # Preserve met_csv / met_daily_csv / fluxnet from store (set by Meteorology tab)
         met_csv = (current_store or {}).get("met_csv")
         met_daily_csv = (current_store or {}).get("met_daily_csv")
+        fluxnet_csv = (current_store or {}).get("fluxnet_csv")
+        fluxnet_year = (current_store or {}).get("fluxnet_year")
 
         # PROSPECT overrides — per-stage from table
         prospect_override = "override" in prospect_checks
@@ -503,6 +530,7 @@ def register_callbacks(app):
         config = PipelineConfig(
             mode=mode or "full_production",
             species=species or "maize",
+            site=site or "",
             growth_days=growth_days,
             single_day=int(single_day) if single_day else None,
             timestep_min=int(timestep or 60),
@@ -537,6 +565,8 @@ def register_callbacks(app):
             log_file=log_file or "",
             met_csv=met_csv,
             met_daily_csv=met_daily_csv,
+            fluxnet_csv=fluxnet_csv,
+            fluxnet_year=fluxnet_year,
         )
         store = config_to_store(config)
         preview = json.dumps(store, indent=2)
@@ -545,6 +575,7 @@ def register_callbacks(app):
     @app.callback(
         Output("sim-mode", "value"),
         Output("sim-species", "value"),
+        Output("sim-site", "value"),
         Output("sim-growth-days", "value"),
         Output("sim-single-day", "value"),
         Output("sim-timestep", "value"),
@@ -577,7 +608,7 @@ def register_callbacks(app):
         prevent_initial_call=True,
     )
     def load_config(contents):
-        n_outputs = 30
+        n_outputs = 31
         if not contents:
             from dash import no_update
             return (no_update,) * n_outputs
@@ -623,6 +654,7 @@ def register_callbacks(app):
         return (
             raw.get("mode", "full_production"),
             raw.get("species", "maize"),
+            raw.get("site", ""),
             ",".join(str(d) for d in gd),
             raw.get("single_day", 55),
             raw.get("timestep_min", 60),

@@ -85,10 +85,11 @@ class _BalenoNotReady(Exception):
 # ---------------------------------------------------------------------------
 XML_PATH = str(DEFAULT_XML)
 
-# Location: Juelich, Germany
-LAT = 50.92
-LON = 6.36
-SOWING_DATE = '2025-05-01'
+# Location: from active site config (overridable via COUPLING_SITE env var)
+from ..config import DEFAULT_LAT, DEFAULT_LON, DEFAULT_SOWING_DATE, DEFAULT_CO2_PPM
+LAT = DEFAULT_LAT
+LON = DEFAULT_LON
+SOWING_DATE = DEFAULT_SOWING_DATE
 
 # Scene geometry (5×3 grid: 3 rows × 5 along-row, ~89k pl/ha)
 SCENE_SIZE = [4.0, 2.25]
@@ -2472,7 +2473,41 @@ Examples:
                         help='Run DART fluorescence RT for TOC SIF radiance '
                              '(requires --with-sif)')
 
+    # Site and FLUXNET forcing
+    parser.add_argument('--site', type=str, default=None,
+                        help='Site name (e.g. us-ne1). Overrides location/sowing defaults.')
+    parser.add_argument('--fluxnet-csv', type=str, default=None,
+                        help='Path to FLUXNET FULLSET hourly CSV file')
+    parser.add_argument('--fluxnet-year', type=int, default=None,
+                        help='Year to extract from FLUXNET CSV')
+
     args = parser.parse_args()
+
+    # Apply site config if specified
+    if args.site:
+        import os
+        os.environ['COUPLING_SITE'] = args.site.lower()
+        from ..config import get_site
+        site = get_site(args.site.lower())
+        global LAT, LON, SOWING_DATE, DEFAULT_CO2_PPM
+        LAT = site['lat']
+        LON = site['lon']
+        SOWING_DATE = site['sowing_date']
+        DEFAULT_CO2_PPM = site['co2_ppm']
+        print(f"  Site: {args.site} ({LAT:.3f}°N, {LON:.3f}°E, "
+              f"sowing={SOWING_DATE}, CO2={DEFAULT_CO2_PPM} ppm)")
+
+    # Convert FLUXNET CSV to pipeline met CSV if provided
+    if args.fluxnet_csv:
+        if args.fluxnet_year is None:
+            raise ValueError("--fluxnet-year required with --fluxnet-csv")
+        from ..utils.met_forcing import fluxnet_to_pipeline_csv, inject_fluxnet_into_dvs
+        from ..config import OUTPUT_DIR
+        # Write converted CSV to output dir
+        met_csv_path = str(OUTPUT_DIR / f'fluxnet_{args.fluxnet_year}_met.csv')
+        fluxnet_to_pipeline_csv(args.fluxnet_csv, args.fluxnet_year, met_csv_path)
+        inject_fluxnet_into_dvs(args.fluxnet_csv, args.fluxnet_year, SOWING_DATE)
+        args.met_csv = met_csv_path
 
     print("Phase 9: Time-Series Diurnal Coupling Loop (Multi-Plant)")
     print("=" * 70)

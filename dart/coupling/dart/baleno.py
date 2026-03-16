@@ -808,7 +808,7 @@ def _create_baleno_configs(baleno_simu_name, dart_simu_name):
 
 
 def update_baleno_atmosphere(baleno_sim_dir, T_air_K, ea_hPa, wind_ms,
-                              p_hPa=1013, Ca_ppm=400):
+                              p_hPa=1013, Ca_ppm=None):
     """Update Baleno atmosphere.json5 with new meteorological conditions.
 
     Args:
@@ -817,8 +817,12 @@ def update_baleno_atmosphere(baleno_sim_dir, T_air_K, ea_hPa, wind_ms,
         ea_hPa: Water vapour pressure in hPa.
         wind_ms: Wind speed in m/s.
         p_hPa: Atmospheric pressure in hPa.
-        Ca_ppm: CO2 concentration in ppm.
+        Ca_ppm: CO2 concentration in ppm. If None, uses active site config.
     """
+    if Ca_ppm is None:
+        from ..config import DEFAULT_CO2_PPM
+        Ca_ppm = DEFAULT_CO2_PPM
+
     import json as _json
     atmo_path = Path(baleno_sim_dir) / 'input' / 'atmosphere.json5'
     atmo = {

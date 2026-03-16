@@ -55,6 +55,44 @@ def layout() -> dbc.Container:
             ),
             dbc.Card(
                 [
+                    dbc.CardHeader("FLUXNET Hourly Data"),
+                    dbc.CardBody(
+                        [
+                            html.P(
+                                "Point to a FLUXNET FULLSET hourly CSV on disk. "
+                                "The pipeline will extract the selected year and convert "
+                                "to its internal format automatically.",
+                                className="text-muted small mb-2",
+                            ),
+                            dbc.Row(
+                                [
+                                    dbc.Col([
+                                        dbc.Label("FLUXNET CSV path (on server)"),
+                                        dbc.Input(id="met-fluxnet-csv", type="text",
+                                                  placeholder="/media/data/Lukas/CPlantBox/dart/coupling/data/AMF_US-Ne1_...HR...csv",
+                                                  value=""),
+                                    ], width=8),
+                                    dbc.Col([
+                                        dbc.Label("Year"),
+                                        dbc.Input(id="met-fluxnet-year", type="number",
+                                                  value=2002, min=1990, max=2030),
+                                    ], width=2),
+                                    dbc.Col([
+                                        dbc.Label("\u00a0"),  # spacer
+                                        dbc.Button("Apply", id="met-fluxnet-apply",
+                                                   color="primary", className="d-block"),
+                                    ], width=2),
+                                ],
+                                className="mb-2",
+                            ),
+                            dbc.Alert(id="met-fluxnet-alert", is_open=False, className="mt-2"),
+                        ]
+                    ),
+                ],
+                className="mt-3",
+            ),
+            dbc.Card(
+                [
                     dbc.CardHeader("Accepted Formats"),
                     dbc.CardBody(
                         [
@@ -293,3 +331,93 @@ def register_callbacks(app):
         alert = f"Loaded {filename}: {len(df)} rows ({fmt} format), saved to {out_path.name}"
         return (table_data, columns, fig, alert, "success", True,
                 badge_text, "success", source_text, config_store)
+
+    # FLUXNET CSV — load from server path
+    @app.callback(
+        Output("met-table", "data", allow_duplicate=True),
+        Output("met-table", "columns", allow_duplicate=True),
+        Output("met-plot", "figure", allow_duplicate=True),
+        Output("met-fluxnet-alert", "children"),
+        Output("met-fluxnet-alert", "color"),
+        Output("met-fluxnet-alert", "is_open"),
+        Output("met-source-badge", "children", allow_duplicate=True),
+        Output("met-source-badge", "color", allow_duplicate=True),
+        Output("met-source-text", "children", allow_duplicate=True),
+        Output("pipeline-config-store", "data", allow_duplicate=True),
+        Input("met-fluxnet-apply", "n_clicks"),
+        State("met-fluxnet-csv", "value"),
+        State("met-fluxnet-year", "value"),
+        State("pipeline-config-store", "data"),
+        prevent_initial_call=True,
+    )
+    def apply_fluxnet(n_clicks, csv_path, year, config_store):
+        import plotly.graph_objects as go
+        empty_fig = go.Figure()
+
+        if not csv_path or not csv_path.strip():
+            return ([], [], empty_fig, "Enter a FLUXNET CSV path.", "warning", True,
+                    "Default", "info", "", config_store)
+
+        csv_path = csv_path.strip()
+        year = int(year or 2002)
+
+        try:
+            from dart.coupling.utils.met_forcing import load_fluxnet_csv
+            df = load_fluxnet_csv(csv_path, year)
+        except Exception as e:
+            return ([], [], empty_fig, f"Failed to load FLUXNET: {e}", "danger", True,
+                    "Default", "info", "FLUXNET load failed.", config_store)
+
+        # Preview table (growing season only)
+        import pandas as pd
+        grow = df[(df.index.month >= 5) & (df.index.month <= 10)]
+        # Downsample to daily for table preview
+        daily = grow.resample('D').agg({
+            'T_air_C': ['min', 'max', 'mean'],
+            'PAR_umol': 'max',
+            'wind_ms': 'mean',
+            'RH': 'mean',
+        })
+        daily.columns = ['T_min_C', 'T_max_C', 'T_mean_C', 'PAR_peak', 'wind_mean', 'RH_mean']
+        daily = daily.reset_index()
+        daily['date'] = daily['datetime_utc'].dt.strftime('%Y-%m-%d')
+        daily = daily.drop(columns=['datetime_utc'])
+        for c in ['T_min_C', 'T_max_C', 'T_mean_C', 'PAR_peak', 'wind_mean', 'RH_mean']:
+            daily[c] = daily[c].round(1)
+
+        table_data = daily.head(20).to_dict("records")
+        columns = [{"name": c, "id": c} for c in daily.columns]
+
+        # Plot growing season temperature
+        fig = go.Figure()
+        fig.add_trace(go.Scatter(x=daily["date"], y=daily["T_max_C"],
+                                  name="T_max", line=dict(color="#e74c3c")))
+        fig.add_trace(go.Scatter(x=daily["date"], y=daily["T_mean_C"],
+                                  name="T_mean", line=dict(color="#f39c12")))
+        fig.add_trace(go.Scatter(x=daily["date"], y=daily["T_min_C"],
+                                  name="T_min", line=dict(color="#3498db")))
+        fig.update_layout(
+            margin=dict(l=50, r=50, t=30, b=30),
+            yaxis=dict(title="Temperature (C)"),
+            legend=dict(x=0, y=1.1, orientation="h"),
+        )
+
+        # Update config store
+        if config_store is None:
+            config_store = {}
+        config_store["fluxnet_csv"] = csv_path
+        config_store["fluxnet_year"] = year
+        config_store["met_csv"] = None       # FLUXNET overrides manual met_csv
+        config_store["met_daily_csv"] = None
+
+        badge = f"FLUXNET {year}"
+        source = (
+            f"FLUXNET: {len(df)} hourly rows for {year} "
+            f"(T: {df['T_air_C'].min():.0f}-{df['T_air_C'].max():.0f} C, "
+            f"PAR peak: {df['PAR_umol'].max():.0f} umol/m2/s). "
+            f"Pipeline will auto-convert at run time."
+        )
+        alert = f"Loaded FLUXNET {year}: {len(df)} hourly rows from {csv_path.split('/')[-1]}"
+
+        return (table_data, columns, fig, alert, "success", True,
+                badge, "success", source, config_store)

@@ -153,6 +153,60 @@ HYDRAULICS_JSON = _species_hydraulics_json()
 PHOTOSYNTHESIS_JSON = _species_photosynthesis_json()
 PHLOEM_JSON = _species_phloem_json()
 
+# ---------------------------------------------------------------------------
+# Site registry — location, sowing date, atmosphere, CO2
+# ---------------------------------------------------------------------------
+SITE_REGISTRY = {
+    "juelich": {
+        "lat": 50.92,
+        "lon": 6.36,
+        "altitude": 91,
+        "sowing_date": "2025-05-01",
+        "co2_ppm": 420.0,
+        "atmo_gas_model": "MIDLATSUM",
+        "atmo_aerosol_model": "MIDLATSUM_RURALV23",
+        "tz_offset_h": 1,   # CET = UTC+1
+    },
+    "us-ne1": {
+        "lat": 41.165,
+        "lon": -96.477,
+        "altitude": 361,
+        "sowing_date": "2002-05-10",  # DOY 130, 2002
+        "co2_ppm": 373.0,            # ~2002 Mauna Loa annual mean
+        "atmo_gas_model": "MIDLATSUM",
+        "atmo_aerosol_model": "MIDLATSUM_RURALV23",
+        "tz_offset_h": -6,  # CST = UTC-6
+    },
+}
+
+
+def get_site(name=None) -> dict:
+    """Return site config dict from SITE_REGISTRY.
+
+    Reads COUPLING_SITE env var if name not provided (default "juelich").
+    """
+    if name is None:
+        name = os.environ.get("COUPLING_SITE", "juelich").lower()
+    if name not in SITE_REGISTRY:
+        raise ValueError(
+            f"Unknown site '{name}'. Available: {list(SITE_REGISTRY.keys())}"
+        )
+    return SITE_REGISTRY[name]
+
+
+def get_site_name() -> str:
+    """Return the active site name string."""
+    return os.environ.get("COUPLING_SITE", "juelich").lower()
+
+
+# Site-derived defaults (computed from active site at import time)
+_site = get_site()
+DEFAULT_LAT = _site["lat"]
+DEFAULT_LON = _site["lon"]
+DEFAULT_ALTITUDE = _site["altitude"]
+DEFAULT_SOWING_DATE = _site["sowing_date"]
+DEFAULT_CO2_PPM = _site["co2_ppm"]
+
 # Growth mode: "parametric" (default) or "carbon" (carbon-feedback limited)
 GROWTH_MODE = os.environ.get("GROWTH_MODE", "parametric")
 

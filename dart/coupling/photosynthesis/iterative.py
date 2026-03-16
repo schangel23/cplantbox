@@ -485,7 +485,8 @@ def _extract_gs_from_solve(plant, sim_time, par_umol, tleaf, rh, soil_psi_cm):
         An_umol = An * 1e6 / 86400 * 1e4 / seg_areas  # µmol/m²/s
 
         # Simple gs estimate: gs = An * 1.6 / (Ca - Ci)
-        Ca = 400.0  # ppm
+        from ..config import DEFAULT_CO2_PPM
+        Ca = DEFAULT_CO2_PPM
         Ci_frac = get_species()["ci_ca_ratio"]
         gs_h2o = An_umol * 1.6 / (Ca * (1 - Ci_frac) + 1e-10)  # mol/m²/s approx
         gco2 = gs_h2o / 1.6

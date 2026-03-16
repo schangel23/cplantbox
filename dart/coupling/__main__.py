@@ -14,6 +14,10 @@ def cli():
         help="Plant species (default: maize). Sets COUPLING_SPECIES env var.",
     )
     parser.add_argument(
+        "--site", type=str, default=None,
+        help="Site name (e.g. us-ne1, juelich). Sets COUPLING_SITE env var.",
+    )
+    parser.add_argument(
         "--threads", type=int, default=None,
         help="DART thread count (default: 8). Sets DART_THREADS env var.",
     )
@@ -148,6 +152,8 @@ def cli():
     # Set env vars BEFORE importing subcommands (config.py reads them at import)
     if args.species:
         os.environ["COUPLING_SPECIES"] = args.species.lower()
+    if args.site:
+        os.environ["COUPLING_SITE"] = args.site.lower()
     if args.threads is not None:
         os.environ["DART_THREADS"] = str(args.threads)
         # Limit CPU affinity — LuxCore ignores nbThreads XML and uses all cores
