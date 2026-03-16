@@ -724,9 +724,12 @@ def run_iterative_coupling_multi(
         # for all triangles.  The resulting Tleaf is discarded (we always
         # start from Tair), so the fallback_rcw value doesn't matter.
         print(f"  No scene file — bootstrapping with ExternalGS...")
+        # Ensure gs CSV does NOT exist — ExternalGS falls back to
+        # fallback_rcw when the file is missing (an empty file crashes
+        # np.loadtxt).
         gs_csv_path = Path(baleno_sim_dir) / 'input' / 'external_gs.csv'
-        gs_csv_path.parent.mkdir(parents=True, exist_ok=True)
-        gs_csv_path.write_text('')  # empty → all triangles use fallback_rcw
+        if gs_csv_path.exists():
+            gs_csv_path.unlink()
 
         leaf_organs = [o for o in plants[0].getOrgans()
                        if o.organType() == pb.OrganTypes.leaf]
