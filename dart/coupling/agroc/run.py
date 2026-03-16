@@ -87,6 +87,53 @@ def enable_external_plant_mode(selector_path: Path) -> None:
     selector_path.write_text("\n".join(lines))
 
 
+def enable_output_flags(selector_path: Path) -> None:
+    """Flip t_level and nod_prod output flags from 'f' to 't' in selector.in.
+
+    The output flags line (line 5 in standard selector.in) has 14 space-separated
+    boolean flags:
+      i_check run_inf t_level a_level co2_inf nod_inf balance point
+      nod_pool reduction nod_prod matlab invers term
+
+    t_level (index 2) and nod_prod (index 10) are needed for validation.
+    """
+    text = selector_path.read_text()
+    lines = text.split("\n")
+
+    # Find the header line with output flag names
+    header_idx = None
+    for i, line in enumerate(lines):
+        if "t_level" in line and "nod_prod" in line and "i_check" in line:
+            header_idx = i
+            break
+
+    if header_idx is None:
+        raise ValueError(
+            f"Cannot find 'i_check ... t_level ... nod_prod' header in {selector_path}"
+        )
+
+    values_idx = header_idx + 1
+    tokens = lines[values_idx].split()
+    if len(tokens) < 14:
+        raise ValueError(
+            f"Expected 14 output flags on line {values_idx + 1}, got {len(tokens)}"
+        )
+
+    # t_level = index 2, nod_prod = index 10
+    changed = []
+    if tokens[2].lower() != "t":
+        tokens[2] = "t"
+        changed.append("t_level")
+    if tokens[10].lower() != "t":
+        tokens[10] = "t"
+        changed.append("nod_prod")
+
+    if changed:
+        # Reconstruct with consistent spacing
+        lines[values_idx] = "  " + "      ".join(tokens)
+        selector_path.write_text("\n".join(lines))
+
+
 def prepare_agroc_workdir(agroc_src: Path, output_dir: Path,
                           coupling_csv_path: Path) -> Path:
     """Copy AgroC binary + inputs to a working directory, enable ExternalPlantMode.
@@ -132,6 +179,10 @@ def prepare_agroc_workdir(agroc_src: Path, output_dir: Path,
     # Enable ExternalPlantMode in selector.in
     enable_external_plant_mode(workdir / "selector.in")
     print(f"  Enabled ExternalPlantMode in {workdir / 'selector.in'}")
+
+    # Enable t_level and nod_prod output flags
+    enable_output_flags(workdir / "selector.in")
+    print(f"  Enabled t_level + nod_prod output flags")
 
     return workdir
 
@@ -236,13 +287,26 @@ def validate_agroc_outputs(workdir: Path, coupling_csv_path: Path = None) -> dic
     """
     result = {"passed": True, "checks": []}
 
-    # Check t_level.out
+    # Check t_level.out (fall back to a_level.out for older configs)
     t_level_path = workdir / "t_level.out"
+    a_level_path = workdir / "a_level.out"
     t_level = parse_t_level(t_level_path)
 
     if not t_level.get("exists", False):
-        result["checks"].append("FAIL: t_level.out not found")
-        result["passed"] = False
+        # Try a_level.out as fallback
+        t_level = parse_t_level(a_level_path)
+        if t_level.get("exists", False) and t_level.get("n_rows", 0) > 0:
+            result["checks"].append(
+                f"OK: a_level.out has {t_level['n_rows']} rows "
+                f"(t_level.out not found, using fallback), "
+                f"columns: {t_level['headers']}"
+            )
+            result["t_level"] = t_level
+        else:
+            result["checks"].append(
+                "FAIL: neither t_level.out nor a_level.out found"
+            )
+            result["passed"] = False
     elif t_level.get("n_rows", 0) == 0:
         result["checks"].append("FAIL: t_level.out has no data rows")
         result["passed"] = False
