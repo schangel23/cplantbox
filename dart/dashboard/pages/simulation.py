@@ -424,9 +424,9 @@ def register_callbacks(app):
         return single_disabled, gs_open, prospect_editable
 
     @app.callback(
-        Output("sim-lat", "value"),
-        Output("sim-lon", "value"),
-        Output("sim-sowing-date", "value"),
+        Output("sim-lat", "value", allow_duplicate=True),
+        Output("sim-lon", "value", allow_duplicate=True),
+        Output("sim-sowing-date", "value", allow_duplicate=True),
         Input("sim-site", "value"),
         prevent_initial_call=True,
     )
@@ -579,9 +579,9 @@ def register_callbacks(app):
         Output("sim-growth-days", "value"),
         Output("sim-single-day", "value"),
         Output("sim-timestep", "value"),
-        Output("sim-lat", "value"),
-        Output("sim-lon", "value"),
-        Output("sim-sowing-date", "value"),
+        Output("sim-lat", "value", allow_duplicate=True),
+        Output("sim-lon", "value", allow_duplicate=True),
+        Output("sim-sowing-date", "value", allow_duplicate=True),
         Output("sim-grid-nx", "value"),
         Output("sim-grid-ny", "value"),
         Output("sim-spacing-x", "value"),
