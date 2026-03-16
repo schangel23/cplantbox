@@ -14,5 +14,7 @@ from .run import (
     run_agroc,
     validate_agroc_outputs,
     parse_t_level,
+    parse_nod_inf,
+    extract_soil_state,
     main_agroc_run,
 )

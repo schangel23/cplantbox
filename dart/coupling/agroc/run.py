@@ -395,6 +395,131 @@ def parse_t_level(path: Path) -> dict:
     return result
 
 
+def parse_nod_inf(path: Path) -> dict:
+    """Parse nod_inf.out — per-node soil state at each print time.
+
+    File format (Fortran fixed-width, whitespace-delimited):
+      3 banner lines (* header)
+      2 column header lines (#Node ... / #  [L] ...)
+      Repeating blocks:
+        #Time:  <day>
+        218 data rows (node N→1, deepest→shallowest)
+
+    Returns:
+        dict with:
+            exists: bool
+            times: list of print-time days
+            columns: ['Node','Depth','Head','Moisture','CO2','Temp',
+                       'K','C','Flux','Sink','Product']
+            snapshots: {day: np.ndarray shape (n_nodes, n_cols)}
+    """
+    if not path.exists():
+        return {"exists": False}
+
+    text = path.read_text().strip()
+    lines = text.split("\n")
+
+    # Column names from the #Node header line
+    col_names = None
+    for line in lines:
+        stripped = line.strip()
+        if stripped.startswith("#Node"):
+            col_names = stripped.lstrip("#").split()
+            break
+
+    if col_names is None:
+        return {"exists": True, "times": [], "snapshots": {}}
+
+    # Parse time blocks
+    times = []
+    snapshots = {}
+    current_time = None
+    current_rows = []
+
+    for line in lines:
+        stripped = line.strip()
+        if stripped.startswith("#Time:"):
+            # Flush previous block
+            if current_time is not None and current_rows:
+                snapshots[current_time] = np.array(current_rows)
+                times.append(current_time)
+            current_time = int(stripped.split(":")[1])
+            current_rows = []
+            continue
+        if current_time is None:
+            continue
+        if stripped.startswith("#") or stripped.startswith("*") or not stripped:
+            continue
+        try:
+            vals = [float(v) for v in stripped.split()[:len(col_names)]]
+            if len(vals) == len(col_names):
+                current_rows.append(vals)
+        except ValueError:
+            continue
+
+    # Flush last block
+    if current_time is not None and current_rows:
+        snapshots[current_time] = np.array(current_rows)
+        times.append(current_time)
+
+    return {
+        "exists": True,
+        "times": times,
+        "columns": col_names,
+        "snapshots": snapshots,
+    }
+
+
+def extract_soil_state(nod_inf: dict, day: int = None) -> dict:
+    """Extract soil temperature and moisture profiles from parsed nod_inf.
+
+    Provides the same data that interface_output.csv would have contained.
+
+    Args:
+        nod_inf: dict from parse_nod_inf().
+        day: specific print day to extract (default: last available).
+
+    Returns:
+        dict with depth_cm, temperature_C, moisture arrays (surface→deep),
+        or None if data not available.
+    """
+    if not nod_inf.get("exists") or not nod_inf.get("snapshots"):
+        return None
+
+    if day is None:
+        day = nod_inf["times"][-1]
+
+    if day not in nod_inf["snapshots"]:
+        return None
+
+    cols = nod_inf["columns"]
+    data = nod_inf["snapshots"][day]
+
+    # Column indices
+    try:
+        i_depth = cols.index("Depth")
+        i_temp = cols.index("Temp")
+        i_moist = cols.index("Moisture")
+        i_head = cols.index("Head")
+    except ValueError:
+        return None
+
+    # Data is stored deepest→shallowest (node N→1), reverse to surface→deep
+    depth = data[:, i_depth][::-1]
+    temp = data[:, i_temp][::-1]
+    moisture = data[:, i_moist][::-1]
+    head = data[:, i_head][::-1]
+
+    return {
+        "day": day,
+        "depth_cm": depth.tolist(),
+        "temperature_C": temp.tolist(),
+        "moisture": moisture.tolist(),
+        "head_cm": head.tolist(),
+        "n_nodes": len(depth),
+    }
+
+
 def validate_agroc_outputs(workdir: Path, coupling_csv_path: Path = None) -> dict:
     """Check AgroC outputs exist and validate key metrics.
 
@@ -483,6 +608,26 @@ def validate_agroc_outputs(workdir: Path, coupling_csv_path: Path = None) -> dic
                             )
             except Exception as e:
                 result["checks"].append(f"WARN: Could not compare GPP: {e}")
+
+    # Check nod_inf.out — soil state (replaces broken interface_output.csv)
+    nod_inf_path = workdir / "nod_inf.out"
+    nod_inf = parse_nod_inf(nod_inf_path)
+    if nod_inf.get("exists") and nod_inf.get("times"):
+        soil = extract_soil_state(nod_inf)
+        if soil is not None:
+            result["checks"].append(
+                f"OK: nod_inf.out has {len(nod_inf['times'])} snapshots "
+                f"(days {nod_inf['times']}), "
+                f"{soil['n_nodes']} nodes, "
+                f"Tsoil {min(soil['temperature_C']):.1f}-"
+                f"{max(soil['temperature_C']):.1f}°C"
+            )
+            result["soil_state"] = soil
+            result["nod_inf"] = nod_inf
+        else:
+            result["checks"].append("WARN: nod_inf.out exists but could not extract soil state")
+    else:
+        result["checks"].append("WARN: nod_inf.out not found or empty")
 
     return result
 
