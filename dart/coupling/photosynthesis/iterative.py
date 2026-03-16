@@ -2,16 +2,17 @@
 """
 Phase 10: Iterative Tuzet-Baleno gs Coupling.
 
-Replaces one-shot Ball-Berry gs in Baleno with CPlantBox's Tuzet stomatal
-conductance via an iterative feedback loop:
+Iterative feedback loop between CPlantBox Tuzet stomatal conductance
+and Baleno energy balance:
 
-  1. Initial Baleno run (Ball-Berry) -> Tleaf_0
-  2. CPlantBox solve with Tleaf_0 -> gs_tuzet_0, An_0
-  3. Feed damped gs back to Baleno -> Tleaf_1
+  1. Initialize Tleaf = Tair (no warm-start — avoids dual-equilibrium trap)
+  2. CPlantBox solve with Tleaf -> gs_tuzet, An
+  3. Feed damped gs as rcw to Baleno ExternalGS plugin -> new Tleaf
   4. Repeat until gs converges or max_iterations reached
 
-The Tuzet model's fw(psi) water-stress response naturally handles any soil
-water potential — no special drought handling is needed.
+Scene file bootstrap: if no scene file exists (first call per growth day),
+runs Baleno once with ExternalGS + empty gs CSV (fallback_rcw) to generate
+the scene file for triangle-to-segment mapping.
 
 Data flow:
   CPlantBox hm.gco2 [mol CO2/m²/s] -> gs_h2o = gco2 * 1.6
@@ -700,7 +701,11 @@ def run_iterative_coupling_multi(
     # Per-plant leaf segment counts
     n_leaf_segs = [len(plants[pi].getSegmentIds(4)) for pi in range(n_plants)]
 
-    # Initialize per-plant Tleaf
+    # Initialize per-plant Tleaf — always from Tair (no warm-start).
+    # Warm-starting from previous timestep causes a dual-equilibrium trap:
+    # cold morning Tleaf propagates forward, suppressing An until noon
+    # radiation is strong enough to break out. Starting from Tair ensures
+    # the solver always finds the physical (warm) equilibrium.
     tleaf = []
     for pi in range(n_plants):
         if initial_tleaf is not None and pi < len(initial_tleaf):
@@ -711,10 +716,70 @@ def run_iterative_coupling_multi(
     # Build scene row mapping (once, from initial Baleno run)
     scene_mapping = build_scene_row_mapping(
         baleno_sim_dir, reindex_json_paths, n_plants)
+
     if scene_mapping is None:
-        print("  ERROR: Could not build scene row mapping, "
-              "falling back to Tleaf=Tair")
-        return None
+        # No scene file yet — bootstrap with ExternalGS + empty gs CSV.
+        # This replaces the old Ball-Berry bootstrap: any Baleno run
+        # produces the scene file, so we run ExternalGS with fallback_rcw
+        # for all triangles.  The resulting Tleaf is discarded (we always
+        # start from Tair), so the fallback_rcw value doesn't matter.
+        print(f"  No scene file — bootstrapping with ExternalGS...")
+        gs_csv_path = Path(baleno_sim_dir) / 'input' / 'external_gs.csv'
+        gs_csv_path.parent.mkdir(parents=True, exist_ok=True)
+        gs_csv_path.write_text('')  # empty → all triangles use fallback_rcw
+
+        leaf_organs = [o for o in plants[0].getOrgans()
+                       if o.organType() == pb.OrganTypes.leaf]
+        n_lv = len(leaf_organs)
+        per_pos = get_prospect_params_per_position(sim_time, n_lv)
+        mean_cab = float(np.mean([p["Cab"] for p in per_pos]))
+        mean_n = float(np.mean([p["N"] for p in per_pos]))
+        base_p = get_prospect_params(sim_time)
+        input_dir = Path(baleno_sim_dir) / 'input'
+        fqe_val = 0.01 if with_sif else 0
+        write_json5(input_dir / 'vegetation.json5', {
+            "Plugin": "ExternalGS",
+            "Model": "VegetationExternalGS",
+            "PAR_min": 0.400, "PAR_max": 0.700,
+            "Cab": round(mean_cab, 1), "Cca": 10, "Cs": 0,
+            "Cw": base_p["Cw"], "Cdm": base_p["Cm"],
+            "N": round(mean_n, 2), "fqe": fqe_val,
+            "Vcmax25": round(vcmax25_from_cab(mean_cab), 1),
+            "BallBerrySlope": 8, "BallBerry0": 0.01,
+            "RdPerVcmax25": get_species()["rd_per_vcmax25"],
+            "Type": get_species()["photo_type"],
+            "rho_thermal": 0.01, "tau_thermal": 0.01, "stress_factor": 1,
+        })
+        plugins_dir = input_dir / 'plugins'
+        plugins_dir.mkdir(parents=True, exist_ok=True)
+        write_json5(plugins_dir / 'ExternalGS_input.json5', {
+            "gs_file": str(gs_csv_path),
+            "fallback_rcw": 100.0,
+            "Vcmax25": round(vcmax25_from_cab(mean_cab), 1),
+            "RdPerVcmax25": get_species()["rd_per_vcmax25"],
+            "Type": get_species()["photo_type"],
+            "fqe": fqe_val,
+            "Kn0": 5.01, "Knalpha": 1.93, "Knbeta": 10.0,
+        })
+        import textwrap
+        baleno_config_path = BALENO_DIR / 'resources' / 'config.ini'
+        baleno_config_path.write_text(textwrap.dedent(f"""\
+            [simulation]
+            user_data_path =
+            name = {baleno_simu_name}
+        """))
+        print(f"  Running Baleno bootstrap (ExternalGS, {n_plants} plants)...")
+        ok = run_baleno_subprocess(timeout=baleno_timeout)
+        if not ok:
+            print(f"  ERROR: Baleno bootstrap failed")
+            return None
+        scene_mapping = build_scene_row_mapping(
+            baleno_sim_dir, reindex_json_paths, n_plants)
+        if scene_mapping is None:
+            print(f"  ERROR: Scene file still missing after bootstrap")
+            return None
+        print(f"  Bootstrap complete — scene mapping built")
+
     plant_to_obj_to_scene = scene_mapping['plant_to_obj_to_scene']
     n_scene_rows = scene_mapping['n_scene_rows']
 
@@ -876,13 +941,17 @@ def run_iterative_coupling_multi(
             print(f"  ERROR: Baleno subprocess failed at iteration {iteration+1}")
             break
 
-        # 7. Read per-plant Tleaf
+        # 7. Read per-plant Tleaf + diagnostics
         tleaf_new_list = read_baleno_tleaf_multi(
             str(baleno_sim_dir), mapping_json_paths, reindex_json_paths,
             n_plants, tair_c=tair_c)
         if tleaf_new_list is None:
             print(f"  ERROR: Tleaf read failed at iteration {iteration+1}")
             break
+
+        # Log EB diagnostics (was missing in multi-plant path)
+        log_baleno_diagnostics(
+            baleno_sim_dir, tleaf_new_list[0], tair_c)
 
         # Update Tleaf per plant (skip converged)
         for pi in range(n_plants):

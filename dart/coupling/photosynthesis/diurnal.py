@@ -1786,9 +1786,6 @@ def run_production_series_carbon(growth_days, timestep_min=60,
         psi_sif_accum = []  # accumulate psi-SIF points across timesteps
         dt_day = timestep_min / (24 * 60)
         n_steps_done = 0
-        # Cache: skip Ball-Berry after first successful Tuzet iteration
-        _baleno_bb_done = False      # True after first Ball-Berry scene mapping
-        _prev_tleaf = None           # per-plant Tleaf from previous timestep
 
         for step_i, (ts_time, ts_row) in enumerate(solar_df.iterrows()):
             sun_zen = ts_row['apparent_zenith']
@@ -1887,47 +1884,11 @@ def run_production_series_carbon(growth_days, timestep_min=60,
                         name = {baleno_setup['baleno_simu_name']}
                     """))
 
-                    # Ball-Berry pass: only needed ONCE per day to generate
-                    # scene file for build_scene_row_mapping().  After that,
-                    # reuse cached Tleaf from previous timestep as init.
-                    init_tleaf = _prev_tleaf  # None on first call → Tair
-                    if not _baleno_bb_done:
-                        print(f"  Running Ball-Berry (first pass, scene mapping)...")
-                        ok = run_baleno_subprocess(timeout=baleno_timeout)
-                        if ok:
-                            # Verify scene file actually exists before declaring success
-                            _bsd = Path(baleno_setup['baleno_sim_dir'])
-                            _scene_exists = any(
-                                c.exists() and c.stat().st_size > 0
-                                for c in [_bsd / 'output' / 'scene',
-                                          _bsd / 'output' / 'final_results' / 'scene.csv',
-                                          _bsd / 'output' / 'final_results' / 'scene'])
-                            if _scene_exists:
-                                _baleno_bb_done = True
-                                init_tleaf = read_baleno_tleaf_multi(
-                                    baleno_setup['baleno_sim_dir'],
-                                    [str(p) for p in setup['dart_mapping_paths']],
-                                    [str(p) for p in per_plant_reindex_paths],
-                                    N_PLANTS, tair_c=T_air_C,
-                                )
-                            else:
-                                print(f"    Baleno returned ok but no scene file in {_bsd / 'output'}")
-                                import os as _os
-                                _out = _bsd / 'output'
-                                if _out.exists():
-                                    _files = list(_out.rglob('*'))[:15]
-                                    print(f"    Output contents: {[str(f.relative_to(_out)) for f in _files]}")
-                                else:
-                                    print(f"    Output dir does not exist")
-                        else:
-                            print(f"    Initial Baleno failed, using Tleaf=Tair")
-
-                    if not _baleno_bb_done:
-                        # No scene file — can't do iterative coupling.
-                        # Fall through to uniform photosynthesis below.
-                        print(f"    Skipping iterative coupling (no BB scene)")
-                        raise _BalenoNotReady()
-
+                    # Each timestep starts from Tair (no warm-start).
+                    # Avoids dual-equilibrium trap where cold morning Tleaf
+                    # propagates via warm-start, suppressing An.
+                    # Scene file bootstrap handled inside
+                    # run_iterative_coupling_multi if needed.
                     iter_results = run_iterative_coupling_multi(
                         persistent_plants, dart_day,
                         par_umol_per_plant=all_par_umol,
@@ -1941,7 +1902,7 @@ def run_production_series_carbon(growth_days, timestep_min=60,
                         damping_alpha=gs_damping_alpha,
                         soil_psi_cm=-500.0,
                         tair_c=T_air_C, rh=rh,
-                        initial_tleaf=init_tleaf,
+                        initial_tleaf=None,
                         with_sif=with_sif,
                         baleno_timeout=baleno_timeout,
                     )
@@ -1952,9 +1913,6 @@ def run_production_series_carbon(growth_days, timestep_min=60,
                                        for pi in range(N_PLANTS)]
                         mean_tleaf_ts = float(np.mean(tleaf_means))
                         baleno_ok_ts = True
-                        # Cache Tleaf for next timestep warm-start
-                        _prev_tleaf = [iter_results[pi]['tleaf_per_segment']
-                                       for pi in range(N_PLANTS)]
 
                         # --- SIF output (carbon-feedback path) ---
                         if with_sif:
