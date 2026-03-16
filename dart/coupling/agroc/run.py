@@ -134,6 +134,110 @@ def enable_output_flags(selector_path: Path) -> None:
         selector_path.write_text("\n".join(lines))
 
 
+def _read_coupling_time_range(coupling_csv_path: Path) -> tuple:
+    """Read the coupling CSV and return (day_min, day_max) from time_d column."""
+    text = coupling_csv_path.read_text().strip()
+    lines = text.split("\n")
+    header = lines[0].split(",")
+    time_idx = header.index("time_d")
+    days = [float(line.split(",")[time_idx]) for line in lines[1:] if line.strip()]
+    return min(days), max(days)
+
+
+def trim_atmosph_to_range(atmosph_path: Path, day_max: float) -> None:
+    """Truncate atmosph.in to keep only rows up to day_max.
+
+    atmosph.in format: 12 header lines, then daily data rows (first column = day),
+    then 'end' line and footer.
+    """
+    text = atmosph_path.read_text()
+    lines = text.split("\n")
+
+    # Split into header (lines starting with * or containing tInit), data, and footer
+    header_lines = []
+    data_lines = []
+    in_data = False
+    for line in lines:
+        stripped = line.strip()
+        if not in_data:
+            header_lines.append(line)
+            # Data starts after the units line (line 12 in standard format)
+            # Detect transition: first line whose first token is a number
+            if stripped and not stripped.startswith("*") and stripped[0].isdigit():
+                # This is actually a data line, move it
+                header_lines.pop()
+                data_lines.append(line)
+                in_data = True
+        else:
+            if stripped.lower() == "end" or stripped.startswith("***"):
+                break
+            data_lines.append(line)
+
+    # Keep data rows where day <= day_max (with 1-day buffer)
+    keep_limit = int(day_max) + 1
+    kept = []
+    for line in data_lines:
+        stripped = line.strip()
+        if not stripped:
+            continue
+        try:
+            day = int(stripped.split()[0])
+            if day <= keep_limit:
+                kept.append(line)
+        except (ValueError, IndexError):
+            continue
+
+    # Reconstruct
+    result = "\n".join(header_lines) + "\n"
+    result += "\n".join(kept) + "\n"
+    result += "end  \n"
+    result += "*** END OF INPUT FILE 'ATMOSPH.IN' *************************************\n"
+    atmosph_path.write_text(result)
+
+
+def trim_selector_tprint(selector_path: Path, day_min: float,
+                         day_max: float) -> None:
+    """Update TPrint in selector.in to match the coupling time range.
+
+    Sets NumOfPrints and TPrint values to cover the coupling range with
+    reasonable spacing.
+    """
+    text = selector_path.read_text()
+    lines = text.split("\n")
+
+    # Generate print times: day_min, day_max, and evenly spaced in between
+    d_min = int(day_min)
+    d_max = int(day_max)
+    if d_max - d_min <= 10:
+        tprints = list(range(d_min, d_max + 1))
+    else:
+        # Every 5 days, plus endpoints
+        tprints = list(range(d_min, d_max + 1, 5))
+        if tprints[-1] != d_max:
+            tprints.append(d_max)
+
+    # Find the NumOfPrints line (contains "NumOfPrints")
+    nop_idx = None
+    for i, line in enumerate(lines):
+        if "NumOfPrints" in line:
+            nop_idx = i
+            break
+
+    if nop_idx is None:
+        return  # Can't find it, skip silently
+
+    # The values line is nop_idx + 1, TPrint header is nop_idx + 2, TPrint values is nop_idx + 3
+    vals_line = lines[nop_idx + 1].split()
+    # NumOfPrints is the last token on the values line
+    vals_line[-1] = str(len(tprints))
+    lines[nop_idx + 1] = "   ".join(vals_line)
+
+    # TPrint values line (nop_idx + 3)
+    lines[nop_idx + 3] = " ".join(str(t) for t in tprints)
+
+    selector_path.write_text("\n".join(lines))
+
+
 def prepare_agroc_workdir(agroc_src: Path, output_dir: Path,
                           coupling_csv_path: Path) -> Path:
     """Copy AgroC binary + inputs to a working directory, enable ExternalPlantMode.
@@ -183,6 +287,15 @@ def prepare_agroc_workdir(agroc_src: Path, output_dir: Path,
     # Enable t_level and nod_prod output flags
     enable_output_flags(workdir / "selector.in")
     print(f"  Enabled t_level + nod_prod output flags")
+
+    # Trim simulation to coupling CSV time range
+    try:
+        day_min, day_max = _read_coupling_time_range(coupling_csv_path)
+        trim_atmosph_to_range(workdir / "atmosph.in", day_max)
+        trim_selector_tprint(workdir / "selector.in", day_min, day_max)
+        print(f"  Trimmed simulation to days {int(day_min)}-{int(day_max)}")
+    except Exception as e:
+        print(f"  WARNING: could not trim to coupling range: {e}")
 
     return workdir
 
