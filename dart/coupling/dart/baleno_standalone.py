@@ -39,8 +39,8 @@ REINDEX_JSON = OUTPUT_DIR / 'maize_day55_reindex.json'
 PROSPECT_PARAMS = get_prospect_params(55)
 SUN_ZENITH = 45.0
 SUN_AZIMUTH = 225.0
-SCENE_SIZE = [4, 4]
-PLANT_POS = (2.0, 2.0)
+SCENE_SIZE = [4.0, 2.25]
+PLANT_POS = (SCENE_SIZE[0] / 2, SCENE_SIZE[1] / 2)
 GRID_INFO_PATH = OUTPUT_DIR / 'grid_info.json'
 FIELD_FILENAME = 'plant_field.txt'
 
@@ -201,8 +201,10 @@ def step1_create_simu_I():
             grid_info = json.load(f)
         with open(field_path, 'w') as f:
             f.write('complete transformation\n')
-            for x, y in grid_info['positions_m']:
-                f.write(f'0 {x:.6f} {y:.6f} 0.0 1.0 1.0 1.0 0.0 0.0 0.0\n')
+            for pos in grid_info['positions_m']:
+                x, y = pos[0], pos[1]
+                yrot = pos[2] if len(pos) > 2 else 0.0
+                f.write(f'0 {x:.6f} {y:.6f} 0.0 1.0 1.0 1.0 0.0 {yrot:.2f} 0.0\n')
         print(f"  Field file: {field_path} ({grid_info['n_plants']} positions)")
     else:
         # Fallback: single plant at PLANT_POS

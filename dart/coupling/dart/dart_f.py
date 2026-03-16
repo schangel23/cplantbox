@@ -241,8 +241,10 @@ def create_dart_f_simulation(obj_paths, prospect_params, eta_file_path,
     with open(field_path, 'w') as f_out:
         f_out.write('complete transformation\n')
         if grid_info and 'positions_m' in grid_info:
-            for idx, (x, y) in enumerate(grid_info['positions_m']):
-                f_out.write(f'{idx} {x:.6f} {y:.6f} 0.0 1.0 1.0 1.0 0.0 0.0 0.0\n')
+            for idx, pos in enumerate(grid_info['positions_m']):
+                x, y = pos[0], pos[1]
+                yrot = pos[2] if len(pos) > 2 else 0.0
+                f_out.write(f'{idx} {x:.6f} {y:.6f} 0.0 1.0 1.0 1.0 0.0 {yrot:.2f} 0.0\n')
 
     # Write lut.properties for fluorescence storage
     lut_props_path = simu_path / 'input' / 'lut.properties'

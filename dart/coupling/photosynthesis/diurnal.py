@@ -90,12 +90,12 @@ LAT = 50.92
 LON = 6.36
 SOWING_DATE = '2025-05-01'
 
-# Scene geometry (same as Phase 1)
-SCENE_SIZE = [4, 4]
-GRID_NX, GRID_NY = 3, 3
-GRID_SPACING_X = 0.75
-GRID_SPACING_Y = 0.25
-N_PLANTS = GRID_NX * GRID_NY
+# Scene geometry (5×3 grid: 3 rows × 5 along-row, ~89k pl/ha)
+SCENE_SIZE = [4.0, 2.25]
+GRID_NX, GRID_NY = 3, 5       # 3 rows (x) × 5 along-row (y)
+GRID_SPACING_X = 0.75          # between-row spacing
+GRID_SPACING_Y = 0.15          # within-row spacing
+N_PLANTS = GRID_NX * GRID_NY   # 15
 CENTER_PLANT_IDX = N_PLANTS // 2
 FIELD_FILENAME = 'plant_field.txt'
 FIELD_SEED = 42
@@ -199,13 +199,9 @@ def setup_plants_and_meshes(sim_day, output_subdir, plants=None):
         n_leaf = sum(1 for o in mapping['organs'] if o['type'] == 'leaf')
         print(f"    {mapping['n_triangles']} tris, {n_leaf} leaf organs")
 
-    # Grid info
-    positions = []
-    for iy in range(GRID_NY):
-        for ix in range(GRID_NX):
-            x = 2.0 + (ix - (GRID_NX - 1) / 2) * GRID_SPACING_X
-            y = 2.0 + (iy - (GRID_NY - 1) / 2) * GRID_SPACING_Y
-            positions.append((x, y))
+    # Grid info (with per-plant random azimuthal rotation)
+    from ..dart.parsers import compute_plant_positions
+    positions = compute_plant_positions(seed=FIELD_SEED)
 
     grid_info = {
         'grid_nx': GRID_NX, 'grid_ny': GRID_NY,

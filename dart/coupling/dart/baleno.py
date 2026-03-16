@@ -417,8 +417,10 @@ def setup_baleno_full(obj_path, mapping_json, reindex_json, grid_info_path,
             gi = _json.load(gf)
         with open(field_path, 'w') as ff:
             ff.write('complete transformation\n')
-            for x, y in gi['positions_m']:
-                ff.write(f'0 {x:.6f} {y:.6f} 0.0 1.0 1.0 1.0 0.0 0.0 0.0\n')
+            for pos in gi['positions_m']:
+                x, y = pos[0], pos[1]
+                yrot = pos[2] if len(pos) > 2 else 0.0
+                ff.write(f'0 {x:.6f} {y:.6f} 0.0 1.0 1.0 1.0 0.0 {yrot:.2f} 0.0\n')
     else:
         with open(field_path, 'w') as ff:
             ff.write('complete transformation\n')
@@ -596,8 +598,10 @@ def setup_baleno_full_multi(obj_paths, mapping_json_paths, reindex_json_paths,
             gi = _json.load(gf)
         with open(field_path, 'w') as ff:
             ff.write('complete transformation\n')
-            for idx, (x, y) in enumerate(gi['positions_m']):
-                ff.write(f'{idx} {x:.6f} {y:.6f} 0.0 1.0 1.0 1.0 0.0 0.0 0.0\n')
+            for idx, pos in enumerate(gi['positions_m']):
+                x, y = pos[0], pos[1]
+                yrot = pos[2] if len(pos) > 2 else 0.0
+                ff.write(f'{idx} {x:.6f} {y:.6f} 0.0 1.0 1.0 1.0 0.0 {yrot:.2f} 0.0\n')
     else:
         with open(field_path, 'w') as ff:
             ff.write('complete transformation\n')

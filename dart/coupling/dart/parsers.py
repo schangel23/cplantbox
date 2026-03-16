@@ -10,22 +10,30 @@ from pathlib import Path
 
 
 # ---------------------------------------------------------------------------
-# Grid constants (3x3 plant field)
+# Grid constants (5×3 plant field — 5 along row, 3 rows)
 # ---------------------------------------------------------------------------
-PLANT_POS = (2.0, 2.0)  # center of scene (meters)
-GRID_NX, GRID_NY = 3, 3
-GRID_SPACING_X = 0.75   # meters (between-row spacing, typical maize)
-GRID_SPACING_Y = 0.25   # meters (within-row spacing, typical maize)
+GRID_NX, GRID_NY = 3, 5         # 3 rows (x) × 5 along-row (y)
+GRID_SPACING_X = 0.75            # meters (between-row spacing, typical maize)
+GRID_SPACING_Y = 0.15            # meters (within-row spacing, ~89k pl/ha)
+SCENE_SIZE = [4.0, 2.25]         # meters (≥0.75 m border each side)
+PLANT_POS = (SCENE_SIZE[0] / 2, SCENE_SIZE[1] / 2)  # scene center
 
 
-def compute_plant_positions():
-    """Compute 3x3 grid positions centered at PLANT_POS (in meters, DART coords)."""
+def compute_plant_positions(seed=42):
+    """Compute grid positions with per-plant random azimuthal rotation.
+
+    Returns list of (x, y, yrot) tuples. yrot is uniform 0-360° —
+    maize has no preferred heading relative to row direction.
+    """
+    import numpy as np
+    rng = np.random.default_rng(seed)
     positions = []
     for iy in range(GRID_NY):
         for ix in range(GRID_NX):
             x = PLANT_POS[0] + (ix - (GRID_NX - 1) / 2) * GRID_SPACING_X
             y = PLANT_POS[1] + (iy - (GRID_NY - 1) / 2) * GRID_SPACING_Y
-            positions.append((x, y))
+            yrot = float(rng.uniform(0, 360))
+            positions.append((x, y, yrot))
     return positions
 
 

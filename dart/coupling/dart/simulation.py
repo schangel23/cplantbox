@@ -105,10 +105,10 @@ SUN_ZENITH = 45.0
 SUN_AZIMUTH = 225.0
 
 # Scene geometry
-SCENE_SIZE = [4, 4]     # meters
-CELL_SIZE = 0.5         # meters (not directly settable via simple API; scene.size controls it)
-N_PLANTS = GRID_NX * GRID_NY       # 9
-CENTER_PLANT_IDX = N_PLANTS // 2   # 4 (0-indexed, center of 3x3)
+SCENE_SIZE = [4.0, 2.25]  # meters (≥0.75 m border each side for 3×5 grid)
+CELL_SIZE = 0.5            # meters (not directly settable via simple API; scene.size controls it)
+N_PLANTS = GRID_NX * GRID_NY       # 15 (3 rows × 5 along-row)
+CENTER_PLANT_IDX = N_PLANTS // 2   # 7 (0-indexed, center of 3x5)
 FIELD_FILENAME = 'plant_field.txt'
 
 
@@ -121,8 +121,8 @@ def _write_field_file(path):
     positions = compute_plant_positions()
     with open(path, 'w') as f:
         f.write('complete transformation\n')
-        for x, y in positions:
-            f.write(f'0 {x:.6f} {y:.6f} 0.0 1.0 1.0 1.0 0.0 0.0 0.0\n')
+        for x, y, yrot in positions:
+            f.write(f'0 {x:.6f} {y:.6f} 0.0 1.0 1.0 1.0 0.0 {yrot:.2f} 0.0\n')
     return positions
 
 
@@ -1268,8 +1268,10 @@ def create_dart_simulation(obj_path, mapping_json_path, simu_name,
     field_path = simu_path / 'input' / field_filename
     with open(field_path, 'w') as f:
         f.write('complete transformation\n')
-        for x, y in grid_info['positions_m']:
-            f.write(f'0 {x:.6f} {y:.6f} 0.0 1.0 1.0 1.0 0.0 0.0 0.0\n')
+        for pos in grid_info['positions_m']:
+            x, y = pos[0], pos[1]
+            yrot = pos[2] if len(pos) > 2 else 0.0
+            f.write(f'0 {x:.6f} {y:.6f} 0.0 1.0 1.0 1.0 0.0 {yrot:.2f} 0.0\n')
 
     return simu
 
@@ -1744,8 +1746,10 @@ def create_dart_simulation_multi(obj_paths, mapping_json_paths, simu_name,
     field_path = simu_path / 'input' / field_filename
     with open(field_path, 'w') as f_out:
         f_out.write('complete transformation\n')
-        for idx, (x, y) in enumerate(grid_info['positions_m']):
-            f_out.write(f'{idx} {x:.6f} {y:.6f} 0.0 1.0 1.0 1.0 0.0 0.0 0.0\n')
+        for idx, pos in enumerate(grid_info['positions_m']):
+            x, y = pos[0], pos[1]
+            yrot = pos[2] if len(pos) > 2 else 0.0
+            f_out.write(f'{idx} {x:.6f} {y:.6f} 0.0 1.0 1.0 1.0 0.0 {yrot:.2f} 0.0\n')
 
     print(f"  Multi-plant DART simulation: {simu_name} ({n_plants} models)")
     return simu
