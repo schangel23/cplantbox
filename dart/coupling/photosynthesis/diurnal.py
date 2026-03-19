@@ -478,13 +478,9 @@ def run_single_day(sim_day, use_dart=True, timestep_min=30,
                   f"(+/-{field_std_apar:.4f})")
 
             # Baleno energy balance (optional, all plants)
-            MIN_PAR_FOR_BALENO = 50.0  # W/m²
             all_tleaf_baleno = None
             baleno_ok_flag = False
-            if baleno_setup is not None and clearsky_par_wm2 < MIN_PAR_FOR_BALENO:
-                print(f"    PAR={clearsky_par_wm2:.1f} W/m² < {MIN_PAR_FOR_BALENO} "
-                      f"-> skip Baleno, Tleaf=Tair")
-            elif baleno_setup is not None:
+            if baleno_setup is not None:
                 try:
                     t0 = time.time()
                     # Scale _I re-run timeout with scene complexity
@@ -1848,7 +1844,6 @@ def run_production_series_carbon(growth_days, timestep_min=60,
             mean_par_umol_ts /= max(N_PLANTS, 1)
 
             # Baleno + iterative coupling (if enabled)
-            MIN_PAR_FOR_BALENO = 50.0
             # Scale timeout with scene complexity (Baleno _I full took up
             # to 284s for day 38 with 903k particles; dart-only needs more).
             # Use total leaf segs as proxy: ~300s base + 0.1s per seg.
@@ -1857,8 +1852,7 @@ def run_production_series_carbon(growth_days, timestep_min=60,
                 for pi in range(N_PLANTS))
             _I_rerun_timeout = max(600, int(300 + total_leaf_segs * 0.1))
             baleno_timeout = max(1800, _I_rerun_timeout * 4)
-            if (iterate_gs and baleno_setup is not None
-                    and clearsky_par_wm2 >= MIN_PAR_FOR_BALENO):
+            if iterate_gs and baleno_setup is not None:
                 try:
                     from .iterative import run_iterative_coupling_multi
 
