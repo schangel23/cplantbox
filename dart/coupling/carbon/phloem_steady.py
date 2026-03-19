@@ -345,11 +345,13 @@ class QuasiSteadyPhloem:
             dict with 'root' and 'leaf' attenuation factors in [0, 1].
         """
         if sim_day is None and gdd_accumulated is None:
+            self._dvs = None
             return {'root': 1.0, 'leaf': 1.0}
 
         from .dvs_partitioning import dvs_for_day, _interp_table, FRTB, FLTB
 
         dvs = dvs_for_day(sim_day, gdd_accumulated=gdd_accumulated)
+        self._dvs = dvs
 
         # Root attenuation: FRTB(DVS) / FRTB(0)
         fr_root_now = _interp_table(FRTB, dvs)
@@ -1063,6 +1065,7 @@ class QuasiSteadyPhloem:
             'partitioning_source': 'quasi_steady_phloem',
             'Rg_node': Rg_node.copy(),
             'Q_Grmax_node': self.Q_Grmax_node.copy(),
+            'DVS': self._dvs,
         }
 
 

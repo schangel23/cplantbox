@@ -9,6 +9,7 @@ Stem lofting uses cylindrical rings connected by triangle strips.
 """
 
 import numpy as np
+from collections import Counter
 from scipy.interpolate import CubicSpline
 from pathlib import Path
 
@@ -95,6 +96,12 @@ class G3Mesh:
         """
         import json
 
+        # Precompute all triangle areas
+        v0 = self.vertices[self.indices[:, 0]]
+        v1 = self.vertices[self.indices[:, 1]]
+        v2 = self.vertices[self.indices[:, 2]]
+        tri_areas = 0.5 * np.linalg.norm(np.cross(v1 - v0, v2 - v0), axis=1)
+
         # Build per-organ, per-segment triangle lists
         organ_segments = {}  # organ_id -> {seg_idx -> [tri_indices]}
         for tri_idx in range(len(self.indices)):
@@ -128,12 +135,14 @@ class G3Mesh:
                     uv_start = seg_idx / max(n_orig_segs, 1)
                     uv_end = (seg_idx + 1) / max(n_orig_segs, 1)
 
+                seg_area = float(tri_areas[tri_list].sum()) if tri_list else 0.0
                 seg_entry = {
                     "segment_idx": seg_idx,
                     "node_ids": [int(node_ids[seg_idx]), int(node_ids[seg_idx + 1])],
                     "uv_range": [round(uv_start, 6), round(uv_end, 6)],
                     "triangle_indices": tri_list,
                     "triangle_count": len(tri_list),
+                    "total_area_cm2": round(seg_area, 6),
                 }
                 segments.append(seg_entry)
 
@@ -340,20 +349,23 @@ def _loft_leaf(organ):
     per_point_normals = organ.get("per_point_normals")
     gutter_depths = organ.get("gutter_depths")
 
-    # Resample skeleton to enforce minimum segment length.  With n_cross=7,
-    # very short segments create thin-strip triangles with area below the
-    # degenerate threshold.  For min_width=0.15 cm and n_cross=7:
-    #   min_area ≈ 0.5 * seg_len * (0.15 / 6) = seg_len * 0.0125
-    # Requiring min_area > 0.002 cm² → seg_len > 0.16 cm.
-    # Use uniform resampling at 0.2 cm to guarantee clean triangles.
-    min_seg_len = 0.2  # cm
+    # Uniformize skeleton spacing.  CPlantBox skeletons can have variable
+    # segment lengths (tropism curves, growth steps).  Uniform spacing
+    # produces regular triangles and avoids thin-strip slivers.
+    #
+    # IMPORTANT: n_new must be >= len(skeleton) to guarantee every original
+    # CPlantBox segment maps to at least one mesh panel.  Previously n_new
+    # could be smaller (e.g. 151 vs 300), causing ~50% of original segments
+    # to get zero triangles and therefore zero aPAR in the DART pipeline.
+    min_seg_len = 0.2  # cm — target uniform spacing
     total_skel_len = np.sum(np.linalg.norm(np.diff(skeleton, axis=0), axis=1))
     avg_spacing = total_skel_len / max(len(skeleton) - 1, 1)
     if avg_spacing < min_seg_len and len(skeleton) > 3 and total_skel_len > min_seg_len * 2:
-        # Resample at min_seg_len spacing using linear interpolation
+        # Resample at uniform spacing, keeping at least as many points as
+        # the original skeleton so no segments are lost in the mapping.
         cum = np.concatenate([[0.0], np.cumsum(np.linalg.norm(
             np.diff(skeleton, axis=0), axis=1))])
-        n_new = max(3, int(np.ceil(total_skel_len / min_seg_len)) + 1)
+        n_new = max(len(skeleton), int(np.ceil(total_skel_len / min_seg_len)) + 1)
         new_arc = np.linspace(0, total_skel_len, n_new)
         new_skeleton = np.column_stack([
             np.interp(new_arc, cum, skeleton[:, d]) for d in range(3)
@@ -375,13 +387,35 @@ def _loft_leaf(organ):
             gd = np.asarray(gutter_depths, dtype=np.float64)
             gutter_depths = np.interp(new_arc, cum, gd)
 
-        # Rebuild orig_segment_map
+        # Rebuild orig_segment_map: map each new segment to the original
+        # segment whose arc-length interval contains its midpoint.
         orig_seg_map = organ.get("_orig_segment_map")
         if orig_seg_map is not None:
-            old_mid = (cum[:-1] + cum[1:]) / 2.0
+            n_orig = len(cum) - 1  # number of original segments
             new_mid = (new_arc[:-1] + new_arc[1:]) / 2.0
             new_map = np.searchsorted(cum, new_mid, side="right") - 1
-            new_map = np.clip(new_map, 0, len(orig_seg_map) - 1)
+            new_map = np.clip(new_map, 0, n_orig - 1)
+
+            # Safety: ensure every original segment is represented.
+            # With n_new >= len(skeleton), gaps are rare (only with highly
+            # non-uniform original spacing) but we handle them by stealing
+            # new segments from originals that have multiple representatives.
+            for _pass in range(10):
+                counts = Counter(int(x) for x in new_map)
+                missing = [k for k in range(n_orig) if k not in counts]
+                if not missing:
+                    break
+                for orig_idx in missing:
+                    orig_mid = (cum[orig_idx] + cum[orig_idx + 1]) / 2.0
+                    dists = np.abs(new_mid - orig_mid)
+                    order = np.argsort(dists)
+                    for candidate in order:
+                        if counts[int(new_map[candidate])] > 1:
+                            counts[int(new_map[candidate])] -= 1
+                            new_map[candidate] = orig_idx
+                            counts[orig_idx] = 1
+                            break
+
             new_seg_map = orig_seg_map[new_map]
             organ = dict(organ, _orig_segment_map=new_seg_map)
 

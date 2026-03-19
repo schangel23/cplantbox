@@ -1333,7 +1333,19 @@ def read_baleno_outputs_multi(baleno_sim_dir, mapping_json_paths,
 
     all_plant_tleaf = []
     all_plant_eta = []
+    all_plant_tri_data = []
     all_plant_tri_raw = []
+
+    # Parse SURFACE column (per-triangle area in m²) from scene file
+    col_surface = -1
+    if 'SURFACE' in scene_header:
+        col_surface = scene_header.index('SURFACE')
+    surface_areas_m2 = None
+    if col_surface >= 0:
+        try:
+            surface_areas_m2 = scene_str[:, col_surface].astype(float)
+        except (ValueError, IndexError):
+            surface_areas_m2 = None
 
     for pi in range(n_plants):
         dart_to_obj = per_plant_dart_to_obj[pi]
@@ -1381,6 +1393,7 @@ def read_baleno_outputs_multi(baleno_sim_dir, mapping_json_paths,
                 seg_tri_apar = []
                 seg_tri_count = 0
                 seg_tri_sunlit = 0
+                seg_total_area_cm2 = 0.0
 
                 for tidx in tri_indices:
                     if tidx not in obj_to_baleno:
@@ -1422,10 +1435,11 @@ def read_baleno_outputs_multi(baleno_sim_dir, mapping_json_paths,
                                 an_tri = float(av)
                         tleaf_tri = temps[-1] if temps else fallback_temp_c
                         eta_tri = etas[-1] if etas else 0.0
-                        area_tri = seg.get('triangle_area_cm2', 1.0)
-                        if isinstance(area_tri, list):
-                            ti_local = tri_indices.index(tidx) if tidx in tri_indices else 0
-                            area_tri = area_tri[ti_local] if ti_local < len(area_tri) else 1.0
+                        # Per-triangle area from scene SURFACE column (m² → cm²)
+                        if surface_areas_m2 is not None and row < len(surface_areas_m2):
+                            area_tri = float(surface_areas_m2[row]) * 10000.0  # m² → cm²
+                        else:
+                            area_tri = 1.0
 
                         plant_tri_raw.append({
                             'tri_idx': tidx,
@@ -1434,9 +1448,10 @@ def read_baleno_outputs_multi(baleno_sim_dir, mapping_json_paths,
                             'tleaf_C': tleaf_tri,
                             'eta': eta_tri,
                             'An_umol': an_tri,
-                            'area_cm2': float(area_tri) if not isinstance(area_tri, list) else 1.0,
+                            'area_cm2': area_tri,
                         })
 
+                        seg_total_area_cm2 += area_tri
                         seg_tri_count += 1
                         apar_umol = apar_tri * 4.57
                         seg_tri_apar.append(apar_umol)
@@ -1449,7 +1464,7 @@ def read_baleno_outputs_multi(baleno_sim_dir, mapping_json_paths,
                     segment_eta.append(float(np.mean(etas)) if etas else 0.0)
                     segment_tri_data.append({
                         'n_triangles': seg_tri_count,
-                        'total_area_cm2': seg.get('total_area_cm2', 0.0),
+                        'total_area_cm2': seg_total_area_cm2,
                         'mean_apar_umol': float(np.mean(seg_tri_apar)) if seg_tri_apar else 0.0,
                         'n_sunlit': seg_tri_sunlit,
                         'n_total': seg_tri_count,
@@ -1458,12 +1473,13 @@ def read_baleno_outputs_multi(baleno_sim_dir, mapping_json_paths,
         all_plant_tleaf.append(np.array(segment_tleaf))
         if read_fluorescence:
             all_plant_eta.append(np.array(segment_eta))
+            all_plant_tri_data.append(segment_tri_data)
             all_plant_tri_raw.append(plant_tri_raw)
 
     result = {'tleaf': all_plant_tleaf}
     if read_fluorescence:
         result['eta'] = all_plant_eta
-        result['tri_data'] = [segment_tri_data for _ in range(n_plants)]  # placeholder
+        result['tri_data'] = all_plant_tri_data
         result['tri_data_raw'] = all_plant_tri_raw
     return result
 

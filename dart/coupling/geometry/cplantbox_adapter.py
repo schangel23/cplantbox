@@ -595,6 +595,14 @@ def extract_organs_for_lofter(plant, min_stem_nodes=50, min_leaf_nodes=20,
         # Clamp minimum width — safety net after truncation.
         widths = np.maximum(widths, 0.15)
 
+        # Trim node_ids to match skeleton length after ground-clipping and
+        # tip truncation.  node_ids was captured before these operations,
+        # so it may be longer than the skeleton.  The mapping JSON uses
+        # len(node_ids)-1 as the segment count — any segments beyond the
+        # skeleton length would get zero triangles.
+        if len(node_ids) > len(skeleton):
+            node_ids = node_ids[:len(skeleton)]
+
         # Leaf blade waviness + twist
         leaf_length = np.sum(np.linalg.norm(np.diff(skeleton, axis=0), axis=1))
         rng = np.random.RandomState(organ_counter * 37 + 7)
