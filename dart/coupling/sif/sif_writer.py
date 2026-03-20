@@ -105,8 +105,13 @@ def write_triangle_sif_csv(output_path, tri_data_raw, plant_idx,
             apar_wm2 = td.get('apar_Wm2', 0.0)
             eta_val = td.get('eta', 0.0)
             sif_wm2 = eta_val * fqe * apar_wm2
-            apar_umol = apar_wm2 * 4.57
-            sunlit = 1 if apar_umol > par_threshold else 0
+            # Use DART sunlit classification if available, else threshold
+            sunlit_frac = td.get('sunlit_frac')
+            if sunlit_frac is not None:
+                sunlit = 1 if sunlit_frac > 0.5 else 0
+            else:
+                apar_umol = apar_wm2 * 4.57
+                sunlit = 1 if apar_umol > par_threshold else 0
             writer.writerow({
                 'tri_idx': td.get('tri_idx', 0),
                 'segment_idx': td.get('segment_idx', 0),
@@ -178,7 +183,13 @@ def compute_sunlit_shaded_summary(iter_results, clearsky_par_wm2,
             total_sif_area_weighted += sif_tri
             total_leaf_area_cm2 += area_cm2
 
-            if apar_umol > par_threshold:
+            # Use DART sunlit classification if available, else threshold
+            sunlit_frac = td.get('sunlit_frac')
+            if sunlit_frac is not None:
+                is_sunlit = sunlit_frac > 0.5
+            else:
+                is_sunlit = apar_umol > par_threshold
+            if is_sunlit:
                 n_tri_sunlit += 1
                 all_apar_sunlit.append(apar_umol)
                 all_tleaf_sunlit.append(tleaf_c)

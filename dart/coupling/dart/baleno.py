@@ -398,6 +398,9 @@ def setup_baleno_full(obj_path, mapping_json, reindex_json, grid_info_path,
     products = simu_I.core.phase.Phase.DartProduct.dartModuleProducts.CommonProducts
     products.radiativeBudgetProducts = 1
     products.radiativeBudgetProperties.budget3DParSurface = 1
+    ft_bidi = (simu_I.core.phase.Phase.DartProduct.dartModuleProducts
+               .FluxTrackingModeProducts.FluxTrackingBiDirectionalProducts)
+    ft_bidi.sunlitPerTrianglePerCell = 1
     simu_I.core.phase.Phase.accelerationEngine = 2
     lux = simu_I.core.phase.Phase.EngineParameter.LuxCoreRenderEngineParameters
     lux.targetRayDensityPerPixel = _cfg.DART_RAY_DENSITY_PER_PIXEL
@@ -579,6 +582,9 @@ def setup_baleno_full_multi(obj_paths, mapping_json_paths, reindex_json_paths,
     products = simu_I.core.phase.Phase.DartProduct.dartModuleProducts.CommonProducts
     products.radiativeBudgetProducts = 1
     products.radiativeBudgetProperties.budget3DParSurface = 1
+    ft_bidi = (simu_I.core.phase.Phase.DartProduct.dartModuleProducts
+               .FluxTrackingModeProducts.FluxTrackingBiDirectionalProducts)
+    ft_bidi.sunlitPerTrianglePerCell = 1
     simu_I.core.phase.Phase.accelerationEngine = 2
     lux = simu_I.core.phase.Phase.EngineParameter.LuxCoreRenderEngineParameters
     lux.targetRayDensityPerPixel = _cfg.DART_RAY_DENSITY_PER_PIXEL
@@ -781,7 +787,7 @@ def _create_baleno_configs(baleno_simu_name, dart_simu_name):
         "save_state": False, "radiation": True, "vegetation": True,
         "soil": True, "aerodynamics": False, "energy_balance_products": True,
         "fluxes": True, "save_scene": True, "delimiter": ";",
-        "compute_sunlit": False, "sunlit_threshold": 0.5,
+        "compute_sunlit": True, "sunlit_threshold": 0.5,
         "1 dimension": False, "2 dimension": False, "3 dimension": True,
         "layer_number": 20, "write_yaml": False,
     })
@@ -1276,10 +1282,11 @@ def read_baleno_outputs_multi(baleno_sim_dir, mapping_json_paths,
     if col_temp < 0:
         col_temp = 1
 
-    # Read radiation for shaded detection
+    # Read radiation for shaded detection + sunlit classification
     rad_file = results_dir / 'radiation_3D.csv'
     rad_data = None
     col_apar = -1
+    col_sunlit = -1
     if rad_file.exists():
         with open(rad_file) as f:
             rad_header = [h.strip() for h in f.readline().strip().split(delimiter)]
@@ -1289,6 +1296,8 @@ def read_baleno_outputs_multi(baleno_sim_dir, mapping_json_paths,
         for i, h in enumerate(rad_header):
             if 'absorption' in h.lower() and 'par' in h.lower():
                 col_apar = i
+            if h.strip().lower() == 'sunlit':
+                col_sunlit = i
 
     # Read vegetation (fluorescence) if requested
     veg_data = None
@@ -1441,6 +1450,13 @@ def read_baleno_outputs_multi(baleno_sim_dir, mapping_json_paths,
                         else:
                             area_tri = 1.0
 
+                        # DART sunlit fraction (from sunlitPerTrianglePerCell)
+                        sunlit_frac_tri = 0.0
+                        if col_sunlit >= 0 and rad_data is not None and row < rad_data.shape[0]:
+                            sv = rad_data[row, col_sunlit]
+                            if not np.isnan(sv):
+                                sunlit_frac_tri = float(sv)
+
                         plant_tri_raw.append({
                             'tri_idx': tidx,
                             'segment_idx': len(segment_tleaf),
@@ -1449,13 +1465,19 @@ def read_baleno_outputs_multi(baleno_sim_dir, mapping_json_paths,
                             'eta': eta_tri,
                             'An_umol': an_tri,
                             'area_cm2': area_tri,
+                            'sunlit_frac': sunlit_frac_tri,
                         })
 
                         seg_total_area_cm2 += area_tri
                         seg_tri_count += 1
                         apar_umol = apar_tri * 4.57
                         seg_tri_apar.append(apar_umol)
-                        if apar_umol > apar_shaded_threshold:
+                        # Use DART sunlit classification if available,
+                        # fall back to aPAR threshold otherwise.
+                        if col_sunlit >= 0:
+                            if sunlit_frac_tri > 0.5:
+                                seg_tri_sunlit += 1
+                        elif apar_umol > apar_shaded_threshold:
                             seg_tri_sunlit += 1
 
                 segment_tleaf.append(float(np.mean(temps)) if temps else fallback_temp_c)
