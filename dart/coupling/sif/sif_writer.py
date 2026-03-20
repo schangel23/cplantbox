@@ -80,7 +80,8 @@ def write_segment_sif_csv(output_path, iter_result, plant_idx,
 
 
 def write_triangle_sif_csv(output_path, tri_data_raw, plant_idx,
-                           clearsky_par_wm2, fqe=0.01, sunlit_frac=0.2):
+                           clearsky_par_wm2, fqe=0.01, sunlit_frac=0.2,
+                           apar_shaded_threshold_umol=10.0):
     """Write per-triangle SIF CSV for one plant (opt-in, large file).
 
     tri_data_raw: list of dicts per triangle with keys:
@@ -90,7 +91,9 @@ def write_triangle_sif_csv(output_path, tri_data_raw, plant_idx,
     if tri_data_raw is None or len(tri_data_raw) == 0:
         return
 
-    par_threshold = sunlit_frac * clearsky_par_wm2 * 4.57
+    # Fixed threshold: Baleno apar_Wm2 is per-triangle absorbed energy,
+    # not comparable to clearsky PAR.  Use absolute threshold (10 µmol).
+    par_threshold = apar_shaded_threshold_umol
 
     fieldnames = ['tri_idx', 'segment_idx', 'apar_Wm2', 'tleaf_C',
                   'eta', 'SIF_W_m2', 'sunlit', 'area_cm2']
@@ -118,7 +121,8 @@ def write_triangle_sif_csv(output_path, tri_data_raw, plant_idx,
 
 def compute_sunlit_shaded_summary(iter_results, clearsky_par_wm2,
                                   fqe=0.01, sunlit_frac=0.2,
-                                  ground_area_m2=None):
+                                  ground_area_m2=None,
+                                  apar_shaded_threshold_umol=10.0):
     """Compute sunlit/shaded summary stats across all plants.
 
     Args:
@@ -126,8 +130,11 @@ def compute_sunlit_shaded_summary(iter_results, clearsky_par_wm2,
             Each must have 'tri_data_raw' (list of per-tri dicts).
         clearsky_par_wm2: clearsky PAR at this timestep [W/m2].
         fqe: fluorescence quantum efficiency.
-        sunlit_frac: fraction of clearsky PAR below which a triangle is shaded.
+        sunlit_frac: (unused, kept for API compat) formerly fraction of clearsky PAR.
         ground_area_m2: total ground area [m2] for canopy-level SIF.
+        apar_shaded_threshold_umol: fixed aPAR threshold [µmol] below which
+            a triangle is classified as shaded.  Default 10 µmol matches
+            _is_shaded() in baleno.py.
 
     Returns:
         dict with sunlit/shaded stats + canopy SIF, or empty dict on failure.
@@ -135,7 +142,9 @@ def compute_sunlit_shaded_summary(iter_results, clearsky_par_wm2,
     if iter_results is None:
         return {}
 
-    par_threshold = sunlit_frac * clearsky_par_wm2 * 4.57  # umol threshold
+    # Fixed threshold: Baleno apar_Wm2 is per-triangle absorbed energy,
+    # not comparable to clearsky PAR.  Use absolute threshold (10 µmol).
+    par_threshold = apar_shaded_threshold_umol
 
     all_apar_sunlit = []
     all_apar_shaded = []
