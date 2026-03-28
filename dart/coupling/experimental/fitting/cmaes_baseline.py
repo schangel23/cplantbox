@@ -14,10 +14,12 @@ from pathlib import Path
 import numpy as np
 
 N_POSITIONS = 11
-# Only optimize params that most affect visual shape
-CMAES_PARAMS = ['lmax', 'Width_blade', 'theta', 'tropismS']
-N_CMAES_PER_LEAF = len(CMAES_PARAMS)  # 4
-N_CMAES_TOTAL = N_CMAES_PER_LEAF * N_POSITIONS + 1  # 45
+# All visual parameters: structural + lofter deformations
+CMAES_XML_PARAMS = ['lmax', 'Width_blade', 'theta', 'tropismS', 'tropismAge']
+CMAES_DEFORM_PARAMS = ['wave_normal_amp', 'twist_max', 'curl_amp', 'edge_ruffle_amp', 'fold_amp']
+CMAES_PARAMS = CMAES_XML_PARAMS + CMAES_DEFORM_PARAMS
+N_CMAES_PER_LEAF = len(CMAES_PARAMS)  # 10
+N_CMAES_TOTAL = N_CMAES_PER_LEAF * N_POSITIONS + 1  # 111
 
 
 def _evaluate_cplantbox(param_vector, target_pc, day=60, _counter=None):
@@ -32,27 +34,39 @@ def _evaluate_cplantbox(param_vector, target_pc, day=60, _counter=None):
         tree = ET.parse(template)
         root = tree.getroot()
 
+        # Unpack deformation params per position for later
+        deform_overrides = {}
         for organ in root.iter('organ'):
             if organ.get('type') == 'leaf':
                 sub = int(organ.get('subType', '0'))
                 pos = sub - 2
                 if 0 <= pos < N_POSITIONS:
                     offset = pos * N_CMAES_PER_LEAF
-                    param_map = {
+                    xml_map = {
                         'lmax': param_vector[offset + 0],
                         'Width_blade': param_vector[offset + 1],
                         'theta': param_vector[offset + 2],
                         'tropismS': param_vector[offset + 3],
+                        'tropismAge': param_vector[offset + 4],
                     }
-                    # Also update areaMax to be consistent with new width
+                    # Keep areaMax consistent
                     lmax_val = param_vector[offset + 0]
                     width_val = param_vector[offset + 1]
-                    param_map['areaMax'] = lmax_val * width_val * 2.0 * 0.73
+                    xml_map['areaMax'] = lmax_val * width_val * 2.0 * 0.73
 
                     for p in organ:
                         name = p.get('name', '')
-                        if name in param_map:
-                            p.set('value', str(param_map[name]))
+                        if name in xml_map:
+                            p.set('value', str(xml_map[name]))
+
+                    # Store deformation params for this position
+                    deform_overrides[pos] = {
+                        'wave_normal_amp': float(param_vector[offset + 5]),
+                        'twist_max': float(param_vector[offset + 6]),
+                        'curl_amp': float(param_vector[offset + 7]),
+                        'edge_ruffle_amp': float(param_vector[offset + 8]),
+                        'fold_amp': float(param_vector[offset + 9]),
+                    }
             elif organ.get('type') == 'stem':
                 for p in organ:
                     if p.get('name') == 'ln':
@@ -77,7 +91,21 @@ def _evaluate_cplantbox(param_vector, target_pc, day=60, _counter=None):
             sys.stdout.close()
             sys.stdout = old_stdout
 
-        leaf_organs = [o for o in organs if o['type'] == 'leaf']
+        # Apply deformation overrides to leaf organ dicts
+        leaf_organs = []
+        for o in organs:
+            if o['type'] != 'leaf':
+                continue
+            # Match organ to position by subtype
+            pos = o.get('_subtype', -1) - 2 if '_subtype' in o else None
+            if pos is None:
+                # Try to infer from organ name or order
+                leaf_idx = len(leaf_organs)
+                pos = leaf_idx
+            if pos in deform_overrides:
+                for k, v in deform_overrides[pos].items():
+                    o[k] = v
+            leaf_organs.append(o)
         if not leaf_organs:
             return 1e6
 
@@ -151,8 +179,12 @@ def fit_plant_cmaes(
     for pos in range(N_POSITIONS):
         s = per_pos[pos]
         for name in CMAES_PARAMS:
-            val = float(s.get(name, 1.0))
+            if name in CMAES_XML_PARAMS:
+                val = float(s.get(name, 1.0))
+            else:
+                val = 0.0  # deformations start at zero
             x0.append(val)
+
             if name in ('lmax', 'Width_blade'):
                 bounds_lo.append(max(val * 0.3, 1.0))
                 bounds_hi.append(val * 2.5)
@@ -162,6 +194,24 @@ def fit_plant_cmaes(
             elif name == 'tropismS':
                 bounds_lo.append(0.0005)
                 bounds_hi.append(0.1)
+            elif name == 'tropismAge':
+                bounds_lo.append(1.0)
+                bounds_hi.append(max(float(s.get('tropismAge', 10.0)) * 2.0, 15.0))
+            elif name == 'wave_normal_amp':
+                bounds_lo.append(0.0)
+                bounds_hi.append(3.0)
+            elif name == 'twist_max':
+                bounds_lo.append(-0.7)
+                bounds_hi.append(0.7)
+            elif name == 'curl_amp':
+                bounds_lo.append(-2.0)
+                bounds_hi.append(2.0)
+            elif name == 'edge_ruffle_amp':
+                bounds_lo.append(0.0)
+                bounds_hi.append(2.0)
+            elif name == 'fold_amp':
+                bounds_lo.append(-1.0)
+                bounds_hi.append(1.0)
 
     # Stem ln
     x0.append(14.5)
