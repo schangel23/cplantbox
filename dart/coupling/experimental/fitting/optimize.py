@@ -37,7 +37,11 @@ def _load_prior(stats_path: str, device: str = 'cuda') -> tuple[torch.Tensor, to
     means = []
     stds = []
     for pos in range(N_POSITIONS):
-        s = stats[str(pos)] if str(pos) in stats else stats[pos]
+        per_pos = stats.get("per_position", stats) if isinstance(stats, dict) else stats
+        if isinstance(per_pos, list):
+            s = per_pos[pos]
+        else:
+            s = per_pos[str(pos)] if str(pos) in per_pos else per_pos[pos]
         for name in STRUCTURAL_NAMES:
             val = float(s.get(name, 1.0))
             means.append(val)
