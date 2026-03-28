@@ -140,6 +140,11 @@ def _extract_leaf_skeletons(plant, n_max: int = N_MAX) -> tuple[np.ndarray, np.n
         else:
             widths = np.full(len(nodes), width_blade, dtype=np.float32)
 
+        # Transform to leaf-local coordinates: origin at leaf base,
+        # so the model only learns the shape, not the attachment position.
+        base = skeleton[0].copy()
+        skeleton = skeleton - base
+
         # Truncate or pad to n_max
         n_nodes = min(len(skeleton), n_max)
         skeletons[pos, :n_nodes, :3] = skeleton[:n_nodes]
