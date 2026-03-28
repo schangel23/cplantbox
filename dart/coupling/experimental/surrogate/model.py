@@ -1,13 +1,19 @@
 """Neural surrogate: XML params -> leaf skeleton prediction.
 
-Architecture: a shared-weight MLP that takes per-leaf parameters
-(12 XML/deformation params + 1 position encoding) and predicts
-skeleton *residuals* relative to the analytic baseline.  The full
-skeleton is ``baseline + residual``.
+Architecture: per-node implicit function.  For each skeleton node, the
+network receives the leaf parameters (13 dims) plus a normalised arc
+position t in [0, 1] and predicts the residual (dx, dy, dz, dw) relative
+to the analytic baseline.  This is equivalent to learning a continuous
+function f(params, t) -> (x, y, z, w) for the skeleton.
 
-Shared weights across leaf positions reduce the parameter count
-and encourage generalisation to unseen position/param combinations.
+The key insight is that 14 -> 4 is far easier for an MLP than the
+previous 13 -> 256 (which tried to predict all 64 nodes at once and
+plateaued at 7.7 cm error).
+
+Shared weights across all nodes AND all leaf positions.
 """
+
+import math
 
 import torch
 import torch.nn as nn
@@ -23,48 +29,75 @@ _IDX_TROPISMS = LEAF_PARAM_NAMES.index("tropismS")
 _IDX_WIDTH = LEAF_PARAM_NAMES.index("Width_blade")
 
 
-class SkeletonSurrogate(nn.Module):
-    """Shared-weight MLP predicting skeleton residuals from XML params.
+def _sinusoidal_encoding(t: torch.Tensor, n_freqs: int = 8) -> torch.Tensor:
+    """Positional encoding: [t, sin(2^0*pi*t), cos(2^0*pi*t), ...].
 
-    Input:  ``(B, 13)`` — 12 per-leaf params + 1 normalised position index.
-    Output: ``(B, 64, 4)`` — delta xyz + delta half-width relative to
-            the analytic baseline.
+    Helps the MLP learn high-frequency spatial variation along the leaf.
 
     Args:
-        n_params: Dimension of the per-leaf input vector (default 13).
-        n_nodes: Number of skeleton nodes per leaf (default 64).
+        t: (...,) normalised positions in [0, 1].
+        n_freqs: Number of frequency bands.
+
+    Returns:
+        (..., 1 + 2*n_freqs) encoded positions.
+    """
+    freqs = 2.0 ** torch.arange(n_freqs, device=t.device, dtype=t.dtype) * math.pi
+    t_exp = t.unsqueeze(-1)  # (..., 1)
+    args = t_exp * freqs  # (..., n_freqs)
+    return torch.cat([t_exp, torch.sin(args), torch.cos(args)], dim=-1)
+
+
+class SkeletonSurrogate(nn.Module):
+    """Per-node implicit function predicting skeleton residuals.
+
+    Input:  ``(B, 13)`` leaf params, evaluated at 64 node positions.
+    Output: ``(B, 64, 4)`` delta xyz + delta half-width.
+
+    Internally, each node query is ``(B*64, 13 + 1 + 2*n_freqs)`` —
+    leaf params concatenated with sinusoidal-encoded arc position.
+
+    Args:
+        n_params: Per-leaf input dimension (default 13).
+        n_nodes: Number of skeleton nodes (default 64).
         hidden: Hidden layer width (default 256).
-        n_layers: Number of hidden layers (default 3).
+        n_layers: Number of hidden layers (default 4).
+        n_freqs: Frequency bands for positional encoding (default 8).
     """
 
     def __init__(
         self,
-        n_params: int = N_LEAF_PARAMS + 1,  # 12 leaf params + 1 position
+        n_params: int = N_LEAF_PARAMS + 1,
         n_nodes: int = 64,
         hidden: int = 256,
-        n_layers: int = 3,
+        n_layers: int = 4,
+        n_freqs: int = 8,
     ) -> None:
         super().__init__()
         self.n_params = n_params
         self.n_nodes = n_nodes
+        self.n_freqs = n_freqs
+
+        # Input: leaf params + sinusoidal-encoded node position
+        pos_dim = 1 + 2 * n_freqs  # 17 for n_freqs=8
+        in_dim = n_params + pos_dim  # 13 + 17 = 30
 
         layers: list[nn.Module] = []
-        in_dim = n_params
+        d = in_dim
         for _ in range(n_layers):
-            layers.append(nn.Linear(in_dim, hidden))
+            layers.append(nn.Linear(d, hidden))
             layers.append(nn.SiLU())
             layers.append(nn.LayerNorm(hidden))
-            in_dim = hidden
+            d = hidden
 
         self.backbone = nn.Sequential(*layers)
-        self.head = nn.Linear(hidden, n_nodes * 4)
+        self.head = nn.Linear(hidden, 4)  # predict (dx, dy, dz, dw) per node
 
-        # Initialise head weights small so initial prediction ≈ baseline.
+        # Small init so initial prediction ≈ baseline
         nn.init.zeros_(self.head.bias)
         nn.init.normal_(self.head.weight, std=1e-3)
 
     def forward(self, params: torch.Tensor) -> torch.Tensor:
-        """Predict skeleton residuals.
+        """Predict skeleton residuals for all nodes.
 
         Args:
             params: ``(B, n_params)`` per-leaf parameter vector.
@@ -72,9 +105,27 @@ class SkeletonSurrogate(nn.Module):
         Returns:
             ``(B, n_nodes, 4)`` residual (delta xyz + delta width).
         """
-        h = self.backbone(params)
-        out = self.head(h)  # (B, n_nodes * 4)
-        return out.view(-1, self.n_nodes, 4)
+        B = params.shape[0]
+        device = params.device
+        dtype = params.dtype
+
+        # Node positions: [0, 1] uniformly spaced
+        t = torch.linspace(0.0, 1.0, self.n_nodes, device=device, dtype=dtype)  # (N,)
+        t_enc = _sinusoidal_encoding(t, self.n_freqs)  # (N, 17)
+
+        # Expand and concatenate: each leaf's params paired with each node position
+        # params: (B, 1, 13) -> (B, N, 13)
+        # t_enc:  (1, N, 17) -> (B, N, 17)
+        params_exp = params.unsqueeze(1).expand(B, self.n_nodes, self.n_params)
+        t_enc_exp = t_enc.unsqueeze(0).expand(B, self.n_nodes, -1)
+
+        x = torch.cat([params_exp, t_enc_exp], dim=-1)  # (B, N, 30)
+        x = x.reshape(B * self.n_nodes, -1)  # (B*N, 30)
+
+        h = self.backbone(x)  # (B*N, hidden)
+        out = self.head(h)  # (B*N, 4)
+
+        return out.view(B, self.n_nodes, 4)
 
     def predict_skeleton(
         self,
