@@ -116,10 +116,12 @@ def fit_plant_cmaes(
     sigma0: float = 0.3,
     day: int = 60,
     seed: int = 42,
+    n_workers: int = 16,
 ) -> dict:
     """Fit CPlantBox params to a target using CMA-ES.
 
     Optimizes 45 dimensions: 4 key params per leaf position + stem ln.
+    Evaluations are parallelized across n_workers processes.
 
     Args:
         target_points: (N, 3) target point cloud (cm, centered)
@@ -128,6 +130,7 @@ def fit_plant_cmaes(
         sigma0: initial step size
         day: simulation day
         seed: random seed
+        n_workers: parallel CPlantBox evaluation workers
 
     Returns:
         dict with 'params', 'best_loss', 'n_evals', 'param_names'
@@ -181,8 +184,9 @@ def fit_plant_cmaes(
 
     counter = [0]
 
-    def objective(x):
-        return _evaluate_cplantbox(x, target_sub, day=day, _counter=counter)
+    def _eval_one(args):
+        x, target, d = args
+        return _evaluate_cplantbox(x, target, day=d)
 
     # Initial evaluation
     init_loss = _evaluate_cplantbox(x0, target_sub, day=day)
@@ -191,12 +195,27 @@ def fit_plant_cmaes(
     opts = cma.CMAOptions()
     opts['maxfevals'] = max_evals
     opts['seed'] = seed
-    opts['bounds'] = [bounds_lo, bounds_hi]
+    opts['bounds'] = [bounds_lo.tolist(), bounds_hi.tolist()]
     opts['verbose'] = -1
-    opts['tolfun'] = 0.1  # stop if loss change < 0.1
+    opts['tolfun'] = 0.1
 
     es = cma.CMAEvolutionStrategy(x0, sigma0, opts)
-    es.optimize(objective)
+
+    # Parallel evaluation loop
+    import multiprocessing as mp
+    n_workers = min(n_workers, mp.cpu_count())
+    print(f"CMA-ES: {N_CMAES_TOTAL} dims, {max_evals} max evals, {n_workers} workers", file=sys.stderr)
+
+    with mp.Pool(n_workers) as pool:
+        while not es.stop():
+            solutions = es.ask()
+            args = [(x, target_sub, day) for x in solutions]
+            fitnesses = pool.map(_eval_one, args)
+            es.tell(solutions, fitnesses)
+            counter[0] += len(solutions)
+
+            if counter[0] % 100 < len(solutions):
+                print(f"  eval {counter[0]}: best={es.result.fbest:.2f}", file=sys.stderr)
 
     res = es.result
     print(f"Final Chamfer: {res.fbest:.2f} after {counter[0]} evals", file=sys.stderr)
