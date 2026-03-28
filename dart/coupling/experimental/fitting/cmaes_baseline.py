@@ -141,20 +141,24 @@ def fit_plant_cmaes(
     bounds_lo = []
     bounds_hi = []
 
+    per_pos = stats.get('per_position', stats) if isinstance(stats, dict) else stats
+    if not isinstance(per_pos, list):
+        per_pos = [per_pos[str(i)] for i in range(N_POSITIONS)]
+
     for pos in range(N_POSITIONS):
-        s = stats[pos] if isinstance(stats, list) else stats[str(pos)]
+        s = per_pos[pos]
         for name in CMAES_PARAMS:
             val = float(s.get(name, 1.0))
             x0.append(val)
             if name in ('lmax', 'Width_blade'):
-                bounds_lo.append(val * 0.3)
-                bounds_hi.append(val * 2.0)
+                bounds_lo.append(max(val * 0.3, 1.0))
+                bounds_hi.append(val * 2.5)
             elif name == 'theta':
-                bounds_lo.append(0.05)
-                bounds_hi.append(1.2)
+                bounds_lo.append(0.01)
+                bounds_hi.append(1.5)
             elif name == 'tropismS':
-                bounds_lo.append(0.001)
-                bounds_hi.append(0.08)
+                bounds_lo.append(0.0005)
+                bounds_hi.append(0.1)
 
     # Stem ln
     x0.append(14.5)
@@ -162,6 +166,11 @@ def fit_plant_cmaes(
     bounds_hi.append(22.0)
 
     x0 = np.array(x0)
+    bounds_lo = np.array(bounds_lo)
+    bounds_hi = np.array(bounds_hi)
+
+    # Clamp x0 to be strictly within bounds
+    x0 = np.clip(x0, bounds_lo * 1.01, bounds_hi * 0.99)
 
     # Subsample target
     if len(target_points) > 5000:
