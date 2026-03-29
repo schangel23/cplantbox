@@ -24,9 +24,10 @@ from ..diff_lofter.lofter import compute_arc_fracs, loft_leaf
 from ..losses.chamfer import chamfer_distance
 
 N_POSITIONS = 11
-XML_PARAMS = ['lmax', 'Width_blade', 'theta', 'tropismS', 'tropismAge', 'r', 'width_taper', 'collar_frac']
+XML_PARAMS = ['lmax', 'Width_blade', 'theta', 'tropismS', 'tropismAge', 'r', 'width_taper', 'collarLength']
 N_XML_PER_LEAF = len(XML_PARAMS)  # 8
-N_XML_TOTAL = N_XML_PER_LEAF * N_POSITIONS + 1  # 89
+N_GLOBAL_PARAMS = 2  # stem_ln + stem_tropismS
+N_XML_TOTAL = N_XML_PER_LEAF * N_POSITIONS + N_GLOBAL_PARAMS  # 90
 
 DEFORM_AMP_NAMES = ['wave_normal_amp', 'twist_max', 'curl_amp', 'edge_ruffle_amp', 'fold_amp']
 
@@ -64,6 +65,8 @@ def _grow_and_extract(xml_params, day=60, template_xml=None):
                     r_val = xml_params[offset + 5]
                     width_taper = xml_params[offset + 6]  # 0=sharp taper, 1=full width
 
+                    collar_len = xml_params[offset + 7]
+
                     xml_map = {
                         'lmax': lmax_val,
                         'Width_blade': width_val,
@@ -72,19 +75,14 @@ def _grow_and_extract(xml_params, day=60, template_xml=None):
                         'tropismAge': xml_params[offset + 4],
                         'r': r_val,
                         'areaMax': lmax_val * width_val * 2.0 * 0.73,
+                        'collarLength': collar_len,
                     }
 
-                    # Apply width_taper to leafGeometry profile
-                    # width_taper=0: default taper (pointed tip)
-                    # width_taper=1: wider/flatter profile
-                    # Interpolate the x values of the 7-point profile
                     for p in organ:
                         name = p.get('name', '')
                         if name in xml_map:
                             p.set('value', str(xml_map[name]))
                         elif name == 'leafGeometry':
-                            # Modify the width profile: shift x values toward 1.0
-                            # by width_taper factor (makes leaves wider toward tip)
                             geom_str = p.get('value', '')
                             if geom_str:
                                 try:
@@ -93,16 +91,20 @@ def _grow_and_extract(xml_params, day=60, template_xml=None):
                                     for phi_s, x_s in pairs:
                                         phi = float(phi_s)
                                         x = float(x_s)
-                                        # Lerp x toward 1.0 by taper factor
                                         x_new = x + width_taper * (1.0 - x) * 0.5
                                         new_pairs.append(f"{phi} {x_new:.4f}")
                                     p.set('value', ', '.join(new_pairs))
                                 except (ValueError, IndexError):
                                     pass
             elif organ.get('type') == 'stem':
+                stem_ln = xml_params[-2]
+                stem_tropismS = xml_params[-1]
                 for p in organ:
-                    if p.get('name') == 'ln':
-                        p.set('value', str(xml_params[-1]))
+                    name = p.get('name', '')
+                    if name == 'ln':
+                        p.set('value', str(stem_ln))
+                    elif name == 'tropismS':
+                        p.set('value', str(stem_tropismS))
 
         tmp = tempfile.NamedTemporaryFile(suffix='.xml', delete=False)
         tree.write(tmp.name)
@@ -121,17 +123,7 @@ def _grow_and_extract(xml_params, day=60, template_xml=None):
             sys.stdout.close()
             sys.stdout = old_stdout
 
-        leaf_organs = [o for o in organs if o['type'] == 'leaf']
-
-        # Apply per-leaf collar straightening
-        from .skeleton_postprocess import straighten_base
-        for i, organ in enumerate(leaf_organs):
-            pos = i  # organs are ordered by position
-            offset = pos * N_XML_PER_LEAF
-            collar_frac = float(xml_params[offset + 7]) if offset + 7 < len(xml_params) - 1 else 0.3
-            organ['skeleton'] = straighten_base(organ['skeleton'], collar_frac=collar_frac)
-
-        return leaf_organs
+        return [o for o in organs if o['type'] == 'leaf']
 
     except Exception as e:
         print(f"  CPlantBox failed: {e}", file=sys.stderr)
@@ -323,8 +315,8 @@ def fit_plant_hybrid(
         for name in XML_PARAMS:
             if name == 'width_taper':
                 val = 0.0  # default: no taper modification
-            elif name == 'collar_frac':
-                val = 0.3  # default: 30% straight base
+            elif name == 'collarLength':
+                val = 10.0  # default: 10cm straight base
             else:
                 val = float(s.get(name, 1.0))
             x0.append(val)
@@ -345,15 +337,20 @@ def fit_plant_hybrid(
                 bounds_lo.append(max(val * 0.3, 0.5))
                 bounds_hi.append(val * 3.0)
             elif name == 'width_taper':
-                bounds_lo.append(-0.5)  # sharper than default
-                bounds_hi.append(1.0)   # much wider
-            elif name == 'collar_frac':
-                bounds_lo.append(0.05)  # minimal straight base
-                bounds_hi.append(0.6)   # up to 60% of leaf is straight
+                bounds_lo.append(-0.5)
+                bounds_hi.append(1.0)
+            elif name == 'collarLength':
+                bounds_lo.append(0.0)   # no collar (default)
+                bounds_hi.append(30.0)  # up to 30cm straight base
 
+    # Global params
     x0.append(14.5)  # stem ln
     bounds_lo.append(8.0)
     bounds_hi.append(22.0)
+
+    x0.append(0.002)  # stem tropismS (slight lean)
+    bounds_lo.append(0.0)
+    bounds_hi.append(0.015)
 
     x0 = np.array(x0)
     bounds_lo = np.array(bounds_lo)

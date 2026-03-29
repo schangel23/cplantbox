@@ -822,9 +822,11 @@ Vector3d Leaf::getIncrement(const Vector3d& p, double sdx, int n)
     Matrix3d ons = Matrix3d::ons(h);
 	bool isPseudoStem = getParameter("isPseudostem");
 	bool isSheath = ( getLength(n) - getParameter("lb") < -1e-10);
-	if(isPseudoStem && isSheath){getLeafRandomParameter()->f_tf->setSigma(0.);}
+	bool inCollar = (getLeafRandomParameter()->collarLength > 0
+	                 && getLength(n) < getLeafRandomParameter()->collarLength);
+	if((isPseudoStem && isSheath) || inCollar){getLeafRandomParameter()->f_tf->setSigma(0.);}
     Vector2d ab = getLeafRandomParameter()->f_tf->getHeading(p, ons, dx(), shared_from_this(), n+1);
-	if(isPseudoStem && isSheath){getLeafRandomParameter()->f_tf->setSigma(getLeafRandomParameter()->tropismS);}
+	if((isPseudoStem && isSheath) || inCollar){getLeafRandomParameter()->f_tf->setSigma(getLeafRandomParameter()->tropismS);}
 	//for leaves: necessary?
 	//Vector2d ab = getLeafRandomParameter()->f_tf->getHeading(p, ons, dx(),shared_from_this());
     Vector3d sv = ons.times(Vector3d::rotAB(ab.x,ab.y));

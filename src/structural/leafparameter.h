@@ -114,6 +114,8 @@ public:
 	double Width_petioles = 0.;		///< Standard deviation of leaf petiole width (cm)
 	int gf = 1;				///< Growth function (1=negative exponential, 2=linear)
 	int isPseudostem = 0;				///< do the leaf sheaths make a pseudostem? (0 false, 1 true)
+	double collarLength = 0.;			///< Length of rigid collar zone where tropism is disabled [cm]
+	double collarLengths = 0.;			///< Standard deviation of collar length [cm]
 
 	/* describes the plant geometry */
 	std::vector<double> leafGeometryPhi= {}; //2D shape

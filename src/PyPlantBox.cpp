@@ -712,7 +712,9 @@ PYBIND11_MODULE(plantbox, m) {
       .def_readwrite("leafGeometry", &LeafRandomParameter::leafGeometry)
       .def_readwrite("leafGeometryPhi", &LeafRandomParameter::leafGeometryPhi)
       .def_readwrite("leafGeometryX", &LeafRandomParameter::leafGeometryX)
-      .def_readwrite("shapeType", &LeafRandomParameter::shapeType);
+      .def_readwrite("shapeType", &LeafRandomParameter::shapeType)
+      .def_readwrite("collarLength", &LeafRandomParameter::collarLength)
+      .def_readwrite("collarLengths", &LeafRandomParameter::collarLengths);
 
     py::class_<LeafSpecificParameter, OrganSpecificParameter, std::shared_ptr<LeafSpecificParameter>>(m, "LeafSpecificParameter")
             .def(py::init<>())
