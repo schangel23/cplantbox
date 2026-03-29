@@ -24,9 +24,9 @@ from ..diff_lofter.lofter import compute_arc_fracs, loft_leaf
 from ..losses.chamfer import chamfer_distance
 
 N_POSITIONS = 11
-XML_PARAMS = ['lmax', 'Width_blade', 'theta', 'tropismS', 'tropismAge']
-N_XML_PER_LEAF = len(XML_PARAMS)  # 5
-N_XML_TOTAL = N_XML_PER_LEAF * N_POSITIONS + 1  # 56
+XML_PARAMS = ['lmax', 'Width_blade', 'theta', 'tropismS', 'tropismAge', 'r', 'width_taper']
+N_XML_PER_LEAF = len(XML_PARAMS)  # 7
+N_XML_TOTAL = N_XML_PER_LEAF * N_POSITIONS + 1  # 78
 
 DEFORM_AMP_NAMES = ['wave_normal_amp', 'twist_max', 'curl_amp', 'edge_ruffle_amp', 'fold_amp']
 
@@ -35,7 +35,7 @@ def _grow_and_extract(xml_params, day=60, template_xml=None):
     """CPU-only: run CPlantBox with given structural params, return leaf organ dicts.
 
     Args:
-        xml_params: (56,) array — 5 XML params × 11 positions + stem_ln
+        xml_params: (78,) array — 7 XML params × 11 positions + stem_ln
         day: simulation days
         template_xml: path to calibrated XML template
 
@@ -59,18 +59,46 @@ def _grow_and_extract(xml_params, day=60, template_xml=None):
                 pos = sub - 2
                 if 0 <= pos < N_POSITIONS:
                     offset = pos * N_XML_PER_LEAF
+                    lmax_val = xml_params[offset + 0]
+                    width_val = xml_params[offset + 1]
+                    r_val = xml_params[offset + 5]
+                    width_taper = xml_params[offset + 6]  # 0=sharp taper, 1=full width
+
                     xml_map = {
-                        'lmax': xml_params[offset + 0],
-                        'Width_blade': xml_params[offset + 1],
+                        'lmax': lmax_val,
+                        'Width_blade': width_val,
                         'theta': xml_params[offset + 2],
                         'tropismS': xml_params[offset + 3],
                         'tropismAge': xml_params[offset + 4],
+                        'r': r_val,
+                        'areaMax': lmax_val * width_val * 2.0 * 0.73,
                     }
-                    xml_map['areaMax'] = xml_params[offset + 0] * xml_params[offset + 1] * 2.0 * 0.73
+
+                    # Apply width_taper to leafGeometry profile
+                    # width_taper=0: default taper (pointed tip)
+                    # width_taper=1: wider/flatter profile
+                    # Interpolate the x values of the 7-point profile
                     for p in organ:
                         name = p.get('name', '')
                         if name in xml_map:
                             p.set('value', str(xml_map[name]))
+                        elif name == 'leafGeometry':
+                            # Modify the width profile: shift x values toward 1.0
+                            # by width_taper factor (makes leaves wider toward tip)
+                            geom_str = p.get('value', '')
+                            if geom_str:
+                                try:
+                                    pairs = [x.strip().split() for x in geom_str.split(',')]
+                                    new_pairs = []
+                                    for phi_s, x_s in pairs:
+                                        phi = float(phi_s)
+                                        x = float(x_s)
+                                        # Lerp x toward 1.0 by taper factor
+                                        x_new = x + width_taper * (1.0 - x) * 0.5
+                                        new_pairs.append(f"{phi} {x_new:.4f}")
+                                    p.set('value', ', '.join(new_pairs))
+                                except (ValueError, IndexError):
+                                    pass
             elif organ.get('type') == 'stem':
                 for p in organ:
                     if p.get('name') == 'ln':
@@ -275,7 +303,7 @@ def fit_plant_hybrid(
     if not isinstance(per_pos, list):
         per_pos = [per_pos[str(i)] for i in range(N_POSITIONS)]
 
-    # Build x0 and bounds for 56 structural params
+    # Build x0 and bounds for 78 structural params
     x0 = []
     bounds_lo = []
     bounds_hi = []
@@ -283,8 +311,12 @@ def fit_plant_hybrid(
     for pos in range(N_POSITIONS):
         s = per_pos[pos]
         for name in XML_PARAMS:
-            val = float(s.get(name, 1.0))
+            if name == 'width_taper':
+                val = 0.0  # default: no taper modification
+            else:
+                val = float(s.get(name, 1.0))
             x0.append(val)
+
             if name in ('lmax', 'Width_blade'):
                 bounds_lo.append(max(val * 0.3, 1.0))
                 bounds_hi.append(val * 2.5)
@@ -297,6 +329,12 @@ def fit_plant_hybrid(
             elif name == 'tropismAge':
                 bounds_lo.append(1.0)
                 bounds_hi.append(max(val * 2.0, 15.0))
+            elif name == 'r':
+                bounds_lo.append(max(val * 0.3, 0.5))
+                bounds_hi.append(val * 3.0)
+            elif name == 'width_taper':
+                bounds_lo.append(-0.5)  # sharper than default
+                bounds_hi.append(1.0)   # much wider
 
     x0.append(14.5)  # stem ln
     bounds_lo.append(8.0)
