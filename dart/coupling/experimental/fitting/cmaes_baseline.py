@@ -22,7 +22,7 @@ N_CMAES_PER_LEAF = len(CMAES_PARAMS)  # 10
 N_CMAES_TOTAL = N_CMAES_PER_LEAF * N_POSITIONS + 1  # 111
 
 
-def _evaluate_cplantbox(param_vector, target_pc, day=60, _counter=None):
+def _evaluate_cplantbox(param_vector, target_pc, day=60, _counter=None, _return_verts=False):
     """Run CPlantBox with given params, loft mesh, compute Chamfer distance."""
     import xml.etree.ElementTree as ET
     from scipy.spatial import cKDTree
@@ -115,6 +115,9 @@ def _evaluate_cplantbox(param_vector, target_pc, day=60, _counter=None):
         if len(verts) > 10000:
             idx = np.random.choice(len(verts), 10000, replace=False)
             verts = verts[idx]
+
+        if _return_verts:
+            return verts
 
         tree_gen = cKDTree(verts)
         tree_tgt = cKDTree(target_pc)
@@ -232,15 +235,23 @@ def fit_plant_cmaes(
     else:
         target_sub = target_points
 
+    # Align target rotation to default CPlantBox plant
+    print("Aligning target rotation...", file=sys.stderr)
+    init_organs = _evaluate_cplantbox(x0, target_sub, day=day, _return_verts=True)
+    if isinstance(init_organs, np.ndarray):
+        from ..targets.pointcloud_loader import align_rotation_z
+        target_sub, best_angle = align_rotation_z(target_sub, init_organs, n_angles=72)
+        print(f"  Best rotation: {best_angle:.0f} deg", file=sys.stderr)
+
     counter = [0]
 
     def _eval_one(args):
         x, target, d = args
         return _evaluate_cplantbox(x, target, day=d)
 
-    # Initial evaluation
+    # Initial evaluation (with aligned target)
     init_loss = _evaluate_cplantbox(x0, target_sub, day=day)
-    print(f"Initial Chamfer: {init_loss:.2f}", file=sys.stderr)
+    print(f"Initial Chamfer (aligned): {init_loss:.2f}", file=sys.stderr)
 
     opts = cma.CMAOptions()
     opts['maxfevals'] = max_evals

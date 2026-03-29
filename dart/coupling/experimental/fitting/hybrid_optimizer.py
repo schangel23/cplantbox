@@ -307,16 +307,29 @@ def fit_plant_hybrid(
     bounds_hi = np.array(bounds_hi)
     x0 = np.clip(x0, bounds_lo * 1.01, bounds_hi * 0.99)
 
-    # Target on GPU
+    # Subsample target
     if len(target_points) > 5000:
         idx = np.random.RandomState(seed).choice(len(target_points), 5000, replace=False)
         target_sub = target_points[idx]
     else:
         target_sub = target_points
+
+    # Align target rotation to default CPlantBox plant
+    print("Aligning target rotation...", file=sys.stderr)
+    init_organs = _grow_and_extract(x0, day=day, template_xml=template_xml)
+    if init_organs:
+        from dart.coupling.geometry.g1_to_g3 import loft_organs
+        ref_mesh = loft_organs(init_organs)
+        ref_pts = ref_mesh.vertices
+        if len(ref_pts) > 5000:
+            ref_pts = ref_pts[np.random.RandomState(seed).choice(len(ref_pts), 5000, replace=False)]
+        from ..targets.pointcloud_loader import align_rotation_z
+        target_sub, best_angle = align_rotation_z(target_sub, ref_pts, n_angles=72)
+        print(f"  Best rotation: {best_angle:.0f} deg", file=sys.stderr)
+
     target_gpu = torch.tensor(target_sub, dtype=torch.float32, device=device)
 
     # Initial evaluation
-    init_organs = _grow_and_extract(x0, day=day, template_xml=template_xml)
     init_loss, _ = _optimize_deformations(init_organs, target_gpu, device, deform_steps, deform_lr)
     print(f"Initial Chamfer: {init_loss:.2f}", file=sys.stderr)
 

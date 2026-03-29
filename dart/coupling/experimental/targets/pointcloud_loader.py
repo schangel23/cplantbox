@@ -6,6 +6,46 @@ import numpy as np
 import trimesh
 
 
+def align_rotation_z(target_points: np.ndarray, reference_points: np.ndarray,
+                     n_angles: int = 36) -> tuple[np.ndarray, float]:
+    """Brute-force Z-axis rotation alignment via Chamfer distance.
+
+    Tries n_angles evenly spaced rotations around Z, returns the rotation
+    that minimizes Chamfer distance to reference_points.
+
+    Args:
+        target_points: (N, 3) point cloud to rotate
+        reference_points: (M, 3) point cloud to align against
+        n_angles: number of angles to try (default 36 = every 10 degrees)
+
+    Returns:
+        (rotated_points, best_angle_degrees)
+    """
+    from scipy.spatial import cKDTree
+
+    tree_ref = cKDTree(reference_points)
+    best_angle = 0
+    best_chamfer = float('inf')
+    best_rotated = target_points
+
+    for deg in np.linspace(0, 360, n_angles, endpoint=False):
+        rad = np.radians(deg)
+        c, s = np.cos(rad), np.sin(rad)
+        rotated = target_points.copy()
+        rotated[:, 0] = target_points[:, 0] * c - target_points[:, 1] * s
+        rotated[:, 1] = target_points[:, 0] * s + target_points[:, 1] * c
+
+        d1, _ = tree_ref.query(rotated)
+        chamfer = float(np.mean(d1))
+
+        if chamfer < best_chamfer:
+            best_chamfer = chamfer
+            best_angle = deg
+            best_rotated = rotated
+
+    return best_rotated, best_angle
+
+
 def load_ply(path: str | Path) -> tuple[np.ndarray, np.ndarray | None]:
     """Load a PLY file, returning (points (N,3), colors (N,3) or None).
 
