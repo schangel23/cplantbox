@@ -116,6 +116,8 @@ public:
 	int isPseudostem = 0;				///< do the leaf sheaths make a pseudostem? (0 false, 1 true)
 	double collarLength = 0.;			///< Length of rigid collar zone where tropism is disabled [cm]
 	double collarLengths = 0.;			///< Standard deviation of collar length [cm]
+	double tropismExponent = 1.;		///< Exponent for position-dependent tropism strength (1=uniform, >1=tip-heavy)
+	double tropismExponents = 0.;		///< Standard deviation of tropism exponent
 
 	/* describes the plant geometry */
 	std::vector<double> leafGeometryPhi= {}; //2D shape

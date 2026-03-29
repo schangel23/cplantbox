@@ -408,6 +408,7 @@ void LeafRandomParameter::bindParameters()
     bindParameter("geometryN", &geometryN, "leaf geometry resolution");
     bindParameter("isPseudostem", &isPseudostem, "Do the leaf sheaths make a pseudostem?");
     bindParameter("collarLength", &collarLength, "Length of rigid collar zone (cm)", &collarLengths);
+    bindParameter("tropismExponent", &tropismExponent, "Position-dependent tropism exponent (1=uniform, >1=tip-heavy)", &tropismExponents);
     // other parameters (descriptions only)
     description["leafGeometryPhi"] = "Leaf geometry parametrisation parameter";
     description["leafGeometryX"] = "Leaf geometry parametrisation";

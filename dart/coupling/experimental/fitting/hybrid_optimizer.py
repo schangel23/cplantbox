@@ -24,10 +24,10 @@ from ..diff_lofter.lofter import compute_arc_fracs, loft_leaf
 from ..losses.chamfer import chamfer_distance
 
 N_POSITIONS = 11
-XML_PARAMS = ['lmax', 'Width_blade', 'theta', 'tropismS', 'tropismAge', 'r', 'width_taper', 'collarLength']
-N_XML_PER_LEAF = len(XML_PARAMS)  # 8
+XML_PARAMS = ['lmax', 'Width_blade', 'theta', 'tropismS', 'tropismAge', 'r', 'width_taper', 'collarLength', 'tropismExponent']
+N_XML_PER_LEAF = len(XML_PARAMS)  # 9
 N_GLOBAL_PARAMS = 2  # stem_ln + stem_tropismS
-N_XML_TOTAL = N_XML_PER_LEAF * N_POSITIONS + N_GLOBAL_PARAMS  # 90
+N_XML_TOTAL = N_XML_PER_LEAF * N_POSITIONS + N_GLOBAL_PARAMS  # 101
 
 DEFORM_AMP_NAMES = ['wave_normal_amp', 'twist_max', 'curl_amp', 'edge_ruffle_amp', 'fold_amp']
 
@@ -66,6 +66,7 @@ def _grow_and_extract(xml_params, day=60, template_xml=None):
                     width_taper = xml_params[offset + 6]  # 0=sharp taper, 1=full width
 
                     collar_len = xml_params[offset + 7]
+                    trop_exp = xml_params[offset + 8]
 
                     xml_map = {
                         'lmax': lmax_val,
@@ -76,6 +77,7 @@ def _grow_and_extract(xml_params, day=60, template_xml=None):
                         'r': r_val,
                         'areaMax': lmax_val * width_val * 2.0 * 0.73,
                         'collarLength': collar_len,
+                        'tropismExponent': trop_exp,
                     }
 
                     for p in organ:
@@ -317,6 +319,8 @@ def fit_plant_hybrid(
                 val = 0.0  # default: no taper modification
             elif name == 'collarLength':
                 val = 10.0  # default: 10cm straight base
+            elif name == 'tropismExponent':
+                val = 1.0  # default: uniform curvature
             else:
                 val = float(s.get(name, 1.0))
             x0.append(val)
@@ -342,6 +346,9 @@ def fit_plant_hybrid(
             elif name == 'collarLength':
                 bounds_lo.append(0.0)   # no collar (default)
                 bounds_hi.append(30.0)  # up to 30cm straight base
+            elif name == 'tropismExponent':
+                bounds_lo.append(0.5)   # more uniform than default
+                bounds_hi.append(5.0)   # very tip-concentrated
 
     # Global params
     x0.append(14.5)  # stem ln
