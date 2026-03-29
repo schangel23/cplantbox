@@ -24,9 +24,9 @@ from ..diff_lofter.lofter import compute_arc_fracs, loft_leaf
 from ..losses.chamfer import chamfer_distance
 
 N_POSITIONS = 11
-XML_PARAMS = ['lmax', 'Width_blade', 'theta', 'tropismS', 'tropismAge', 'r', 'width_taper']
-N_XML_PER_LEAF = len(XML_PARAMS)  # 7
-N_XML_TOTAL = N_XML_PER_LEAF * N_POSITIONS + 1  # 78
+XML_PARAMS = ['lmax', 'Width_blade', 'theta', 'tropismS', 'tropismAge', 'r', 'width_taper', 'collar_frac']
+N_XML_PER_LEAF = len(XML_PARAMS)  # 8
+N_XML_TOTAL = N_XML_PER_LEAF * N_POSITIONS + 1  # 89
 
 DEFORM_AMP_NAMES = ['wave_normal_amp', 'twist_max', 'curl_amp', 'edge_ruffle_amp', 'fold_amp']
 
@@ -121,7 +121,17 @@ def _grow_and_extract(xml_params, day=60, template_xml=None):
             sys.stdout.close()
             sys.stdout = old_stdout
 
-        return [o for o in organs if o['type'] == 'leaf']
+        leaf_organs = [o for o in organs if o['type'] == 'leaf']
+
+        # Apply per-leaf collar straightening
+        from .skeleton_postprocess import straighten_base
+        for i, organ in enumerate(leaf_organs):
+            pos = i  # organs are ordered by position
+            offset = pos * N_XML_PER_LEAF
+            collar_frac = float(xml_params[offset + 7]) if offset + 7 < len(xml_params) - 1 else 0.3
+            organ['skeleton'] = straighten_base(organ['skeleton'], collar_frac=collar_frac)
+
+        return leaf_organs
 
     except Exception as e:
         print(f"  CPlantBox failed: {e}", file=sys.stderr)
@@ -313,6 +323,8 @@ def fit_plant_hybrid(
         for name in XML_PARAMS:
             if name == 'width_taper':
                 val = 0.0  # default: no taper modification
+            elif name == 'collar_frac':
+                val = 0.3  # default: 30% straight base
             else:
                 val = float(s.get(name, 1.0))
             x0.append(val)
@@ -335,6 +347,9 @@ def fit_plant_hybrid(
             elif name == 'width_taper':
                 bounds_lo.append(-0.5)  # sharper than default
                 bounds_hi.append(1.0)   # much wider
+            elif name == 'collar_frac':
+                bounds_lo.append(0.05)  # minimal straight base
+                bounds_hi.append(0.6)   # up to 60% of leaf is straight
 
     x0.append(14.5)  # stem ln
     bounds_lo.append(8.0)
