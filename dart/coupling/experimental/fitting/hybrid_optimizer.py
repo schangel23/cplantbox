@@ -1,8 +1,9 @@
 """Hybrid CMA-ES (structural, CPU) + gradient descent (deformations, GPU).
 
-CMA-ES searches 56 structural XML params through real CPlantBox.
-For each candidate, gradient descent optimizes 55 deformation params
-through the differentiable PyTorch lofter + GPU Chamfer distance.
+CMA-ES searches structural XML params + per-leaf InitBeta + lnf through
+real CPlantBox. For each candidate, gradient descent optimizes spline-based
+deformation control points + per-leaf width profiles through the
+differentiable PyTorch lofter + GPU Chamfer distance.
 
 CPU workers run CPlantBox in parallel (no CUDA).
 Main thread runs GPU deformation optimization sequentially (no fork issues).
@@ -18,18 +19,31 @@ from pathlib import Path
 import numpy as np
 import torch
 
-from ..diff_lofter.deformations import compute_deformations
+from ..diff_lofter.deformations import (
+    compute_deformations,
+    compute_deformations_spline,
+    make_spline_control_points,
+    SPLINE_DEFORM_NAMES,
+    DEFAULT_N_CP,
+)
 from ..diff_lofter.frames import compute_binormal_field, compute_tangents
 from ..diff_lofter.lofter import compute_arc_fracs, loft_leaf
 from ..losses.chamfer import chamfer_distance
 
 N_POSITIONS = 11
-XML_PARAMS = ['lmax', 'Width_blade', 'theta', 'tropismS', 'tropismAge', 'r', 'width_taper', 'collarLength', 'tropismExponent']
-N_XML_PER_LEAF = len(XML_PARAMS)  # 9
-N_GLOBAL_PARAMS = 2  # stem_ln + stem_tropismS
-N_XML_TOTAL = N_XML_PER_LEAF * N_POSITIONS + N_GLOBAL_PARAMS  # 101
+XML_PARAMS = [
+    'lmax', 'Width_blade', 'theta', 'tropismS', 'tropismAge', 'r',
+    'width_taper', 'collarLength', 'tropismExponent', 'initBeta',
+]
+N_XML_PER_LEAF = len(XML_PARAMS)  # 10
+N_GLOBAL_PARAMS = 3  # stem_ln + stem_tropismS + lnf
+N_XML_TOTAL = N_XML_PER_LEAF * N_POSITIONS + N_GLOBAL_PARAMS
 
+# Legacy sinusoidal names (kept for backward compat)
 DEFORM_AMP_NAMES = ['wave_normal_amp', 'twist_max', 'curl_amp', 'edge_ruffle_amp', 'fold_amp']
+
+# Width profile: 5 leafGeometry x-values per leaf (gradient-optimized)
+N_WIDTH_CP = 5
 
 
 def _grow_and_extract(xml_params, day=60, template_xml=None):
@@ -67,6 +81,7 @@ def _grow_and_extract(xml_params, day=60, template_xml=None):
 
                     collar_len = xml_params[offset + 7]
                     trop_exp = xml_params[offset + 8]
+                    init_beta = xml_params[offset + 9]
 
                     xml_map = {
                         'lmax': lmax_val,
@@ -78,6 +93,7 @@ def _grow_and_extract(xml_params, day=60, template_xml=None):
                         'areaMax': lmax_val * width_val * 2.0 * 0.73,
                         'collarLength': collar_len,
                         'tropismExponent': trop_exp,
+                        'InitBeta': init_beta,
                     }
 
                     for p in organ:
@@ -99,14 +115,17 @@ def _grow_and_extract(xml_params, day=60, template_xml=None):
                                 except (ValueError, IndexError):
                                     pass
             elif organ.get('type') == 'stem':
-                stem_ln = xml_params[-2]
-                stem_tropismS = xml_params[-1]
+                stem_ln = xml_params[-3]
+                stem_tropismS = xml_params[-2]
+                stem_lnf = int(round(xml_params[-1]))
                 for p in organ:
                     name = p.get('name', '')
                     if name == 'ln':
                         p.set('value', str(stem_ln))
                     elif name == 'tropismS':
                         p.set('value', str(stem_tropismS))
+                    elif name == 'lnf':
+                        p.set('value', str(stem_lnf))
 
         tmp = tempfile.NamedTemporaryFile(suffix='.xml', delete=False)
         tree.write(tmp.name)
@@ -147,8 +166,9 @@ def _optimize_deformations(
     device='cuda',
     n_steps=100,
     lr=0.05,
+    n_cp=DEFAULT_N_CP,
 ):
-    """GPU: optimize deformation amplitudes via gradient descent.
+    """GPU: optimize spline deformation control points + width profiles.
 
     Args:
         leaf_organs: list of numpy organ dicts from CPlantBox adapter
@@ -156,20 +176,22 @@ def _optimize_deformations(
         device: cuda device
         n_steps: Adam steps
         lr: learning rate
+        n_cp: number of control points per deformation type
 
     Returns:
-        (best_chamfer_float, best_deform_dict)
+        (best_chamfer_float, best_params_dict)
     """
+    from ..diff_lofter.deformations import _interp_linear
+
     if not leaf_organs:
         return 1e6, {}
 
-    # Pre-compute fixed GPU data for each leaf (skeleton, widths, tangents, binormals, arc_fracs, freqs/phases)
     leaf_data = []
-    deform_params = []  # all requires_grad tensors
+    grad_params = []  # all requires_grad tensors
 
     for organ in leaf_organs:
         skeleton = torch.tensor(organ['skeleton'], dtype=torch.float32, device=device)
-        widths = torch.tensor(organ['widths'], dtype=torch.float32, device=device)
+        widths_base = torch.tensor(organ['widths'], dtype=torch.float32, device=device)
 
         if skeleton.shape[0] < 3:
             continue
@@ -178,75 +200,48 @@ def _optimize_deformations(
         binormals = compute_binormal_field(skeleton, tangents)
         arc_fracs = compute_arc_fracs(skeleton)
 
-        # Initialize deformation amplitudes at 0 (learnable)
-        amps = {
-            'wave_normal_amp': torch.tensor(0.0, device=device, requires_grad=True),
-            'twist_max': torch.tensor(0.0, device=device, requires_grad=True),
-            'curl_amp': torch.tensor(0.0, device=device, requires_grad=True),
-            'edge_ruffle_amp': torch.tensor(0.0, device=device, requires_grad=True),
-            'fold_amp': torch.tensor(0.0, device=device, requires_grad=True),
-        }
-        deform_params.extend(amps.values())
+        # Spline control points for deformations (learnable, init 0)
+        cp = make_spline_control_points(n_cp=n_cp, device=device, requires_grad=True)
+        for v in cp.values():
+            grad_params.append(v)
 
-        # Fixed frequencies/phases from organ dict
-        freqs_phases = {
-            'wave_normal_freq': organ.get('wave_normal_freq', 3.5),
-            'wave_normal_phase': organ.get('wave_normal_phase', 0.0),
-            'wave_lateral_freq': organ.get('wave_lateral_freq', 2.0),
-            'wave_lateral_phase': organ.get('wave_lateral_phase', 0.0),
-            'curl_freq': organ.get('curl_freq', 2.0),
-            'curl_phase': organ.get('curl_phase', 0.0),
-            'edge_ruffle_freq': organ.get('edge_ruffle_freq', 7.0),
-            'edge_ruffle_phase': organ.get('edge_ruffle_phase', 0.0),
-            'fold_freq': organ.get('fold_freq', 2.5),
-            'fold_phase': organ.get('fold_phase', 0.0),
-            'ramp_onset': organ.get('ramp_onset', 0.15),
-        }
+        # Width profile: N_WIDTH_CP multipliers in [0.5, 1.5], init 1.0
+        width_profile = torch.ones(N_WIDTH_CP, device=device, dtype=torch.float32,
+                                   requires_grad=True)
+        grad_params.append(width_profile)
 
         leaf_data.append({
             'skeleton': skeleton,
-            'widths': widths,
+            'widths_base': widths_base,
             'tangents': tangents,
             'binormals': binormals,
             'arc_fracs': arc_fracs,
-            'amps': amps,
-            'freqs_phases': freqs_phases,
+            'cp': cp,
+            'width_profile': width_profile,
+            'ramp_onset': organ.get('ramp_onset', 0.15),
         })
 
-    if not leaf_data or not deform_params:
+    if not leaf_data or not grad_params:
         return 1e6, {}
 
-    optimizer = torch.optim.Adam(deform_params, lr=lr)
+    optimizer = torch.optim.Adam(grad_params, lr=lr)
     best_loss = float('inf')
-    best_amp_values = {}
+    best_params = {}
 
-    for step in range(n_steps):
+    for _step in range(n_steps):
         optimizer.zero_grad()
 
         all_verts = []
         for ld in leaf_data:
-            deforms = compute_deformations(
-                ld['arc_fracs'],
-                wave_normal_amp=ld['amps']['wave_normal_amp'],
-                wave_normal_freq=ld['freqs_phases']['wave_normal_freq'],
-                wave_normal_phase=ld['freqs_phases']['wave_normal_phase'],
-                wave_lateral_amp=ld['amps']['wave_normal_amp'] * 0.3,  # proportional
-                wave_lateral_freq=ld['freqs_phases']['wave_lateral_freq'],
-                wave_lateral_phase=ld['freqs_phases']['wave_lateral_phase'],
-                twist_max=ld['amps']['twist_max'],
-                curl_amp=ld['amps']['curl_amp'],
-                curl_freq=ld['freqs_phases']['curl_freq'],
-                curl_phase=ld['freqs_phases']['curl_phase'],
-                edge_ruffle_amp=ld['amps']['edge_ruffle_amp'],
-                edge_ruffle_freq=ld['freqs_phases']['edge_ruffle_freq'],
-                edge_ruffle_phase=ld['freqs_phases']['edge_ruffle_phase'],
-                fold_amp=ld['amps']['fold_amp'],
-                fold_freq=ld['freqs_phases']['fold_freq'],
-                fold_phase=ld['freqs_phases']['fold_phase'],
-                ramp_onset=ld['freqs_phases']['ramp_onset'],
+            deforms = compute_deformations_spline(
+                ld['arc_fracs'], ld['cp'], ramp_onset=ld['ramp_onset'],
             )
+            # Apply width profile: interpolate multipliers along arc length
+            w_mult = _interp_linear(ld['arc_fracs'], ld['width_profile'])
+            widths = ld['widths_base'] * w_mult
+
             verts = loft_leaf(
-                ld['skeleton'], ld['widths'], deforms,
+                ld['skeleton'], widths, deforms,
                 ld['tangents'], ld['binormals'], n_cross=7,
             )
             all_verts.append(verts)
@@ -259,12 +254,18 @@ def _optimize_deformations(
         loss_val = loss.item()
         if loss_val < best_loss:
             best_loss = loss_val
-            best_amp_values = {
-                i: {name: ld['amps'][name].item() for name in DEFORM_AMP_NAMES}
+            best_params = {
+                i: {
+                    'control_points': {
+                        name: ld['cp'][name].detach().cpu().tolist()
+                        for name in SPLINE_DEFORM_NAMES
+                    },
+                    'width_profile': ld['width_profile'].detach().cpu().tolist(),
+                }
                 for i, ld in enumerate(leaf_data)
             }
 
-    return best_loss, best_amp_values
+    return best_loss, best_params
 
 
 def fit_plant_hybrid(
@@ -321,6 +322,8 @@ def fit_plant_hybrid(
                 val = 10.0  # default: 10cm straight base
             elif name == 'tropismExponent':
                 val = 1.0  # default: uniform curvature
+            elif name == 'initBeta':
+                val = 0.2  # default initial radial rotation
             else:
                 val = float(s.get(name, 1.0))
             x0.append(val)
@@ -349,6 +352,9 @@ def fit_plant_hybrid(
             elif name == 'tropismExponent':
                 bounds_lo.append(0.5)   # more uniform than default
                 bounds_hi.append(5.0)   # very tip-concentrated
+            elif name == 'initBeta':
+                bounds_lo.append(-3.14)  # full azimuthal range
+                bounds_hi.append(3.14)
 
     # Global params
     x0.append(14.5)  # stem ln
@@ -358,6 +364,10 @@ def fit_plant_hybrid(
     x0.append(0.002)  # stem tropismS (slight lean)
     bounds_lo.append(0.0)
     bounds_hi.append(0.015)
+
+    x0.append(0.0)  # lnf: internode length function type (0=homogeneous)
+    bounds_lo.append(0.0)
+    bounds_hi.append(5.0)  # integer types 0-5
 
     x0 = np.array(x0)
     bounds_lo = np.array(bounds_lo)
@@ -401,7 +411,8 @@ def fit_plant_hybrid(
     es = cma.CMAEvolutionStrategy(x0, sigma0, opts)
 
     n_workers = min(n_workers, mp.cpu_count())
-    print(f"Hybrid: {N_XML_TOTAL} CMA-ES dims + {len(DEFORM_AMP_NAMES)*N_POSITIONS} grad dims, "
+    n_grad_dims = (len(SPLINE_DEFORM_NAMES) * DEFAULT_N_CP + N_WIDTH_CP) * N_POSITIONS
+    print(f"Hybrid: {N_XML_TOTAL} CMA-ES dims + {n_grad_dims} grad dims, "
           f"{max_evals} max evals, {n_workers} CPU workers", file=sys.stderr)
 
     counter = 0
@@ -439,9 +450,9 @@ def fit_plant_hybrid(
 
     return {
         'xml_params': res.xbest.tolist(),
-        'xml_param_names': XML_PARAMS + ['stem_ln'],
+        'xml_param_names': XML_PARAMS + ['stem_ln', 'stem_tropismS', 'lnf'],
         'deform_params': best_deforms,
-        'deform_param_names': DEFORM_AMP_NAMES,
+        'deform_param_names': list(SPLINE_DEFORM_NAMES) + ['width_profile'],
         'best_loss': float(res.fbest),
         'initial_loss': float(init_loss),
         'n_evals': counter,

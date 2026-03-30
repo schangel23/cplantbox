@@ -108,3 +108,96 @@ def compute_deformations(
         "edge_ruffle": edge_ruffle,
         "fold": fold,
     }
+
+
+# --- Spline-based deformations (replacement for sinusoidal model) ---
+
+SPLINE_DEFORM_NAMES = ['wave_normal', 'wave_lateral', 'twist', 'curl', 'edge_ruffle', 'fold']
+DEFAULT_N_CP = 5  # number of control points per deformation type
+
+
+def _interp_linear(arc_fracs: torch.Tensor, cp_values: torch.Tensor) -> torch.Tensor:
+    """Differentiable linear interpolation of control points along arc length.
+
+    Control points are assumed to be evenly spaced in [0, 1].
+
+    Args:
+        arc_fracs: (N,) normalized arc lengths in [0, 1].
+        cp_values: (K,) control point values at positions [0, 1/(K-1), ..., 1].
+
+    Returns:
+        (N,) interpolated values.
+    """
+    k = cp_values.shape[0]
+    if k == 1:
+        return cp_values[0].expand_as(arc_fracs)
+
+    # Map arc_fracs to continuous index [0, K-1]
+    t = arc_fracs * (k - 1)
+    t = torch.clamp(t, 0.0, k - 1.0 - 1e-6)
+    idx_lo = t.long()                     # (N,) integer floor index
+    idx_hi = (idx_lo + 1).clamp(max=k-1)  # (N,) integer ceil index
+    frac = t - idx_lo.float()             # (N,) fractional part
+
+    val_lo = cp_values[idx_lo]  # (N,)
+    val_hi = cp_values[idx_hi]  # (N,)
+
+    return val_lo + frac * (val_hi - val_lo)
+
+
+def compute_deformations_spline(
+    arc_fracs: torch.Tensor,
+    control_points: dict[str, torch.Tensor],
+    ramp_onset: float = 0.15,
+) -> dict[str, torch.Tensor]:
+    """Compute per-skeleton-point deformations via spline control points.
+
+    Replaces the sinusoidal model. Each deformation type has K learnable control
+    points evenly spaced in [0,1] along the leaf. Values are linearly interpolated
+    and multiplied by a ramp (zero at base, full at tip).
+
+    Args:
+        arc_fracs: (N,) normalized arc lengths in [0, 1].
+        control_points: Dict mapping deformation name to (K,) control point tensor.
+            Required keys: wave_normal, wave_lateral, twist, curl, edge_ruffle, fold.
+        ramp_onset: Fraction of leaf length where deformation begins.
+
+    Returns:
+        Dict with same keys as compute_deformations(), each (N,) tensor.
+    """
+    denom = max(1.0 - ramp_onset, 1e-12)
+    ramp = torch.clamp((arc_fracs - ramp_onset) / denom, min=0.0)
+    ramp_sq = ramp * ramp  # quadratic for twist
+
+    result = {}
+    for name in SPLINE_DEFORM_NAMES:
+        cp = control_points[name]
+        interp = _interp_linear(arc_fracs, cp)
+        if name == 'twist':
+            result[name] = interp * ramp_sq
+        else:
+            result[name] = interp * ramp
+
+    return result
+
+
+def make_spline_control_points(
+    n_cp: int = DEFAULT_N_CP,
+    device: str = 'cpu',
+    requires_grad: bool = True,
+) -> dict[str, torch.Tensor]:
+    """Create zero-initialized learnable control points for all deformation types.
+
+    Args:
+        n_cp: Number of control points per deformation type.
+        device: Torch device.
+        requires_grad: Whether tensors track gradients.
+
+    Returns:
+        Dict mapping deformation name to (n_cp,) tensor.
+    """
+    return {
+        name: torch.zeros(n_cp, device=device, dtype=torch.float32,
+                          requires_grad=requires_grad)
+        for name in SPLINE_DEFORM_NAMES
+    }

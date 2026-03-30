@@ -119,6 +119,10 @@ public:
 	double tropismExponent = 1.;		///< Exponent for position-dependent tropism strength (1=uniform, >1=tip-heavy)
 	double tropismExponents = 0.;		///< Standard deviation of tropism exponent
 
+	/* curvature spline profile: defines position-dependent curvature along the leaf */
+	std::vector<double> leafCurvaturePhi = {};   ///< Normalized positions [0,1] along leaf for curvature profile knots
+	std::vector<double> leafCurvatureKappa = {}; ///< Curvature magnitudes at each knot position [1/cm]
+
 	/* describes the plant geometry */
 	std::vector<double> leafGeometryPhi= {}; //2D shape
 	std::vector<double> leafGeometryX= {};//2D shape

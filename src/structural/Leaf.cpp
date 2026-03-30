@@ -828,10 +828,29 @@ Vector3d Leaf::getIncrement(const Vector3d& p, double sdx, int n)
 	// exponent=1 → uniform (default), exponent>1 → curvature concentrated at tip
 	double baseSigma = getLeafRandomParameter()->tropismS;
 	double effectiveSigma = baseSigma;
-	double tExp = getLeafRandomParameter()->tropismExponent;
-	if(tExp != 1.0 && getLeafRandomParameter()->lmax > 0) {
+	auto& curvPhi = getLeafRandomParameter()->leafCurvaturePhi;
+	auto& curvKappa = getLeafRandomParameter()->leafCurvatureKappa;
+	if (curvPhi.size() >= 2 && curvPhi.size() == curvKappa.size() && getLeafRandomParameter()->lmax > 0) {
+	    // Curvature spline profile: linearly interpolate kappa at current position
 	    double lengthFrac = std::min(getLength(n) / getLeafRandomParameter()->lmax, 1.0);
-	    effectiveSigma = baseSigma * std::pow(lengthFrac, tExp);
+	    // Find the interval [phi_i, phi_{i+1}] containing lengthFrac
+	    double kappa = curvKappa.back(); // default: clamp to last value
+	    for (size_t i = 0; i < curvPhi.size() - 1; i++) {
+	        if (lengthFrac <= curvPhi[i+1]) {
+	            double t = (curvPhi[i+1] > curvPhi[i]) ?
+	                (lengthFrac - curvPhi[i]) / (curvPhi[i+1] - curvPhi[i]) : 0.0;
+	            t = std::max(0.0, std::min(1.0, t));
+	            kappa = curvKappa[i] * (1.0 - t) + curvKappa[i+1] * t;
+	            break;
+	        }
+	    }
+	    effectiveSigma = kappa;
+	} else {
+	    double tExp = getLeafRandomParameter()->tropismExponent;
+	    if(tExp != 1.0 && getLeafRandomParameter()->lmax > 0) {
+	        double lengthFrac = std::min(getLength(n) / getLeafRandomParameter()->lmax, 1.0);
+	        effectiveSigma = baseSigma * std::pow(lengthFrac, tExp);
+	    }
 	}
 	if((isPseudoStem && isSheath) || inCollar){effectiveSigma = 0.;}
 	getLeafRandomParameter()->f_tf->setSigma(effectiveSigma);

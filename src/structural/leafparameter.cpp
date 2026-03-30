@@ -298,6 +298,18 @@ std::string LeafRandomParameter::toString(bool verbose) const {
             str << leafGeometryX[i] << " ";
         }
         str << "\t" << description.at("leafGeometryX") << std::endl;
+        if (leafCurvaturePhi.size() > 0) {
+            str << "leafCurvaturePhi\t";
+            for (size_t i=0; i<leafCurvaturePhi.size(); i++) {
+                str << leafCurvaturePhi[i] << " ";
+            }
+            str << "\t" << description.at("leafCurvaturePhi") << std::endl;
+            str << "leafCurvatureKappa\t";
+            for (size_t i=0; i<leafCurvatureKappa.size(); i++) {
+                str << leafCurvatureKappa[i] << " ";
+            }
+            str << "\t" << description.at("leafCurvatureKappa") << std::endl;
+        }
 
         return s.insert(s.length(), str.str());
     } else {
@@ -332,6 +344,8 @@ void LeafRandomParameter::readXML(tinyxml2::XMLElement* element, bool verbose)
     tinyxml2::XMLElement* p = element->FirstChildElement("parameter");
     leafGeometryPhi.resize(0);
     leafGeometryX.resize(0);
+    leafCurvaturePhi.resize(0);
+    leafCurvatureKappa.resize(0);
     while(p) {
         std::string key = p->Attribute("name");
         if (key.compare("leafGeometry")==0)  {
@@ -344,6 +358,18 @@ void LeafRandomParameter::readXML(tinyxml2::XMLElement* element, bool verbose)
                 leafGeometryX.insert(leafGeometryX.end(), leafGeometryX_.begin(), leafGeometryX_.end());
             }else{
                 throw std::invalid_argument ("LeafRandomParameter::readXML: 'x' or 'phi' tag not found in leafGeometry parameter description");
+            }
+        }
+        if (key.compare("leafCurvature")==0)  {
+            if((p->Attribute("phi"))&&(p->Attribute("kappa")))
+            {
+                std::vector<double> phi_ = string2vector(p->Attribute("phi"),0.0);
+                leafCurvaturePhi.insert(leafCurvaturePhi.end(), phi_.begin(), phi_.end());
+
+                std::vector<double> kappa_ = string2vector(p->Attribute("kappa"),0.0);
+                leafCurvatureKappa.insert(leafCurvatureKappa.end(), kappa_.begin(), kappa_.end());
+            }else{
+                throw std::invalid_argument ("LeafRandomParameter::readXML: 'phi' or 'kappa' tag not found in leafCurvature parameter description");
             }
         }
         p = p->NextSiblingElement("parameter");
@@ -370,6 +396,18 @@ tinyxml2::XMLElement* LeafRandomParameter::writeXML(tinyxml2::XMLDocument& doc, 
         element->InsertEndChild(p);
         if (comments) {
             std::string str = description.at("leafGeometryPhi");
+            tinyxml2::XMLComment* c = doc.NewComment(str.c_str());
+            element->InsertEndChild(c);
+        }
+    }
+    for (size_t i = 0; i<leafCurvaturePhi.size(); i++) {
+        tinyxml2::XMLElement* p = doc.NewElement("parameter");
+        p->SetAttribute("name", "leafCurvature");
+        p->SetAttribute("phi", leafCurvaturePhi[i]);
+        p->SetAttribute("kappa", leafCurvatureKappa[i]);
+        element->InsertEndChild(p);
+        if (comments) {
+            std::string str = description.at("leafCurvaturePhi");
             tinyxml2::XMLComment* c = doc.NewComment(str.c_str());
             element->InsertEndChild(c);
         }
@@ -412,6 +450,8 @@ void LeafRandomParameter::bindParameters()
     // other parameters (descriptions only)
     description["leafGeometryPhi"] = "Leaf geometry parametrisation parameter";
     description["leafGeometryX"] = "Leaf geometry parametrisation";
+    description["leafCurvaturePhi"] = "Leaf curvature spline knot positions [0,1]";
+    description["leafCurvatureKappa"] = "Leaf curvature spline magnitudes [1/cm]";
 }
 
 /**

@@ -151,6 +151,61 @@ class TestDeformations:
         assert amp.grad is not None and amp.grad.item() != 0.0
 
 
+class TestSplineDeformations:
+    def test_output_shapes(self):
+        from dart.coupling.experimental.diff_lofter.deformations import (
+            compute_deformations_spline, make_spline_control_points, SPLINE_DEFORM_NAMES,
+        )
+        n = 30
+        arc_fracs = torch.linspace(0, 1, n)
+        cp = make_spline_control_points(n_cp=5, requires_grad=False)
+        deforms = compute_deformations_spline(arc_fracs, cp)
+        for key in SPLINE_DEFORM_NAMES:
+            assert key in deforms, f"Missing key: {key}"
+            assert deforms[key].shape == (n,), f"{key} shape: {deforms[key].shape}"
+
+    def test_ramp_zero_at_base(self):
+        from dart.coupling.experimental.diff_lofter.deformations import (
+            compute_deformations_spline, SPLINE_DEFORM_NAMES,
+        )
+        arc_fracs = torch.linspace(0, 1, 50)
+        # Non-zero control points — ramp should still kill base
+        cp = {name: torch.ones(5) for name in SPLINE_DEFORM_NAMES}
+        deforms = compute_deformations_spline(arc_fracs, cp, ramp_onset=0.15)
+        for key in deforms:
+            assert abs(deforms[key][0].item()) < 1e-6, f"{key} non-zero at base"
+
+    def test_gradient_flows(self):
+        from dart.coupling.experimental.diff_lofter.deformations import (
+            compute_deformations_spline, make_spline_control_points, SPLINE_DEFORM_NAMES,
+        )
+        arc_fracs = torch.linspace(0, 1, 20)
+        cp = make_spline_control_points(n_cp=5, requires_grad=True)
+        deforms = compute_deformations_spline(arc_fracs, cp)
+        loss = sum(d.sum() for d in deforms.values())
+        loss.backward()
+        for name in SPLINE_DEFORM_NAMES:
+            assert cp[name].grad is not None, f"No grad on {name}"
+            assert cp[name].grad.abs().sum() > 0, f"Zero grad on {name}"
+
+    def test_interpolation_monotonic(self):
+        """Linear interp of [0,1,2,3,4] should give monotonic output."""
+        from dart.coupling.experimental.diff_lofter.deformations import _interp_linear
+        arc_fracs = torch.linspace(0, 1, 100)
+        cp = torch.tensor([0.0, 1.0, 2.0, 3.0, 4.0])
+        interp = _interp_linear(arc_fracs, cp)
+        diffs = interp[1:] - interp[:-1]
+        assert (diffs >= -1e-6).all(), "Interpolation not monotonic"
+
+    def test_single_control_point(self):
+        """Single CP should produce constant value."""
+        from dart.coupling.experimental.diff_lofter.deformations import _interp_linear
+        arc_fracs = torch.linspace(0, 1, 20)
+        cp = torch.tensor([3.14])
+        interp = _interp_linear(arc_fracs, cp)
+        assert torch.allclose(interp, torch.full((20,), 3.14))
+
+
 class TestLofter:
     def test_output_shape(self):
         from dart.coupling.experimental.diff_lofter.lofter import loft_leaf
