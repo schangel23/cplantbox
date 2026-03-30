@@ -1,9 +1,12 @@
 """Hybrid CMA-ES (structural, CPU) + gradient descent (deformations, GPU).
 
-CMA-ES searches structural XML params + per-leaf InitBeta + lnf through
-real CPlantBox. For each candidate, gradient descent optimizes spline-based
-deformation control points + per-leaf width profiles through the
+CMA-ES searches structural XML params + curvature spline + per-leaf InitBeta
++ lnf through real CPlantBox. For each candidate, gradient descent optimizes
+spline-based deformation control points + per-leaf width profiles through the
 differentiable PyTorch lofter + GPU Chamfer distance.
+
+Deformation CPs are clamped to [-1.5, 1.5], width profiles to [0.05, 3.0],
+and a regularization term penalizes extreme values.
 
 CPU workers run CPlantBox in parallel (no CUDA).
 Main thread runs GPU deformation optimization sequentially (no fork issues).
@@ -31,26 +34,39 @@ from ..diff_lofter.lofter import compute_arc_fracs, loft_leaf
 from ..losses.chamfer import chamfer_distance
 
 N_POSITIONS = 11
+
+# Per-leaf CMA-ES params: structural + curvature spline (3 kappa knots)
 XML_PARAMS = [
     'lmax', 'Width_blade', 'theta', 'tropismS', 'tropismAge', 'r',
-    'width_taper', 'collarLength', 'tropismExponent', 'initBeta',
+    'collarLength', 'initBeta', 'kappa_base', 'kappa_mid', 'kappa_tip',
 ]
-N_XML_PER_LEAF = len(XML_PARAMS)  # 10
+N_XML_PER_LEAF = len(XML_PARAMS)  # 11
 N_GLOBAL_PARAMS = 3  # stem_ln + stem_tropismS + lnf
 N_XML_TOTAL = N_XML_PER_LEAF * N_POSITIONS + N_GLOBAL_PARAMS
 
 # Legacy sinusoidal names (kept for backward compat)
 DEFORM_AMP_NAMES = ['wave_normal_amp', 'twist_max', 'curl_amp', 'edge_ruffle_amp', 'fold_amp']
 
-# Width profile: 5 leafGeometry x-values per leaf (gradient-optimized)
+# Width profile: 5 control points per leaf (gradient-optimized)
 N_WIDTH_CP = 5
+
+# Clamping limits for gradient-optimized params
+DEFORM_CP_CLAMP = 1.5
+WIDTH_PROFILE_MIN = 0.05
+WIDTH_PROFILE_MAX = 3.0
+
+# Regularization weight
+REG_WEIGHT = 0.01
+
+# Curvature spline knot positions (fixed)
+CURVATURE_PHI = [0.0, 0.5, 1.0]
 
 
 def _grow_and_extract(xml_params, day=60, template_xml=None):
     """CPU-only: run CPlantBox with given structural params, return leaf organ dicts.
 
     Args:
-        xml_params: (78,) array — 7 XML params × 11 positions + stem_ln
+        xml_params: array of CMA-ES params
         day: simulation days
         template_xml: path to calibrated XML template
 
@@ -77,11 +93,12 @@ def _grow_and_extract(xml_params, day=60, template_xml=None):
                     lmax_val = xml_params[offset + 0]
                     width_val = xml_params[offset + 1]
                     r_val = xml_params[offset + 5]
-                    width_taper = xml_params[offset + 6]  # 0=sharp taper, 1=full width
 
-                    collar_len = xml_params[offset + 7]
-                    trop_exp = xml_params[offset + 8]
-                    init_beta = xml_params[offset + 9]
+                    collar_len = xml_params[offset + 6]
+                    init_beta = xml_params[offset + 7]
+                    kappa_base = xml_params[offset + 8]
+                    kappa_mid = xml_params[offset + 9]
+                    kappa_tip = xml_params[offset + 10]
 
                     xml_map = {
                         'lmax': lmax_val,
@@ -92,28 +109,26 @@ def _grow_and_extract(xml_params, day=60, template_xml=None):
                         'r': r_val,
                         'areaMax': lmax_val * width_val * 2.0 * 0.73,
                         'collarLength': collar_len,
-                        'tropismExponent': trop_exp,
                         'InitBeta': init_beta,
                     }
 
+                    # Remove existing leafCurvature elements
+                    to_remove = []
                     for p in organ:
                         name = p.get('name', '')
                         if name in xml_map:
                             p.set('value', str(xml_map[name]))
-                        elif name == 'leafGeometry':
-                            geom_str = p.get('value', '')
-                            if geom_str:
-                                try:
-                                    pairs = [x.strip().split() for x in geom_str.split(',')]
-                                    new_pairs = []
-                                    for phi_s, x_s in pairs:
-                                        phi = float(phi_s)
-                                        x = float(x_s)
-                                        x_new = x + width_taper * (1.0 - x) * 0.5
-                                        new_pairs.append(f"{phi} {x_new:.4f}")
-                                    p.set('value', ', '.join(new_pairs))
-                                except (ValueError, IndexError):
-                                    pass
+                        elif name == 'leafCurvature':
+                            to_remove.append(p)
+                    for p in to_remove:
+                        organ.remove(p)
+
+                    # Add curvature spline element
+                    curv_elem = ET.SubElement(organ, 'parameter')
+                    curv_elem.set('name', 'leafCurvature')
+                    curv_elem.set('phi', ' '.join(str(v) for v in CURVATURE_PHI))
+                    curv_elem.set('kappa', f'{kappa_base} {kappa_mid} {kappa_tip}')
+
             elif organ.get('type') == 'stem':
                 stem_ln = xml_params[-3]
                 stem_tropismS = xml_params[-2]
@@ -170,6 +185,8 @@ def _optimize_deformations(
 ):
     """GPU: optimize spline deformation control points + width profiles.
 
+    Includes clamping and regularization to prevent unrealistic geometry.
+
     Args:
         leaf_organs: list of numpy organ dicts from CPlantBox adapter
         target_pc: (M, 3) torch tensor on GPU
@@ -205,7 +222,7 @@ def _optimize_deformations(
         for v in cp.values():
             grad_params.append(v)
 
-        # Width profile: N_WIDTH_CP multipliers in [0.5, 1.5], init 1.0
+        # Width profile: N_WIDTH_CP multipliers, init 1.0
         width_profile = torch.ones(N_WIDTH_CP, device=device, dtype=torch.float32,
                                    requires_grad=True)
         grad_params.append(width_profile)
@@ -232,6 +249,8 @@ def _optimize_deformations(
         optimizer.zero_grad()
 
         all_verts = []
+        reg_loss = torch.tensor(0.0, device=device)
+
         for ld in leaf_data:
             deforms = compute_deformations_spline(
                 ld['arc_fracs'], ld['cp'], ramp_onset=ld['ramp_onset'],
@@ -246,14 +265,28 @@ def _optimize_deformations(
             )
             all_verts.append(verts)
 
+            # Regularization: penalize large deformation CPs and extreme width profiles
+            for cp_tensor in ld['cp'].values():
+                reg_loss = reg_loss + (cp_tensor ** 2).sum()
+            reg_loss = reg_loss + ((ld['width_profile'] - 1.0) ** 2).sum()
+
         gen_pc = torch.cat(all_verts, dim=0)
-        loss = chamfer_distance(gen_pc, target_pc)
+        loss = chamfer_distance(gen_pc, target_pc) + REG_WEIGHT * reg_loss
         loss.backward()
         optimizer.step()
 
-        loss_val = loss.item()
-        if loss_val < best_loss:
-            best_loss = loss_val
+        # Clamp after step
+        with torch.no_grad():
+            for ld in leaf_data:
+                for cp_tensor in ld['cp'].values():
+                    cp_tensor.clamp_(-DEFORM_CP_CLAMP, DEFORM_CP_CLAMP)
+                ld['width_profile'].clamp_(WIDTH_PROFILE_MIN, WIDTH_PROFILE_MAX)
+
+        # Track best (use Chamfer only, not regularized loss)
+        with torch.no_grad():
+            chamfer_only = chamfer_distance(gen_pc.detach(), target_pc).item()
+        if chamfer_only < best_loss:
+            best_loss = chamfer_only
             best_params = {
                 i: {
                     'control_points': {
@@ -308,7 +341,7 @@ def fit_plant_hybrid(
     if not isinstance(per_pos, list):
         per_pos = [per_pos[str(i)] for i in range(N_POSITIONS)]
 
-    # Build x0 and bounds for 78 structural params
+    # Build x0 and bounds
     x0 = []
     bounds_lo = []
     bounds_hi = []
@@ -316,14 +349,12 @@ def fit_plant_hybrid(
     for pos in range(N_POSITIONS):
         s = per_pos[pos]
         for name in XML_PARAMS:
-            if name == 'width_taper':
-                val = 0.0  # default: no taper modification
-            elif name == 'collarLength':
-                val = 10.0  # default: 10cm straight base
-            elif name == 'tropismExponent':
-                val = 1.0  # default: uniform curvature
+            if name == 'collarLength':
+                val = 10.0
             elif name == 'initBeta':
-                val = 0.2  # default initial radial rotation
+                val = 0.2
+            elif name in ('kappa_base', 'kappa_mid', 'kappa_tip'):
+                val = 0.0  # no curvature by default
             else:
                 val = float(s.get(name, 1.0))
             x0.append(val)
@@ -332,8 +363,8 @@ def fit_plant_hybrid(
                 bounds_lo.append(max(val * 0.3, 1.0))
                 bounds_hi.append(val * 2.5)
             elif name == 'theta':
-                bounds_lo.append(0.01)
-                bounds_hi.append(1.5)
+                bounds_lo.append(0.15)   # prevent near-vertical
+                bounds_hi.append(1.4)
             elif name == 'tropismS':
                 bounds_lo.append(0.0005)
                 bounds_hi.append(0.1)
@@ -343,18 +374,21 @@ def fit_plant_hybrid(
             elif name == 'r':
                 bounds_lo.append(max(val * 0.3, 0.5))
                 bounds_hi.append(val * 3.0)
-            elif name == 'width_taper':
-                bounds_lo.append(-0.5)
-                bounds_hi.append(1.0)
             elif name == 'collarLength':
-                bounds_lo.append(0.0)   # no collar (default)
-                bounds_hi.append(30.0)  # up to 30cm straight base
-            elif name == 'tropismExponent':
-                bounds_lo.append(0.5)   # more uniform than default
-                bounds_hi.append(5.0)   # very tip-concentrated
+                bounds_lo.append(0.0)
+                bounds_hi.append(30.0)
             elif name == 'initBeta':
-                bounds_lo.append(-3.14)  # full azimuthal range
+                bounds_lo.append(-3.14)
                 bounds_hi.append(3.14)
+            elif name == 'kappa_base':
+                bounds_lo.append(0.0)    # base is usually straight (collar)
+                bounds_hi.append(0.05)
+            elif name == 'kappa_mid':
+                bounds_lo.append(0.0)
+                bounds_hi.append(0.15)   # moderate curvature mid-leaf
+            elif name == 'kappa_tip':
+                bounds_lo.append(0.0)
+                bounds_hi.append(0.25)   # strongest curvature at tip
 
     # Global params
     x0.append(14.5)  # stem ln
@@ -367,7 +401,7 @@ def fit_plant_hybrid(
 
     x0.append(0.0)  # lnf: internode length function type (0=homogeneous)
     bounds_lo.append(0.0)
-    bounds_hi.append(5.0)  # integer types 0-5
+    bounds_hi.append(5.0)
 
     x0 = np.array(x0)
     bounds_lo = np.array(bounds_lo)
@@ -414,6 +448,10 @@ def fit_plant_hybrid(
     n_grad_dims = (len(SPLINE_DEFORM_NAMES) * DEFAULT_N_CP + N_WIDTH_CP) * N_POSITIONS
     print(f"Hybrid: {N_XML_TOTAL} CMA-ES dims + {n_grad_dims} grad dims, "
           f"{max_evals} max evals, {n_workers} CPU workers", file=sys.stderr)
+    print(f"  Curvature spline: {len(CURVATURE_PHI)} knots per leaf", file=sys.stderr)
+    print(f"  Deform clamp: ±{DEFORM_CP_CLAMP}, width clamp: [{WIDTH_PROFILE_MIN}, {WIDTH_PROFILE_MAX}]",
+          file=sys.stderr)
+    print(f"  Regularization weight: {REG_WEIGHT}", file=sys.stderr)
 
     counter = 0
     best_deforms = {}
