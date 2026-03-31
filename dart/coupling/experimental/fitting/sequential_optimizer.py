@@ -182,6 +182,13 @@ def _optimize_deformations(leaf_organs, target_pc, device='cuda', n_steps=100, l
         loss.backward()
         optimizer.step()
 
+        # Clamp to prevent unrealistic deformations
+        with torch.no_grad():
+            for ld in leaf_data:
+                for t in ld['cp'].values():
+                    t.clamp_(-1.5, 1.5)
+                ld['width_profile'].clamp_(0.2, 2.5)
+
         loss_val = loss.item()
         if loss_val < best_loss:
             best_loss = loss_val
