@@ -326,18 +326,8 @@ def fit_plant_multistage(
     print(f"  Target sizes: {[len(t) for t in targets_np]}", file=sys.stderr)
 
     # ========== PHASE 1: Fit stem (3D) — sum Chamfer across all stages ==========
-    print(f"\n=== PHASE 1: Stem fitting (3D, {stem_evals} evals, {n_stages} stages) ===",
-          file=sys.stderr)
-
-    def eval_stem_multi(x):
-        sp = {'ln': x[0], 'tropismS': x[1], 'lnf': x[2]}
-        total = 0.0
-        for i, day in enumerate(days):
-            organs = _grow_single(sp, leaf_params_list, day=day, template_xml=template_xml)
-            if organs is None:
-                return 1e6
-            total += _fast_chamfer(organs, targets_gpu[i], device)
-        return total / n_stages
+    print(f"\n=== PHASE 1: Stem fitting (3D, {stem_evals} evals, {n_stages} stages, "
+          f"{n_workers} workers) ===", file=sys.stderr)
 
     opts = cma.CMAOptions()
     opts['maxfevals'] = stem_evals
@@ -349,7 +339,26 @@ def fit_plant_multistage(
     es = cma.CMAEvolutionStrategy([14.5, 0.002, 0.0], 0.3, opts)
     while not es.stop():
         solutions = es.ask()
-        fitnesses = [eval_stem_multi(x) for x in solutions]
+
+        # Parallel: grow each candidate at all stages
+        grow_args = []
+        for x in solutions:
+            sp = {'ln': x[0], 'tropismS': x[1], 'lnf': x[2]}
+            grow_args.append((sp, leaf_params_list, days, template_xml))
+
+        with mp.Pool(min(n_workers, len(solutions))) as pool:
+            all_results = pool.map(_grow_worker_multi, grow_args)
+
+        fitnesses = []
+        for organs_per_stage in all_results:
+            total = 0.0
+            for organs, tgt in zip(organs_per_stage, targets_gpu):
+                if organs is None:
+                    total += 1e6
+                else:
+                    total += _fast_chamfer(organs, tgt, device)
+            fitnesses.append(total / n_stages)
+
         es.tell(solutions, fitnesses)
 
     best_stem = es.result.xbest
@@ -358,24 +367,13 @@ def fit_plant_multistage(
           f"avg_chamfer={es.result.fbest:.2f}", file=sys.stderr)
 
     # ========== PHASE 2: Fit each leaf (11D) — sum Chamfer across all stages ==========
-    print(f"\n=== PHASE 2: Per-leaf fitting (11D × {N_POSITIONS}, {leaf_evals} evals each, "
-          f"{n_stages} stages) ===", file=sys.stderr)
+    print(f"\n=== PHASE 2: Per-leaf fitting (11D x {N_POSITIONS}, {leaf_evals} evals each, "
+          f"{n_stages} stages, {n_workers} workers) ===", file=sys.stderr)
 
     per_leaf_losses = []
 
     for pos in range(N_POSITIONS):
         x0, lo, hi = _leaf_bounds(per_pos[pos])
-
-        def eval_leaf_multi(x, _pos=pos):
-            lp = list(leaf_params_list)
-            lp[_pos] = _leaf_params_from_vec(x)
-            total = 0.0
-            for i, day in enumerate(days):
-                organs = _grow_single(stem_params, lp, day=day, template_xml=template_xml)
-                if organs is None:
-                    return 1e6
-                total += _fast_chamfer(organs, targets_gpu[i], device)
-            return total / n_stages
 
         opts = cma.CMAOptions()
         opts['maxfevals'] = leaf_evals
@@ -390,7 +388,7 @@ def fit_plant_multistage(
 
         while not es.stop():
             solutions = es.ask()
-            # Parallel: grow each candidate at ALL stages
+
             grow_args = []
             for x in solutions:
                 lp = list(leaf_params_list)
@@ -400,7 +398,6 @@ def fit_plant_multistage(
             with mp.Pool(min(n_workers, len(solutions))) as pool:
                 all_results = pool.map(_grow_worker_multi, grow_args)
 
-            # Evaluate multi-stage Chamfer
             fitnesses = []
             for organs_per_stage in all_results:
                 total = 0.0
