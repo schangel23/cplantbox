@@ -8,6 +8,7 @@ independent. No clamping or regularization on deformations.
 """
 
 import json
+import multiprocessing as mp
 import os
 import sys
 import tempfile
@@ -278,6 +279,56 @@ def _leaf_bounds(stats_pos):
     return np.array(x0), np.array(lo), np.array(hi)
 
 
+def _grow_worker(args):
+    """CPU worker: grow plant and return leaf organs. No CUDA."""
+    stem_params, leaf_params_list, day, template_xml = args
+    return _grow_single(stem_params, leaf_params_list, day=day, template_xml=template_xml)
+
+
+def _eval_batch(solutions, stem_params, leaf_params_list, pos, per_pos,
+                target_gpu, device, deform_steps, deform_lr, day, template_xml,
+                n_workers):
+    """Evaluate a batch: parallel CPU growth + sequential GPU deformation.
+
+    Args:
+        solutions: list of CMA-ES candidate vectors
+        pos: which leaf position is being optimized (-1 for stem)
+        Other args: context for growth and evaluation
+
+    Returns:
+        list of fitness values
+    """
+    # Build per-candidate param lists (CPU)
+    grow_args = []
+    for x in solutions:
+        if pos < 0:
+            # Stem fitting
+            sp = {'ln': x[0], 'tropismS': x[1], 'lnf': x[2]}
+            grow_args.append((sp, leaf_params_list, day, template_xml))
+        else:
+            # Leaf fitting
+            lp = list(leaf_params_list)
+            lp[pos] = _leaf_params_from_vec(x, per_pos[pos])
+            grow_args.append((stem_params, lp, day, template_xml))
+
+    # Parallel CPU growth
+    with mp.Pool(min(n_workers, len(solutions))) as pool:
+        all_organs = pool.map(_grow_worker, grow_args)
+
+    # Sequential GPU deformation optimization
+    fitnesses = []
+    for organs in all_organs:
+        if organs is None:
+            fitnesses.append(1e6)
+            continue
+        chamfer, _ = _optimize_deformations(
+            organs, target_gpu, device, deform_steps, deform_lr
+        )
+        fitnesses.append(chamfer)
+
+    return fitnesses
+
+
 def fit_plant_sequential(
     target_points,
     stats_path,
@@ -289,8 +340,12 @@ def fit_plant_sequential(
     device='cuda',
     seed=42,
     template_xml=None,
+    n_workers=16,
 ):
     """Sequential fitting: stem → each leaf independently.
+
+    CPlantBox growth is parallelized across CPU workers.
+    GPU deformation optimization runs sequentially (CUDA not fork-safe).
 
     Args:
         target_points: (N, 3) numpy array
@@ -303,11 +358,14 @@ def fit_plant_sequential(
         device: torch device
         seed: random seed
         template_xml: calibrated XML path
+        n_workers: CPU workers for parallel CPlantBox growth
 
     Returns:
         dict with fitted params, per-leaf losses, total loss
     """
     import cma
+
+    n_workers = min(n_workers, mp.cpu_count())
 
     with open(stats_path) as f:
         stats = json.load(f)
@@ -342,15 +400,8 @@ def fit_plant_sequential(
     target_gpu = torch.tensor(target_sub, dtype=torch.float32, device=device)
 
     # ========== PHASE 1: Fit stem (3D) ==========
-    print(f"\n=== PHASE 1: Stem fitting (3D, {stem_evals} evals) ===", file=sys.stderr)
-
-    def eval_stem(x):
-        sp = {'ln': x[0], 'tropismS': x[1], 'lnf': x[2]}
-        organs = _grow_single(sp, leaf_params_list, day=day, template_xml=template_xml)
-        if organs is None:
-            return 1e6
-        chamfer, _ = _optimize_deformations(organs, target_gpu, device, deform_steps, deform_lr)
-        return chamfer
+    print(f"\n=== PHASE 1: Stem fitting (3D, {stem_evals} evals, {n_workers} workers) ===",
+          file=sys.stderr)
 
     stem_x0 = [14.5, 0.002, 0.0]
     stem_lo = [8.0, 0.0, 0.0]
@@ -366,7 +417,12 @@ def fit_plant_sequential(
     es = cma.CMAEvolutionStrategy(stem_x0, 0.3, opts)
     while not es.stop():
         solutions = es.ask()
-        fitnesses = [eval_stem(x) for x in solutions]
+        fitnesses = _eval_batch(
+            solutions, stem_params, leaf_params_list, pos=-1, per_pos=per_pos,
+            target_gpu=target_gpu, device=device,
+            deform_steps=deform_steps, deform_lr=deform_lr,
+            day=day, template_xml=template_xml, n_workers=n_workers,
+        )
         es.tell(solutions, fitnesses)
 
     best_stem = es.result.xbest
@@ -375,25 +431,14 @@ def fit_plant_sequential(
           f"lnf={stem_params['lnf']:.1f}, chamfer={es.result.fbest:.2f}", file=sys.stderr)
 
     # ========== PHASE 2: Fit each leaf (11D each) ==========
-    print(f"\n=== PHASE 2: Per-leaf fitting (11D × {N_POSITIONS}, {leaf_evals} evals each) ===",
-          file=sys.stderr)
+    print(f"\n=== PHASE 2: Per-leaf fitting (11D × {N_POSITIONS}, {leaf_evals} evals each, "
+          f"{n_workers} workers) ===", file=sys.stderr)
 
     best_deforms = {}
     per_leaf_losses = []
 
     for pos in range(N_POSITIONS):
         x0, lo, hi = _leaf_bounds(per_pos[pos])
-
-        def eval_leaf(x, _pos=pos):
-            lp = list(leaf_params_list)
-            lp[_pos] = _leaf_params_from_vec(x, per_pos[_pos])
-            organs = _grow_single(stem_params, lp, day=day, template_xml=template_xml)
-            if organs is None:
-                return 1e6
-            chamfer, deforms = _optimize_deformations(
-                organs, target_gpu, device, deform_steps, deform_lr
-            )
-            return chamfer
 
         opts = cma.CMAOptions()
         opts['maxfevals'] = leaf_evals
@@ -408,7 +453,12 @@ def fit_plant_sequential(
 
         while not es.stop():
             solutions = es.ask()
-            fitnesses = [eval_leaf(x) for x in solutions]
+            fitnesses = _eval_batch(
+                solutions, stem_params, leaf_params_list, pos=pos, per_pos=per_pos,
+                target_gpu=target_gpu, device=device,
+                deform_steps=deform_steps, deform_lr=deform_lr,
+                day=day, template_xml=template_xml, n_workers=n_workers,
+            )
             es.tell(solutions, fitnesses)
 
         best_x = es.result.xbest
