@@ -74,11 +74,15 @@ def load_ply(path: str | Path) -> tuple[np.ndarray, np.ndarray | None]:
 
 
 def load_pointcloud(
-    path: str | Path, n_points: int = 10000
+    path: str | Path, n_points: int = 10000, units: str = 'auto',
 ) -> tuple[np.ndarray, np.ndarray | None]:
     """Auto-detect format and load point cloud. Subsample if needed.
 
-    Supported: .stl, .ply, .xyz, .pcd
+    Supported: .stl, .ply, .xyz, .txt, .pcd
+    Args:
+        path: file path
+        n_points: subsample target
+        units: 'auto', 'mm', 'cm', or 'm'. Auto uses heuristics.
     Returns (points (n_points, 3), colors (n_points, 3) or None).
     """
     path = Path(path)
@@ -97,6 +101,17 @@ def load_pointcloud(
             points, colors = data[:, :3], data[:, 3:6] / 255.0
         else:
             points, colors = data[:, :3], None
+    elif suffix == ".txt":
+        data = np.loadtxt(path, dtype=np.float32)
+        points = data[:, :3]
+        # If columns 3+ exist, check for organ labels (Pheno4D format)
+        # Label 0 = soil/background, keep only plant organs (label > 0)
+        if data.shape[1] >= 5:
+            organ_label = data[:, 4] if data.shape[1] >= 5 else data[:, 3]
+            plant_mask = organ_label > 0
+            if plant_mask.sum() > 0 and plant_mask.sum() < len(points):
+                points = points[plant_mask]
+        colors = None
     elif suffix == ".pcd":
         cloud = trimesh.load(path)
         points = np.asarray(cloud.vertices, dtype=np.float32)
@@ -104,10 +119,18 @@ def load_pointcloud(
     else:
         raise ValueError(f"Unsupported format: {suffix}")
 
-    # Auto-detect units: if extents < 10 in all dims, assume meters → convert to cm
-    extents = points.max(axis=0) - points.min(axis=0)
-    if extents.max() < 10.0:
+    # Unit conversion
+    if units == 'mm':
+        points /= 10.0
+    elif units == 'm':
         points *= 100.0
+    elif units == 'auto':
+        extents = points.max(axis=0) - points.min(axis=0)
+        z_extent = extents[2] if len(extents) > 2 else extents.max()
+        if z_extent < 5.0:
+            points *= 100.0  # meters → cm
+        elif z_extent > 500.0:
+            points /= 10.0   # mm → cm
 
     # Center XY at origin, Z starts at ground (min Z)
     points[:, 0] -= points[:, 0].mean()
