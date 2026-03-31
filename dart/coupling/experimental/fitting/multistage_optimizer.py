@@ -110,7 +110,7 @@ def _grow_single(stem_params, leaf_params_list, day=60, template_xml=None):
             sys.stdout.close()
             sys.stdout = old_stdout
 
-        return [o for o in organs if o['type'] == 'leaf']
+        return organs
 
     except Exception as e:
         print(f"  CPlantBox failed: {e}", file=sys.stderr)
