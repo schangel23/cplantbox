@@ -200,9 +200,9 @@ def _leaf_bounds(stats_pos):
     r = default['r']
     tage = default['tropismAge']
 
-    lo = [max(lmax*0.5, 20), max(width*0.3, 1), 0.15, 0.001, 1.0,
+    lo = [max(lmax*0.5, 20), max(width*0.3, 1), 0.2, 0.001, 1.0,
           max(r*0.3, 0.5), 0.0, -3.14, 0.0, 0.0, 0.0]
-    hi = [lmax*1.8, width*2.5, 1.4, 0.1, max(tage*2, 15),
+    hi = [lmax*1.8, width*2.5, 0.85, 0.1, max(tage*2, 15),
           r*3.0, 30.0, 3.14, 0.05, 0.15, 0.25]
     return np.array(x0), np.array(lo), np.array(hi)
 

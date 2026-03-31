@@ -267,7 +267,7 @@ def _leaf_bounds(stats_pos):
     lo = [
         max(lmax * 0.5, 20),    # lmax
         max(width * 0.3, 1),    # Width_blade
-        0.15,                    # theta
+        0.2,                     # theta (vertical-ish, droop from tropism)
         0.001,                   # tropismS
         1.0,                     # tropismAge
         max(r * 0.3, 0.5),      # r
@@ -280,7 +280,7 @@ def _leaf_bounds(stats_pos):
     hi = [
         lmax * 1.8,              # lmax
         width * 2.5,             # Width_blade
-        1.4,                     # theta
+        0.85,                    # theta (~49°, droop from tropism not insertion)
         0.1,                     # tropismS
         max(tage * 2, 15),       # tropismAge
         r * 3.0,                 # r
