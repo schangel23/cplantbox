@@ -471,7 +471,7 @@ def fit_plant_sequential(
         opts['bounds'] = [lo.tolist(), hi.tolist()]
         opts['verbose'] = -1
         opts['CMA_diagonal'] = True
-        opts['popsize'] = 16
+        opts['popsize'] = 64
 
         x0_clipped = np.clip(x0, lo * 1.01, hi * 0.99)
         es = cma.CMAEvolutionStrategy(x0_clipped, 0.3, opts)
