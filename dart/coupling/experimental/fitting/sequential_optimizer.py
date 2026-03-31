@@ -25,7 +25,7 @@ from ..diff_lofter.deformations import (
     DEFAULT_N_CP,
 )
 from ..diff_lofter.frames import compute_binormal_field, compute_tangents
-from ..diff_lofter.lofter import compute_arc_fracs, loft_leaf
+from ..diff_lofter.lofter import compute_arc_fracs, loft_leaf, loft_stem
 from ..losses.chamfer import chamfer_distance
 
 N_POSITIONS = 11
@@ -126,35 +126,51 @@ def _grow_single(stem_params, leaf_params_list, day=60, template_xml=None):
             os.unlink(tmp_path)
 
 
-def _optimize_deformations(leaf_organs, target_pc, device='cuda', n_steps=100, lr=0.05):
-    """GPU: optimize spline deformations + width profiles. No clamping, no regularization."""
-    if not leaf_organs:
+def _optimize_deformations(organs, target_pc, device='cuda', n_steps=100, lr=0.05):
+    """GPU: optimize leaf spline deformations. Stems lofted as fixed cylinders."""
+    if not organs:
         return 1e6, {}
 
     leaf_data = []
+    stem_data = []
     grad_params = []
 
-    for organ in leaf_organs:
+    for organ in organs:
         skeleton = torch.tensor(organ['skeleton'], dtype=torch.float32, device=device)
-        widths_base = torch.tensor(organ['widths'], dtype=torch.float32, device=device)
+        widths = torch.tensor(organ['widths'], dtype=torch.float32, device=device)
         if skeleton.shape[0] < 3:
             continue
 
         tangents = compute_tangents(skeleton)
         binormals = compute_binormal_field(skeleton, tangents)
-        arc_fracs = compute_arc_fracs(skeleton)
 
-        cp = make_spline_control_points(n_cp=DEFAULT_N_CP, device=device, requires_grad=True)
-        for v in cp.values():
-            grad_params.append(v)
+        if organ.get('type') in ('stem', 'root'):
+            stem_data.append({'skeleton': skeleton, 'widths': widths,
+                              'tangents': tangents, 'binormals': binormals})
+        else:
+            arc_fracs = compute_arc_fracs(skeleton)
+            cp = make_spline_control_points(n_cp=DEFAULT_N_CP, device=device, requires_grad=True)
+            for v in cp.values():
+                grad_params.append(v)
+            leaf_data.append({
+                'skeleton': skeleton, 'widths': widths,
+                'tangents': tangents, 'binormals': binormals,
+                'arc_fracs': arc_fracs, 'cp': cp,
+            })
 
-        leaf_data.append({
-            'skeleton': skeleton, 'widths_base': widths_base,
-            'tangents': tangents, 'binormals': binormals,
-            'arc_fracs': arc_fracs, 'cp': cp,
-        })
+    if not leaf_data and not stem_data:
+        return 1e6, {}
 
-    if not leaf_data or not grad_params:
+    # Stem vertices (fixed, no optimization)
+    stem_verts = []
+    for sd in stem_data:
+        stem_verts.append(loft_stem(sd['skeleton'], sd['widths'], sd['tangents'], sd['binormals']))
+
+    if not grad_params:
+        if stem_verts:
+            gen_pc = torch.cat(stem_verts, dim=0)
+            with torch.no_grad():
+                return chamfer_distance(gen_pc, target_pc).item(), {}
         return 1e6, {}
 
     optimizer = torch.optim.Adam(grad_params, lr=lr)
@@ -163,11 +179,11 @@ def _optimize_deformations(leaf_organs, target_pc, device='cuda', n_steps=100, l
 
     for _ in range(n_steps):
         optimizer.zero_grad()
-        all_verts = []
+        all_verts = list(stem_verts)  # stems are fixed
 
         for ld in leaf_data:
             deforms = compute_deformations_spline(ld['arc_fracs'], ld['cp'])
-            verts = loft_leaf(ld['skeleton'], ld['widths_base'], deforms,
+            verts = loft_leaf(ld['skeleton'], ld['widths'], deforms,
                               ld['tangents'], ld['binormals'], n_cross=7)
             all_verts.append(verts)
 
@@ -278,10 +294,10 @@ def _leaf_bounds(stats_pos):
     return np.array(x0), np.array(lo), np.array(hi)
 
 
-def _fast_chamfer(leaf_organs, target_pc, device='cuda'):
+def _fast_chamfer(organs, target_pc, device='cuda'):
     """Fast Chamfer: loft with zero deformations, no gradient optimization."""
     all_verts = []
-    for organ in leaf_organs:
+    for organ in organs:
         skeleton = torch.tensor(organ['skeleton'], dtype=torch.float32, device=device)
         widths = torch.tensor(organ['widths'], dtype=torch.float32, device=device)
         if skeleton.shape[0] < 3:
@@ -289,12 +305,14 @@ def _fast_chamfer(leaf_organs, target_pc, device='cuda'):
 
         tangents = compute_tangents(skeleton)
         binormals = compute_binormal_field(skeleton, tangents)
-        arc_fracs = compute_arc_fracs(skeleton)
 
-        cp = make_spline_control_points(n_cp=DEFAULT_N_CP, device=device, requires_grad=False)
-        deforms = compute_deformations_spline(arc_fracs, cp)
-
-        verts = loft_leaf(skeleton, widths, deforms, tangents, binormals, n_cross=7)
+        if organ.get('type') in ('stem', 'root'):
+            verts = loft_stem(skeleton, widths, tangents, binormals, n_sides=8)
+        else:
+            arc_fracs = compute_arc_fracs(skeleton)
+            cp = make_spline_control_points(n_cp=DEFAULT_N_CP, device=device, requires_grad=False)
+            deforms = compute_deformations_spline(arc_fracs, cp)
+            verts = loft_leaf(skeleton, widths, deforms, tangents, binormals, n_cross=7)
         all_verts.append(verts)
 
     if not all_verts:

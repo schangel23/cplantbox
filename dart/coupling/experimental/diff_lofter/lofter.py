@@ -201,6 +201,63 @@ def loft_leaf(
     return vertices.reshape(-1, 3)
 
 
+def loft_stem(
+    skeleton: torch.Tensor,
+    widths: torch.Tensor,
+    tangents: torch.Tensor,
+    binormals: torch.Tensor,
+    n_sides: int = 8,
+) -> torch.Tensor:
+    """Differentiable stem lofting: skeleton + widths -> cylindrical tube vertices.
+
+    Creates rings of vertices at each skeleton point using circular cross-sections.
+
+    Args:
+        skeleton: (N, 3) node positions.
+        widths: (N,) diameters per node (radius = width / 2).
+        tangents: (N, 3) unit tangent vectors.
+        binormals: (N, 3) unit binormal vectors.
+        n_sides: Number of vertices per ring (default 8).
+
+    Returns:
+        (N * n_sides, 3) vertex positions.
+    """
+    device = skeleton.device
+    dtype = skeleton.dtype
+    n = skeleton.shape[0]
+
+    # Compute normals from tangent x binormal
+    normals = torch.linalg.cross(tangents, binormals)
+    nm_len = torch.linalg.norm(normals, dim=1, keepdim=True)
+    normals = normals / torch.clamp(nm_len, min=1e-12)
+
+    # Angles around the tube
+    angles = torch.linspace(0, 2 * math.pi, n_sides + 1, device=device, dtype=dtype)[:-1]  # (C,)
+
+    # Radii = width / 2
+    radii = widths / 2.0  # (N,)
+
+    # Vectorized ring computation
+    # cos(angle) * binormal + sin(angle) * normal, scaled by radius
+    cos_a = torch.cos(angles)  # (C,)
+    sin_a = torch.sin(angles)  # (C,)
+
+    # Expand for broadcasting: skeleton (N,1,3), binormals (N,1,3), etc.
+    center = skeleton.unsqueeze(1)        # (N, 1, 3)
+    bn_exp = binormals.unsqueeze(1)       # (N, 1, 3)
+    nm_exp = normals.unsqueeze(1)         # (N, 1, 3)
+    r_exp = radii.unsqueeze(1).unsqueeze(2)  # (N, 1, 1)
+
+    # Direction vectors for each angle
+    cos_exp = cos_a.unsqueeze(0).unsqueeze(2)  # (1, C, 1)
+    sin_exp = sin_a.unsqueeze(0).unsqueeze(2)  # (1, C, 1)
+
+    direction = cos_exp * bn_exp + sin_exp * nm_exp  # (N, C, 3)
+    vertices = center + r_exp * direction  # (N, C, 3)
+
+    return vertices.reshape(-1, 3)
+
+
 def loft_plant(
     leaf_skeletons: list[torch.Tensor],
     leaf_widths: list[torch.Tensor],
