@@ -168,13 +168,27 @@ def _grow_worker_multi(args):
     return results
 
 
-def _default_leaf_params(stats_pos):
+def _default_leaf_params(stats_pos, position=0):
+    """Default params with position-dependent biological gradients.
+
+    In real maize:
+    - Lower leaves: wider angle, earlier tropism, longer collar
+    - Upper leaves: more vertical, later tropism, shorter collar
+    """
+    pos_frac = position / max(N_POSITIONS - 1, 1)  # 0=bottom, 1=top
+
+    # Theta: lower=0.6 (wider), upper=0.4 (more vertical)
+    theta_default = 0.6 - 0.2 * pos_frac
+
+    # TropismAge: lower=3 (early droop), upper=8 (late droop)
+    trop_age_default = 3.0 + 5.0 * pos_frac
+
     return {
         'lmax': float(stats_pos.get('lmax', 60.0)),
         'Width_blade': float(stats_pos.get('Width_blade', 4.0)),
-        'theta': float(stats_pos.get('theta', 0.7)),
+        'theta': theta_default,
         'tropismS': float(stats_pos.get('tropismS', 0.03)),
-        'tropismAge': float(stats_pos.get('tropismAge', 5.0)),
+        'tropismAge': trop_age_default,
         'r': float(stats_pos.get('r', 3.0)),
         'collarLength': 10.0,
         'initBeta': 0.2,
@@ -193,7 +207,7 @@ def _leaf_params_to_vec(params):
 
 
 def _leaf_bounds(stats_pos):
-    default = _default_leaf_params(stats_pos)
+    default = _default_leaf_params(stats_pos, position=0)
     x0 = _leaf_params_to_vec(default)
     lmax = default['lmax']
     width = default['Width_blade']
@@ -331,7 +345,7 @@ def fit_plant_multistage(
             targets_np.append(pts)
 
     # Rotation alignment using mature stage (last one)
-    leaf_params_list = [_default_leaf_params(per_pos[i]) for i in range(N_POSITIONS)]
+    leaf_params_list = [_default_leaf_params(per_pos[i], position=i) for i in range(N_POSITIONS)]
     stem_params = {'ln': 14.5, 'tropismS': 0.002, 'lnf': 0.0}
 
     mature_organs = _grow_single(stem_params, leaf_params_list, day=days[-1], template_xml=template_xml)
@@ -348,8 +362,16 @@ def fit_plant_multistage(
 
     targets_gpu = [torch.tensor(t, dtype=torch.float32, device=device) for t in targets_np]
 
+    # Stage weights: inversely proportional to day (early stages weighted higher)
+    # This prevents the optimizer from ignoring young plants
+    max_day = max(days)
+    stage_weights = np.array([max_day / d for d in days], dtype=np.float64)
+    stage_weights /= stage_weights.sum()  # normalize to sum=1
+    stage_weights *= n_stages  # scale so mean weight = 1
+
     print(f"\nMulti-stage fitting: {n_stages} stages, days={days}", file=sys.stderr)
     print(f"  Target sizes: {[len(t) for t in targets_np]}", file=sys.stderr)
+    print(f"  Stage weights: {[f'{w:.2f}' for w in stage_weights]}", file=sys.stderr)
 
     # ========== PHASE 1: Fit stem (3D) — sum Chamfer across all stages ==========
     print(f"\n=== PHASE 1: Stem fitting (3D, {stem_evals} evals, {n_stages} stages, "
@@ -378,11 +400,11 @@ def fit_plant_multistage(
         fitnesses = []
         for organs_per_stage in all_results:
             total = 0.0
-            for organs, tgt in zip(organs_per_stage, targets_gpu):
+            for si, (organs, tgt) in enumerate(zip(organs_per_stage, targets_gpu)):
                 if organs is None:
                     total += 1e6
                 else:
-                    total += _fast_chamfer(organs, tgt, device)
+                    total += stage_weights[si] * _fast_chamfer(organs, tgt, device)
             fitnesses.append(total / n_stages)
 
         es.tell(solutions, fitnesses)
