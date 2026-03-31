@@ -279,6 +279,33 @@ def _leaf_bounds(stats_pos):
     return np.array(x0), np.array(lo), np.array(hi)
 
 
+def _fast_chamfer(leaf_organs, target_pc, device='cuda'):
+    """Fast Chamfer: loft with zero deformations, no gradient optimization."""
+    all_verts = []
+    for organ in leaf_organs:
+        skeleton = torch.tensor(organ['skeleton'], dtype=torch.float32, device=device)
+        widths = torch.tensor(organ['widths'], dtype=torch.float32, device=device)
+        if skeleton.shape[0] < 3:
+            continue
+
+        tangents = compute_tangents(skeleton)
+        binormals = compute_binormal_field(skeleton, tangents)
+        arc_fracs = compute_arc_fracs(skeleton)
+
+        cp = make_spline_control_points(n_cp=DEFAULT_N_CP, device=device, requires_grad=False)
+        deforms = compute_deformations_spline(arc_fracs, cp)
+
+        verts = loft_leaf(skeleton, widths, deforms, tangents, binormals, n_cross=7)
+        all_verts.append(verts)
+
+    if not all_verts:
+        return 1e6
+
+    gen_pc = torch.cat(all_verts, dim=0)
+    with torch.no_grad():
+        return chamfer_distance(gen_pc, target_pc).item()
+
+
 def _grow_worker(args):
     """CPU worker: grow plant and return leaf organs. No CUDA."""
     stem_params, leaf_params_list, day, template_xml = args
@@ -315,15 +342,13 @@ def _eval_batch(solutions, stem_params, leaf_params_list, pos, per_pos,
     with mp.Pool(min(n_workers, len(solutions))) as pool:
         all_organs = pool.map(_grow_worker, grow_args)
 
-    # Sequential GPU deformation optimization
+    # Fast skeleton-only Chamfer (no deformation optimization during search)
     fitnesses = []
     for organs in all_organs:
         if organs is None:
             fitnesses.append(1e6)
             continue
-        chamfer, _ = _optimize_deformations(
-            organs, target_gpu, device, deform_steps, deform_lr
-        )
+        chamfer = _fast_chamfer(organs, target_gpu, device)
         fitnesses.append(chamfer)
 
     return fitnesses
