@@ -51,9 +51,9 @@ DEFORM_AMP_NAMES = ['wave_normal_amp', 'twist_max', 'curl_amp', 'edge_ruffle_amp
 N_WIDTH_CP = 5
 
 # Clamping limits for gradient-optimized params
-DEFORM_CP_CLAMP = 1.5
-WIDTH_PROFILE_MIN = 0.05
-WIDTH_PROFILE_MAX = 3.0
+DEFORM_CP_CLAMP = 0.8
+WIDTH_PROFILE_MIN = 0.1
+WIDTH_PROFILE_MAX = 1.5
 
 # Regularization weight
 REG_WEIGHT = 0.01
