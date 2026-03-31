@@ -148,14 +148,10 @@ def _optimize_deformations(leaf_organs, target_pc, device='cuda', n_steps=100, l
         for v in cp.values():
             grad_params.append(v)
 
-        width_profile = torch.ones(N_WIDTH_CP, device=device, dtype=torch.float32,
-                                   requires_grad=True)
-        grad_params.append(width_profile)
-
         leaf_data.append({
             'skeleton': skeleton, 'widths_base': widths_base,
             'tangents': tangents, 'binormals': binormals,
-            'arc_fracs': arc_fracs, 'cp': cp, 'width_profile': width_profile,
+            'arc_fracs': arc_fracs, 'cp': cp,
         })
 
     if not leaf_data or not grad_params:
@@ -171,9 +167,7 @@ def _optimize_deformations(leaf_organs, target_pc, device='cuda', n_steps=100, l
 
         for ld in leaf_data:
             deforms = compute_deformations_spline(ld['arc_fracs'], ld['cp'])
-            w_mult = _interp_linear(ld['arc_fracs'], ld['width_profile'])
-            widths = ld['widths_base'] * w_mult
-            verts = loft_leaf(ld['skeleton'], widths, deforms,
+            verts = loft_leaf(ld['skeleton'], ld['widths_base'], deforms,
                               ld['tangents'], ld['binormals'], n_cross=7)
             all_verts.append(verts)
 
@@ -187,7 +181,6 @@ def _optimize_deformations(leaf_organs, target_pc, device='cuda', n_steps=100, l
             for ld in leaf_data:
                 for t in ld['cp'].values():
                     t.clamp_(-1.5, 1.5)
-                ld['width_profile'].clamp_(0.2, 2.5)
 
         loss_val = loss.item()
         if loss_val < best_loss:
@@ -198,7 +191,6 @@ def _optimize_deformations(leaf_organs, target_pc, device='cuda', n_steps=100, l
                         name: ld['cp'][name].detach().cpu().tolist()
                         for name in SPLINE_DEFORM_NAMES
                     },
-                    'width_profile': ld['width_profile'].detach().cpu().tolist(),
                 }
                 for i, ld in enumerate(leaf_data)
             }
