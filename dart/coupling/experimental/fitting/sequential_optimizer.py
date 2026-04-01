@@ -28,27 +28,25 @@ from ..diff_lofter.frames import compute_binormal_field, compute_tangents
 from ..diff_lofter.lofter import compute_arc_fracs, loft_leaf, loft_stem
 from ..losses.chamfer import chamfer_distance
 
-N_POSITIONS = 11
-N_WIDTH_CP = 5
-
-# Per-leaf CMA-ES params
-LEAF_PARAMS = [
-    'lmax', 'Width_blade', 'theta', 'tropismS', 'tropismAge',
-    'r', 'collarLength', 'initBeta',
-    'kappa_base', 'kappa_mid', 'kappa_tip',
-]
+from .species_config import SpeciesConfig, LEAF_PARAMS, MAIZE
 
 # Curvature spline knot positions
 CURVATURE_PHI = [0.0, 0.5, 1.0]
 
 
-def _grow_single(stem_params, leaf_params_list, day=60, template_xml=None):
+def _grow_single(stem_params, leaf_params_list, day=60, template_xml=None, species=None):
     """Grow CPlantBox with given stem + per-leaf params. Return leaf organs."""
     import xml.etree.ElementTree as ET
 
+    if species is None:
+        species = MAIZE
+
     if template_xml is None:
-        from dart.coupling.config import DATA_DIR
-        template_xml = str(DATA_DIR / "maize_calibrated.xml")
+        if species.template_xml:
+            template_xml = species.template_xml
+        else:
+            from dart.coupling.config import DATA_DIR
+            template_xml = str(DATA_DIR / "maize_calibrated.xml")
 
     tmp_path = None
     try:
@@ -58,8 +56,8 @@ def _grow_single(stem_params, leaf_params_list, day=60, template_xml=None):
         for organ in root.iter('organ'):
             if organ.get('type') == 'leaf':
                 sub = int(organ.get('subType', '0'))
-                pos = sub - 2
-                if 0 <= pos < N_POSITIONS and pos < len(leaf_params_list):
+                pos = sub - species.subtype_offset
+                if 0 <= pos < species.n_positions and pos < len(leaf_params_list):
                     p = leaf_params_list[pos]
                     xml_map = {
                         'lmax': p['lmax'],
@@ -214,38 +212,16 @@ def _optimize_deformations(organs, target_pc, device='cuda', n_steps=100, lr=0.0
     return best_loss, best_params
 
 
-def _default_leaf_params(stats_pos):
+def _default_leaf_params(stats_pos, species=None, position=0):
     """Build default params for one leaf from stats."""
-    return {
-        'lmax': float(stats_pos.get('lmax', 60.0)),
-        'Width_blade': float(stats_pos.get('Width_blade', 4.0)),
-        'theta': float(stats_pos.get('theta', 0.7)),
-        'tropismS': float(stats_pos.get('tropismS', 0.03)),
-        'tropismAge': float(stats_pos.get('tropismAge', 5.0)),
-        'r': float(stats_pos.get('r', 3.0)),
-        'collarLength': 10.0,
-        'initBeta': 0.2,
-        'kappa_base': 0.0,
-        'kappa_mid': 0.0,
-        'kappa_tip': 0.0,
-    }
+    if species is None:
+        species = MAIZE
+    return species.default_leaf_params(stats_pos, position=position)
 
 
-def _leaf_params_from_vec(vec, stats_pos):
+def _leaf_params_from_vec(vec):
     """Convert CMA-ES vector to leaf param dict."""
-    return {
-        'lmax': vec[0],
-        'Width_blade': vec[1],
-        'theta': vec[2],
-        'tropismS': vec[3],
-        'tropismAge': vec[4],
-        'r': vec[5],
-        'collarLength': vec[6],
-        'initBeta': vec[7],
-        'kappa_base': vec[8],
-        'kappa_mid': vec[9],
-        'kappa_tip': vec[10],
-    }
+    return {k: v for k, v in zip(LEAF_PARAMS, vec)}
 
 
 def _leaf_params_to_vec(params):
@@ -253,45 +229,11 @@ def _leaf_params_to_vec(params):
     return [params[k] for k in LEAF_PARAMS]
 
 
-def _leaf_bounds(stats_pos):
+def _leaf_bounds(stats_pos, species=None):
     """Return (x0, lo, hi) for one leaf's CMA-ES."""
-    s = stats_pos
-    default = _default_leaf_params(s)
-    x0 = _leaf_params_to_vec(default)
-
-    lmax = default['lmax']
-    width = default['Width_blade']
-    r = default['r']
-    tage = default['tropismAge']
-
-    lo = [
-        max(lmax * 0.5, 20),    # lmax
-        max(width * 0.3, 1),    # Width_blade
-        0.2,                     # theta (vertical-ish, droop from tropism)
-        0.001,                   # tropismS
-        1.0,                     # tropismAge
-        max(r * 0.3, 0.5),      # r
-        0.0,                     # collarLength
-        -3.14,                   # initBeta
-        0.0,                     # kappa_base
-        0.0,                     # kappa_mid
-        0.0,                     # kappa_tip
-    ]
-    hi = [
-        lmax * 1.8,              # lmax
-        width * 2.5,             # Width_blade
-        0.85,                    # theta (~49°, droop from tropism not insertion)
-        0.1,                     # tropismS
-        max(tage * 2, 15),       # tropismAge
-        r * 3.0,                 # r
-        30.0,                    # collarLength
-        3.14,                    # initBeta
-        0.05,                    # kappa_base
-        0.15,                    # kappa_mid
-        0.25,                    # kappa_tip
-    ]
-
-    return np.array(x0), np.array(lo), np.array(hi)
+    if species is None:
+        species = MAIZE
+    return species.leaf_bounds(stats_pos)
 
 
 def _fast_chamfer(organs, target_pc, device='cuda'):
@@ -325,35 +267,44 @@ def _fast_chamfer(organs, target_pc, device='cuda'):
 
 def _grow_worker(args):
     """CPU worker: grow plant and return leaf organs. No CUDA."""
-    stem_params, leaf_params_list, day, template_xml = args
-    return _grow_single(stem_params, leaf_params_list, day=day, template_xml=template_xml)
+    if len(args) == 5:
+        stem_params, leaf_params_list, day, template_xml, species = args
+    else:
+        stem_params, leaf_params_list, day, template_xml = args
+        species = MAIZE
+    return _grow_single(stem_params, leaf_params_list, day=day,
+                        template_xml=template_xml, species=species)
 
 
 def _eval_batch(solutions, stem_params, leaf_params_list, pos, per_pos,
                 target_gpu, device, deform_steps, deform_lr, day, template_xml,
-                n_workers):
-    """Evaluate a batch: parallel CPU growth + sequential GPU deformation.
+                n_workers, species=None):
+    """Evaluate a batch: parallel CPU growth + fast skeleton-only Chamfer.
 
     Args:
         solutions: list of CMA-ES candidate vectors
         pos: which leaf position is being optimized (-1 for stem)
+        species: SpeciesConfig
         Other args: context for growth and evaluation
 
     Returns:
         list of fitness values
     """
+    if species is None:
+        species = MAIZE
+
     # Build per-candidate param lists (CPU)
     grow_args = []
     for x in solutions:
         if pos < 0:
             # Stem fitting
             sp = {'ln': x[0], 'tropismS': x[1], 'lnf': x[2]}
-            grow_args.append((sp, leaf_params_list, day, template_xml))
+            grow_args.append((sp, leaf_params_list, day, template_xml, species))
         else:
             # Leaf fitting
             lp = list(leaf_params_list)
-            lp[pos] = _leaf_params_from_vec(x, per_pos[pos])
-            grow_args.append((stem_params, lp, day, template_xml))
+            lp[pos] = _leaf_params_from_vec(x)
+            grow_args.append((stem_params, lp, day, template_xml, species))
 
     # Parallel CPU growth
     with mp.Pool(min(n_workers, len(solutions))) as pool:
@@ -383,6 +334,7 @@ def fit_plant_sequential(
     seed=42,
     template_xml=None,
     n_workers=16,
+    species=None,
 ):
     """Sequential fitting: stem → each leaf independently.
 
@@ -407,6 +359,9 @@ def fit_plant_sequential(
     """
     import cma
 
+    if species is None:
+        species = MAIZE
+
     n_workers = min(n_workers, mp.cpu_count())
 
     with open(stats_path) as f:
@@ -414,7 +369,7 @@ def fit_plant_sequential(
 
     per_pos = stats.get('per_position', stats) if isinstance(stats, dict) else stats
     if not isinstance(per_pos, list):
-        per_pos = [per_pos[str(i)] for i in range(N_POSITIONS)]
+        per_pos = [per_pos[str(i)] for i in range(species.n_positions)]
 
     # Subsample target
     if len(target_points) > 5000:
@@ -424,11 +379,13 @@ def fit_plant_sequential(
         target_sub = target_points
 
     # Default params
-    leaf_params_list = [_default_leaf_params(per_pos[i]) for i in range(N_POSITIONS)]
-    stem_params = {'ln': 14.5, 'tropismS': 0.002, 'lnf': 0.0}
+    leaf_params_list = [_default_leaf_params(per_pos[i], species=species, position=i)
+                        for i in range(species.n_positions)]
+    stem_params = {'ln': species.stem_ln, 'tropismS': species.stem_tropismS, 'lnf': species.stem_lnf}
 
     # Rotation alignment
-    init_organs = _grow_single(stem_params, leaf_params_list, day=day, template_xml=template_xml)
+    init_organs = _grow_single(stem_params, leaf_params_list, day=day,
+                               template_xml=template_xml, species=species)
     if init_organs:
         from dart.coupling.geometry.g1_to_g3 import loft_organs
         ref_mesh = loft_organs(init_organs)
@@ -445,9 +402,9 @@ def fit_plant_sequential(
     print(f"\n=== PHASE 1: Stem fitting (3D, {stem_evals} evals, {n_workers} workers) ===",
           file=sys.stderr)
 
-    stem_x0 = [14.5, 0.002, 0.0]
-    stem_lo = [8.0, 0.0, 0.0]
-    stem_hi = [22.0, 0.015, 5.0]
+    stem_x0 = [species.stem_ln, species.stem_tropismS, species.stem_lnf]
+    stem_lo = [species.stem_ln_bounds[0], species.stem_tropismS_bounds[0], species.stem_lnf_bounds[0]]
+    stem_hi = [species.stem_ln_bounds[1], species.stem_tropismS_bounds[1], species.stem_lnf_bounds[1]]
 
     opts = cma.CMAOptions()
     opts['maxfevals'] = stem_evals
@@ -464,6 +421,7 @@ def fit_plant_sequential(
             target_gpu=target_gpu, device=device,
             deform_steps=deform_steps, deform_lr=deform_lr,
             day=day, template_xml=template_xml, n_workers=n_workers,
+            species=species,
         )
         es.tell(solutions, fitnesses)
 
@@ -473,14 +431,14 @@ def fit_plant_sequential(
           f"lnf={stem_params['lnf']:.1f}, chamfer={es.result.fbest:.2f}", file=sys.stderr)
 
     # ========== PHASE 2: Fit each leaf (11D each) ==========
-    print(f"\n=== PHASE 2: Per-leaf fitting (11D × {N_POSITIONS}, {leaf_evals} evals each, "
+    print(f"\n=== PHASE 2: Per-leaf fitting (11D x {species.n_positions}, {leaf_evals} evals each, "
           f"{n_workers} workers) ===", file=sys.stderr)
 
     best_deforms = {}
     per_leaf_losses = []
 
-    for pos in range(N_POSITIONS):
-        x0, lo, hi = _leaf_bounds(per_pos[pos])
+    for pos in range(species.n_positions):
+        x0, lo, hi = _leaf_bounds(per_pos[pos], species=species)
 
         opts = cma.CMAOptions()
         opts['maxfevals'] = leaf_evals
@@ -500,20 +458,22 @@ def fit_plant_sequential(
                 target_gpu=target_gpu, device=device,
                 deform_steps=deform_steps, deform_lr=deform_lr,
                 day=day, template_xml=template_xml, n_workers=n_workers,
+                species=species,
             )
             es.tell(solutions, fitnesses)
 
         best_x = es.result.xbest
-        leaf_params_list[pos] = _leaf_params_from_vec(best_x, per_pos[pos])
+        leaf_params_list[pos] = _leaf_params_from_vec(best_x)
         per_leaf_losses.append(float(es.result.fbest))
 
-        print(f"  Leaf {pos} (st={pos+2}): chamfer={es.result.fbest:.2f} cm  "
+        print(f"  Leaf {pos} (st={pos+species.subtype_offset}): chamfer={es.result.fbest:.2f} cm  "
               f"lmax={best_x[0]:.1f} Wbl={best_x[1]:.1f} theta={best_x[2]:.2f}",
               file=sys.stderr)
 
     # ========== PHASE 3: Final evaluation with all best params ==========
     print(f"\n=== PHASE 3: Final evaluation ===", file=sys.stderr)
-    final_organs = _grow_single(stem_params, leaf_params_list, day=day, template_xml=template_xml)
+    final_organs = _grow_single(stem_params, leaf_params_list, day=day,
+                                template_xml=template_xml, species=species)
     if final_organs:
         final_chamfer, final_deforms = _optimize_deformations(
             final_organs, target_gpu, device, deform_steps, deform_lr
@@ -524,11 +484,12 @@ def fit_plant_sequential(
         final_chamfer = 1e6
 
     return {
+        'species': species.name,
         'stem_params': stem_params,
         'leaf_params': [_leaf_params_to_vec(lp) for lp in leaf_params_list],
         'leaf_param_names': LEAF_PARAMS,
         'deform_params': best_deforms,
-        'deform_param_names': list(SPLINE_DEFORM_NAMES) + ['width_profile'],
+        'deform_param_names': list(SPLINE_DEFORM_NAMES),
         'per_leaf_losses': per_leaf_losses,
         'final_loss': float(final_chamfer),
         'stem_evals': stem_evals,
