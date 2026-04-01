@@ -169,7 +169,7 @@ WHEAT = SpeciesConfig(
     n_positions=8,
     subtype_offset=2,       # subType = position + 2 (subtypes 2-9)
     template_xml=str(Path(__file__).resolve().parents[2] / 'data' / 'wheat_calibrated.xml'),
-    stem_ln=7.5,            # (63 - 2) / 8 internodes
+    stem_ln=6.0,            # (50 - 2) / 8 internodes
     stem_tropismS=0.01,     # upright stem
     stem_lnf=0.0,
     stem_ln_bounds=(4.0, 12.0),

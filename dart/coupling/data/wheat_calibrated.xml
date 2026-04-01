@@ -3,7 +3,7 @@
     <seed name="wheat_seed" subType="0">
         <parameter name="delayDefinition" value="1" />
         <parameter name="delayDefinitionShoot" value="2" />
-        <parameter name="maxTil" value="3" />
+        <parameter name="maxTil" value="4" />
         <parameter name="a" value="0.1" />
         <parameter name="delayB" value="3" />
         <parameter name="delayRC" value="1e+09" />
@@ -92,8 +92,8 @@
         <parameter name="la" value="0" />
         <parameter name="lb" value="2.0" />
         <parameter name="ldelay" value="-1" />
-        <parameter name="lmax" value="63.0" />
-        <parameter name="ln" value="7.5" />
+        <parameter name="lmax" value="50.0" />
+        <parameter name="ln" value="6.0" />
         <parameter name="r" value="1.5" />
         <parameter name="rlt" value="1e+09" />
         <parameter name="theta" value="0" />

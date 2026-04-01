@@ -37,8 +37,8 @@ def main():
     parser.add_argument("--device", default="cuda",
                         help="Torch device (default: cuda)")
     parser.add_argument("--seed", type=int, default=42)
-    parser.add_argument("--tillers", type=int, default=3,
-                        help="Number of tillers (default: 3, 0=single stem)")
+    parser.add_argument("--tillers", type=int, default=4,
+                        help="Number of tillers (default: 4, 0=single stem)")
     parser.add_argument("--xy-radius", type=float, default=0.0,
                         help="Cylindrical crop radius in cm (default: 0=disabled)")
     parser.add_argument("--output-dir", default=None,
