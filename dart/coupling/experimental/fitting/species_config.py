@@ -187,7 +187,7 @@ WHEAT = SpeciesConfig(
     width_min=0.3,             # narrow leaves
     width_lo_mult=0.3,
     width_hi_mult=2.5,
-    width_max=1.8,             # hard cap: wheat leaves max ~1.5 cm
+    width_max=0.75,            # hard cap: half-width, full blade max ~1.5 cm
     collarLength_bounds=(0.0, 10.0),
     kappa_tip_bounds=(0.0, 0.15),  # less tip droop
 )
