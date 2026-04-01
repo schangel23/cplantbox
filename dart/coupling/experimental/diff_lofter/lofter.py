@@ -11,6 +11,88 @@ are NOT needed and are omitted.
 import math
 import torch
 
+# Preprocessing constants (match production lofter)
+MIN_SKELETON_SPACING = 0.2   # cm — resample denser skeletons to this
+MIN_WIDTH = 0.15             # cm — clamp widths below this (prevents zero-area tips)
+
+
+def resample_skeleton(
+    skeleton: torch.Tensor,
+    widths: torch.Tensor,
+    target_spacing: float = MIN_SKELETON_SPACING,
+    min_width: float = MIN_WIDTH,
+) -> tuple[torch.Tensor, torch.Tensor]:
+    """Resample skeleton to uniform spacing and clamp minimum width.
+
+    Prevents degenerate triangles by ensuring no two skeleton points are
+    closer than target_spacing and no width is below min_width.
+
+    Differentiable (uses linear interpolation).
+
+    Args:
+        skeleton: (N, 3) skeleton points.
+        widths: (N,) widths per point.
+        target_spacing: minimum distance between points (cm).
+        min_width: minimum width (cm).
+
+    Returns:
+        (skeleton_resampled, widths_resampled) with uniform spacing.
+    """
+    device = skeleton.device
+    dtype = skeleton.dtype
+
+    # Compute cumulative arc length
+    diffs = skeleton[1:] - skeleton[:-1]
+    seg_lens = torch.linalg.norm(diffs, dim=1)
+    cum_len = torch.cat([torch.zeros(1, device=device, dtype=dtype),
+                         torch.cumsum(seg_lens, dim=0)])
+    total_len = cum_len[-1]
+
+    if total_len < target_spacing * 2:
+        # Too short to resample — just clamp widths
+        return skeleton, torch.clamp(widths, min=min_width)
+
+    # Number of resampled points
+    n_out = max(int(total_len / target_spacing) + 1, 3)
+    t_out = torch.linspace(0, total_len, n_out, device=device, dtype=dtype)
+
+    # Truncate at min_width: find where width drops below threshold from the end
+    # and stop the skeleton there (pointed tip)
+    # This is done after interpolation
+
+    # Linear interpolation of skeleton and widths at new arc positions
+    # Find interval for each t_out
+    skel_out = torch.zeros(n_out, 3, device=device, dtype=dtype)
+    w_out = torch.zeros(n_out, device=device, dtype=dtype)
+
+    for j in range(n_out):
+        t = t_out[j]
+        # Binary search for interval (use searchsorted)
+        idx = torch.searchsorted(cum_len, t).clamp(1, len(cum_len) - 1)
+        i0 = idx - 1
+        i1 = idx
+        seg_len = cum_len[i1] - cum_len[i0]
+        frac = (t - cum_len[i0]) / seg_len.clamp(min=1e-12)
+        frac = frac.clamp(0, 1)
+
+        skel_out[j] = skeleton[i0] * (1 - frac) + skeleton[i1] * frac
+        w_out[j] = widths[i0] * (1 - frac) + widths[i1] * frac
+
+    # Clamp minimum width
+    w_out = torch.clamp(w_out, min=min_width)
+
+    # Truncate skeleton where original width was near-zero (tip region)
+    # Find last point where interpolated width > min_width * 1.5
+    above_min = w_out > min_width * 1.5
+    if above_min.any():
+        last_good = above_min.nonzero()[-1].item()
+        # Keep one extra point past last_good for the tip
+        n_keep = min(last_good + 2, n_out)
+        skel_out = skel_out[:n_keep]
+        w_out = w_out[:n_keep]
+
+    return skel_out, w_out
+
 
 def _rodrigues_rotate(v: torch.Tensor, k: torch.Tensor, theta: torch.Tensor) -> torch.Tensor:
     """Rodrigues rotation: rotate v around unit axis k by angle theta.
