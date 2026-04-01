@@ -63,6 +63,7 @@ class SpeciesConfig:
     width_lo_mult: float = 0.3
     width_hi_mult: float = 2.5
     width_min: float = 0.3            # absolute minimum width (cm)
+    width_max: float = 0.0            # absolute maximum width (cm), 0=no cap
     r_lo_mult: float = 0.3
     r_hi_mult: float = 3.0
     r_min: float = 0.3
@@ -127,7 +128,7 @@ class SpeciesConfig:
         ]
         hi = [
             lmax * self.lmax_hi_mult,
-            width * self.width_hi_mult,
+            min(width * self.width_hi_mult, self.width_max) if self.width_max > 0 else width * self.width_hi_mult,
             self.theta_hi,
             self.tropismS_bounds[1],
             min(max(tage * self.tropismAge_max_mult, self.tropismAge_max_abs), 30.0),
@@ -186,6 +187,7 @@ WHEAT = SpeciesConfig(
     width_min=0.3,             # narrow leaves
     width_lo_mult=0.3,
     width_hi_mult=2.5,
+    width_max=1.8,             # hard cap: wheat leaves max ~1.5 cm
     collarLength_bounds=(0.0, 10.0),
     kappa_tip_bounds=(0.0, 0.15),  # less tip droop
 )
