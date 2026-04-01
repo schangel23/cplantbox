@@ -41,15 +41,15 @@ from .extract_wheat_width_profiles import (
 
 STEM_DIAMETER = 0.4     # stem cylinder diameter (cm)
 STEM_N_SIDES = 8        # stem cross-section vertices
-N_WIDTH_CP = 5          # width profile control points
+N_WIDTH_CP = 20         # width profile control points (dense for natural taper)
 N_DEFORM_CP = 5         # deformation control points per type
 N_CROSS = 11            # cross-section vertices (wheat = smoother)
 TARGET_SPACING = 0.2    # skeleton resampling spacing (cm)
-WIDTH_MIN = 0.1         # minimum width clamp (cm)
+WIDTH_MIN = 0.05        # minimum width clamp (cm) — near-zero for pointed tips
 WIDTH_MAX = 2.5         # maximum width clamp (cm)
 DEFORM_CLAMP = 1.0      # deformation CP clamp
 REG_DEFORM = 0.005      # deformation regularization weight
-REG_WIDTH_SMOOTH = 0.01 # width smoothness regularization
+REG_WIDTH_SMOOTH = 0.02 # width smoothness (slightly higher for 20 CPs)
 
 
 def _load_leaf_targets(scan_dir: str) -> list[dict]:
@@ -164,11 +164,12 @@ def fit_single_leaf(
     target_gpu = torch.tensor(target_pts_np, dtype=torch.float32, device=device)
 
     # Learnable parameters
-    # Width profile: narrow base, wide middle, tapered tip
-    width_cps = torch.tensor(
-        [0.3, 0.7, 0.8, 0.5, 0.15],
-        device=device, dtype=torch.float32,
-    ).requires_grad_(True)
+    # Width profile: 20 CPs — natural leaf shape init
+    # narrow base → widen → max at ~40% → gradual taper → pointed tip
+    t = torch.linspace(0, 1, N_WIDTH_CP)
+    init_w = 0.6 * torch.sin(torch.pi * t) * (1.0 - 0.3 * t)  # peaks ~40%, tapers at tip
+    init_w = torch.clamp(init_w, min=WIDTH_MIN)
+    width_cps = init_w.to(device=device, dtype=torch.float32).requires_grad_(True)
 
     deform_cps = make_spline_control_points(
         n_cp=N_DEFORM_CP, device=device, requires_grad=True)
