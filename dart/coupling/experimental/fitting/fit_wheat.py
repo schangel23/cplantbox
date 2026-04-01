@@ -37,8 +37,10 @@ def main():
     parser.add_argument("--device", default="cuda",
                         help="Torch device (default: cuda)")
     parser.add_argument("--seed", type=int, default=42)
-    parser.add_argument("--xy-radius", type=float, default=10.0,
-                        help="Cylindrical crop radius in cm (default: 10, 0=disabled)")
+    parser.add_argument("--tillers", type=int, default=3,
+                        help="Number of tillers (default: 3, 0=single stem)")
+    parser.add_argument("--xy-radius", type=float, default=0.0,
+                        help="Cylindrical crop radius in cm (default: 0=disabled)")
     parser.add_argument("--output-dir", default=None,
                         help="Output directory (default: same as target)")
     args = parser.parse_args()
@@ -55,6 +57,26 @@ def main():
     species = WHEAT
     if args.template_xml:
         species.template_xml = args.template_xml
+
+    # Patch tiller count in template XML
+    if args.tillers >= 0:
+        import xml.etree.ElementTree as ET
+        import tempfile
+        tree = ET.parse(species.template_xml)
+        for seed_el in tree.getroot().iter('seed'):
+            for param in seed_el:
+                name = param.get('name', '')
+                if name == 'maxTil':
+                    param.set('value', str(args.tillers))
+                elif name == 'firstTil':
+                    param.set('value', '5' if args.tillers > 0 else '1e+09')
+                elif name == 'delayTil':
+                    param.set('value', '3' if args.tillers > 0 else '1e+09')
+        tmp = tempfile.NamedTemporaryFile(suffix='.xml', delete=False, dir=str(data_dir))
+        tree.write(tmp.name)
+        tmp.close()
+        species.template_xml = tmp.name
+        print(f"Tillers: {args.tillers} (patched XML)", file=sys.stderr)
 
     # Load and filter point cloud
     print(f"Loading: {args.target}", file=sys.stderr)

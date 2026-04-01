@@ -48,27 +48,23 @@ def setup_successor_where(plant):
         print("  No calibrated leaf subtypes found, skipping successorWhere")
         return
 
-    # Set successorWhere on mainstem (subType=1) and enforce phyllotaxy
+    # Set successorWhere on all stems (mainstem + tillers) and enforce phyllotaxy
     import math
     for p in plant.getOrganRandomParameter(pb.stem):
-        if p.subType == 1:
+        if p.subType >= 1:
             p.successorST = [[st] for st in leaf_subtypes]
             p.successorOT = [[4] for _ in leaf_subtypes]  # organType=4 (leaf)
             p.successorP = [[1.0] for _ in leaf_subtypes]
             p.successorNo = [1] * len(leaf_subtypes)
             p.successorWhere = [[float(i)] for i in range(len(leaf_subtypes))]
-            # Distichous phyllotaxy (180° alternating, two-ranked) — correct for maize.
-            # BetaDev=0.22 (~12.6°) adds natural scatter so the plant doesn't look
-            # like a perfectly flat ellipse from every angle.  Real maize deviates
-            # 5-15° from perfect 180° due to mechanical interactions and growth.
+            # Distichous phyllotaxy (180° alternating, two-ranked) — correct for
+            # maize and wheat.  BetaDev=0.22 (~12.6°) adds natural scatter.
             p.RotBeta = math.pi  # 180°
             p.BetaDev = 0.22
             plant.setOrganRandomParameter(p)
-            print(f"  successorWhere: {len(leaf_subtypes)} rules "
+            print(f"  successorWhere: stem subType={p.subType}, {len(leaf_subtypes)} rules "
                   f"(node 0->subType {leaf_subtypes[0]}, ..., "
                   f"node {len(leaf_subtypes)-1}->subType {leaf_subtypes[-1]})")
-            print(f"  phyllotaxy: RotBeta={math.degrees(p.RotBeta):.0f} deg, BetaDev={p.BetaDev}")
-            break
 
 
 def init_plant(xml_path=None, seed=None, enable_photosynthesis=True):
