@@ -144,6 +144,7 @@ def loft_leaf(
     binormals: torch.Tensor,
     n_cross: int = 7,
     gutter_depth: float = 0.0,
+    extended_deformations: dict[str, torch.Tensor] | None = None,
 ) -> torch.Tensor:
     """Differentiable leaf lofting: skeleton + widths + deformations -> vertices.
 
@@ -162,6 +163,8 @@ def loft_leaf(
         binormals: (N, 3) unit binormal vectors.
         n_cross: Number of vertices across the width (default 7).
         gutter_depth: Midrib channel depth in cm (0 = flat).
+        extended_deformations: Optional dict from compute_extended_deformations()
+            with additional feature search deformations. None = no extended features.
 
     Returns:
         (N * n_cross, 3) vertex positions.
@@ -169,6 +172,43 @@ def loft_leaf(
     device = skeleton.device
     dtype = skeleton.dtype
     n = skeleton.shape[0]
+    ext = extended_deformations or {}
+
+    # --- Apply width_taper if active ---
+    if "width_taper" in ext:
+        widths = widths * ext["width_taper"]  # (N,) elementwise
+
+    # --- Apply tip_taper_onset if active ---
+    if "tip_taper_onset" in ext:
+        # Get the onset value (mean of the control point(s))
+        onset = ext["tip_taper_onset"].mean().clamp(0.5, 0.95)
+        arc_fracs_for_tip = compute_arc_fracs(skeleton)
+        # Linear taper from onset to tip: 1.0 at onset, 0.0 at tip
+        tip_mask = torch.clamp((arc_fracs_for_tip - onset) / (1.0 - onset + 1e-8), 0.0, 1.0)
+        tip_taper = 1.0 - tip_mask * 0.95  # taper to 5% at tip (not zero)
+        widths = widths * tip_taper
+
+    # --- Apply asymmetry: store for cross-section phase ---
+    asym_values = ext.get("asymmetry", None)  # (N,) or None
+
+    # --- Apply out_of_plane_curv: modify skeleton ---
+    if "out_of_plane_curv" in ext:
+        oop_curv = ext["out_of_plane_curv"]  # (N,) curvature in 1/cm
+        # Integrate curvature into skeleton displacement along binormal
+        # Approximation: displacement = cumulative integral of curvature × ds
+        diffs = skeleton[1:] - skeleton[:-1]
+        seg_lens = torch.linalg.norm(diffs, dim=1)
+        # d_angle = curvature * ds at each segment
+        d_angle = oop_curv[:-1] * seg_lens
+        cum_angle = torch.cat([torch.zeros(1, device=device, dtype=dtype),
+                               torch.cumsum(d_angle, dim=0)])
+        # Displacement perpendicular to growth plane
+        oop_disp = torch.cumsum(
+            torch.cat([torch.zeros(1, device=device, dtype=dtype),
+                       torch.sin(cum_angle[:-1]) * seg_lens]),
+            dim=0,
+        )
+        skeleton = skeleton + oop_disp.unsqueeze(1) * binormals
 
     # Cross-section fractions: [-0.5, ..., 0.5]
     cross_fracs = torch.linspace(-0.5, 0.5, n_cross, device=device, dtype=dtype)  # (C,)
@@ -183,7 +223,6 @@ def loft_leaf(
 
     # --- Apply twist via Rodrigues rotation ---
     twist_angles = deformations["twist"]  # (N,)
-    # Only rotate when twist is non-negligible (always computed for grad flow)
     # Rotate binormal and normal around tangent by twist angle
     bn_twisted = _rodrigues_rotate(binormals, tangents, twist_angles)  # (N, 3)
     nm_twisted = _rodrigues_rotate(normals, tangents, twist_angles)  # (N, 3)
@@ -192,6 +231,16 @@ def loft_leaf(
         torch.linalg.norm(bn_twisted, dim=1, keepdim=True), min=1e-12)
     nm_twisted = nm_twisted / torch.clamp(
         torch.linalg.norm(nm_twisted, dim=1, keepdim=True), min=1e-12)
+
+    # --- Apply blade_tilt: additional rotation around tangent ---
+    if "blade_tilt" in ext:
+        tilt_angles = ext["blade_tilt"]  # (N,)
+        bn_twisted = _rodrigues_rotate(bn_twisted, tangents, tilt_angles)
+        nm_twisted = _rodrigues_rotate(nm_twisted, tangents, tilt_angles)
+        bn_twisted = bn_twisted / torch.clamp(
+            torch.linalg.norm(bn_twisted, dim=1, keepdim=True), min=1e-12)
+        nm_twisted = nm_twisted / torch.clamp(
+            torch.linalg.norm(nm_twisted, dim=1, keepdim=True), min=1e-12)
 
     # --- Center displacement: wave_normal + wave_lateral ---
     wave_n = deformations["wave_normal"]  # (N,)
@@ -208,12 +257,6 @@ def loft_leaf(
     w_fade = widths / max_w  # (N,)
 
     # --- Vectorized cross-section sweep ---
-    # Expand dimensions for broadcasting:
-    #   center:     (N, 1, 3)
-    #   bn_twisted: (N, 1, 3)
-    #   nm_twisted: (N, 1, 3)
-    #   widths:     (N, 1)
-    #   cross_fracs:(1, C)
     center_exp = center.unsqueeze(1)  # (N, 1, 3)
     bn_exp = bn_twisted.unsqueeze(1)  # (N, 1, 3)
     nm_exp = nm_twisted.unsqueeze(1)  # (N, 1, 3)
@@ -224,14 +267,30 @@ def loft_leaf(
     # Lateral displacement: frac * w * binormal
     lateral = cf_exp.unsqueeze(2) * w_exp.unsqueeze(2) * bn_exp  # (N, C, 3)
 
-    # Gutter offset: -gutter_depth * profile * normal * w_fade
-    cg_exp = cross_gutter.unsqueeze(0)  # (1, C)
-    gutter_offset = (
-        -gutter_depth
-        * cg_exp.unsqueeze(2)
-        * nm_exp
-        * w_fade_exp.unsqueeze(2)
-    )  # (N, C, 3)
+    # --- Apply asymmetry: shift lateral displacement ---
+    if asym_values is not None:
+        # Shift center of cross-section along binormal by asymmetry amount
+        asym_offset = asym_values.unsqueeze(1).unsqueeze(2) * bn_exp  # (N, 1, 3)
+        lateral = lateral + asym_offset * w_fade_exp.unsqueeze(2)
+
+    # --- Midrib depth: per-node gutter ---
+    if "midrib_depth" in ext:
+        md = ext["midrib_depth"]  # (N,)
+        cg_exp = cross_gutter.unsqueeze(0)  # (1, C)
+        gutter_offset = (
+            -md.unsqueeze(1).unsqueeze(2)
+            * cg_exp.unsqueeze(2)
+            * nm_exp
+            * w_fade_exp.unsqueeze(2)
+        )  # (N, C, 3)
+    else:
+        cg_exp = cross_gutter.unsqueeze(0)  # (1, C)
+        gutter_offset = (
+            -gutter_depth
+            * cg_exp.unsqueeze(2)
+            * nm_exp
+            * w_fade_exp.unsqueeze(2)
+        )  # (N, C, 3)
 
     # Curl: (2 * frac) * curl_factor * normal * w_fade
     curl_factors = deformations["curl"]  # (N,)
@@ -243,13 +302,10 @@ def loft_leaf(
     )  # (N, C, 3)
 
     # Edge ruffle: edge_frac^2 * ruffle_base * normal * w_fade * sign(frac)
-    # edge_frac = (2*|frac|)^2, left edge gets flipped sign
     abs_cf = torch.abs(cf_exp)  # (1, C)
     edge_frac = (2.0 * abs_cf) ** 2  # (1, C) - 0 at center, 1 at edges
     ruffle_base = deformations["edge_ruffle"]  # (N,)
-    # Sign: left edge (frac < 0) flips the ruffle
     ruffle_sign = torch.sign(cross_fracs)  # (C,)
-    # Handle exact zero (midrib): ruffle is zero there anyway via edge_frac
     ruffle_sign = torch.where(ruffle_sign == 0, torch.ones_like(ruffle_sign), ruffle_sign)
     ruffle_offset = (
         edge_frac.unsqueeze(2)
@@ -269,6 +325,37 @@ def loft_leaf(
         * w_fade_exp.unsqueeze(2)
     )  # (N, C, 3)
 
+    # --- Edge curl: margin-only deflection angle ---
+    if "edge_curl" in ext:
+        edge_curl_angles = ext["edge_curl"]  # (N,)
+        # Edge influence: (2|frac|)^3 — stronger than ruffle, concentrated at margins
+        edge_influence = (2.0 * abs_cf) ** 3  # (1, C)
+        # Displacement = edge_influence * tan(angle) * half_width * normal
+        edge_curl_offset = (
+            edge_influence.unsqueeze(2)
+            * torch.tan(edge_curl_angles).unsqueeze(1).unsqueeze(2)
+            * w_exp.unsqueeze(2) * 0.5
+            * nm_exp
+            * w_fade_exp.unsqueeze(2)
+        )  # (N, C, 3)
+    else:
+        edge_curl_offset = torch.zeros(1, device=device, dtype=dtype)
+
+    # --- Cross-section profile: curvature across the blade ---
+    if "cross_section_profile" in ext:
+        cs_factor = ext["cross_section_profile"]  # (N,)
+        # Profile: parabolic, positive = concave (V/U), negative = convex
+        # Displacement proportional to frac^2 * factor * normal
+        cs_profile = (2.0 * cf_exp) ** 2  # (1, C) — 0 at center, 1 at edges
+        cs_offset = (
+            cs_factor.unsqueeze(1).unsqueeze(2)
+            * cs_profile.unsqueeze(2)
+            * nm_exp
+            * w_fade_exp.unsqueeze(2)
+        )  # (N, C, 3)
+    else:
+        cs_offset = torch.zeros(1, device=device, dtype=dtype)
+
     # --- Assemble vertices ---
     vertices = (
         center_exp
@@ -277,6 +364,8 @@ def loft_leaf(
         + curl_offset
         + ruffle_offset
         + fold_offset
+        + edge_curl_offset
+        + cs_offset
     )  # (N, C, 3)
 
     # Reshape to (N*C, 3)

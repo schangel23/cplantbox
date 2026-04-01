@@ -201,3 +201,90 @@ def make_spline_control_points(
                           requires_grad=requires_grad)
         for name in SPLINE_DEFORM_NAMES
     }
+
+
+# --- Extended deformations for feature search ---
+
+EXTENDED_DEFORM_NAMES = [
+    'blade_tilt',           # cross-section tilt angle (rad)
+    'midrib_depth',         # gutter depth (cm)
+    'asymmetry',            # left/right width offset (cm)
+    'out_of_plane_curv',    # binormal-direction curvature (1/cm)
+    'edge_curl',            # margin deflection angle (rad)
+    'cross_section_profile', # cross-section curvature factor
+    'width_taper',          # width multiplier profile
+    'tip_taper_onset',      # scalar: where tip taper starts
+]
+
+
+def compute_extended_deformations(
+    arc_fracs: torch.Tensor,
+    control_points: dict[str, torch.Tensor],
+    ramp_onset: float = 0.15,
+) -> dict[str, torch.Tensor]:
+    """Compute extended deformation values for feature search candidates.
+
+    Only computes deformations for keys present in control_points.
+    Missing keys are silently skipped (feature not active).
+
+    Args:
+        arc_fracs: (N,) normalized arc lengths [0, 1].
+        control_points: Dict mapping feature name to (K,) CP tensor.
+            Only features present in this dict are computed.
+        ramp_onset: Fraction where deformation begins.
+
+    Returns:
+        Dict mapping feature name to (N,) interpolated values.
+    """
+    denom = max(1.0 - ramp_onset, 1e-12)
+    ramp = torch.clamp((arc_fracs - ramp_onset) / denom, min=0.0)
+    ramp_sq = ramp * ramp
+
+    result = {}
+    for name, cp in control_points.items():
+        if name not in EXTENDED_DEFORM_NAMES:
+            continue
+        interp = _interp_linear(arc_fracs, cp)
+
+        if name == 'width_taper':
+            # Width taper is a multiplier, no ramp — applies everywhere
+            result[name] = interp
+        elif name == 'tip_taper_onset':
+            # Scalar — just use the single control point value
+            result[name] = interp
+        elif name in ('blade_tilt', 'out_of_plane_curv'):
+            # Quadratic ramp for structural features
+            result[name] = interp * ramp_sq
+        else:
+            # Linear ramp for the rest
+            result[name] = interp * ramp
+
+    return result
+
+
+def make_extended_control_points(
+    active_features: set[str],
+    feature_catalog: dict,
+    device: str = 'cpu',
+    requires_grad: bool = True,
+) -> dict[str, torch.Tensor]:
+    """Create zero-initialized control points for active extended features.
+
+    Args:
+        active_features: Set of feature names to create CPs for.
+        feature_catalog: The FEATURE_CATALOG dict with n_cp per feature.
+        device: Torch device.
+        requires_grad: Whether tensors track gradients.
+
+    Returns:
+        Dict mapping feature name to (n_cp,) tensor.
+    """
+    result = {}
+    for name in active_features:
+        if name in feature_catalog:
+            n_cp = feature_catalog[name]["n_cp"]
+            result[name] = torch.zeros(
+                n_cp, device=device, dtype=torch.float32,
+                requires_grad=requires_grad,
+            )
+    return result
