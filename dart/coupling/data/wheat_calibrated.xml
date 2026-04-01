@@ -1,0 +1,385 @@
+<?xml version='1.0' encoding='utf-8'?>
+<plant>
+    <seed name="wheat_seed" subType="0">
+        <parameter name="delayDefinition" value="1" />
+        <parameter name="delayDefinitionShoot" value="2" />
+        <parameter name="maxTil" value="0" />
+        <parameter name="a" value="0.1" />
+        <parameter name="delayB" value="3" />
+        <parameter name="delayRC" value="1e+09" />
+        <parameter name="delaySB" value="1e+09" />
+        <parameter name="delayTil" value="1e+09" />
+        <parameter name="dx" value="0.25" />
+        <parameter name="dxMin" value="1e-06" />
+        <parameter name="firstB" value="1" />
+        <parameter name="firstSB" value="1e+09" />
+        <parameter name="firstTil" value="1e+09" />
+        <parameter name="ldelay" value="-1" />
+        <parameter name="maxB" value="6" />
+        <parameter name="nC" value="7" />
+        <parameter name="nz" value="1" />
+        <parameter name="seedPos.x" value="0" />
+        <parameter name="seedPos.y" value="0" />
+        <parameter name="seedPos.z" value="-0.3" />
+        <parameter name="simulationTime" value="55" />
+    </seed>
+    <root name="primary" subType="1">
+        <parameter name="gf" value="1" />
+        <parameter name="tropismT" value="1" />
+        <parameter name="a" value="0.015" />
+        <parameter name="dx" value="1" />
+        <parameter name="dxMin" value="1e-06" />
+        <parameter name="la" value="40" />
+        <parameter name="lb" value="6.5" />
+        <parameter name="ldelay" value="-1" />
+        <parameter name="lmax" value="120" />
+        <parameter name="ln" value="0.75" />
+        <parameter name="r" value="0.8" />
+        <parameter name="rlt" value="1e+09" />
+        <parameter name="theta" value="1.22" />
+        <parameter name="tropismN" value="1" />
+        <parameter name="tropismS" value="0.3" />
+        <parameter name="successor" ruleId="0" numLat="1" Where="" subType="2" organType="2" percentage="1" />
+    </root>
+    <root name="lateral1" subType="2">
+        <parameter name="gf" value="1" />
+        <parameter name="tropismT" value="1" />
+        <parameter name="a" value="0.01" />
+        <parameter name="dx" value="1" />
+        <parameter name="dxMin" value="1e-06" />
+        <parameter name="la" value="2" />
+        <parameter name="lb" value="1" />
+        <parameter name="ldelay" value="-1" />
+        <parameter name="lmax" value="5" />
+        <parameter name="ln" value="0.6" />
+        <parameter name="r" value="0.15" />
+        <parameter name="rlt" value="1e+09" />
+        <parameter name="theta" value="1.6" />
+        <parameter name="tropismN" value="1" />
+        <parameter name="tropismS" value="0.5" />
+    </root>
+    <root name="basal" subType="3">
+        <parameter name="gf" value="1" />
+        <parameter name="tropismT" value="1" />
+        <parameter name="a" value="0.015" />
+        <parameter name="dx" value="1" />
+        <parameter name="dxMin" value="1e-06" />
+        <parameter name="la" value="40" />
+        <parameter name="lb" value="6.5" />
+        <parameter name="ldelay" value="-1" />
+        <parameter name="lmax" value="120" />
+        <parameter name="ln" value="0.95" />
+        <parameter name="r" value="0.8" />
+        <parameter name="rlt" value="1e+09" />
+        <parameter name="theta" value="1.22" />
+        <parameter name="tropismN" value="1" />
+        <parameter name="tropismS" value="0.27" />
+        <parameter name="successor" ruleId="0" numLat="1" Where="" subType="2" organType="2" percentage="1" />
+    </root>
+    <stem name="mainstem" subType="1">
+        <parameter name="gf" value="2" />
+        <parameter name="lnf" value="0" />
+        <parameter name="nodalGrowth" value="1" />
+        <parameter name="tropismT" value="1" />
+        <parameter name="BetaDev" value="0.2" />
+        <parameter name="InitBeta" value="0.2" />
+        <parameter name="RotBeta" value="3.141592653589793" />
+        <parameter name="a" value="0.25" />
+        <parameter name="delayNGEnd" value="55" />
+        <parameter name="delayNGStart" value="6" />
+        <parameter name="dx" value="0.5" />
+        <parameter name="dxMin" value="1e-06" />
+        <parameter name="la" value="0" />
+        <parameter name="lb" value="2.0" />
+        <parameter name="ldelay" value="-1" />
+        <parameter name="lmax" value="63.0" />
+        <parameter name="ln" value="7.5" />
+        <parameter name="r" value="1.5" />
+        <parameter name="rlt" value="1e+09" />
+        <parameter name="theta" value="0" />
+        <parameter name="tropismAge" value="0" />
+        <parameter name="tropismN" value="1" />
+        <parameter name="tropismS" value="0.01" />
+        <parameter name="successor" ruleId="0" numLat="1" Where="" subType="2" organType="4" percentage="1" />
+    </stem>
+    <!-- Leaf position 0 (lowest, subType=2) -->
+    <leaf name="wheat_leaf_L0" subType="2">
+        <parameter name="geometryN" value="100" />
+        <parameter name="gf" value="3" />
+        <parameter name="isPseudostem" value="0" />
+        <parameter name="lnf" value="0" />
+        <parameter name="parametrisationType" value="1" />
+        <parameter name="shapeType" value="2" />
+        <parameter name="tropismT" value="1" />
+        <parameter name="BetaDev" value="0.2" />
+        <parameter name="InitBeta" value="0.2" />
+        <parameter name="RotBeta" value="1.5707963267948966" />
+        <parameter name="Width_blade" value="0.6" />
+        <parameter name="Width_petiole" value="0.25" />
+        <parameter name="a" value="0.04" />
+        <parameter name="areaMax" value="7.0" />
+        <parameter name="dx" value="0.2" />
+        <parameter name="dxMin" value="1e-06" />
+        <parameter name="la" value="0" />
+        <parameter name="lb" value="0" />
+        <parameter name="ln" value="1" />
+        <parameter name="rlt" value="1e+09" />
+        <parameter name="tropismN" value="3" />
+        <parameter name="ldelay" value="0.0" />
+        <parameter name="lmax" value="8.0" />
+        <parameter name="r" value="2.0" />
+        <parameter name="theta" value="0.35" />
+        <parameter name="tropismS" value="0.015" />
+        <parameter name="tropismAge" value="5.0" />
+        <parameter name="leafGeometry" phi="-3.0" x="1" />
+        <parameter name="leafGeometry" phi="-2.0" x="1" />
+        <parameter name="leafGeometry" phi="0.0" x="1" />
+        <parameter name="leafGeometry" phi="2.0" x="1" />
+        <parameter name="leafGeometry" phi="3.5" x="0.05" />
+    </leaf>
+    <!-- Leaf position 1 (subType=3) -->
+    <leaf name="wheat_leaf_L1" subType="3">
+        <parameter name="geometryN" value="100" />
+        <parameter name="gf" value="3" />
+        <parameter name="isPseudostem" value="0" />
+        <parameter name="lnf" value="0" />
+        <parameter name="parametrisationType" value="1" />
+        <parameter name="shapeType" value="2" />
+        <parameter name="tropismT" value="1" />
+        <parameter name="BetaDev" value="0.2" />
+        <parameter name="InitBeta" value="0.5" />
+        <parameter name="RotBeta" value="1.5707963267948966" />
+        <parameter name="Width_blade" value="0.7" />
+        <parameter name="Width_petiole" value="0.28" />
+        <parameter name="a" value="0.04" />
+        <parameter name="areaMax" value="11.2" />
+        <parameter name="dx" value="0.2" />
+        <parameter name="dxMin" value="1e-06" />
+        <parameter name="la" value="0" />
+        <parameter name="lb" value="0" />
+        <parameter name="ln" value="1" />
+        <parameter name="rlt" value="1e+09" />
+        <parameter name="tropismN" value="3" />
+        <parameter name="ldelay" value="6.0" />
+        <parameter name="lmax" value="11.0" />
+        <parameter name="r" value="2.0" />
+        <parameter name="theta" value="0.32" />
+        <parameter name="tropismS" value="0.015" />
+        <parameter name="tropismAge" value="6.0" />
+        <parameter name="leafGeometry" phi="-3.0" x="1" />
+        <parameter name="leafGeometry" phi="-2.0" x="1" />
+        <parameter name="leafGeometry" phi="0.0" x="1" />
+        <parameter name="leafGeometry" phi="2.0" x="1" />
+        <parameter name="leafGeometry" phi="3.5" x="0.05" />
+    </leaf>
+    <!-- Leaf position 2 (subType=4) -->
+    <leaf name="wheat_leaf_L2" subType="4">
+        <parameter name="geometryN" value="100" />
+        <parameter name="gf" value="3" />
+        <parameter name="isPseudostem" value="0" />
+        <parameter name="lnf" value="0" />
+        <parameter name="parametrisationType" value="1" />
+        <parameter name="shapeType" value="2" />
+        <parameter name="tropismT" value="1" />
+        <parameter name="BetaDev" value="0.2" />
+        <parameter name="InitBeta" value="0.8" />
+        <parameter name="RotBeta" value="1.5707963267948966" />
+        <parameter name="Width_blade" value="0.8" />
+        <parameter name="Width_petiole" value="0.3" />
+        <parameter name="a" value="0.04" />
+        <parameter name="areaMax" value="16.4" />
+        <parameter name="dx" value="0.2" />
+        <parameter name="dxMin" value="1e-06" />
+        <parameter name="la" value="0" />
+        <parameter name="lb" value="0" />
+        <parameter name="ln" value="1" />
+        <parameter name="rlt" value="1e+09" />
+        <parameter name="tropismN" value="3" />
+        <parameter name="ldelay" value="12.0" />
+        <parameter name="lmax" value="14.0" />
+        <parameter name="r" value="2.0" />
+        <parameter name="theta" value="0.29" />
+        <parameter name="tropismS" value="0.015" />
+        <parameter name="tropismAge" value="7.0" />
+        <parameter name="leafGeometry" phi="-3.0" x="1" />
+        <parameter name="leafGeometry" phi="-2.0" x="1" />
+        <parameter name="leafGeometry" phi="0.0" x="1" />
+        <parameter name="leafGeometry" phi="2.0" x="1" />
+        <parameter name="leafGeometry" phi="3.5" x="0.05" />
+    </leaf>
+    <!-- Leaf position 3 (subType=5) -->
+    <leaf name="wheat_leaf_L3" subType="5">
+        <parameter name="geometryN" value="100" />
+        <parameter name="gf" value="3" />
+        <parameter name="isPseudostem" value="0" />
+        <parameter name="lnf" value="0" />
+        <parameter name="parametrisationType" value="1" />
+        <parameter name="shapeType" value="2" />
+        <parameter name="tropismT" value="1" />
+        <parameter name="BetaDev" value="0.2" />
+        <parameter name="InitBeta" value="1.1" />
+        <parameter name="RotBeta" value="1.5707963267948966" />
+        <parameter name="Width_blade" value="0.9" />
+        <parameter name="Width_petiole" value="0.32" />
+        <parameter name="a" value="0.04" />
+        <parameter name="areaMax" value="22.3" />
+        <parameter name="dx" value="0.2" />
+        <parameter name="dxMin" value="1e-06" />
+        <parameter name="la" value="0" />
+        <parameter name="lb" value="0" />
+        <parameter name="ln" value="1" />
+        <parameter name="rlt" value="1e+09" />
+        <parameter name="tropismN" value="3" />
+        <parameter name="ldelay" value="18.0" />
+        <parameter name="lmax" value="17.0" />
+        <parameter name="r" value="2.0" />
+        <parameter name="theta" value="0.26" />
+        <parameter name="tropismS" value="0.015" />
+        <parameter name="tropismAge" value="8.0" />
+        <parameter name="leafGeometry" phi="-3.0" x="1" />
+        <parameter name="leafGeometry" phi="-2.0" x="1" />
+        <parameter name="leafGeometry" phi="0.0" x="1" />
+        <parameter name="leafGeometry" phi="2.0" x="1" />
+        <parameter name="leafGeometry" phi="3.5" x="0.05" />
+    </leaf>
+    <!-- Leaf position 4 (subType=6) -->
+    <leaf name="wheat_leaf_L4" subType="6">
+        <parameter name="geometryN" value="100" />
+        <parameter name="gf" value="3" />
+        <parameter name="isPseudostem" value="0" />
+        <parameter name="lnf" value="0" />
+        <parameter name="parametrisationType" value="1" />
+        <parameter name="shapeType" value="2" />
+        <parameter name="tropismT" value="1" />
+        <parameter name="BetaDev" value="0.2" />
+        <parameter name="InitBeta" value="1.4" />
+        <parameter name="RotBeta" value="1.5707963267948966" />
+        <parameter name="Width_blade" value="1.0" />
+        <parameter name="Width_petiole" value="0.35" />
+        <parameter name="a" value="0.04" />
+        <parameter name="areaMax" value="29.2" />
+        <parameter name="dx" value="0.2" />
+        <parameter name="dxMin" value="1e-06" />
+        <parameter name="la" value="0" />
+        <parameter name="lb" value="0" />
+        <parameter name="ln" value="1" />
+        <parameter name="rlt" value="1e+09" />
+        <parameter name="tropismN" value="3" />
+        <parameter name="ldelay" value="24.0" />
+        <parameter name="lmax" value="20.0" />
+        <parameter name="r" value="2.0" />
+        <parameter name="theta" value="0.23" />
+        <parameter name="tropismS" value="0.015" />
+        <parameter name="tropismAge" value="9.0" />
+        <parameter name="leafGeometry" phi="-3.0" x="1" />
+        <parameter name="leafGeometry" phi="-2.0" x="1" />
+        <parameter name="leafGeometry" phi="0.0" x="1" />
+        <parameter name="leafGeometry" phi="2.0" x="1" />
+        <parameter name="leafGeometry" phi="3.5" x="0.05" />
+    </leaf>
+    <!-- Leaf position 5 (subType=7) -->
+    <leaf name="wheat_leaf_L5" subType="7">
+        <parameter name="geometryN" value="100" />
+        <parameter name="gf" value="3" />
+        <parameter name="isPseudostem" value="0" />
+        <parameter name="lnf" value="0" />
+        <parameter name="parametrisationType" value="1" />
+        <parameter name="shapeType" value="2" />
+        <parameter name="tropismT" value="1" />
+        <parameter name="BetaDev" value="0.2" />
+        <parameter name="InitBeta" value="1.7" />
+        <parameter name="RotBeta" value="1.5707963267948966" />
+        <parameter name="Width_blade" value="1.1" />
+        <parameter name="Width_petiole" value="0.38" />
+        <parameter name="a" value="0.04" />
+        <parameter name="areaMax" value="36.9" />
+        <parameter name="dx" value="0.2" />
+        <parameter name="dxMin" value="1e-06" />
+        <parameter name="la" value="0" />
+        <parameter name="lb" value="0" />
+        <parameter name="ln" value="1" />
+        <parameter name="rlt" value="1e+09" />
+        <parameter name="tropismN" value="3" />
+        <parameter name="ldelay" value="30.0" />
+        <parameter name="lmax" value="23.0" />
+        <parameter name="r" value="2.0" />
+        <parameter name="theta" value="0.20" />
+        <parameter name="tropismS" value="0.015" />
+        <parameter name="tropismAge" value="10.0" />
+        <parameter name="leafGeometry" phi="-3.0" x="1" />
+        <parameter name="leafGeometry" phi="-2.0" x="1" />
+        <parameter name="leafGeometry" phi="0.0" x="1" />
+        <parameter name="leafGeometry" phi="2.0" x="1" />
+        <parameter name="leafGeometry" phi="3.5" x="0.05" />
+    </leaf>
+    <!-- Leaf position 6 (subType=8) -->
+    <leaf name="wheat_leaf_L6" subType="8">
+        <parameter name="geometryN" value="100" />
+        <parameter name="gf" value="3" />
+        <parameter name="isPseudostem" value="0" />
+        <parameter name="lnf" value="0" />
+        <parameter name="parametrisationType" value="1" />
+        <parameter name="shapeType" value="2" />
+        <parameter name="tropismT" value="1" />
+        <parameter name="BetaDev" value="0.2" />
+        <parameter name="InitBeta" value="2.0" />
+        <parameter name="RotBeta" value="1.5707963267948966" />
+        <parameter name="Width_blade" value="1.2" />
+        <parameter name="Width_petiole" value="0.4" />
+        <parameter name="a" value="0.04" />
+        <parameter name="areaMax" value="45.6" />
+        <parameter name="dx" value="0.2" />
+        <parameter name="dxMin" value="1e-06" />
+        <parameter name="la" value="0" />
+        <parameter name="lb" value="0" />
+        <parameter name="ln" value="1" />
+        <parameter name="rlt" value="1e+09" />
+        <parameter name="tropismN" value="3" />
+        <parameter name="ldelay" value="36.0" />
+        <parameter name="lmax" value="26.0" />
+        <parameter name="r" value="2.0" />
+        <parameter name="theta" value="0.17" />
+        <parameter name="tropismS" value="0.015" />
+        <parameter name="tropismAge" value="11.0" />
+        <parameter name="leafGeometry" phi="-3.0" x="1" />
+        <parameter name="leafGeometry" phi="-2.0" x="1" />
+        <parameter name="leafGeometry" phi="0.0" x="1" />
+        <parameter name="leafGeometry" phi="2.0" x="1" />
+        <parameter name="leafGeometry" phi="3.5" x="0.05" />
+    </leaf>
+    <!-- Leaf position 7 (flag leaf, subType=9) -->
+    <leaf name="wheat_leaf_L7_flag" subType="9">
+        <parameter name="geometryN" value="100" />
+        <parameter name="gf" value="3" />
+        <parameter name="isPseudostem" value="0" />
+        <parameter name="lnf" value="0" />
+        <parameter name="parametrisationType" value="1" />
+        <parameter name="shapeType" value="2" />
+        <parameter name="tropismT" value="1" />
+        <parameter name="BetaDev" value="0.2" />
+        <parameter name="InitBeta" value="2.3" />
+        <parameter name="RotBeta" value="1.5707963267948966" />
+        <parameter name="Width_blade" value="1.4" />
+        <parameter name="Width_petiole" value="0.45" />
+        <parameter name="a" value="0.04" />
+        <parameter name="areaMax" value="61.3" />
+        <parameter name="dx" value="0.2" />
+        <parameter name="dxMin" value="1e-06" />
+        <parameter name="la" value="0" />
+        <parameter name="lb" value="0" />
+        <parameter name="ln" value="1" />
+        <parameter name="rlt" value="1e+09" />
+        <parameter name="tropismN" value="3" />
+        <parameter name="ldelay" value="42.0" />
+        <parameter name="lmax" value="30.0" />
+        <parameter name="r" value="2.0" />
+        <parameter name="theta" value="0.15" />
+        <parameter name="tropismS" value="0.012" />
+        <parameter name="tropismAge" value="12.0" />
+        <parameter name="leafGeometry" phi="-3.0" x="1" />
+        <parameter name="leafGeometry" phi="-2.0" x="1" />
+        <parameter name="leafGeometry" phi="0.0" x="1" />
+        <parameter name="leafGeometry" phi="2.0" x="1" />
+        <parameter name="leafGeometry" phi="3.5" x="0.05" />
+    </leaf>
+</plant>

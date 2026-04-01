@@ -6,6 +6,8 @@ it reads everything from the config.
 """
 
 from dataclasses import dataclass, field
+from pathlib import Path
+
 import numpy as np
 
 
@@ -132,7 +134,7 @@ class SpeciesConfig:
             r * self.r_hi_mult,
             self.collarLength_bounds[1],
             3.14,  # initBeta
-            self.kappa_base_bounds[0],
+            self.kappa_base_bounds[1],
             self.kappa_mid_bounds[1],
             self.kappa_tip_bounds[1],
         ]
@@ -164,11 +166,14 @@ MAIZE = SpeciesConfig(
 WHEAT = SpeciesConfig(
     name='wheat',
     n_positions=8,
-    subtype_offset=2,       # check XML — wheat may use different subtypes
-    stem_ln=3.5,            # shorter internodes
-    stem_tropismS=0.001,    # more upright stem
-    stem_ln_bounds=(1.5, 8.0),
-    theta_lo=0.1,           # very erect
+    subtype_offset=2,       # subType = position + 2 (subtypes 2-9)
+    template_xml=str(Path(__file__).resolve().parents[2] / 'data' / 'wheat_calibrated.xml'),
+    stem_ln=7.5,            # (63 - 2) / 8 internodes
+    stem_tropismS=0.01,     # upright stem
+    stem_lnf=0.0,
+    stem_ln_bounds=(4.0, 12.0),
+    stem_tropismS_bounds=(0.0, 0.03),
+    theta_lo=0.08,          # very erect
     theta_hi=0.5,           # max ~30°
     theta_lower=0.35,       # lower leaves slightly wider
     theta_upper=0.15,       # upper leaves very erect

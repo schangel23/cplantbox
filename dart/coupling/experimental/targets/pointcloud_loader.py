@@ -104,14 +104,22 @@ def load_pointcloud(
     elif suffix == ".txt":
         data = np.loadtxt(path, dtype=np.float32)
         points = data[:, :3]
-        # If columns 3+ exist, check for organ labels (Pheno4D format)
-        # Label 0 = soil/background, keep only plant organs (label > 0)
-        if data.shape[1] >= 5:
-            organ_label = data[:, 4] if data.shape[1] >= 5 else data[:, 3]
-            plant_mask = organ_label > 0
-            if plant_mask.sum() > 0 and plant_mask.sum() < len(points):
-                points = points[plant_mask]
         colors = None
+        if data.shape[1] >= 6 and data[:, 3:6].max() > 1.0:
+            # XYZ RGB format (0-255 range) — filter plant by brightness
+            rgb = data[:, 3:6]
+            colors = rgb / 255.0
+            brightness = rgb.mean(axis=1)
+            plant_mask = brightness < 170
+            if 0 < plant_mask.sum() < len(points):
+                points = points[plant_mask]
+                colors = colors[plant_mask]
+        elif data.shape[1] >= 5:
+            # Pheno4D format: column 4 = organ label (0=background)
+            organ_label = data[:, 4]
+            plant_mask = organ_label > 0
+            if 0 < plant_mask.sum() < len(points):
+                points = points[plant_mask]
     elif suffix == ".pcd":
         cloud = trimesh.load(path)
         points = np.asarray(cloud.vertices, dtype=np.float32)

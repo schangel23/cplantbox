@@ -53,50 +53,51 @@ def _grow_single(stem_params, leaf_params_list, day=60, template_xml=None, speci
         tree = ET.parse(template_xml)
         root = tree.getroot()
 
-        for organ in root.iter('organ'):
-            if organ.get('type') == 'leaf':
-                sub = int(organ.get('subType', '0'))
-                pos = sub - species.subtype_offset
-                if 0 <= pos < species.n_positions and pos < len(leaf_params_list):
-                    p = leaf_params_list[pos]
-                    xml_map = {
-                        'lmax': p['lmax'],
-                        'Width_blade': p['Width_blade'],
-                        'theta': p['theta'],
-                        'tropismS': p['tropismS'],
-                        'tropismAge': p['tropismAge'],
-                        'r': p['r'],
-                        'areaMax': p['lmax'] * p['Width_blade'] * 2.0 * 0.73,
-                        'collarLength': p['collarLength'],
-                        'InitBeta': p['initBeta'],
-                    }
+        # Iterate leaf elements (tag='leaf', not 'organ')
+        for leaf_el in root.iter('leaf'):
+            sub = int(leaf_el.get('subType', '0'))
+            pos = sub - species.subtype_offset
+            if 0 <= pos < species.n_positions and pos < len(leaf_params_list):
+                p = leaf_params_list[pos]
+                xml_map = {
+                    'lmax': p['lmax'],
+                    'Width_blade': p['Width_blade'],
+                    'theta': p['theta'],
+                    'tropismS': p['tropismS'],
+                    'tropismAge': p['tropismAge'],
+                    'r': p['r'],
+                    'areaMax': p['lmax'] * p['Width_blade'] * 2.0 * 0.73,
+                    'collarLength': p['collarLength'],
+                    'InitBeta': p['initBeta'],
+                }
 
-                    # Remove old leafCurvature, set params
-                    to_remove = []
-                    for elem in organ:
-                        name = elem.get('name', '')
-                        if name in xml_map:
-                            elem.set('value', str(xml_map[name]))
-                        elif name == 'leafCurvature':
-                            to_remove.append(elem)
-                    for elem in to_remove:
-                        organ.remove(elem)
-
-                    # Add curvature spline
-                    curv = ET.SubElement(organ, 'parameter')
-                    curv.set('name', 'leafCurvature')
-                    curv.set('phi', ' '.join(str(v) for v in CURVATURE_PHI))
-                    curv.set('kappa', f"{p['kappa_base']} {p['kappa_mid']} {p['kappa_tip']}")
-
-            elif organ.get('type') == 'stem':
-                for elem in organ:
+                # Remove old leafCurvature, set params
+                to_remove = []
+                for elem in leaf_el:
                     name = elem.get('name', '')
-                    if name == 'ln':
-                        elem.set('value', str(stem_params['ln']))
-                    elif name == 'tropismS':
-                        elem.set('value', str(stem_params['tropismS']))
-                    elif name == 'lnf':
-                        elem.set('value', str(int(round(stem_params.get('lnf', 0)))))
+                    if name in xml_map:
+                        elem.set('value', str(xml_map[name]))
+                    elif name == 'leafCurvature':
+                        to_remove.append(elem)
+                for elem in to_remove:
+                    leaf_el.remove(elem)
+
+                # Add curvature spline
+                curv = ET.SubElement(leaf_el, 'parameter')
+                curv.set('name', 'leafCurvature')
+                curv.set('phi', ' '.join(str(v) for v in CURVATURE_PHI))
+                curv.set('kappa', f"{p['kappa_base']} {p['kappa_mid']} {p['kappa_tip']}")
+
+        # Iterate stem elements
+        for stem_el in root.iter('stem'):
+            for elem in stem_el:
+                name = elem.get('name', '')
+                if name == 'ln':
+                    elem.set('value', str(stem_params['ln']))
+                elif name == 'tropismS':
+                    elem.set('value', str(stem_params['tropismS']))
+                elif name == 'lnf':
+                    elem.set('value', str(int(round(stem_params.get('lnf', 0)))))
 
         tmp = tempfile.NamedTemporaryFile(suffix='.xml', delete=False)
         tree.write(tmp.name)
