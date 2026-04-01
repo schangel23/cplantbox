@@ -75,6 +75,7 @@ def load_ply(path: str | Path) -> tuple[np.ndarray, np.ndarray | None]:
 
 def load_pointcloud(
     path: str | Path, n_points: int = 10000, units: str = 'auto',
+    xy_radius: float = 0.0,
 ) -> tuple[np.ndarray, np.ndarray | None]:
     """Auto-detect format and load point cloud. Subsample if needed.
 
@@ -144,6 +145,16 @@ def load_pointcloud(
     points[:, 0] -= points[:, 0].mean()
     points[:, 1] -= points[:, 1].mean()
     points[:, 2] -= points[:, 2].min()
+
+    # Cylindrical crop: keep only points within xy_radius of center
+    # Useful for single-stem fitting when scans include tillers
+    if xy_radius > 0:
+        r2 = points[:, 0]**2 + points[:, 1]**2
+        crop_mask = r2 <= xy_radius**2
+        if 0 < crop_mask.sum() < len(points):
+            points = points[crop_mask]
+            if colors is not None:
+                colors = colors[crop_mask]
 
     # Subsample if needed
     n = len(points)

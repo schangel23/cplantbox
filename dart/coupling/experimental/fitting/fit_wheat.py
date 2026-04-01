@@ -37,6 +37,8 @@ def main():
     parser.add_argument("--device", default="cuda",
                         help="Torch device (default: cuda)")
     parser.add_argument("--seed", type=int, default=42)
+    parser.add_argument("--xy-radius", type=float, default=10.0,
+                        help="Cylindrical crop radius in cm (default: 10, 0=disabled)")
     parser.add_argument("--output-dir", default=None,
                         help="Output directory (default: same as target)")
     args = parser.parse_args()
@@ -56,7 +58,10 @@ def main():
 
     # Load and filter point cloud
     print(f"Loading: {args.target}", file=sys.stderr)
-    target_pts, _colors = load_pointcloud(args.target, n_points=args.n_points, units='cm')
+    target_pts, _colors = load_pointcloud(
+        args.target, n_points=args.n_points, units='cm',
+        xy_radius=args.xy_radius,
+    )
     print(f"  Points after filtering: {len(target_pts)}", file=sys.stderr)
     print(f"  XYZ extent: X=[{target_pts[:,0].min():.1f}, {target_pts[:,0].max():.1f}] "
           f"Y=[{target_pts[:,1].min():.1f}, {target_pts[:,1].max():.1f}] "

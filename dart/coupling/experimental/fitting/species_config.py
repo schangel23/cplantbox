@@ -185,7 +185,7 @@ WHEAT = SpeciesConfig(
     lmax_min=5.0,              # wheat leaves can be short
     width_min=0.3,             # narrow leaves
     width_lo_mult=0.3,
-    width_hi_mult=3.0,
+    width_hi_mult=1.8,         # cap: wheat max ~1.5 cm (0.9*1.8=1.62)
     collarLength_bounds=(0.0, 10.0),
     kappa_tip_bounds=(0.0, 0.15),  # less tip droop
 )
