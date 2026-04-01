@@ -98,7 +98,6 @@ def _load_leaf_targets(scan_dir: str) -> list[dict]:
         skeleton = parse_ply_skeleton(str(ply_path))
         attach_pt = attach_pts[lid] if lid < len(attach_pts) else attach_pts[0]
         skeleton = orient_skeleton_to_base(skeleton, attach_pt)
-        skeleton = bridge_skeleton(skeleton, attach_pt)
 
         # Load target PCD
         leaf_pcd = o3d.io.read_point_cloud(str(pcd_path))
