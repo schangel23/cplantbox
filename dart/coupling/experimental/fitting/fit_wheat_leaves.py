@@ -30,7 +30,7 @@ from ..diff_lofter.deformations import (
     _interp_linear,
 )
 from ..diff_lofter.frames import compute_binormal_field, compute_tangents
-from ..diff_lofter.lofter import compute_arc_fracs, loft_leaf, resample_skeleton
+from ..diff_lofter.lofter import compute_arc_fracs, loft_leaf, loft_stem, resample_skeleton
 from ..losses.chamfer import chamfer_distance
 from .extract_wheat_width_profiles import (
     parse_ply_skeleton,
@@ -39,6 +39,8 @@ from .extract_wheat_width_profiles import (
 )
 
 
+STEM_DIAMETER = 0.4     # stem cylinder diameter (cm)
+STEM_N_SIDES = 8        # stem cross-section vertices
 N_WIDTH_CP = 5          # width profile control points
 N_DEFORM_CP = 5         # deformation control points per type
 N_CROSS = 11            # cross-section vertices (wheat = smoother)
@@ -273,6 +275,61 @@ def fit_single_leaf(
     }
 
 
+def _build_stem_organs(scan_dir: str) -> list[dict]:
+    """Build stem cylinder organs from per-tiller PCDs.
+
+    Reads stemN.pcd files, sorts points by Z, resamples to uniform
+    spacing, and lofts thin cylinders via loft_stem().
+
+    Args:
+        scan_dir: Path to parameterextraction/wheatN/ directory.
+
+    Returns:
+        List of organ dicts ready for export_obj.
+    """
+    import open3d as o3d
+
+    scan_path = Path(scan_dir)
+    stem_dir = scan_path / 'stem'
+    organs = []
+
+    for stem_file in sorted(stem_dir.glob('stem[0-9]*.pcd')):
+        sid = stem_file.stem  # e.g. "stem0"
+        pcd = o3d.io.read_point_cloud(str(stem_file))
+        pts = np.asarray(pcd.points)
+        if pts.shape[0] < 2:
+            continue
+
+        # Sort by Z (ascending = bottom to top in raw inverted coords)
+        order = np.argsort(pts[:, 2])
+        pts = pts[order].astype(np.float32)
+
+        # Resample to uniform spacing
+        skel_t = torch.tensor(pts, dtype=torch.float32)
+        diam = torch.ones(skel_t.shape[0]) * STEM_DIAMETER
+        skel_r, diam_r = resample_skeleton(skel_t, diam, target_spacing=0.3)
+
+        if skel_r.shape[0] < 2:
+            continue
+
+        n_rows = skel_r.shape[0]
+        tangents = compute_tangents(skel_r)
+        binormals = compute_binormal_field(skel_r, tangents)
+        verts = loft_stem(skel_r, diam_r, tangents, binormals, n_sides=STEM_N_SIDES)
+
+        organs.append({
+            'name': sid,
+            'vertices': verts.detach().numpy(),
+            'n_rows': n_rows,
+            'n_cross': STEM_N_SIDES,
+        })
+        print(f"  Stem {sid}: {n_rows} nodes, "
+              f"Z=[{pts[:, 2].min():.1f}, {pts[:, 2].max():.1f}]",
+              file=sys.stderr)
+
+    return organs
+
+
 def fit_all_leaves(
     scan_dir: str,
     output_obj: str,
@@ -302,6 +359,12 @@ def fit_all_leaves(
 
     organs = []
     all_params = []
+
+    # Build stem cylinders first
+    print(f"\nBuilding stem cylinders...", file=sys.stderr)
+    stem_organs = _build_stem_organs(scan_dir)
+    organs.extend(stem_organs)
+    print(f"  Added {len(stem_organs)} stems", file=sys.stderr)
 
     for leaf in leaves:
         lid = leaf['leaf_id']
