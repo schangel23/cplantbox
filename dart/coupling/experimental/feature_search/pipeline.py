@@ -18,8 +18,6 @@ from pathlib import Path
 
 import numpy as np
 
-from ..fitting.optuna_optimizer import N_POSITIONS
-
 
 def load_reference_plants(refs_config):
     """Load reference plants from a config file or directory.
@@ -191,8 +189,8 @@ def main():
                         help='Number of parallel workers (use 1 for testing)')
     parser.add_argument('--refs', required=True,
                         help='Path to references config JSON or directory of STL/PLY files')
-    parser.add_argument('--stats', required=True,
-                        help='Path to maizefield3d_stats.json')
+    parser.add_argument('--stats', required=True, nargs='+',
+                        help='Species stats: "maize:/path/to/stats.json" "wheat:/path/to/stats.json"')
     parser.add_argument('--output', default='feature_search_results',
                         help='Output directory for results')
     parser.add_argument('--storage', default='feature_search_journal.log',
@@ -211,8 +209,6 @@ def main():
                         help='Reference plants per trial (default 1 for speed, more for precision)')
     parser.add_argument('--max-points', type=int, default=2000,
                         help='Max points per reference for Chamfer (default 2000)')
-    parser.add_argument('--template-xml', default=None,
-                        help='Calibrated XML template path')
     parser.add_argument('--seed', type=int, default=42)
     parser.add_argument('--cpu-chamfer', action='store_true',
                         help='Use CPU KD-tree Chamfer (for 128+ workers without GPU)')
@@ -232,12 +228,29 @@ def main():
     reference_plants = load_reference_plants(args.refs)
     print(f"  Loaded {len(reference_plants)} reference plants")
 
-    # Load stats
-    with open(args.stats) as f:
-        stats = json.load(f)
-    per_pos = stats.get('per_position', stats) if isinstance(stats, dict) else stats
-    if not isinstance(per_pos, list):
-        per_pos = [per_pos[str(i)] for i in range(N_POSITIONS)]
+    # Count species
+    species_in_refs = set(rp.get('species', 'maize') for rp in reference_plants)
+    print(f"  Species: {species_in_refs}")
+
+    # Load per-species stats
+    # Format: "maize:/path/to/stats.json" "wheat:/path/to/stats.json"
+    from .objective import SpeciesData
+    species_data = {}
+    for spec in args.stats:
+        if ':' in spec:
+            species_name, stats_path = spec.split(':', 1)
+        else:
+            # Default: assume maize if no species prefix
+            species_name = 'maize'
+            stats_path = spec
+        species_data[species_name] = SpeciesData(species_name, stats_path, day=args.day)
+        print(f"  {species_name}: {stats_path} ({species_data[species_name].cfg.n_positions} leaf positions)")
+
+    # Verify all referenced species have stats
+    for sp in species_in_refs:
+        if sp not in species_data:
+            print(f"WARNING: species '{sp}' in references but no --stats provided. "
+                  f"Those references will cause failures.", file=sys.stderr)
 
     # Create/load study
     study = create_study(args.storage, args.study_name, args.seed)
@@ -250,9 +263,7 @@ def main():
     if args.cpu_chamfer or device == 'cpu':
         from .objective import make_cpu_objective
         objective = make_cpu_objective(
-            reference_plants, per_pos,
-            day=args.day,
-            template_xml=args.template_xml,
+            reference_plants, species_data,
             deform_steps=args.deform_steps,
             deform_lr=args.deform_lr,
             refs_per_trial=args.refs_per_trial,
@@ -262,10 +273,8 @@ def main():
     else:
         from .objective import make_objective
         objective = make_objective(
-            reference_plants, per_pos,
-            day=args.day,
+            reference_plants, species_data,
             device=device,
-            template_xml=args.template_xml,
             deform_steps=args.deform_steps,
             deform_lr=args.deform_lr,
             refs_per_trial=args.refs_per_trial,
@@ -280,7 +289,7 @@ def main():
     print(f"  Trials:  {args.n_trials}")
     print(f"  Workers: {args.workers}")
     print(f"  Device:  {device}")
-    print(f"  Refs:    {len(reference_plants)} plants")
+    print(f"  Refs:    {len(reference_plants)} plants ({', '.join(species_in_refs)})")
     print(f"  Steps:   {args.deform_steps} gradient steps/trial")
     print(f"  Storage: {args.storage}")
 
