@@ -624,6 +624,24 @@ def extract_organs_for_lofter(plant, min_stem_nodes=50, min_leaf_nodes=20,
                 if k in wave_params:
                     wave_params[k] *= unfurl
 
+        # Extract spline-based geometry features from CPlantBox LeafRandomParameter
+        # (leafOOPCurvPhi/Kappa, leafAsymmetry, leafEdgeCurl, leafCrossSection).
+        # These are empty lists if not set in the XML — the lofter treats empty as no-op.
+        spline_features = {}
+        for attr_phi, attr_val, key in [
+            ('leafOOPCurvPhi', 'leafOOPCurvKappa', 'oop_curv_spline'),
+            ('leafAsymmetryPhi', 'leafAsymmetryOffset', 'asymmetry_spline'),
+            ('leafEdgeCurlPhi', 'leafEdgeCurlAngle', 'edge_curl_spline'),
+            ('leafCrossSectionPhi', 'leafCrossSectionCurv', 'cross_section_spline'),
+        ]:
+            phi_vals = list(getattr(lrp, attr_phi, []))
+            data_vals = list(getattr(lrp, attr_val, []))
+            if phi_vals and data_vals and len(phi_vals) == len(data_vals):
+                spline_features[key] = {
+                    'phi': np.array(phi_vals),
+                    'values': np.array(data_vals),
+                }
+
         organs.append({
             "type": "leaf",
             "skeleton": skeleton,
@@ -632,6 +650,7 @@ def extract_organs_for_lofter(plant, min_stem_nodes=50, min_leaf_nodes=20,
             "name": f"{name_prefix}leaf_{organ_counter}",
             "node_ids": node_ids,
             **wave_params,
+            **spline_features,
         })
         organ_counter += 1
         leaf_position += 1

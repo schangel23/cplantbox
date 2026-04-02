@@ -102,7 +102,7 @@
         <parameter name="tropismS" value="0.01" />
         <parameter name="successor" ruleId="0" numLat="1" Where="" subType="2" organType="4" percentage="1" />
     </stem>
-    <!-- Leaf position 0 (lowest, subType=2) -->
+    
     <leaf name="wheat_leaf_L0" subType="2">
         <parameter name="geometryN" value="100" />
         <parameter name="gf" value="3" />
@@ -136,8 +136,8 @@
         <parameter name="leafGeometry" phi="0.0" x="1" />
         <parameter name="leafGeometry" phi="2.0" x="1" />
         <parameter name="leafGeometry" phi="3.5" x="0.05" />
-    </leaf>
-    <!-- Leaf position 1 (subType=3) -->
+    <parameter name="leafOOPCurvature" phi="0.0000" kappa="0.001329" /><parameter name="leafOOPCurvature" phi="0.2500" kappa="-0.058180" /><parameter name="leafOOPCurvature" phi="0.5000" kappa="-0.116003" /><parameter name="leafOOPCurvature" phi="0.7500" kappa="-0.102001" /><parameter name="leafOOPCurvature" phi="1.0000" kappa="-0.004954" /><parameter name="leafAsymmetry" phi="0.0000" offset="0.001848" /><parameter name="leafAsymmetry" phi="0.2500" offset="-0.006112" /><parameter name="leafAsymmetry" phi="0.5000" offset="-0.016625" /><parameter name="leafAsymmetry" phi="0.7500" offset="-0.143762" /><parameter name="leafAsymmetry" phi="1.0000" offset="-0.043983" /><parameter name="leafEdgeCurl" phi="0.0000" angle="-0.001838" /><parameter name="leafEdgeCurl" phi="0.2500" angle="0.000341" /><parameter name="leafEdgeCurl" phi="0.5000" angle="-0.001761" /><parameter name="leafEdgeCurl" phi="0.7500" angle="0.392403" /><parameter name="leafEdgeCurl" phi="1.0000" angle="0.032855" /><parameter name="leafCrossSection" phi="0.0000" curv="-0.001835" /><parameter name="leafCrossSection" phi="0.2500" curv="0.000170" /><parameter name="leafCrossSection" phi="0.5000" curv="0.001518" /><parameter name="leafCrossSection" phi="0.7500" curv="0.347723" /><parameter name="leafCrossSection" phi="1.0000" curv="0.030975" /></leaf>
+    
     <leaf name="wheat_leaf_L1" subType="3">
         <parameter name="geometryN" value="100" />
         <parameter name="gf" value="3" />
@@ -171,8 +171,8 @@
         <parameter name="leafGeometry" phi="0.0" x="1" />
         <parameter name="leafGeometry" phi="2.0" x="1" />
         <parameter name="leafGeometry" phi="3.5" x="0.05" />
-    </leaf>
-    <!-- Leaf position 2 (subType=4) -->
+    <parameter name="leafOOPCurvature" phi="0.0000" kappa="0.002008" /><parameter name="leafOOPCurvature" phi="0.2500" kappa="0.020892" /><parameter name="leafOOPCurvature" phi="0.5000" kappa="0.022069" /><parameter name="leafOOPCurvature" phi="0.7500" kappa="0.051951" /><parameter name="leafOOPCurvature" phi="1.0000" kappa="0.010259" /><parameter name="leafAsymmetry" phi="0.0000" offset="-0.001745" /><parameter name="leafAsymmetry" phi="0.2500" offset="0.009810" /><parameter name="leafAsymmetry" phi="0.5000" offset="0.026334" /><parameter name="leafAsymmetry" phi="0.7500" offset="0.014288" /><parameter name="leafAsymmetry" phi="1.0000" offset="0.012299" /><parameter name="leafEdgeCurl" phi="0.0000" angle="-0.001855" /><parameter name="leafEdgeCurl" phi="0.2500" angle="0.001108" /><parameter name="leafEdgeCurl" phi="0.5000" angle="0.022624" /><parameter name="leafEdgeCurl" phi="0.7500" angle="0.062838" /><parameter name="leafEdgeCurl" phi="1.0000" angle="-0.002051" /><parameter name="leafCrossSection" phi="0.0000" curv="-0.001750" /><parameter name="leafCrossSection" phi="0.2500" curv="0.005902" /><parameter name="leafCrossSection" phi="0.5000" curv="0.017753" /><parameter name="leafCrossSection" phi="0.7500" curv="0.041716" /><parameter name="leafCrossSection" phi="1.0000" curv="-0.011465" /></leaf>
+    
     <leaf name="wheat_leaf_L2" subType="4">
         <parameter name="geometryN" value="100" />
         <parameter name="gf" value="3" />
@@ -206,8 +206,8 @@
         <parameter name="leafGeometry" phi="0.0" x="1" />
         <parameter name="leafGeometry" phi="2.0" x="1" />
         <parameter name="leafGeometry" phi="3.5" x="0.05" />
-    </leaf>
-    <!-- Leaf position 3 (subType=5) -->
+    <parameter name="leafOOPCurvature" phi="0.0000" kappa="0.001703" /><parameter name="leafOOPCurvature" phi="0.2500" kappa="-0.049661" /><parameter name="leafOOPCurvature" phi="0.5000" kappa="-0.145241" /><parameter name="leafOOPCurvature" phi="0.7500" kappa="-0.083189" /><parameter name="leafOOPCurvature" phi="1.0000" kappa="-0.037682" /><parameter name="leafAsymmetry" phi="0.0000" offset="-0.001710" /><parameter name="leafAsymmetry" phi="0.2500" offset="-0.000674" /><parameter name="leafAsymmetry" phi="0.5000" offset="0.012573" /><parameter name="leafAsymmetry" phi="0.7500" offset="-0.008569" /><parameter name="leafAsymmetry" phi="1.0000" offset="-0.005320" /><parameter name="leafEdgeCurl" phi="0.0000" angle="0.001834" /><parameter name="leafEdgeCurl" phi="0.2500" angle="-0.000007" /><parameter name="leafEdgeCurl" phi="0.5000" angle="0.001309" /><parameter name="leafEdgeCurl" phi="0.7500" angle="0.012874" /><parameter name="leafEdgeCurl" phi="1.0000" angle="0.011800" /><parameter name="leafCrossSection" phi="0.0000" curv="0.001826" /><parameter name="leafCrossSection" phi="0.2500" curv="0.002405" /><parameter name="leafCrossSection" phi="0.5000" curv="0.005241" /><parameter name="leafCrossSection" phi="0.7500" curv="0.029331" /><parameter name="leafCrossSection" phi="1.0000" curv="0.094321" /></leaf>
+    
     <leaf name="wheat_leaf_L3" subType="5">
         <parameter name="geometryN" value="100" />
         <parameter name="gf" value="3" />
@@ -241,8 +241,8 @@
         <parameter name="leafGeometry" phi="0.0" x="1" />
         <parameter name="leafGeometry" phi="2.0" x="1" />
         <parameter name="leafGeometry" phi="3.5" x="0.05" />
-    </leaf>
-    <!-- Leaf position 4 (subType=6) -->
+    <parameter name="leafOOPCurvature" phi="0.0000" kappa="0.000383" /><parameter name="leafOOPCurvature" phi="0.2500" kappa="-0.028344" /><parameter name="leafOOPCurvature" phi="0.5000" kappa="-0.094885" /><parameter name="leafOOPCurvature" phi="0.7500" kappa="-0.122212" /><parameter name="leafOOPCurvature" phi="1.0000" kappa="-0.002387" /><parameter name="leafAsymmetry" phi="0.0000" offset="-0.001744" /><parameter name="leafAsymmetry" phi="0.2500" offset="0.007478" /><parameter name="leafAsymmetry" phi="0.5000" offset="0.025343" /><parameter name="leafAsymmetry" phi="0.7500" offset="-0.031023" /><parameter name="leafAsymmetry" phi="1.0000" offset="-0.015190" /><parameter name="leafEdgeCurl" phi="0.0000" angle="0.001731" /><parameter name="leafEdgeCurl" phi="0.2500" angle="-0.003693" /><parameter name="leafEdgeCurl" phi="0.5000" angle="0.059271" /><parameter name="leafEdgeCurl" phi="0.7500" angle="0.094654" /><parameter name="leafEdgeCurl" phi="1.0000" angle="0.014898" /><parameter name="leafCrossSection" phi="0.0000" curv="0.001587" /><parameter name="leafCrossSection" phi="0.2500" curv="-0.008246" /><parameter name="leafCrossSection" phi="0.5000" curv="0.050363" /><parameter name="leafCrossSection" phi="0.7500" curv="0.099346" /><parameter name="leafCrossSection" phi="1.0000" curv="0.057780" /></leaf>
+    
     <leaf name="wheat_leaf_L4" subType="6">
         <parameter name="geometryN" value="100" />
         <parameter name="gf" value="3" />
@@ -276,8 +276,8 @@
         <parameter name="leafGeometry" phi="0.0" x="1" />
         <parameter name="leafGeometry" phi="2.0" x="1" />
         <parameter name="leafGeometry" phi="3.5" x="0.05" />
-    </leaf>
-    <!-- Leaf position 5 (subType=7) -->
+    <parameter name="leafOOPCurvature" phi="0.0000" kappa="0.001875" /><parameter name="leafOOPCurvature" phi="0.2500" kappa="0.112112" /><parameter name="leafOOPCurvature" phi="0.5000" kappa="0.150000" /><parameter name="leafOOPCurvature" phi="0.7500" kappa="0.098741" /><parameter name="leafOOPCurvature" phi="1.0000" kappa="-0.035900" /><parameter name="leafAsymmetry" phi="0.0000" offset="0.001664" /><parameter name="leafAsymmetry" phi="0.2500" offset="0.001305" /><parameter name="leafAsymmetry" phi="0.5000" offset="0.027975" /><parameter name="leafAsymmetry" phi="0.7500" offset="0.074065" /><parameter name="leafAsymmetry" phi="1.0000" offset="0.008739" /><parameter name="leafEdgeCurl" phi="0.0000" angle="0.001913" /><parameter name="leafEdgeCurl" phi="0.2500" angle="0.000076" /><parameter name="leafEdgeCurl" phi="0.5000" angle="-0.062810" /><parameter name="leafEdgeCurl" phi="0.7500" angle="-0.037053" /><parameter name="leafEdgeCurl" phi="1.0000" angle="-0.007629" /><parameter name="leafCrossSection" phi="0.0000" curv="0.001875" /><parameter name="leafCrossSection" phi="0.2500" curv="-0.001004" /><parameter name="leafCrossSection" phi="0.5000" curv="-0.045553" /><parameter name="leafCrossSection" phi="0.7500" curv="-0.037829" /><parameter name="leafCrossSection" phi="1.0000" curv="-0.031973" /></leaf>
+    
     <leaf name="wheat_leaf_L5" subType="7">
         <parameter name="geometryN" value="100" />
         <parameter name="gf" value="3" />
@@ -311,8 +311,8 @@
         <parameter name="leafGeometry" phi="0.0" x="1" />
         <parameter name="leafGeometry" phi="2.0" x="1" />
         <parameter name="leafGeometry" phi="3.5" x="0.05" />
-    </leaf>
-    <!-- Leaf position 6 (subType=8) -->
+    <parameter name="leafOOPCurvature" phi="0.0000" kappa="0.007236" /><parameter name="leafOOPCurvature" phi="0.2500" kappa="0.150000" /><parameter name="leafOOPCurvature" phi="0.5000" kappa="0.150000" /><parameter name="leafOOPCurvature" phi="0.7500" kappa="0.097068" /><parameter name="leafOOPCurvature" phi="1.0000" kappa="0.068755" /><parameter name="leafAsymmetry" phi="0.0000" offset="-0.001846" /><parameter name="leafAsymmetry" phi="0.2500" offset="0.007016" /><parameter name="leafAsymmetry" phi="0.5000" offset="0.071017" /><parameter name="leafAsymmetry" phi="0.7500" offset="0.205016" /><parameter name="leafAsymmetry" phi="1.0000" offset="0.056562" /><parameter name="leafEdgeCurl" phi="0.0000" angle="-0.002245" /><parameter name="leafEdgeCurl" phi="0.2500" angle="-0.016382" /><parameter name="leafEdgeCurl" phi="0.5000" angle="-0.191113" /><parameter name="leafEdgeCurl" phi="0.7500" angle="-0.453562" /><parameter name="leafEdgeCurl" phi="1.0000" angle="-0.068319" /><parameter name="leafCrossSection" phi="0.0000" curv="-0.002088" /><parameter name="leafCrossSection" phi="0.2500" curv="-0.009687" /><parameter name="leafCrossSection" phi="0.5000" curv="-0.093266" /><parameter name="leafCrossSection" phi="0.7500" curv="-0.331654" /><parameter name="leafCrossSection" phi="1.0000" curv="-0.096641" /></leaf>
+    
     <leaf name="wheat_leaf_L6" subType="8">
         <parameter name="geometryN" value="100" />
         <parameter name="gf" value="3" />
@@ -346,8 +346,8 @@
         <parameter name="leafGeometry" phi="0.0" x="1" />
         <parameter name="leafGeometry" phi="2.0" x="1" />
         <parameter name="leafGeometry" phi="3.5" x="0.05" />
-    </leaf>
-    <!-- Leaf position 7 (flag leaf, subType=9) -->
+    <parameter name="leafOOPCurvature" phi="0.0000" kappa="-0.000962" /><parameter name="leafOOPCurvature" phi="0.2500" kappa="-0.100535" /><parameter name="leafOOPCurvature" phi="0.5000" kappa="-0.047022" /><parameter name="leafOOPCurvature" phi="0.7500" kappa="0.000000" /><parameter name="leafOOPCurvature" phi="1.0000" kappa="0.064493" /><parameter name="leafAsymmetry" phi="0.0000" offset="0.001387" /><parameter name="leafAsymmetry" phi="0.2500" offset="-0.004660" /><parameter name="leafAsymmetry" phi="0.5000" offset="0.005103" /><parameter name="leafAsymmetry" phi="0.7500" offset="-0.271357" /><parameter name="leafAsymmetry" phi="1.0000" offset="0.032735" /><parameter name="leafEdgeCurl" phi="0.0000" angle="0.000720" /><parameter name="leafEdgeCurl" phi="0.2500" angle="-0.060664" /><parameter name="leafEdgeCurl" phi="0.5000" angle="0.061019" /><parameter name="leafEdgeCurl" phi="0.7500" angle="0.785398" /><parameter name="leafEdgeCurl" phi="1.0000" angle="0.161774" /><parameter name="leafCrossSection" phi="0.0000" curv="0.001185" /><parameter name="leafCrossSection" phi="0.2500" curv="-0.036971" /><parameter name="leafCrossSection" phi="0.5000" curv="0.022093" /><parameter name="leafCrossSection" phi="0.7500" curv="0.707670" /><parameter name="leafCrossSection" phi="1.0000" curv="0.021643" /></leaf>
+    
     <leaf name="wheat_leaf_L7_flag" subType="9">
         <parameter name="geometryN" value="100" />
         <parameter name="gf" value="3" />
@@ -381,5 +381,5 @@
         <parameter name="leafGeometry" phi="0.0" x="1" />
         <parameter name="leafGeometry" phi="2.0" x="1" />
         <parameter name="leafGeometry" phi="3.5" x="0.05" />
-    </leaf>
+    <parameter name="leafOOPCurvature" phi="0.0000" kappa="-0.002510" /><parameter name="leafOOPCurvature" phi="0.2500" kappa="-0.150000" /><parameter name="leafOOPCurvature" phi="0.5000" kappa="-0.098380" /><parameter name="leafOOPCurvature" phi="0.7500" kappa="-0.065612" /><parameter name="leafOOPCurvature" phi="1.0000" kappa="-0.047444" /><parameter name="leafAsymmetry" phi="0.0000" offset="0.001922" /><parameter name="leafAsymmetry" phi="0.2500" offset="-0.000865" /><parameter name="leafAsymmetry" phi="0.5000" offset="-0.159672" /><parameter name="leafAsymmetry" phi="0.7500" offset="-0.305465" /><parameter name="leafAsymmetry" phi="1.0000" offset="-0.613352" /><parameter name="leafEdgeCurl" phi="0.0000" angle="-0.001934" /><parameter name="leafEdgeCurl" phi="0.2500" angle="0.000581" /><parameter name="leafEdgeCurl" phi="0.5000" angle="-0.036814" /><parameter name="leafEdgeCurl" phi="0.7500" angle="-0.755143" /><parameter name="leafEdgeCurl" phi="1.0000" angle="-0.454281" /><parameter name="leafCrossSection" phi="0.0000" curv="-0.002089" /><parameter name="leafCrossSection" phi="0.2500" curv="-0.003656" /><parameter name="leafCrossSection" phi="0.5000" curv="-0.040517" /><parameter name="leafCrossSection" phi="0.7500" curv="-0.690527" /><parameter name="leafCrossSection" phi="1.0000" curv="-1.103229" /></leaf>
 </plant>

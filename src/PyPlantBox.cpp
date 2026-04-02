@@ -718,7 +718,15 @@ PYBIND11_MODULE(plantbox, m) {
       .def_readwrite("tropismExponent", &LeafRandomParameter::tropismExponent)
       .def_readwrite("tropismExponents", &LeafRandomParameter::tropismExponents)
       .def_readwrite("leafCurvaturePhi", &LeafRandomParameter::leafCurvaturePhi)
-      .def_readwrite("leafCurvatureKappa", &LeafRandomParameter::leafCurvatureKappa);
+      .def_readwrite("leafCurvatureKappa", &LeafRandomParameter::leafCurvatureKappa)
+      .def_readwrite("leafOOPCurvPhi", &LeafRandomParameter::leafOOPCurvPhi)
+      .def_readwrite("leafOOPCurvKappa", &LeafRandomParameter::leafOOPCurvKappa)
+      .def_readwrite("leafAsymmetryPhi", &LeafRandomParameter::leafAsymmetryPhi)
+      .def_readwrite("leafAsymmetryOffset", &LeafRandomParameter::leafAsymmetryOffset)
+      .def_readwrite("leafEdgeCurlPhi", &LeafRandomParameter::leafEdgeCurlPhi)
+      .def_readwrite("leafEdgeCurlAngle", &LeafRandomParameter::leafEdgeCurlAngle)
+      .def_readwrite("leafCrossSectionPhi", &LeafRandomParameter::leafCrossSectionPhi)
+      .def_readwrite("leafCrossSectionCurv", &LeafRandomParameter::leafCrossSectionCurv);
 
     py::class_<LeafSpecificParameter, OrganSpecificParameter, std::shared_ptr<LeafSpecificParameter>>(m, "LeafSpecificParameter")
             .def(py::init<>())

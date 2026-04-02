@@ -646,6 +646,51 @@ def _loft_leaf(organ):
                  or abs(twist_max) > 0 or curl_amp > 0
                  or edge_ruffle_amp > 0 or fold_amp > 0)
 
+    # --- Spline-based geometry features (from Optuna feature search) ---
+    # Each is a dict with 'phi' (knot positions [0,1]) and 'values' (per-knot data).
+    # Empty/missing means the feature is inactive.
+    oop_curv_spline = organ.get("oop_curv_spline")
+    asymmetry_spline = organ.get("asymmetry_spline")
+    edge_curl_spline = organ.get("edge_curl_spline")
+    cross_section_spline = organ.get("cross_section_spline")
+
+    has_spline_features = any(s is not None for s in [
+        oop_curv_spline, asymmetry_spline, edge_curl_spline, cross_section_spline])
+
+    # Bump n_cross to 7 if spline features need cross-section detail
+    if has_spline_features and n_cross < 7:
+        n_cross = 7
+        cross_fracs = np.linspace(-0.5, 0.5, n_cross)
+        cross_gutter = 1.0 - (2.0 * cross_fracs) ** 2
+
+    # Pre-compute per-skeleton-point spline-interpolated values
+    arc_fracs = arc / total_arc if total_arc > 0 else np.linspace(0, 1, n)
+
+    def _interp_spline(spline_dict):
+        """Interpolate spline control points at arc fraction positions."""
+        return np.interp(arc_fracs, spline_dict['phi'], spline_dict['values'])
+
+    # Linear ramp for spline features (same as deformations: zero at base, full at tip)
+    spline_ramp = np.maximum(0.0, (arc_fracs - ramp_onset) / max(1.0 - ramp_onset, 1e-12))
+
+    oop_curv_values = None
+    if oop_curv_spline is not None:
+        raw = _interp_spline(oop_curv_spline)
+        # Quadratic ramp for skeleton-modifying features (like twist)
+        oop_curv_values = raw * spline_ramp * spline_ramp
+
+    asymmetry_values = None
+    if asymmetry_spline is not None:
+        asymmetry_values = _interp_spline(asymmetry_spline) * spline_ramp
+
+    edge_curl_values = None
+    if edge_curl_spline is not None:
+        edge_curl_values = _interp_spline(edge_curl_spline) * spline_ramp
+
+    cross_section_values = None
+    if cross_section_spline is not None:
+        cross_section_values = _interp_spline(cross_section_spline) * spline_ramp
+
     # Pre-compute per-skeleton-point offsets (midrib-level effects)
     wave_normal_offsets = np.zeros(n)
     wave_lateral_offsets = np.zeros(n)
@@ -682,6 +727,18 @@ def _loft_leaf(organ):
             # Internal fold: cross-sectional curvature variation
             fold_factors[i] = fold_amp * ramp * np.sin(
                 2 * np.pi * fold_freq * t_frac + fold_phase)
+
+    # --- Apply out-of-plane curvature: modify skeleton before vertex sweep ---
+    # Integrates curvature along binormal to displace the skeleton perpendicular
+    # to the growth plane (e.g. modeling droop/lift not captured by tropism).
+    if oop_curv_values is not None and use_gravity:
+        diffs_oop = np.diff(skeleton, axis=0)
+        seg_lens_oop = np.linalg.norm(diffs_oop, axis=1)
+        d_angle = oop_curv_values[:-1] * seg_lens_oop
+        cum_angle = np.concatenate([[0.0], np.cumsum(d_angle)])
+        oop_disp = np.concatenate([[0.0], np.cumsum(
+            np.sin(cum_angle[:-1]) * seg_lens_oop)])
+        skeleton = skeleton + oop_disp[:, np.newaxis] * binormal_field
 
     vertices = np.empty((n_cross * n, 3))
     normals_arr = np.empty((n_cross * n, 3))
@@ -789,9 +846,29 @@ def _loft_leaf(organ):
             fold_offset *= w_fade
             gutter_offset *= w_fade
 
+            # --- Spline-based geometry features ---
+            # Asymmetry: shift cross-section center along binormal
+            asym_offset = np.zeros(3)
+            if asymmetry_values is not None:
+                asym_offset = asymmetry_values[i] * binormal * w_fade
+
+            # Edge curl: margin-only deflection angle (cubic edge profile)
+            edge_curl_offset = np.zeros(3)
+            if edge_curl_values is not None:
+                edge_influence = (2.0 * abs(frac)) ** 3  # concentrated at margins
+                edge_curl_offset = (edge_influence * np.tan(edge_curl_values[i])
+                                    * w * 0.5 * normal * w_fade)
+
+            # Cross-section profile: parabolic transverse curvature
+            cs_offset = np.zeros(3)
+            if cross_section_values is not None:
+                cs_profile = (2.0 * frac) ** 2  # 0 at center, 1 at edges
+                cs_offset = cross_section_values[i] * cs_profile * normal * w_fade
+
             v_idx = n_cross * i + j
             vertices[v_idx] = (center + lateral + gutter_offset
-                               + curl_offset + ruffle_offset + fold_offset)
+                               + curl_offset + ruffle_offset + fold_offset
+                               + asym_offset + edge_curl_offset + cs_offset)
 
             # Per-vertex normal: for curved cross-section, tilt normals outward
             if n_cross > 2 and gd > 0:

@@ -123,6 +123,22 @@ public:
 	std::vector<double> leafCurvaturePhi = {};   ///< Normalized positions [0,1] along leaf for curvature profile knots
 	std::vector<double> leafCurvatureKappa = {}; ///< Curvature magnitudes at each knot position [1/cm]
 
+	/* out-of-plane curvature spline: curvature perpendicular to the growth plane */
+	std::vector<double> leafOOPCurvPhi = {};     ///< Normalized positions [0,1] along leaf for OOP curvature knots
+	std::vector<double> leafOOPCurvKappa = {};   ///< OOP curvature magnitudes at each knot position [1/cm]
+
+	/* asymmetry spline: left/right width offset along the leaf */
+	std::vector<double> leafAsymmetryPhi = {};   ///< Normalized positions [0,1] along leaf for asymmetry knots
+	std::vector<double> leafAsymmetryOffset = {};///< Width offset at each knot position [cm]
+
+	/* edge curl spline: margin deflection angle along the leaf */
+	std::vector<double> leafEdgeCurlPhi = {};    ///< Normalized positions [0,1] along leaf for edge curl knots
+	std::vector<double> leafEdgeCurlAngle = {};  ///< Deflection angle at each knot position [rad]
+
+	/* cross-section curvature spline: transverse curvature profile (positive=concave V/U) */
+	std::vector<double> leafCrossSectionPhi = {};  ///< Normalized positions [0,1] along leaf for cross-section knots
+	std::vector<double> leafCrossSectionCurv = {}; ///< Cross-section curvature at each knot position
+
 	/* describes the plant geometry */
 	std::vector<double> leafGeometryPhi= {}; //2D shape
 	std::vector<double> leafGeometryX= {};//2D shape

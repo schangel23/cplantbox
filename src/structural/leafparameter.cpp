@@ -310,6 +310,54 @@ std::string LeafRandomParameter::toString(bool verbose) const {
             }
             str << "\t" << description.at("leafCurvatureKappa") << std::endl;
         }
+        if (leafOOPCurvPhi.size() > 0) {
+            str << "leafOOPCurvPhi\t";
+            for (size_t i=0; i<leafOOPCurvPhi.size(); i++) {
+                str << leafOOPCurvPhi[i] << " ";
+            }
+            str << "\t" << description.at("leafOOPCurvPhi") << std::endl;
+            str << "leafOOPCurvKappa\t";
+            for (size_t i=0; i<leafOOPCurvKappa.size(); i++) {
+                str << leafOOPCurvKappa[i] << " ";
+            }
+            str << "\t" << description.at("leafOOPCurvKappa") << std::endl;
+        }
+        if (leafAsymmetryPhi.size() > 0) {
+            str << "leafAsymmetryPhi\t";
+            for (size_t i=0; i<leafAsymmetryPhi.size(); i++) {
+                str << leafAsymmetryPhi[i] << " ";
+            }
+            str << "\t" << description.at("leafAsymmetryPhi") << std::endl;
+            str << "leafAsymmetryOffset\t";
+            for (size_t i=0; i<leafAsymmetryOffset.size(); i++) {
+                str << leafAsymmetryOffset[i] << " ";
+            }
+            str << "\t" << description.at("leafAsymmetryOffset") << std::endl;
+        }
+        if (leafEdgeCurlPhi.size() > 0) {
+            str << "leafEdgeCurlPhi\t";
+            for (size_t i=0; i<leafEdgeCurlPhi.size(); i++) {
+                str << leafEdgeCurlPhi[i] << " ";
+            }
+            str << "\t" << description.at("leafEdgeCurlPhi") << std::endl;
+            str << "leafEdgeCurlAngle\t";
+            for (size_t i=0; i<leafEdgeCurlAngle.size(); i++) {
+                str << leafEdgeCurlAngle[i] << " ";
+            }
+            str << "\t" << description.at("leafEdgeCurlAngle") << std::endl;
+        }
+        if (leafCrossSectionPhi.size() > 0) {
+            str << "leafCrossSectionPhi\t";
+            for (size_t i=0; i<leafCrossSectionPhi.size(); i++) {
+                str << leafCrossSectionPhi[i] << " ";
+            }
+            str << "\t" << description.at("leafCrossSectionPhi") << std::endl;
+            str << "leafCrossSectionCurv\t";
+            for (size_t i=0; i<leafCrossSectionCurv.size(); i++) {
+                str << leafCrossSectionCurv[i] << " ";
+            }
+            str << "\t" << description.at("leafCrossSectionCurv") << std::endl;
+        }
 
         return s.insert(s.length(), str.str());
     } else {
@@ -346,6 +394,14 @@ void LeafRandomParameter::readXML(tinyxml2::XMLElement* element, bool verbose)
     leafGeometryX.resize(0);
     leafCurvaturePhi.resize(0);
     leafCurvatureKappa.resize(0);
+    leafOOPCurvPhi.resize(0);
+    leafOOPCurvKappa.resize(0);
+    leafAsymmetryPhi.resize(0);
+    leafAsymmetryOffset.resize(0);
+    leafEdgeCurlPhi.resize(0);
+    leafEdgeCurlAngle.resize(0);
+    leafCrossSectionPhi.resize(0);
+    leafCrossSectionCurv.resize(0);
     while(p) {
         std::string key = p->Attribute("name");
         if (key.compare("leafGeometry")==0)  {
@@ -370,6 +426,54 @@ void LeafRandomParameter::readXML(tinyxml2::XMLElement* element, bool verbose)
                 leafCurvatureKappa.insert(leafCurvatureKappa.end(), kappa_.begin(), kappa_.end());
             }else{
                 throw std::invalid_argument ("LeafRandomParameter::readXML: 'phi' or 'kappa' tag not found in leafCurvature parameter description");
+            }
+        }
+        if (key.compare("leafOOPCurvature")==0)  {
+            if((p->Attribute("phi"))&&(p->Attribute("kappa")))
+            {
+                std::vector<double> phi_ = string2vector(p->Attribute("phi"),0.0);
+                leafOOPCurvPhi.insert(leafOOPCurvPhi.end(), phi_.begin(), phi_.end());
+
+                std::vector<double> kappa_ = string2vector(p->Attribute("kappa"),0.0);
+                leafOOPCurvKappa.insert(leafOOPCurvKappa.end(), kappa_.begin(), kappa_.end());
+            }else{
+                throw std::invalid_argument ("LeafRandomParameter::readXML: 'phi' or 'kappa' tag not found in leafOOPCurvature parameter description");
+            }
+        }
+        if (key.compare("leafAsymmetry")==0)  {
+            if((p->Attribute("phi"))&&(p->Attribute("offset")))
+            {
+                std::vector<double> phi_ = string2vector(p->Attribute("phi"),0.0);
+                leafAsymmetryPhi.insert(leafAsymmetryPhi.end(), phi_.begin(), phi_.end());
+
+                std::vector<double> offset_ = string2vector(p->Attribute("offset"),0.0);
+                leafAsymmetryOffset.insert(leafAsymmetryOffset.end(), offset_.begin(), offset_.end());
+            }else{
+                throw std::invalid_argument ("LeafRandomParameter::readXML: 'phi' or 'offset' tag not found in leafAsymmetry parameter description");
+            }
+        }
+        if (key.compare("leafEdgeCurl")==0)  {
+            if((p->Attribute("phi"))&&(p->Attribute("angle")))
+            {
+                std::vector<double> phi_ = string2vector(p->Attribute("phi"),0.0);
+                leafEdgeCurlPhi.insert(leafEdgeCurlPhi.end(), phi_.begin(), phi_.end());
+
+                std::vector<double> angle_ = string2vector(p->Attribute("angle"),0.0);
+                leafEdgeCurlAngle.insert(leafEdgeCurlAngle.end(), angle_.begin(), angle_.end());
+            }else{
+                throw std::invalid_argument ("LeafRandomParameter::readXML: 'phi' or 'angle' tag not found in leafEdgeCurl parameter description");
+            }
+        }
+        if (key.compare("leafCrossSection")==0)  {
+            if((p->Attribute("phi"))&&(p->Attribute("curv")))
+            {
+                std::vector<double> phi_ = string2vector(p->Attribute("phi"),0.0);
+                leafCrossSectionPhi.insert(leafCrossSectionPhi.end(), phi_.begin(), phi_.end());
+
+                std::vector<double> curv_ = string2vector(p->Attribute("curv"),0.0);
+                leafCrossSectionCurv.insert(leafCrossSectionCurv.end(), curv_.begin(), curv_.end());
+            }else{
+                throw std::invalid_argument ("LeafRandomParameter::readXML: 'phi' or 'curv' tag not found in leafCrossSection parameter description");
             }
         }
         p = p->NextSiblingElement("parameter");
@@ -408,6 +512,54 @@ tinyxml2::XMLElement* LeafRandomParameter::writeXML(tinyxml2::XMLDocument& doc, 
         element->InsertEndChild(p);
         if (comments) {
             std::string str = description.at("leafCurvaturePhi");
+            tinyxml2::XMLComment* c = doc.NewComment(str.c_str());
+            element->InsertEndChild(c);
+        }
+    }
+    for (size_t i = 0; i<leafOOPCurvPhi.size(); i++) {
+        tinyxml2::XMLElement* p = doc.NewElement("parameter");
+        p->SetAttribute("name", "leafOOPCurvature");
+        p->SetAttribute("phi", leafOOPCurvPhi[i]);
+        p->SetAttribute("kappa", leafOOPCurvKappa[i]);
+        element->InsertEndChild(p);
+        if (comments) {
+            std::string str = description.at("leafOOPCurvPhi");
+            tinyxml2::XMLComment* c = doc.NewComment(str.c_str());
+            element->InsertEndChild(c);
+        }
+    }
+    for (size_t i = 0; i<leafAsymmetryPhi.size(); i++) {
+        tinyxml2::XMLElement* p = doc.NewElement("parameter");
+        p->SetAttribute("name", "leafAsymmetry");
+        p->SetAttribute("phi", leafAsymmetryPhi[i]);
+        p->SetAttribute("offset", leafAsymmetryOffset[i]);
+        element->InsertEndChild(p);
+        if (comments) {
+            std::string str = description.at("leafAsymmetryPhi");
+            tinyxml2::XMLComment* c = doc.NewComment(str.c_str());
+            element->InsertEndChild(c);
+        }
+    }
+    for (size_t i = 0; i<leafEdgeCurlPhi.size(); i++) {
+        tinyxml2::XMLElement* p = doc.NewElement("parameter");
+        p->SetAttribute("name", "leafEdgeCurl");
+        p->SetAttribute("phi", leafEdgeCurlPhi[i]);
+        p->SetAttribute("angle", leafEdgeCurlAngle[i]);
+        element->InsertEndChild(p);
+        if (comments) {
+            std::string str = description.at("leafEdgeCurlPhi");
+            tinyxml2::XMLComment* c = doc.NewComment(str.c_str());
+            element->InsertEndChild(c);
+        }
+    }
+    for (size_t i = 0; i<leafCrossSectionPhi.size(); i++) {
+        tinyxml2::XMLElement* p = doc.NewElement("parameter");
+        p->SetAttribute("name", "leafCrossSection");
+        p->SetAttribute("phi", leafCrossSectionPhi[i]);
+        p->SetAttribute("curv", leafCrossSectionCurv[i]);
+        element->InsertEndChild(p);
+        if (comments) {
+            std::string str = description.at("leafCrossSectionPhi");
             tinyxml2::XMLComment* c = doc.NewComment(str.c_str());
             element->InsertEndChild(c);
         }
@@ -452,6 +604,14 @@ void LeafRandomParameter::bindParameters()
     description["leafGeometryX"] = "Leaf geometry parametrisation";
     description["leafCurvaturePhi"] = "Leaf curvature spline knot positions [0,1]";
     description["leafCurvatureKappa"] = "Leaf curvature spline magnitudes [1/cm]";
+    description["leafOOPCurvPhi"] = "Out-of-plane curvature spline knot positions [0,1]";
+    description["leafOOPCurvKappa"] = "Out-of-plane curvature spline magnitudes [1/cm]";
+    description["leafAsymmetryPhi"] = "Leaf asymmetry spline knot positions [0,1]";
+    description["leafAsymmetryOffset"] = "Leaf asymmetry width offset [cm]";
+    description["leafEdgeCurlPhi"] = "Edge curl spline knot positions [0,1]";
+    description["leafEdgeCurlAngle"] = "Edge curl deflection angle [rad]";
+    description["leafCrossSectionPhi"] = "Cross-section curvature spline knot positions [0,1]";
+    description["leafCrossSectionCurv"] = "Cross-section curvature (positive=concave)";
 }
 
 /**
