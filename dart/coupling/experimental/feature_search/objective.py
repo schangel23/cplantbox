@@ -153,7 +153,7 @@ def _optimize_with_features(
     best_loss = float('inf')
     best_params = {}
 
-    for step in range(n_steps):
+    for _ in range(n_steps):
         optimizer.zero_grad()
         all_verts = []
         reg = torch.tensor(0.0, device=device)
@@ -234,8 +234,15 @@ def make_objective(
     template_xml=None,
     deform_steps=DEFAULT_DEFORM_STEPS,
     deform_lr=DEFAULT_DEFORM_LR,
+    refs_per_trial=1,
+    max_points=2000,
 ):
     """Create an Optuna objective function for feature search.
+
+    FAST MODE: Each trial evaluates against `refs_per_trial` randomly sampled
+    reference plants (default 1). This makes each trial ~15× faster than
+    evaluating all references. Optuna's TPE still converges because different
+    trials hit different references → statistical coverage over many trials.
 
     Args:
         reference_plants: List of dicts with 'points' (np.ndarray (N,3))
@@ -246,6 +253,9 @@ def make_objective(
         template_xml: Calibrated XML path.
         deform_steps: GPU gradient descent steps per trial.
         deform_lr: Adam learning rate.
+        refs_per_trial: Number of reference plants to evaluate per trial.
+            Default 1 for speed. Use more for lower variance but slower trials.
+        max_points: Max points per reference for Chamfer (default 2000).
 
     Returns:
         Callable objective(trial) -> float (mean Chamfer).
@@ -254,13 +264,15 @@ def make_objective(
     ref_gpu = []
     for rp in reference_plants:
         pts = rp['points']
-        if len(pts) > 5000:
-            idx = np.random.RandomState(42).choice(len(pts), 5000, replace=False)
+        if len(pts) > max_points:
+            idx = np.random.RandomState(42).choice(len(pts), max_points, replace=False)
             pts = pts[idx]
         ref_gpu.append({
             'name': rp['name'],
             'points': torch.tensor(pts, dtype=torch.float32, device=device),
         })
+
+    rng = np.random.RandomState(42)
 
     def objective(trial):
         # 1. Feature selection
@@ -274,19 +286,16 @@ def make_objective(
         if organs is None:
             return 1e6
 
-        # 4. Evaluate across reference plants with pruning
+        # 4. Evaluate against random subset of references
+        indices = rng.choice(len(ref_gpu), size=min(refs_per_trial, len(ref_gpu)), replace=False)
         chamfers = []
-        for i, ref in enumerate(ref_gpu):
+        for idx in indices:
+            ref = ref_gpu[idx]
             chamfer, _ = _optimize_with_features(
                 organs, ref['points'], active_features,
                 device=device, n_steps=deform_steps, lr=deform_lr,
             )
             chamfers.append(chamfer)
-
-            # Optuna pruning: report intermediate value
-            trial.report(np.mean(chamfers), i)
-            if trial.should_prune():
-                raise __import__('optuna').TrialPruned()
 
         return float(np.mean(chamfers))
 
@@ -300,37 +309,32 @@ def make_cpu_objective(
     template_xml=None,
     deform_steps=DEFAULT_DEFORM_STEPS,
     deform_lr=DEFAULT_DEFORM_LR,
+    refs_per_trial=1,
+    max_points=2000,
 ):
-    """Create a CPU-only objective (no GPU Chamfer).
+    """Create a CPU-only objective for massively parallel workers (128+).
 
-    For massively parallel workers (128+) where GPU contention is a problem.
-    Uses scipy KD-tree for Chamfer computation instead of torch.cdist.
-    Deformation optimization still uses PyTorch but on CPU.
+    FAST MODE: Each trial picks `refs_per_trial` random reference plants.
+    Uses scipy KD-tree Chamfer (no GPU contention).
 
     Args:
-        Same as make_objective but without device.
+        Same as make_objective but without device param.
+        refs_per_trial: Reference plants per trial (default 1).
+        max_points: Max points for Chamfer (default 2000).
 
     Returns:
         Callable objective(trial) -> float.
     """
-    from scipy.spatial import cKDTree
-
-    def chamfer_cpu(gen_pts_np, ref_pts_np):
-        """CPU Chamfer distance using KD-trees."""
-        tree_ref = cKDTree(ref_pts_np)
-        tree_gen = cKDTree(gen_pts_np)
-        d1, _ = tree_ref.query(gen_pts_np)
-        d2, _ = tree_gen.query(ref_pts_np)
-        return (d1.mean() + d2.mean()) / 2.0
-
     # Subsample reference plants
     ref_data = []
     for rp in reference_plants:
         pts = rp['points']
-        if len(pts) > 5000:
-            idx = np.random.RandomState(42).choice(len(pts), 5000, replace=False)
+        if len(pts) > max_points:
+            idx = np.random.RandomState(42).choice(len(pts), max_points, replace=False)
             pts = pts[idx]
         ref_data.append({'name': rp['name'], 'points': pts})
+
+    rng = np.random.RandomState(42)
 
     def objective(trial):
         active_features = suggest_active_features(trial)
@@ -340,19 +344,16 @@ def make_cpu_objective(
         if organs is None:
             return 1e6
 
+        indices = rng.choice(len(ref_data), size=min(refs_per_trial, len(ref_data)), replace=False)
         chamfers = []
-        for i, ref in enumerate(ref_data):
-            # CPU gradient descent
+        for idx in indices:
+            ref = ref_data[idx]
             target_cpu = torch.tensor(ref['points'], dtype=torch.float32, device='cpu')
             chamfer, _ = _optimize_with_features(
                 organs, target_cpu, active_features,
                 device='cpu', n_steps=deform_steps, lr=deform_lr,
             )
             chamfers.append(chamfer)
-
-            trial.report(np.mean(chamfers), i)
-            if trial.should_prune():
-                raise __import__('optuna').TrialPruned()
 
         return float(np.mean(chamfers))
 

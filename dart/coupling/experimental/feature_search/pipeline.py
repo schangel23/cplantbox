@@ -203,10 +203,14 @@ def main():
                         help='CPlantBox simulation day')
     parser.add_argument('--device', default='auto',
                         help='Torch device: cuda, cpu, or auto')
-    parser.add_argument('--deform-steps', type=int, default=60,
-                        help='Gradient descent steps per trial')
+    parser.add_argument('--deform-steps', type=int, default=15,
+                        help='Gradient descent steps per trial (default 15, enough for signal)')
     parser.add_argument('--deform-lr', type=float, default=0.05,
                         help='Adam learning rate for deformations')
+    parser.add_argument('--refs-per-trial', type=int, default=1,
+                        help='Reference plants per trial (default 1 for speed, more for precision)')
+    parser.add_argument('--max-points', type=int, default=2000,
+                        help='Max points per reference for Chamfer (default 2000)')
     parser.add_argument('--template-xml', default=None,
                         help='Calibrated XML template path')
     parser.add_argument('--seed', type=int, default=42)
@@ -251,6 +255,8 @@ def main():
             template_xml=args.template_xml,
             deform_steps=args.deform_steps,
             deform_lr=args.deform_lr,
+            refs_per_trial=args.refs_per_trial,
+            max_points=args.max_points,
         )
         print(f"Using CPU Chamfer (KD-tree) — good for {args.workers}+ workers")
     else:
@@ -262,6 +268,8 @@ def main():
             template_xml=args.template_xml,
             deform_steps=args.deform_steps,
             deform_lr=args.deform_lr,
+            refs_per_trial=args.refs_per_trial,
+            max_points=args.max_points,
         )
         print(f"Using GPU Chamfer on {device}")
 
