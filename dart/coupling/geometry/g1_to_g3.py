@@ -646,13 +646,29 @@ def _loft_leaf(organ):
                  or abs(twist_max) > 0 or curl_amp > 0
                  or edge_ruffle_amp > 0 or fold_amp > 0)
 
-    # --- Spline-based geometry features (from Optuna feature search) ---
-    # Each is a dict with 'phi' (knot positions [0,1]) and 'values' (per-knot data).
-    # Empty/missing means the feature is inactive.
-    oop_curv_spline = organ.get("oop_curv_spline")
-    asymmetry_spline = organ.get("asymmetry_spline")
-    edge_curl_spline = organ.get("edge_curl_spline")
-    cross_section_spline = organ.get("cross_section_spline")
+    # --- Spline-based geometry features ---
+    # Source priority: fitted_extended_cps (per-plant optimized) > XML splines (population defaults)
+    # fitted_extended_cps: dict of feature_name -> list of CP values (evenly spaced in [0,1])
+    # XML splines: dict with 'phi' (knot positions) and 'values' (per-knot data)
+    fitted_ext = organ.get("fitted_extended_cps", {})
+
+    def _make_spline_from_fitted(cp_values):
+        """Convert evenly-spaced CP list to spline dict."""
+        k = len(cp_values)
+        return {'phi': np.linspace(0, 1, k), 'values': np.array(cp_values)}
+
+    oop_curv_spline = (_make_spline_from_fitted(fitted_ext['out_of_plane_curv'])
+                       if 'out_of_plane_curv' in fitted_ext
+                       else organ.get("oop_curv_spline"))
+    asymmetry_spline = (_make_spline_from_fitted(fitted_ext['asymmetry'])
+                        if 'asymmetry' in fitted_ext
+                        else organ.get("asymmetry_spline"))
+    edge_curl_spline = (_make_spline_from_fitted(fitted_ext['edge_curl'])
+                        if 'edge_curl' in fitted_ext
+                        else organ.get("edge_curl_spline"))
+    cross_section_spline = (_make_spline_from_fitted(fitted_ext['cross_section_profile'])
+                            if 'cross_section_profile' in fitted_ext
+                            else organ.get("cross_section_spline"))
 
     has_spline_features = any(s is not None for s in [
         oop_curv_spline, asymmetry_spline, edge_curl_spline, cross_section_spline])
@@ -698,7 +714,38 @@ def _loft_leaf(organ):
     curl_factors = np.zeros(n)
     edge_ruffle_base = np.zeros(n)  # base ruffle value per skeleton point
     fold_factors = np.zeros(n)      # fold strength per skeleton point
-    if has_waves:
+
+    # --- Fitted spline CPs override sinusoidal deformations ---
+    # When present, these come from gradient-fitted per-plant optimization
+    # (diff_lofter pipeline) and replace the random sinusoidal model entirely.
+    fitted_cps = organ.get("fitted_deform_cps")
+    if fitted_cps is not None:
+        has_waves = True
+        if n_cross < 7:
+            n_cross = 7
+            cross_fracs = np.linspace(-0.5, 0.5, n_cross)
+            cross_gutter = 1.0 - (2.0 * cross_fracs) ** 2
+
+        def _interp_cp(cp_values):
+            """Interpolate evenly-spaced CPs at arc fraction positions."""
+            k = len(cp_values)
+            cp_phi = np.linspace(0, 1, k)
+            return np.interp(arc_fracs, cp_phi, cp_values)
+
+        for cp_name, target_arr, use_sq in [
+            ('wave_normal', wave_normal_offsets, False),
+            ('wave_lateral', wave_lateral_offsets, False),
+            ('twist', twist_angles, True),
+            ('curl', curl_factors, False),
+            ('edge_ruffle', edge_ruffle_base, False),
+            ('fold', fold_factors, False),
+        ]:
+            if cp_name in fitted_cps:
+                interp = _interp_cp(fitted_cps[cp_name])
+                ramp_use = spline_ramp * spline_ramp if use_sq else spline_ramp
+                target_arr[:] = interp * ramp_use
+
+    elif has_waves:
         for i in range(n):
             t_frac = arc[i] / total_arc  # 0 at base, 1 at tip
             # Linear ramp: effects start at ramp_onset along the leaf.

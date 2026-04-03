@@ -391,9 +391,26 @@ def resample_skeleton_uniform(skeleton, widths, min_nodes):
     return resampled_skeleton, resampled_widths
 
 
+def load_fitted_params(json_path):
+    """Load per-plant fitted params from diff_lofter optimization.
+
+    The JSON contains structural leaf params and per-leaf deformation CPs
+    from gradient-fitted optimization against a scan.
+
+    Args:
+        json_path: Path to fitted params JSON (e.g. multistage_fit_v2_0001.json).
+
+    Returns:
+        Dict with 'leaf_params', 'stem_params', and per-stage 'deform_params'.
+    """
+    with open(json_path) as f:
+        return json.load(f)
+
+
 def extract_organs_for_lofter(plant, min_stem_nodes=50, min_leaf_nodes=20,
                               skip_roots=True, deformation_stats=None,
-                              stem_profile=None, name_prefix=""):
+                              stem_profile=None, name_prefix="",
+                              fitted_params=None):
     """
     Extract organs from CPlantBox with resampling for high-resolution meshes.
 
@@ -411,6 +428,9 @@ def extract_organs_for_lofter(plant, min_stem_nodes=50, min_leaf_nodes=20,
             from load_deformation_stats(). If None, attempts to load from default path.
         stem_profile: Optional dict from load_stem_profile(). If None, attempts
             to load from default path. Provides measured radius-vs-height taper.
+        fitted_params: Optional dict from load_fitted_params(). When provided,
+            per-leaf gradient-fitted deformation CPs override the random sinusoidal
+            model for dramatically better mesh realism.
 
     Returns:
         List of organ dicts with resampled skeletons
@@ -642,6 +662,25 @@ def extract_organs_for_lofter(plant, min_stem_nodes=50, min_leaf_nodes=20,
                     'values': np.array(data_vals),
                 }
 
+        # Fitted deformation CPs from diff_lofter optimization (if available).
+        # These override the random sinusoidal model with gradient-fitted splines.
+        # Also includes extended feature CPs (OOP, asymmetry, edge_curl, cross_section).
+        fitted_extras = {}
+        if fitted_params is not None:
+            stages = fitted_params.get('stage_results', [])
+            if stages:
+                final_deforms = stages[-1].get('deform_params', {})
+                leaf_key = str(leaf_position)
+                if leaf_key in final_deforms:
+                    leaf_deforms = final_deforms[leaf_key]
+                    cps = leaf_deforms.get('control_points', {})
+                    if cps:
+                        fitted_extras['fitted_deform_cps'] = cps
+                    # Extended feature CPs override the XML defaults
+                    ext_cps = leaf_deforms.get('extended_cp', {})
+                    if ext_cps:
+                        fitted_extras['fitted_extended_cps'] = ext_cps
+
         organs.append({
             "type": "leaf",
             "skeleton": skeleton,
@@ -651,6 +690,7 @@ def extract_organs_for_lofter(plant, min_stem_nodes=50, min_leaf_nodes=20,
             "node_ids": node_ids,
             **wave_params,
             **spline_features,
+            **fitted_extras,
         })
         organ_counter += 1
         leaf_position += 1

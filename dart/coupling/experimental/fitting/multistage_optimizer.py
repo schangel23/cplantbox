@@ -19,13 +19,16 @@ import torch
 
 from ..diff_lofter.deformations import (
     compute_deformations_spline,
+    compute_extended_deformations,
     make_spline_control_points,
+    make_extended_control_points,
     SPLINE_DEFORM_NAMES,
     DEFAULT_N_CP,
 )
 from ..diff_lofter.frames import compute_binormal_field, compute_tangents
 from ..diff_lofter.lofter import compute_arc_fracs, loft_leaf, loft_stem
 from ..losses.chamfer import chamfer_distance
+from ..feature_search.catalog import FEATURE_CATALOG
 
 N_POSITIONS = 11
 
@@ -221,10 +224,15 @@ def _leaf_bounds(stats_pos):
     return np.array(x0), np.array(lo), np.array(hi)
 
 
-def _optimize_deformations_single(organs, target_pc, device='cuda', n_steps=100, lr=0.05):
-    """GPU deformation optimization for a single stage. No width profile.
+# Extended features to optimize in the deformation pass
+EXTENDED_FEATURES = {'out_of_plane_curv', 'asymmetry', 'edge_curl', 'cross_section_profile'}
 
-    Leaves get spline deformations. Stems are lofted as cylinders (no deformations).
+
+def _optimize_deformations_single(organs, target_pc, device='cuda', n_steps=100, lr=0.05):
+    """GPU deformation optimization for a single stage.
+
+    Leaves get spline deformations (6 baseline + 4 extended features).
+    Stems are lofted as cylinders (no deformations).
     """
     if not organs:
         return 1e6, {}
@@ -249,8 +257,16 @@ def _optimize_deformations_single(organs, target_pc, device='cuda', n_steps=100,
             cp = make_spline_control_points(n_cp=DEFAULT_N_CP, device=device, requires_grad=True)
             for v in cp.values():
                 grad_params.append(v)
+
+            # Extended feature CPs (4 new features)
+            ext_cp = make_extended_control_points(
+                EXTENDED_FEATURES, FEATURE_CATALOG, device=device, requires_grad=True)
+            for v in ext_cp.values():
+                grad_params.append(v)
+
             leaf_data.append({'skeleton': skeleton, 'widths': widths, 'tangents': tangents,
-                              'binormals': binormals, 'arc_fracs': arc_fracs, 'cp': cp})
+                              'binormals': binormals, 'arc_fracs': arc_fracs,
+                              'cp': cp, 'ext_cp': ext_cp})
 
     if not leaf_data and not stem_data:
         return 1e6, {}
@@ -277,8 +293,14 @@ def _optimize_deformations_single(organs, target_pc, device='cuda', n_steps=100,
         all_verts = list(stem_verts)  # stems are fixed
         for ld in leaf_data:
             deforms = compute_deformations_spline(ld['arc_fracs'], ld['cp'])
+
+            ext_deforms = None
+            if ld['ext_cp']:
+                ext_deforms = compute_extended_deformations(ld['arc_fracs'], ld['ext_cp'])
+
             all_verts.append(loft_leaf(ld['skeleton'], ld['widths'], deforms,
-                                       ld['tangents'], ld['binormals'], n_cross=7))
+                                       ld['tangents'], ld['binormals'], n_cross=7,
+                                       extended_deformations=ext_deforms))
         loss = chamfer_distance(torch.cat(all_verts, dim=0), target_pc)
         loss.backward()
         optimizer.step()
@@ -286,11 +308,16 @@ def _optimize_deformations_single(organs, target_pc, device='cuda', n_steps=100,
             for ld in leaf_data:
                 for t in ld['cp'].values():
                     t.clamp_(-1.5, 1.5)
+                for name, t in ld['ext_cp'].items():
+                    spec = FEATURE_CATALOG[name]
+                    t.clamp_(spec['bounds'][0], spec['bounds'][1])
         if loss.item() < best_loss:
             best_loss = loss.item()
             best_params = {
                 i: {'control_points': {name: ld['cp'][name].detach().cpu().tolist()
-                                       for name in SPLINE_DEFORM_NAMES}}
+                                       for name in SPLINE_DEFORM_NAMES},
+                    'extended_cp': {name: ld['ext_cp'][name].detach().cpu().tolist()
+                                    for name in ld['ext_cp']}}
                 for i, ld in enumerate(leaf_data)
             }
 
