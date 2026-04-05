@@ -365,7 +365,17 @@ def _loft_leaf(organ):
         # the original skeleton so no segments are lost in the mapping.
         cum = np.concatenate([[0.0], np.cumsum(np.linalg.norm(
             np.diff(skeleton, axis=0), axis=1))])
-        n_new = max(len(skeleton), int(np.ceil(total_skel_len / min_seg_len)) + 1)
+        # If target_n_verts is specified, compute n_new to match
+        target_n_verts = organ.get("target_n_verts")
+        if target_n_verts is not None:
+            # n_verts = n_skel * n_cross → n_skel = target_n_verts / n_cross
+            _nc = 7 if (organ.get("per_node_displacements") or
+                        organ.get("gutter_depths") or
+                        organ.get("wave_normal_amp", 0) > 0 or
+                        organ.get("curl_amp", 0) > 0) else 2
+            n_new = max(3, target_n_verts // _nc)
+        else:
+            n_new = max(len(skeleton), int(np.ceil(total_skel_len / min_seg_len)) + 1)
         new_arc = np.linspace(0, total_skel_len, n_new)
         new_skeleton = np.column_stack([
             np.interp(new_arc, cum, skeleton[:, d]) for d in range(3)
@@ -604,6 +614,42 @@ def _loft_leaf(organ):
     # Gutter profile: parabolic dip (deepest at center, 0 at edges)
     # depth(f) = gutter_depth * (1 - (2*f)^2), where f in [-0.5, 0.5]
     cross_gutter = 1.0 - (2.0 * cross_fracs) ** 2  # 0 at edges, 1 at center
+
+    # --- Per-node displacement field (direct vertex control) ---
+    # When present, applies per-skeleton-point displacement vectors that
+    # override the parameterized deformation model. Each array has shape
+    # (n_skeleton_points,) and is interpolated to the resampled skeleton.
+    # Used by fit_lofter_params.py to achieve 1:1 vertex matching.
+    per_node_disp = organ.get("per_node_displacements")
+    if per_node_disp is not None:
+        def _interp_pnd(arr):
+            k = len(arr)
+            if k == n:
+                return np.array(arr, dtype=np.float64)
+            src_t = np.linspace(0, 1, k)
+            dst_t = np.linspace(0, 1, n)
+            return np.interp(dst_t, src_t, arr)
+
+        pnd_normal = _interp_pnd(per_node_disp.get("normal", np.zeros(n)))
+        pnd_binormal = _interp_pnd(per_node_disp.get("binormal", np.zeros(n)))
+        pnd_tangent = _interp_pnd(per_node_disp.get("tangent", np.zeros(n)))
+        # Per-node gutter depth (varies along leaf, not global)
+        pnd_gutter = _interp_pnd(per_node_disp.get("gutter", np.zeros(n)))
+        # Per-node cross-section V-angle (radians, 0=flat, >0=V-shaped)
+        pnd_cs_angle = _interp_pnd(per_node_disp.get("cs_angle", np.zeros(n)))
+        # Per-node twist (radians)
+        pnd_twist = _interp_pnd(per_node_disp.get("twist", np.zeros(n)))
+        # Per-node width multiplier (1.0 = no change)
+        pnd_width_mult = _interp_pnd(
+            per_node_disp.get("width_mult", np.ones(n)))
+        has_per_node = True
+        # Ensure 7-cross for surface detail
+        if n_cross < 7:
+            n_cross = 7
+            cross_fracs = np.linspace(-0.5, 0.5, n_cross)
+            cross_gutter = 1.0 - (2.0 * cross_fracs) ** 2
+    else:
+        has_per_node = False
 
     # --- Leaf blade waviness, twist, curl & edge ruffling ---
     # Real maize leaves have dramatic internal bending, edge ruffling,
@@ -852,70 +898,84 @@ def _loft_leaf(organ):
             normal = nm_twisted / max(np.linalg.norm(nm_twisted), 1e-12)
 
         center = skeleton[i].copy()
-        # Apply blade waviness: vertical + lateral displacement
-        if has_waves:
-            center += wave_normal_offsets[i] * normal
-            center += wave_lateral_offsets[i] * binormal
-        gd = 0.0
-        if gutter_depths is not None:
-            gd_idx = min(i, len(gutter_depths) - 1)
-            gd = gutter_depths[gd_idx] if gd_idx >= 0 else 0.0
+
+        if has_per_node:
+            # Per-node displacement: direct control over each skeleton point
+            center += pnd_normal[i] * normal
+            center += pnd_binormal[i] * binormal
+            center += pnd_tangent[i] * tangents[i]
+            gd = pnd_gutter[i]
+            w = w * pnd_width_mult[i]
+            # Apply per-node twist
+            if abs(pnd_twist[i]) > 1e-6:
+                ca = np.cos(pnd_twist[i])
+                sa = np.sin(pnd_twist[i])
+                bn_tw = ca * binormal + sa * normal
+                nm_tw = -sa * binormal + ca * normal
+                binormal = bn_tw / max(np.linalg.norm(bn_tw), 1e-12)
+                normal = nm_tw / max(np.linalg.norm(nm_tw), 1e-12)
+        else:
+            # Apply blade waviness: vertical + lateral displacement
+            if has_waves:
+                center += wave_normal_offsets[i] * normal
+                center += wave_lateral_offsets[i] * binormal
+            gd = 0.0
+            if gutter_depths is not None:
+                gd_idx = min(i, len(gutter_depths) - 1)
+                gd = gutter_depths[gd_idx] if gd_idx >= 0 else 0.0
 
         for j in range(n_cross):
             frac = cross_fracs[j]  # -0.5 to 0.5
             lateral = frac * w * binormal
-            # Gutter: dip center downward (negative normal direction)
-            gutter_offset = -gd * cross_gutter[j] * normal
-            # Asymmetric curl: edges displaced in opposite normal directions
-            curl_offset = (2.0 * frac) * curl_factors[i] * normal
-            # Edge ruffling: high-frequency undulation at leaf margins.
-            # Amplitude is proportional to |frac|^2 (zero at midrib, max at edges).
-            # Left and right edges are out of phase (+ frac*pi offset).
-            edge_frac = (2.0 * abs(frac)) ** 2  # 0 at center, 1 at edge
-            ruffle_offset = edge_frac * edge_ruffle_base[i] * normal
-            # Add opposite-phase component so left/right edges ruffle differently
-            if frac < 0:
-                ruffle_offset *= -1.0
-            # Internal fold: blade buckles at quarter-width points.
-            # Uses sin(pi*|2*frac|) which peaks at the quarter-width positions
-            # (frac=±0.25) and is zero at midrib (frac=0) and edges (frac=±0.5).
-            fold_profile = np.sin(np.pi * abs(2.0 * frac))
-            fold_offset = fold_factors[i] * fold_profile * normal
 
-            # Scale cross-section deformation proportionally to width.
-            # Curl/ruffle/fold are physical effects of a wide blade — they
-            # must diminish as the blade tapers.  Without this, curl at the
-            # tip creates a "fish tail" split because the displacement
-            # dominates over the narrowing width.
-            w_fade = w / max_w
-            curl_offset *= w_fade
-            ruffle_offset *= w_fade
-            fold_offset *= w_fade
-            gutter_offset *= w_fade
+            if has_per_node:
+                # Per-node gutter + cross-section V-angle
+                gutter_sign = -1.0 if normal[2] >= 0 else 1.0
+                gutter_offset = gutter_sign * gd * cross_gutter[j] * normal
+                # Cross-section V-angle: parabolic transverse curvature
+                cs_offset = np.zeros(3)
+                if abs(pnd_cs_angle[i]) > 0.01:
+                    cs_profile = (2.0 * frac) ** 2
+                    cs_offset = pnd_cs_angle[i] * cs_profile * normal
+                v_idx = n_cross * i + j
+                vertices[v_idx] = center + lateral + gutter_offset + cs_offset
+            else:
+                # Original parametric deformation model
+                gutter_sign = -1.0 if normal[2] >= 0 else 1.0
+                gutter_offset = gutter_sign * gd * cross_gutter[j] * normal
+                curl_offset = (2.0 * frac) * curl_factors[i] * normal
+                edge_frac = (2.0 * abs(frac)) ** 2
+                ruffle_offset = edge_frac * edge_ruffle_base[i] * normal
+                if frac < 0:
+                    ruffle_offset *= -1.0
+                fold_profile = np.sin(np.pi * abs(2.0 * frac))
+                fold_offset = fold_factors[i] * fold_profile * normal
 
-            # --- Spline-based geometry features ---
-            # Asymmetry: shift cross-section center along binormal
-            asym_offset = np.zeros(3)
-            if asymmetry_values is not None:
-                asym_offset = asymmetry_values[i] * binormal * w_fade
+                w_fade = w / max_w
+                curl_offset *= w_fade
+                ruffle_offset *= w_fade
+                fold_offset *= w_fade
+                gutter_offset *= w_fade
 
-            # Edge curl: margin-only deflection angle (cubic edge profile)
-            edge_curl_offset = np.zeros(3)
-            if edge_curl_values is not None:
-                edge_influence = (2.0 * abs(frac)) ** 3  # concentrated at margins
-                edge_curl_offset = (edge_influence * np.tan(edge_curl_values[i])
-                                    * w * 0.5 * normal * w_fade)
+                asym_offset = np.zeros(3)
+                if asymmetry_values is not None:
+                    asym_offset = asymmetry_values[i] * binormal * w_fade
 
-            # Cross-section profile: parabolic transverse curvature
-            cs_offset = np.zeros(3)
-            if cross_section_values is not None:
-                cs_profile = (2.0 * frac) ** 2  # 0 at center, 1 at edges
-                cs_offset = cross_section_values[i] * cs_profile * normal * w_fade
+                edge_curl_offset = np.zeros(3)
+                if edge_curl_values is not None:
+                    edge_influence = (2.0 * abs(frac)) ** 3
+                    edge_curl_offset = (edge_influence * np.tan(edge_curl_values[i])
+                                        * w * 0.5 * normal * w_fade)
 
-            v_idx = n_cross * i + j
-            vertices[v_idx] = (center + lateral + gutter_offset
-                               + curl_offset + ruffle_offset + fold_offset
-                               + asym_offset + edge_curl_offset + cs_offset)
+                cs_offset = np.zeros(3)
+                if cross_section_values is not None:
+                    cs_profile = (2.0 * frac) ** 2
+                    cs_offset = cross_section_values[i] * cs_profile * normal * w_fade
+
+                v_idx = n_cross * i + j
+                vertices[v_idx] = (center + lateral + gutter_offset
+                                   + curl_offset + ruffle_offset + fold_offset
+                                   + asym_offset + edge_curl_offset + cs_offset)
 
             # Per-vertex normal: for curved cross-section, tilt normals outward
             if n_cross > 2 and gd > 0:
