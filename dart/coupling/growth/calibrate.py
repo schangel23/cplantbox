@@ -490,7 +490,8 @@ def generate_per_leaf_xml(root, per_position_stats, fallback_geometry, gf=3):
             geom_param.set('phi', f"{phi:.1f}")
             geom_param.set('x', f"{x:.2f}")
 
-    # Stem successor placeholder (overridden by Python API at runtime)
+    # Stem successor placeholder — actual per-position rules are set by
+    # setup_successor_where() in grow.py at runtime via Python API
     stem_elem = root.find(".//stem[@subType='1']")
     if stem_elem is not None:
         for old_succ in stem_elem.findall(".//parameter[@name='successor']"):

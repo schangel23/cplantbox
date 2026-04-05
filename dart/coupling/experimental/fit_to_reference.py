@@ -45,6 +45,7 @@ sys.path.insert(0, str(_COUPLING_DIR.parent))
 import plantbox as pb
 from dart.coupling.geometry.g1_to_g3 import loft_organs
 from dart.coupling.geometry.cplantbox_adapter import extract_organs_for_lofter
+from dart.coupling.growth.grow import setup_successor_where
 
 # Import skeleton extraction from reverse_engineer_maize
 from dart.coupling.experimental.reverse_engineer_maize import (
@@ -336,6 +337,7 @@ def grow_and_extract(xml_path, day, leaf_params_by_position, stem_params):
             lp.leafCurvaturePhi = phi
             lp.leafCurvatureKappa = kappa
 
+        setup_successor_where(plant)
         plant.initialize(False)
         plant.simulate(day)
 
@@ -394,6 +396,7 @@ def grow_and_loft(xml_path, day, leaf_params_by_position, stem_params):
             lp.leafCurvaturePhi = phi
             lp.leafCurvatureKappa = kappa
 
+        setup_successor_where(plant)
         plant.initialize(False)
         plant.simulate(day)
 
@@ -481,6 +484,7 @@ def evaluate_stem(params_vec, ref_stages, xml_path, leaf_params_by_position):
             sp.r = params["r"]
             sp.ln = params["ln"]
             sp.lb = params["lb"]
+            setup_successor_where(plant)
             plant.initialize(False)
             plant.simulate(day)
             stems = plant.getOrgans(3)
@@ -873,6 +877,7 @@ def main():
     try:
         test_plant = pb.Plant()
         test_plant.readParameters(xml_path)
+        setup_successor_where(test_plant)
         test_plant.initialize(False)
         test_plant.simulate(40)
         test_leaves = test_plant.getOrgans(4)
