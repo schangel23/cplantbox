@@ -121,6 +121,41 @@ public:
 
 };
 
+/**
+ * GompertzGrowth: sigmoid growth curve with lag phase, inflection, and asymptote.
+ * L(t) = K * exp(-exp(-c*(t - t_m)))
+ * where t_m = ln(K/r) / c is the inflection time (derived so initial slope ≈ r).
+ * Parameter c controls the steepness; derived from r and K as c = r*e/K.
+ */
+class GompertzGrowth : public GrowthFunction
+{
+public:
+
+	double getLength(double t, double r, double k, std::shared_ptr<Organ> o) const override {
+		double e_ = std::exp(1.0);
+		double c = r * e_ / k;           // steepness from initial growth rate
+		double t_m = std::log(k / r) / c; // inflection time
+		return k * std::exp(-std::exp(-c * (t - t_m)));
+	}
+
+	double getAge(double l, double r, double k, std::shared_ptr<const Organ> o) const override {
+		if (l <= 0) return 0;
+		if (l >= k) return 1.e9;
+		double e_ = std::exp(1.0);
+		double c = r * e_ / k;
+		double t_m = std::log(k / r) / c;
+		double age = t_m - std::log(-std::log(l / k)) / c;
+		if (std::isfinite(age) && age >= 0) {
+			return age;
+		} else {
+			return 1.e9;
+		}
+	}
+
+	std::shared_ptr<GrowthFunction> copy() const override { return std::make_shared<GompertzGrowth>(*this); }
+
+};
+
 } // end namespace CPlantBox
 
 

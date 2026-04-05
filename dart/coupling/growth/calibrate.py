@@ -360,13 +360,14 @@ def update_xml_parameter(elem, name, value, dev=None):
             new_param.set('dev', str(dev))
 
 
-def generate_per_leaf_xml(root, per_position_stats, fallback_geometry):
+def generate_per_leaf_xml(root, per_position_stats, fallback_geometry, gf=3):
     """Generate one leaf subType per position and update stem successor rules.
 
     Args:
         root: XML root element
         per_position_stats: list of dicts with per-position parameters
         fallback_geometry: default leaf geometry profile [(phi, x), ...]
+        gf: growth function type (1=exp, 2=linear, 3=CWLimited, 4=Gompertz)
     """
     # Remove ALL existing leaf elements
     for leaf_elem in root.findall('leaf'):
@@ -381,7 +382,7 @@ def generate_per_leaf_xml(root, per_position_stats, fallback_geometry):
     # Shared parameters for all maize leaf subtypes
     shared_params = {
         'geometryN': '100',
-        'gf': '3',
+        'gf': str(gf),
         'isPseudostem': '0',
         'lnf': '0',
         'parametrisationType': '1',
@@ -412,7 +413,8 @@ def generate_per_leaf_xml(root, per_position_stats, fallback_geometry):
     # interactions with neighboring leaves, and wind.  Deterministic seed
     # for reproducible XML output.
     rng = np.random.RandomState(42)
-    leaf_jitter_deg = rng.uniform(-12.0, 12.0, size=n_leaves)
+    max_pos = max(s['position'] for s in per_position_stats) + 1
+    leaf_jitter_deg = rng.uniform(-12.0, 12.0, size=max(max_pos, n_leaves))
 
     for stats in per_position_stats:
         pos = stats['position']
@@ -470,6 +472,15 @@ def generate_per_leaf_xml(root, per_position_stats, fallback_geometry):
         param.set('name', 'tropismAge')
         param.set('value', str(stats['tropismAge']))
 
+        # Curvature spline profile (from reverse-engineering analysis)
+        curv_spline = stats.get('curvature_spline')
+        if curv_spline and 'phi' in curv_spline and 'kappa' in curv_spline:
+            for phi_val, kappa_val in zip(curv_spline['phi'], curv_spline['kappa']):
+                cp = ET.SubElement(leaf_elem, 'parameter')
+                cp.set('name', 'leafCurvature')
+                cp.set('phi', f"{phi_val:.4f}")
+                cp.set('kappa', f"{kappa_val:.6f}")
+
         # leafGeometry profile with base tapering
         geometry = stats.get('leaf_geometry') or fallback_geometry
         geometry = apply_maize_base_taper(geometry)
@@ -499,8 +510,153 @@ def generate_per_leaf_xml(root, per_position_stats, fallback_geometry):
     return n_leaves
 
 
+def load_reverse_engineer_traits(traits_path, gaps_path=None):
+    """Load calibration data from reverse-engineering extracted traits.
+
+    Uses extracted_traits.json (from reverse_engineer_maize.py) as the primary
+    data source instead of MaizeField3D. Extracts per-position stats from the
+    most mature stage, growth rates from trajectories across stages.
+
+    Args:
+        traits_path: Path to extracted_traits.json
+        gaps_path: Optional path to gaps_cplantbox.json (for curvature splines)
+
+    Returns:
+        (per_position, stem_stats) in the same format as load_maizefield3d_stats()
+    """
+    import json
+    from pathlib import Path as _Path
+
+    data = json.loads(_Path(traits_path).read_text())
+
+    # Find all stages sorted
+    stage_keys = sorted(data.keys(), key=lambda k: int(k.split("_")[1]))
+
+    # Find most mature stage (last one)
+    mature = data[stage_keys[-1]]
+    mature_leaves = mature['leaves']
+
+    # Collect per-leaf trajectories across stages for growth rate fitting
+    positions = sorted(set(l['position'] for l in mature_leaves))
+    days = [data[sk]['day_estimate'] for sk in stage_keys]
+
+    per_position = []
+    for pos in positions:
+        # Get this leaf at mature stage
+        leaf_mature = next((l for l in mature_leaves if l['position'] == pos), None)
+        if not leaf_mature or leaf_mature['length'] < 2:
+            continue
+
+        # Collect length trajectory across stages
+        lengths = []
+        for sk in stage_keys:
+            stage_leaves = data[sk]['leaves']
+            leaf = next((l for l in stage_leaves if l['position'] == pos), None)
+            lengths.append(leaf['length'] if leaf else 0)
+
+        # Fit growth rate from trajectory
+        lmax = max(lengths)
+        r = 4.0  # default
+        lengths_arr = np.array(lengths)
+        days_arr = np.array(days)
+        mask = lengths_arr > 0.5
+        if mask.sum() >= 3:
+            from scipy.optimize import curve_fit
+            def gomp(t, r_fit):
+                e_ = np.exp(1.0)
+                c = r_fit * e_ / max(lmax, 1)
+                t_m = np.log(max(lmax / max(r_fit, 0.01), 1)) / max(c, 1e-6)
+                return lmax * np.exp(-np.exp(-c * (t - t_m)))
+            try:
+                popt, _ = curve_fit(gomp, days_arr[mask], lengths_arr[mask],
+                                    p0=[2.0], bounds=([0.1], [15.0]), maxfev=3000)
+                r = float(popt[0])
+            except (RuntimeError, ValueError):
+                r = 4.0
+
+        # Width profile → leafGeometry (along-axis parametrisation)
+        wp = leaf_mature['width_profile_normalized']
+        if len(wp) == 10:
+            leaf_geometry = [(i / 9.0, wp[i] * 0.5) for i in range(10)]
+        else:
+            leaf_geometry = None
+
+        # Max width (half-width for Width_blade)
+        max_w = leaf_mature['max_width']
+
+        stats = {
+            'position': pos - 1,  # 0-indexed for calibration
+            'lmax': lmax,
+            'r': r,
+            'Width_blade': max_w / 2.0,
+            'Width_petiole': max_w * 0.15,
+            'areaMax': leaf_mature['area'],
+            'theta': leaf_mature['insertion_angle'],
+            'tropismS': float(np.mean(leaf_mature['curvature_profile']))
+                        if leaf_mature['curvature_profile'] else 0.03,
+            'tropismAge': 5.0,
+            'leaf_geometry': leaf_geometry,
+        }
+        per_position.append(stats)
+
+    # Stem from mature stage
+    stem_data = mature.get('stem', {})
+    stem_stats = {
+        'lmax': stem_data.get('height', 180.0),
+        'ln': float(np.mean(stem_data['internode_lengths']))
+              if stem_data.get('internode_lengths') else 14.5,
+        'lb': 30.0,
+        'n_leaves': len(per_position),
+    }
+
+    # Merge curvature splines from gaps
+    if gaps_path:
+        curv_by_pos = load_reverse_engineer_gaps(gaps_path)
+        for p in per_position:
+            # gaps uses 1-indexed positions, per_position uses 0-indexed
+            if (p['position'] + 1) in curv_by_pos:
+                p['curvature_spline'] = curv_by_pos[p['position'] + 1]
+
+    n_curv = sum(1 for p in per_position if 'curvature_spline' in p)
+    print(f"  Loaded reverse-engineering traits: {len(stage_keys)} stages, "
+          f"{len(per_position)} leaf positions")
+    print(f"  Stem: height={stem_stats['lmax']:.0f}cm, ln={stem_stats['ln']:.1f}cm")
+    if n_curv:
+        print(f"  Curvature splines: {n_curv} leaves")
+    for p in per_position:
+        print(f"    Pos {p['position']:>2}: lmax={p['lmax']:.1f}, "
+              f"Wb={p['Width_blade']:.1f}, r={p['r']:.1f}, "
+              f"theta={math.degrees(p['theta']):.0f}°")
+
+    return per_position, stem_stats
+
+
+def load_reverse_engineer_gaps(gaps_path):
+    """Load curvature splines from reverse-engineering gap analysis.
+
+    Args:
+        gaps_path: Path to gaps_cplantbox.json from reverse_engineer_maize.py
+
+    Returns:
+        dict mapping leaf position -> curvature spline dict {phi: [...], kappa: [...]}
+    """
+    import json
+    from pathlib import Path as _Path
+    gaps = json.loads(_Path(gaps_path).read_text())
+    curvature_by_pos = {}
+    for g in gaps:
+        if g['parameter'] == 'leafCurvaturePhi/Kappa':
+            spline = g.get('extracted_values', {}).get('spline')
+            if spline and 'phi' in spline and 'kappa' in spline:
+                for pos in g['leaf_positions']:
+                    curvature_by_pos[pos] = spline
+    return curvature_by_pos
+
+
 def calibrate_maize_xml(template_path, output_path, trajectory_path=None,
-                        maizefield3d_path=None, max_positions=None):
+                        maizefield3d_path=None, max_positions=None,
+                        reverse_engineer_path=None, use_gompertz=False,
+                        reverse_engineer_traits_path=None):
     """
     Calibrate maize.xml from MaizeField3D stats, optionally enriched with
     Pheno4D growth dynamics.
@@ -512,20 +668,36 @@ def calibrate_maize_xml(template_path, output_path, trajectory_path=None,
         maizefield3d_path: Path to maizefield3d_stats.json (required)
         max_positions: Max leaf positions (default: auto from MaizeField3D)
     """
-    # Load MaizeField3D structure (always required)
-    per_position, mf3d_stem_stats = load_maizefield3d_stats(maizefield3d_path)
-    if max_positions is None:
-        max_positions = len(per_position)
-    per_position = per_position[:max_positions]
-
-    # Optionally merge Pheno4D dynamics
-    if trajectory_path:
-        trajectory = load_trajectory(trajectory_path)
-        pheno4d_dynamics = extract_pheno4d_dynamics(trajectory)
-        merge_pheno4d_dynamics(per_position, pheno4d_dynamics)
-        source_name = "MaizeField3D + Pheno4D"
+    # Load calibration data — prefer OBJ reverse-engineering over MaizeField3D
+    if reverse_engineer_traits_path:
+        per_position, mf3d_stem_stats = load_reverse_engineer_traits(
+            reverse_engineer_traits_path, gaps_path=reverse_engineer_path)
+        source_name = "OBJ reverse-engineering"
+    elif maizefield3d_path:
+        per_position, mf3d_stem_stats = load_maizefield3d_stats(maizefield3d_path)
+        source_name = "MaizeField3D"
+        # Optionally merge Pheno4D dynamics
+        if trajectory_path:
+            trajectory = load_trajectory(trajectory_path)
+            pheno4d_dynamics = extract_pheno4d_dynamics(trajectory)
+            merge_pheno4d_dynamics(per_position, pheno4d_dynamics)
+            source_name += " + Pheno4D"
+        # Optionally merge reverse-engineering curvature splines only
+        if reverse_engineer_path:
+            curv_by_pos = load_reverse_engineer_gaps(reverse_engineer_path)
+            for p in per_position:
+                if p['position'] in curv_by_pos:
+                    p['curvature_spline'] = curv_by_pos[p['position']]
+            n_curv = sum(1 for p in per_position if 'curvature_spline' in p)
+            source_name += f" + Reverse-Eng ({n_curv} curvature splines)"
     else:
-        source_name = "MaizeField3D only"
+        raise ValueError("Either --reverse-engineer-traits or --maizefield3d is required")
+
+    if max_positions is not None:
+        per_position = per_position[:max_positions]
+
+    if use_gompertz:
+        source_name += " + Gompertz(gf=4)"
 
     print(f"\n=== Calibration Statistics — Source: {source_name} ===")
 
@@ -669,7 +841,8 @@ def calibrate_maize_xml(template_path, output_path, trajectory_path=None,
         p['tropismAge'] = round(np.clip(t_straight, 12.0, 70.0), 1)
 
     # Generate per-leaf subtypes
-    generate_per_leaf_xml(root, per_position, DEFAULT_LEAF_GEOMETRY)
+    generate_per_leaf_xml(root, per_position, DEFAULT_LEAF_GEOMETRY,
+                          gf=4 if use_gompertz else 3)
 
     # Write calibrated XML
     indent_xml(root)
@@ -709,14 +882,20 @@ def indent_xml(elem, level=0):
 def main():
     parser = argparse.ArgumentParser(
         description='Calibrate maize.xml from MaizeField3D + optional Pheno4D dynamics')
-    parser.add_argument('--maizefield3d', required=True,
-                        help='Path to maizefield3d_stats.json (required)')
+    parser.add_argument('--maizefield3d', default=None,
+                        help='Path to maizefield3d_stats.json')
+    parser.add_argument('--reverse-engineer-traits', default=None,
+                        help='Path to extracted_traits.json from reverse_engineer_maize.py (preferred over --maizefield3d)')
+    parser.add_argument('--reverse-engineer-gaps', default=None,
+                        help='Path to gaps_cplantbox.json (for curvature splines)')
     parser.add_argument('--trajectory', default=None,
-                        help='Path to trajectory.json (optional, for growth dynamics)')
+                        help='Path to trajectory.json (optional, for growth dynamics with MaizeField3D)')
     parser.add_argument('--template', required=True, help='Path to template maize.xml')
     parser.add_argument('--output', required=True, help='Path to output calibrated maize.xml')
     parser.add_argument('--max-positions', type=int, default=None,
-                        help='Max leaf positions (default: auto from MaizeField3D)')
+                        help='Max leaf positions (default: auto)')
+    parser.add_argument('--gompertz', action='store_true',
+                        help='Use Gompertz growth function (gf=4) instead of CWLimited (gf=3)')
 
     args = parser.parse_args()
 
@@ -726,6 +905,9 @@ def main():
         trajectory_path=args.trajectory,
         maizefield3d_path=args.maizefield3d,
         max_positions=args.max_positions,
+        reverse_engineer_path=args.reverse_engineer_gaps,
+        reverse_engineer_traits_path=args.reverse_engineer_traits,
+        use_gompertz=args.gompertz,
     )
 
 
