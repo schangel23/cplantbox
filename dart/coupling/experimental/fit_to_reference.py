@@ -353,7 +353,12 @@ def grow_and_extract(xml_path, day, leaf_params_by_position, stem_params):
 
         return skeletons
 
-    except Exception:
+    except Exception as e:
+        # Log first failure per process for debugging
+        if not hasattr(grow_and_extract, "_logged"):
+            grow_and_extract._logged = True
+            print(f"  [grow_and_extract FAILED] day={day}: {type(e).__name__}: {e}",
+                  file=sys.stderr, flush=True)
         return None
 
 
@@ -552,11 +557,8 @@ def fit_stem(ref_stages, xml_path, leaf_params, n_evals=200, verbose=False):
 
 
 def fit_leaf(pos, ref_stages, xml_path, stem_params, other_leaf_params,
-             n_evals=300, verbose=False, n_parallel=4):
-    """Fit one leaf position with CMA-ES.
-
-    Uses parallel evaluation of CMA-ES population (n_parallel workers).
-    """
+             n_evals=300, verbose=False, n_parallel=1):
+    """Fit one leaf position with CMA-ES."""
     if verbose:
         print(f"\n[Leaf {pos}] Fitting ({n_evals} evals)...")
 
@@ -617,13 +619,7 @@ def fit_leaf(pos, ref_stages, xml_path, stem_params, other_leaf_params,
     while not es.stop():
         solutions = es.ask()
 
-        # Parallel eval of population
-        if n_parallel > 1 and len(solutions) > 1:
-            with ProcessPoolExecutor(max_workers=n_parallel) as pool:
-                futures = [pool.submit(objective, s) for s in solutions]
-                fitnesses = [f.result() for f in futures]
-        else:
-            fitnesses = [objective(s) for s in solutions]
+        fitnesses = [objective(s) for s in solutions]
 
         es.tell(solutions, fitnesses)
         gen += 1
@@ -872,6 +868,31 @@ def main():
     ensure_xml_has_all_subtypes(xml_path, str(prep_xml), all_positions)
     xml_path = str(prep_xml)
 
+    # Sanity check: can CPlantBox grow with this XML?
+    print("\n  Sanity check: growing test plant at day 40...")
+    try:
+        test_plant = pb.Plant()
+        test_plant.readParameters(xml_path)
+        test_plant.initialize(False)
+        test_plant.simulate(40)
+        test_leaves = test_plant.getOrgans(4)
+        test_stems = test_plant.getOrgans(3)
+        print(f"  OK: {len(test_leaves)} leaves, {len(test_stems)} stems")
+        for leaf in test_leaves[:3]:
+            st = int(leaf.getParameter("subType"))
+            nodes = leaf.getNodes()
+            zs = [n.z for n in nodes]
+            print(f"    subType={st} (pos {st-1}): {len(nodes)} nodes, "
+                  f"Z=[{min(zs):.1f}, {max(zs):.1f}]")
+        # Show all subtypes present
+        all_sts = sorted(set(int(l.getParameter("subType")) for l in test_leaves))
+        print(f"  SubTypes present: {all_sts}")
+        print(f"  → Positions: {[st-1 for st in all_sts]}")
+    except Exception as e:
+        print(f"  FAILED: {e}")
+        print("  Cannot grow plants with this XML. Fix the template first.")
+        sys.exit(1)
+
     # Step 3: Fit stem
     print("\n[3/5] Fitting stem...")
     # Use dummy leaf params for stem fitting (from reference extraction)
@@ -895,13 +916,10 @@ def main():
     stem_params, stem_error = fit_stem(ref_stages, xml_path, init_leaf_params,
                                         n_evals=args.stem_evals, verbose=args.verbose)
 
-    # Step 4: Fit leaves — parallel across leaves, each with internal parallel pop eval
-    n_per_leaf = max(1, args.workers // max(len(all_positions), 1))
-    n_per_leaf = max(n_per_leaf, 2)  # at least 2 workers per leaf
-    n_leaf_parallel = max(1, args.workers // n_per_leaf)
+    # Step 4: Fit leaves — all leaves in parallel (each CMA-ES runs sequentially)
+    n_leaf_parallel = min(args.workers, len(all_positions))
     print(f"\n[4/5] Fitting {len(all_positions)} leaves "
-          f"({args.evals} evals each, {n_leaf_parallel} leaves parallel, "
-          f"{n_per_leaf} workers/leaf)...")
+          f"({args.evals} evals each, {n_leaf_parallel} in parallel)...")
 
     fitted_leaf_params = dict(init_leaf_params)  # start with initial guesses
     t0 = time.time()
@@ -914,7 +932,7 @@ def main():
                 other = {p: v for p, v in fitted_leaf_params.items() if p != pos}
                 f = executor.submit(fit_leaf, pos, ref_stages, xml_path,
                                     stem_params, other, args.evals,
-                                    args.verbose, n_parallel=n_per_leaf)
+                                    args.verbose)
                 futures[f] = pos
 
             for future in as_completed(futures):
@@ -932,7 +950,7 @@ def main():
             other = {p: v for p, v in fitted_leaf_params.items() if p != pos}
             params, fitness = fit_leaf(pos, ref_stages, xml_path,
                                        stem_params, other, args.evals,
-                                       args.verbose, n_parallel=n_per_leaf)
+                                       args.verbose)
             if params:
                 fitted_leaf_params[pos] = params
 
