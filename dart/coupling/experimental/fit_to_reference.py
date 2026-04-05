@@ -58,21 +58,21 @@ from dart.coupling.experimental.reverse_engineer_maize import (
 # ---------------------------------------------------------------------------
 MAX_WORKERS = int(os.environ.get("FIT_MAX_WORKERS", "64"))
 
-# Per-leaf parameter bounds: (name, low, high)
+# Per-leaf parameter bounds: (name, low, high) — tightened to prevent CPlantBox crashes
 LEAF_PARAM_BOUNDS = [
-    ("lmax",           5.0,  120.0),   # cm
-    ("r",              0.3,   10.0),   # cm/day
-    ("theta",          0.05,   1.5),   # rad (3° to 86°)
-    ("tropismS",       0.001,  0.3),   # 1/cm
-    ("tropismAge",     1.0,   80.0),   # days
-    ("tropismExponent", 0.5,   4.0),
-    ("collarLength",   0.0,   15.0),   # cm
-    # 5 curvature spline knots (kappa values at phi=0, 0.25, 0.5, 0.75, 1.0)
-    ("curv_k0",        0.0,    0.3),
-    ("curv_k1",        0.0,    0.3),
-    ("curv_k2",        0.0,    0.3),
-    ("curv_k3",        0.0,    0.3),
-    ("curv_k4",        0.0,    0.3),
+    ("lmax",           10.0,  100.0),  # cm
+    ("r",              0.5,    5.0),   # cm/day — must be < lmax/2
+    ("theta",          0.05,   1.4),   # rad (3° to 80°)
+    ("tropismS",       0.001,  0.15),  # 1/cm — above 0.15 causes extreme bending
+    ("tropismAge",     2.0,   60.0),   # days
+    ("tropismExponent", 0.5,   3.0),
+    ("collarLength",   0.0,   10.0),   # cm
+    # 5 curvature spline knots — moderate range
+    ("curv_k0",        0.0,    0.15),
+    ("curv_k1",        0.0,    0.15),
+    ("curv_k2",        0.0,    0.15),
+    ("curv_k3",        0.0,    0.15),
+    ("curv_k4",        0.0,    0.15),
 ]
 
 STEM_PARAM_BOUNDS = [
@@ -199,6 +199,83 @@ def load_reference(export_dir, n_samples=20, verbose=False):
 
 
 # ---------------------------------------------------------------------------
+# Template XML preparation
+# ---------------------------------------------------------------------------
+
+def ensure_xml_has_all_subtypes(xml_path, output_path, positions):
+    """Ensure the XML has leaf subtypes for ALL reference positions.
+
+    If the XML has 11 subtypes (2-12) but we need 16 (2-17), this clones
+    the last existing subtype as a template for the missing ones. Also
+    ensures the stem has enough ln spacing for all leaves.
+
+    Args:
+        xml_path: input XML path
+        output_path: output XML path (can be same as input)
+        positions: list of 1-indexed leaf positions needed
+
+    Returns:
+        output_path
+    """
+    import xml.etree.ElementTree as ET
+
+    tree = ET.parse(xml_path)
+    root = tree.getroot()
+
+    # Find existing leaf subtypes
+    existing = {}
+    for leaf_elem in root.findall("leaf"):
+        st = int(leaf_elem.get("subType", "0"))
+        existing[st] = leaf_elem
+
+    # For each needed position, ensure subType exists
+    needed_subtypes = {pos + 1 for pos in positions}  # pos 1 → subType 2
+    missing = needed_subtypes - set(existing.keys())
+
+    if missing:
+        # Use highest existing subtype as template
+        template_st = max(existing.keys())
+        template_elem = existing[template_st]
+
+        for st in sorted(missing):
+            pos = st - 1  # subType back to position
+            # Deep copy template
+            new_elem = copy.deepcopy(template_elem)
+            new_elem.set("subType", str(st))
+            new_elem.set("name", f"maize_leaf_L{pos}")
+
+            # Set ldelay proportional to position
+            for param in new_elem.findall("parameter"):
+                if param.get("name") == "ldelay":
+                    param.set("value", str(pos * 3.0))  # 3-day phyllochron
+            root.append(new_elem)
+
+        # Update stem la to accommodate more leaves
+        stem_elem = root.find(".//stem[@subType='1']")
+        if stem_elem is not None:
+            n_leaves = len(needed_subtypes)
+            for param in stem_elem.findall("parameter"):
+                if param.get("name") == "la":
+                    lmax_val = 200.0
+                    lb_val = 4.0
+                    ln_val = 14.0
+                    for p2 in stem_elem.findall("parameter"):
+                        if p2.get("name") == "lmax":
+                            lmax_val = float(p2.get("value", 200))
+                        elif p2.get("name") == "lb":
+                            lb_val = float(p2.get("value", 4))
+                        elif p2.get("name") == "ln":
+                            ln_val = float(p2.get("value", 14))
+                    la_val = max(0.1, lmax_val - lb_val - (n_leaves - 1) * ln_val)
+                    param.set("value", str(la_val))
+
+        print(f"  Added {len(missing)} missing leaf subtypes: {sorted(missing)}")
+
+    tree.write(output_path, encoding="utf-8", xml_declaration=True)
+    return output_path
+
+
+# ---------------------------------------------------------------------------
 # CPlantBox growing + skeleton extraction
 # ---------------------------------------------------------------------------
 
@@ -242,18 +319,18 @@ def grow_and_extract(xml_path, day, leaf_params_by_position, stem_params):
             except Exception:
                 continue
 
-            lp.lmax = params["lmax"]
-            lp.r = params["r"]
-            lp.theta = params["theta"]
-            lp.tropismS = params["tropismS"]
-            lp.tropismAge = params["tropismAge"]
-            lp.tropismExponent = params["tropismExponent"]
-            lp.collarLength = params["collarLength"]
+            # Clamp to safe ranges to prevent CPlantBox crashes
+            lp.lmax = max(1.0, params["lmax"])
+            lp.r = max(0.1, min(params["r"], params["lmax"] * 0.5))  # r < lmax/2
+            lp.theta = max(0.01, min(params["theta"], 1.5))
+            lp.tropismS = max(0.0, min(params["tropismS"], 0.15))
+            lp.tropismAge = max(0.0, params["tropismAge"])
+            lp.tropismExponent = max(0.3, min(params["tropismExponent"], 4.0))
+            lp.collarLength = max(0.0, min(params["collarLength"], params["lmax"] * 0.3))
 
-            # Curvature spline
+            # Curvature spline — clamp kappa to safe range
             phi = [0.0, 0.25, 0.5, 0.75, 1.0]
-            kappa = [params["curv_k0"], params["curv_k1"], params["curv_k2"],
-                     params["curv_k3"], params["curv_k4"]]
+            kappa = [max(0.0, min(0.2, params[f"curv_k{i}"])) for i in range(5)]
             lp.leafCurvaturePhi = phi
             lp.leafCurvatureKappa = kappa
 
@@ -274,7 +351,7 @@ def grow_and_extract(xml_path, day, leaf_params_by_position, stem_params):
 
         return skeletons
 
-    except Exception as e:
+    except Exception:
         return None
 
 
@@ -339,19 +416,7 @@ def skeleton_chamfer(skel1, skel2):
 
 def evaluate_leaf(params_vec, pos, ref_stages, xml_path, stem_params,
                   other_leaf_params):
-    """Objective for a single leaf: skeleton Chamfer summed across all stages.
-
-    Args:
-        params_vec: (N_LEAF_PARAMS,) parameter vector for this leaf
-        pos: leaf position (1-indexed)
-        ref_stages: list of reference stage dicts
-        xml_path: template XML path
-        stem_params: fixed stem param dict
-        other_leaf_params: dict[pos -> param_dict] for all OTHER leaves (fixed)
-
-    Returns:
-        float: total skeleton Chamfer across all stages
-    """
+    """Objective for a single leaf: skeleton Chamfer across ALL stages."""
     params = _params_to_dict(params_vec, LEAF_PARAM_BOUNDS)
     all_leaf_params = dict(other_leaf_params)
     all_leaf_params[pos] = params
@@ -369,7 +434,7 @@ def evaluate_leaf(params_vec, pos, ref_stages, xml_path, stem_params,
 
         skeletons = grow_and_extract(xml_path, day, all_leaf_params, stem_params)
         if skeletons is None or pos not in skeletons:
-            total_error += 50.0
+            total_error += 30.0
             n_compared += 1
             continue
 
@@ -485,10 +550,13 @@ def fit_stem(ref_stages, xml_path, leaf_params, n_evals=200, verbose=False):
 
 
 def fit_leaf(pos, ref_stages, xml_path, stem_params, other_leaf_params,
-             n_evals=300, verbose=False):
-    """Fit one leaf position with CMA-ES."""
+             n_evals=300, verbose=False, n_parallel=4):
+    """Fit one leaf position with CMA-ES.
+
+    Uses parallel evaluation of CMA-ES population (n_parallel workers).
+    """
     if verbose:
-        print(f"\n[Leaf {pos}] Fitting...")
+        print(f"\n[Leaf {pos}] Fitting ({n_evals} evals)...")
 
     # Initial guess from reference (most mature stage where this leaf exists)
     ref_leaf = None
@@ -525,40 +593,53 @@ def fit_leaf(pos, ref_stages, xml_path, stem_params, other_leaf_params,
     bounds_hi = [b[2] for b in LEAF_PARAM_BOUNDS]
     ranges = [hi - lo for lo, hi in zip(bounds_lo, bounds_hi)]
 
-    x0_scaled = [(x - lo) / r for x, lo, r in zip(x0, bounds_lo, ranges)]
-    x0_scaled = [np.clip(x, 0.01, 0.99) for x in x0_scaled]
+    x0_scaled = [(x - lo) / rng for x, lo, rng in zip(x0, bounds_lo, ranges)]
+    x0_scaled = [np.clip(x, 0.02, 0.98) for x in x0_scaled]
 
     def objective(x_scaled):
-        x_real = [lo + x * r for x, lo, r in zip(x_scaled, bounds_lo, ranges)]
+        x_real = [lo + x * rng for x, lo, rng in zip(x_scaled, bounds_lo, ranges)]
         return evaluate_leaf(x_real, pos, ref_stages, xml_path, stem_params,
                              other_leaf_params)
 
-    es = cma.CMAEvolutionStrategy(x0_scaled, 0.3, {
+    popsize = max(8, 2 * N_LEAF_PARAMS)
+    es = cma.CMAEvolutionStrategy(x0_scaled, 0.15, {  # sigma=0.15 (tighter)
         "bounds": [0, 1],
         "maxfevals": n_evals,
         "verbose": -9,
         "seed": 42 + pos,
-        "popsize": max(8, 2 * N_LEAF_PARAMS),
+        "popsize": popsize,
     })
 
+    gen = 0
     best_fitness = float("inf")
     while not es.stop():
         solutions = es.ask()
-        fitnesses = [objective(s) for s in solutions]
+
+        # Parallel eval of population
+        if n_parallel > 1 and len(solutions) > 1:
+            with ProcessPoolExecutor(max_workers=n_parallel) as pool:
+                futures = [pool.submit(objective, s) for s in solutions]
+                fitnesses = [f.result() for f in futures]
+        else:
+            fitnesses = [objective(s) for s in solutions]
+
         es.tell(solutions, fitnesses)
+        gen += 1
         if es.result.fbest < best_fitness:
             best_fitness = es.result.fbest
+            if verbose and gen % 5 == 0:
+                print(f"    Gen {gen}: best={best_fitness:.2f}cm")
 
     best_scaled = es.result.xbest
-    best_real = [lo + x * r for x, lo, r in zip(best_scaled, bounds_lo, ranges)]
+    best_real = [lo + x * rng for x, lo, rng in zip(best_scaled, bounds_lo, ranges)]
     best_params = _params_to_dict(best_real, LEAF_PARAM_BOUNDS)
 
     if verbose:
-        print(f"  lmax={best_params['lmax']:.1f}, r={best_params['r']:.2f}, "
+        print(f"  Result: lmax={best_params['lmax']:.1f}, r={best_params['r']:.2f}, "
               f"theta={math.degrees(best_params['theta']):.0f}°, "
               f"tropS={best_params['tropismS']:.4f}, "
               f"tropAge={best_params['tropismAge']:.1f}")
-        print(f"  Skeleton Chamfer: {best_fitness:.2f}cm")
+        print(f"  Skeleton Chamfer: {best_fitness:.2f}cm ({gen} generations)")
 
     return best_params, best_fitness
 
@@ -775,7 +856,7 @@ def main():
     print(f"Evals/leaf: {args.evals}, Stem evals: {args.stem_evals}")
 
     # Step 1: Load reference
-    print("\n[1/4] Loading reference OBJ models...")
+    print("\n[1/5] Loading reference OBJ models...")
     ref_stages = load_reference(args.export_dir, verbose=args.verbose)
 
     # Get all leaf positions
@@ -783,8 +864,14 @@ def main():
         l.position for s in ref_stages for l in s["leaves"] if l.length > 5))
     print(f"  Fitting {len(all_positions)} leaf positions: {all_positions}")
 
-    # Step 2: Fit stem
-    print("\n[2/4] Fitting stem...")
+    # Ensure XML has subtypes for all positions
+    prep_xml = output_dir / "template_prepared.xml"
+    print(f"\n[2/5] Preparing template XML for {len(all_positions)} leaves...")
+    ensure_xml_has_all_subtypes(xml_path, str(prep_xml), all_positions)
+    xml_path = str(prep_xml)
+
+    # Step 3: Fit stem
+    print("\n[3/5] Fitting stem...")
     # Use dummy leaf params for stem fitting (from reference extraction)
     init_leaf_params = {}
     for pos in all_positions:
@@ -806,21 +893,26 @@ def main():
     stem_params, stem_error = fit_stem(ref_stages, xml_path, init_leaf_params,
                                         n_evals=args.stem_evals, verbose=args.verbose)
 
-    # Step 3: Fit leaves (parallel if workers > 1)
-    print(f"\n[3/4] Fitting {len(all_positions)} leaves "
-          f"({args.evals} evals each, {args.workers} workers)...")
+    # Step 4: Fit leaves — parallel across leaves, each with internal parallel pop eval
+    n_per_leaf = max(1, args.workers // max(len(all_positions), 1))
+    n_per_leaf = max(n_per_leaf, 2)  # at least 2 workers per leaf
+    n_leaf_parallel = max(1, args.workers // n_per_leaf)
+    print(f"\n[4/5] Fitting {len(all_positions)} leaves "
+          f"({args.evals} evals each, {n_leaf_parallel} leaves parallel, "
+          f"{n_per_leaf} workers/leaf)...")
 
     fitted_leaf_params = dict(init_leaf_params)  # start with initial guesses
     t0 = time.time()
 
-    if args.workers > 1:
-        # Parallel: each leaf independently
-        with ProcessPoolExecutor(max_workers=args.workers) as executor:
+    if n_leaf_parallel > 1:
+        # Parallel across leaves
+        with ProcessPoolExecutor(max_workers=n_leaf_parallel) as executor:
             futures = {}
             for pos in all_positions:
                 other = {p: v for p, v in fitted_leaf_params.items() if p != pos}
                 f = executor.submit(fit_leaf, pos, ref_stages, xml_path,
-                                    stem_params, other, args.evals, args.verbose)
+                                    stem_params, other, args.evals,
+                                    args.verbose, n_parallel=n_per_leaf)
                 futures[f] = pos
 
             for future in as_completed(futures):
@@ -838,15 +930,15 @@ def main():
             other = {p: v for p, v in fitted_leaf_params.items() if p != pos}
             params, fitness = fit_leaf(pos, ref_stages, xml_path,
                                        stem_params, other, args.evals,
-                                       args.verbose)
+                                       args.verbose, n_parallel=n_per_leaf)
             if params:
                 fitted_leaf_params[pos] = params
 
     elapsed = time.time() - t0
     print(f"  Fitting took {elapsed:.0f}s")
 
-    # Step 4: Export XML + analysis
-    print("\n[4/4] Exporting fitted XML and analyzing results...")
+    # Step 5: Export XML + analysis
+    print("\n[5/5] Exporting fitted XML and analyzing results...")
     fitted_xml = output_dir / "maize_fitted.xml"
     export_fitted_xml(xml_path, str(fitted_xml), stem_params, fitted_leaf_params)
     print(f"  XML: {fitted_xml}")
