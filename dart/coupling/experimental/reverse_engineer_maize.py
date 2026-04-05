@@ -1582,18 +1582,46 @@ def analyze_lofter_gaps(stages, export_dir, verbose=False):
             for gname, gfaces in groups_orig.items():
                 if "leaf" in gname.lower():
                     leaf_faces_orig.extend(gfaces)
-            orig_pts_all = _mesh_to_points(verts_orig, leaf_faces_orig, n_samples=5000)
-            target_t = torch.as_tensor(orig_pts_all, dtype=torch.float32, device=device)
 
-            # Optimize deformations for each leaf
+            # Build per-leaf target point clouds (NOT whole plant)
+            leaf_comps_orig = find_connected_components(leaf_faces_orig)
+            # Match to tracked leaves by vertex overlap
+            leaf_target_map = {}  # leaf_id -> target points
+            for leaf in stage_data.leaves:
+                if leaf.length < 5:
+                    continue
+                leaf_vid = set()
+                # Find component matching this leaf's vertex IDs
+                for comp in leaf_comps_orig:
+                    # Check if skeleton base point is near any component vertex
+                    comp_verts = verts_orig[sorted(comp)]
+                    base = np.array(leaf.base_point)
+                    dists_to_base = np.linalg.norm(comp_verts - base, axis=1)
+                    if dists_to_base.min() < 2.0:  # within 2cm
+                        leaf_vid = comp
+                        break
+                if leaf_vid:
+                    comp_faces = [f for f in leaf_faces_orig
+                                  if all(v in leaf_vid for v in f)]
+                    pts = _mesh_to_points(verts_orig, comp_faces, n_samples=500)
+                    leaf_target_map[leaf.leaf_id] = pts
+
+            # Optimize deformations for each leaf against its OWN target
             best_chamfers = []
             for leaf in stage_data.leaves:
                 if leaf.length < 5:
+                    continue
+                if leaf.leaf_id not in leaf_target_map:
                     continue
                 skel = np.array(leaf.skeleton)
                 w = np.array(leaf.widths)
                 if len(skel) < 3 or w.max() < 0.1:
                     continue
+
+                # Per-leaf target (NOT whole plant)
+                leaf_target = leaf_target_map[leaf.leaf_id]
+                target_t = torch.as_tensor(leaf_target, dtype=torch.float32,
+                                           device=device)
 
                 skel_t = torch.as_tensor(skel, dtype=torch.float32, device=device)
                 w_t = torch.as_tensor(w, dtype=torch.float32, device=device)
@@ -1636,6 +1664,8 @@ def analyze_lofter_gaps(stages, export_dir, verbose=False):
                         best_loss = loss.item()
 
                 best_chamfers.append(best_loss)
+                if verbose:
+                    print(f"      Leaf {leaf.position}: optimized Chamfer = {best_loss:.2f}cm")
 
             if best_chamfers:
                 chamfer_optimized = float(np.mean(best_chamfers))
