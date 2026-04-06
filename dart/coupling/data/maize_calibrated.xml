@@ -195,7 +195,7 @@
         <parameter name="leafGeometry" phi="1.3" x="0.78" />
         <parameter name="leafGeometry" phi="2.7" x="0.78" />
         <parameter name="leafGeometry" phi="4.0" x="0.05" />
-    <parameter name="leafOOPCurvature" phi="0.0000" kappa="-0.010590" /><parameter name="leafOOPCurvature" phi="0.2500" kappa="-0.037640" /><parameter name="leafOOPCurvature" phi="0.5000" kappa="-0.037190" /><parameter name="leafOOPCurvature" phi="0.7500" kappa="-0.028410" /><parameter name="leafOOPCurvature" phi="1.0000" kappa="0.002560" /><parameter name="leafAsymmetry" phi="0.0000" offset="0.000440" /><parameter name="leafAsymmetry" phi="0.2500" offset="0.006800" /><parameter name="leafAsymmetry" phi="0.5000" offset="-0.030290" /><parameter name="leafAsymmetry" phi="0.7500" offset="-0.243460" /><parameter name="leafAsymmetry" phi="1.0000" offset="0.000050" /><parameter name="leafEdgeCurl" phi="0.0000" angle="-0.000710" /><parameter name="leafEdgeCurl" phi="0.2500" angle="-0.057240" /><parameter name="leafEdgeCurl" phi="0.5000" angle="-0.263080" /><parameter name="leafEdgeCurl" phi="0.7500" angle="-0.194440" /><parameter name="leafEdgeCurl" phi="1.0000" angle="-0.040220" /><parameter name="leafCrossSection" phi="0.0000" curv="-0.000470" /><parameter name="leafCrossSection" phi="0.2500" curv="-0.017330" /><parameter name="leafCrossSection" phi="0.5000" curv="-0.086880" /><parameter name="leafCrossSection" phi="0.7500" curv="-0.247480" /><parameter name="leafCrossSection" phi="1.0000" curv="-0.020540" /></leaf>
+    </leaf>
     <leaf name="maize_leaf_L1" subType="3">
         <parameter name="geometryN" value="100" />
         <parameter name="gf" value="3" />
@@ -231,7 +231,7 @@
         <parameter name="leafGeometry" phi="1.3" x="0.80" />
         <parameter name="leafGeometry" phi="2.7" x="0.81" />
         <parameter name="leafGeometry" phi="4.0" x="0.05" />
-    <parameter name="leafOOPCurvature" phi="0.0000" kappa="-0.029270" /><parameter name="leafOOPCurvature" phi="0.2500" kappa="-0.042750" /><parameter name="leafOOPCurvature" phi="0.5000" kappa="-0.025080" /><parameter name="leafOOPCurvature" phi="0.7500" kappa="-0.020510" /><parameter name="leafOOPCurvature" phi="1.0000" kappa="0.022190" /><parameter name="leafAsymmetry" phi="0.0000" offset="-0.002730" /><parameter name="leafAsymmetry" phi="0.2500" offset="-0.034350" /><parameter name="leafAsymmetry" phi="0.5000" offset="-0.099950" /><parameter name="leafAsymmetry" phi="0.7500" offset="-0.063770" /><parameter name="leafAsymmetry" phi="1.0000" offset="-0.006140" /><parameter name="leafEdgeCurl" phi="0.0000" angle="-0.001400" /><parameter name="leafEdgeCurl" phi="0.2500" angle="-0.093450" /><parameter name="leafEdgeCurl" phi="0.5000" angle="-0.268540" /><parameter name="leafEdgeCurl" phi="0.7500" angle="-0.047330" /><parameter name="leafEdgeCurl" phi="1.0000" angle="0.040370" /><parameter name="leafCrossSection" phi="0.0000" curv="-0.000570" /><parameter name="leafCrossSection" phi="0.2500" curv="-0.020760" /><parameter name="leafCrossSection" phi="0.5000" curv="-0.127140" /><parameter name="leafCrossSection" phi="0.7500" curv="-0.022790" /><parameter name="leafCrossSection" phi="1.0000" curv="0.014660" /></leaf>
+    </leaf>
     <leaf name="maize_leaf_L2" subType="4">
         <parameter name="geometryN" value="100" />
         <parameter name="gf" value="3" />
@@ -267,7 +267,7 @@
         <parameter name="leafGeometry" phi="1.3" x="0.79" />
         <parameter name="leafGeometry" phi="2.7" x="0.82" />
         <parameter name="leafGeometry" phi="4.0" x="0.05" />
-    <parameter name="leafOOPCurvature" phi="0.0000" kappa="0.002120" /><parameter name="leafOOPCurvature" phi="0.2500" kappa="-0.005180" /><parameter name="leafOOPCurvature" phi="0.5000" kappa="-0.046020" /><parameter name="leafOOPCurvature" phi="0.7500" kappa="0.021060" /><parameter name="leafOOPCurvature" phi="1.0000" kappa="0.025150" /><parameter name="leafAsymmetry" phi="0.0000" offset="0.000890" /><parameter name="leafAsymmetry" phi="0.2500" offset="0.037970" /><parameter name="leafAsymmetry" phi="0.5000" offset="0.036390" /><parameter name="leafAsymmetry" phi="0.7500" offset="0.003830" /><parameter name="leafAsymmetry" phi="1.0000" offset="0.006990" /><parameter name="leafEdgeCurl" phi="0.0000" angle="-0.003490" /><parameter name="leafEdgeCurl" phi="0.2500" angle="-0.220670" /><parameter name="leafEdgeCurl" phi="0.5000" angle="-0.253290" /><parameter name="leafEdgeCurl" phi="0.7500" angle="-0.176370" /><parameter name="leafEdgeCurl" phi="1.0000" angle="0.024070" /><parameter name="leafCrossSection" phi="0.0000" curv="-0.000610" /><parameter name="leafCrossSection" phi="0.2500" curv="-0.049110" /><parameter name="leafCrossSection" phi="0.5000" curv="-0.123100" /><parameter name="leafCrossSection" phi="0.7500" curv="-0.043980" /><parameter name="leafCrossSection" phi="1.0000" curv="0.025520" /></leaf>
+    </leaf>
     <leaf name="maize_leaf_L3" subType="5">
         <parameter name="geometryN" value="100" />
         <parameter name="gf" value="3" />
@@ -303,7 +303,7 @@
         <parameter name="leafGeometry" phi="1.3" x="0.78" />
         <parameter name="leafGeometry" phi="2.7" x="0.79" />
         <parameter name="leafGeometry" phi="4.0" x="0.05" />
-    <parameter name="leafOOPCurvature" phi="0.0000" kappa="-0.029480" /><parameter name="leafOOPCurvature" phi="0.2500" kappa="-0.053780" /><parameter name="leafOOPCurvature" phi="0.5000" kappa="-0.053780" /><parameter name="leafOOPCurvature" phi="0.7500" kappa="-0.056670" /><parameter name="leafOOPCurvature" phi="1.0000" kappa="-0.020020" /><parameter name="leafAsymmetry" phi="0.0000" offset="-0.002220" /><parameter name="leafAsymmetry" phi="0.2500" offset="-0.049760" /><parameter name="leafAsymmetry" phi="0.5000" offset="-0.147470" /><parameter name="leafAsymmetry" phi="0.7500" offset="-0.135320" /><parameter name="leafAsymmetry" phi="1.0000" offset="0.008570" /><parameter name="leafEdgeCurl" phi="0.0000" angle="-0.007000" /><parameter name="leafEdgeCurl" phi="0.2500" angle="-0.210880" /><parameter name="leafEdgeCurl" phi="0.5000" angle="-0.204950" /><parameter name="leafEdgeCurl" phi="0.7500" angle="-0.071250" /><parameter name="leafEdgeCurl" phi="1.0000" angle="-0.001430" /><parameter name="leafCrossSection" phi="0.0000" curv="-0.001380" /><parameter name="leafCrossSection" phi="0.2500" curv="-0.048510" /><parameter name="leafCrossSection" phi="0.5000" curv="-0.153810" /><parameter name="leafCrossSection" phi="0.7500" curv="-0.060680" /><parameter name="leafCrossSection" phi="1.0000" curv="0.021470" /></leaf>
+    </leaf>
     <leaf name="maize_leaf_L4" subType="6">
         <parameter name="geometryN" value="100" />
         <parameter name="gf" value="3" />
@@ -339,7 +339,7 @@
         <parameter name="leafGeometry" phi="1.3" x="0.81" />
         <parameter name="leafGeometry" phi="2.7" x="0.79" />
         <parameter name="leafGeometry" phi="4.0" x="0.05" />
-    <parameter name="leafOOPCurvature" phi="0.0000" kappa="-0.034960" /><parameter name="leafOOPCurvature" phi="0.2500" kappa="-0.035050" /><parameter name="leafOOPCurvature" phi="0.5000" kappa="-0.012960" /><parameter name="leafOOPCurvature" phi="0.7500" kappa="0.014740" /><parameter name="leafOOPCurvature" phi="1.0000" kappa="0.019970" /><parameter name="leafAsymmetry" phi="0.0000" offset="0.000830" /><parameter name="leafAsymmetry" phi="0.2500" offset="-0.094450" /><parameter name="leafAsymmetry" phi="0.5000" offset="-0.268960" /><parameter name="leafAsymmetry" phi="0.7500" offset="-0.201080" /><parameter name="leafAsymmetry" phi="1.0000" offset="-0.029280" /><parameter name="leafEdgeCurl" phi="0.0000" angle="-0.003340" /><parameter name="leafEdgeCurl" phi="0.2500" angle="-0.331130" /><parameter name="leafEdgeCurl" phi="0.5000" angle="-0.191180" /><parameter name="leafEdgeCurl" phi="0.7500" angle="-0.082720" /><parameter name="leafEdgeCurl" phi="1.0000" angle="-0.043030" /><parameter name="leafCrossSection" phi="0.0000" curv="-0.000490" /><parameter name="leafCrossSection" phi="0.2500" curv="-0.066510" /><parameter name="leafCrossSection" phi="0.5000" curv="-0.198490" /><parameter name="leafCrossSection" phi="0.7500" curv="-0.149380" /><parameter name="leafCrossSection" phi="1.0000" curv="-0.003840" /></leaf>
+    </leaf>
     <leaf name="maize_leaf_L5" subType="7">
         <parameter name="geometryN" value="100" />
         <parameter name="gf" value="3" />
@@ -375,7 +375,7 @@
         <parameter name="leafGeometry" phi="1.3" x="0.79" />
         <parameter name="leafGeometry" phi="2.7" x="0.77" />
         <parameter name="leafGeometry" phi="4.0" x="0.05" />
-    <parameter name="leafOOPCurvature" phi="0.0000" kappa="-0.024570" /><parameter name="leafOOPCurvature" phi="0.2500" kappa="-0.030000" /><parameter name="leafOOPCurvature" phi="0.5000" kappa="-0.044450" /><parameter name="leafOOPCurvature" phi="0.7500" kappa="-0.030470" /><parameter name="leafOOPCurvature" phi="1.0000" kappa="-0.017230" /><parameter name="leafAsymmetry" phi="0.0000" offset="-0.001540" /><parameter name="leafAsymmetry" phi="0.2500" offset="-0.026920" /><parameter name="leafAsymmetry" phi="0.5000" offset="0.016860" /><parameter name="leafAsymmetry" phi="0.7500" offset="0.047480" /><parameter name="leafAsymmetry" phi="1.0000" offset="0.001410" /><parameter name="leafEdgeCurl" phi="0.0000" angle="-0.000600" /><parameter name="leafEdgeCurl" phi="0.2500" angle="-0.006760" /><parameter name="leafEdgeCurl" phi="0.5000" angle="-0.090130" /><parameter name="leafEdgeCurl" phi="0.7500" angle="0.058840" /><parameter name="leafEdgeCurl" phi="1.0000" angle="-0.043150" /><parameter name="leafCrossSection" phi="0.0000" curv="-0.000450" /><parameter name="leafCrossSection" phi="0.2500" curv="-0.010220" /><parameter name="leafCrossSection" phi="0.5000" curv="-0.120160" /><parameter name="leafCrossSection" phi="0.7500" curv="-0.098970" /><parameter name="leafCrossSection" phi="1.0000" curv="-0.011220" /></leaf>
+    </leaf>
     <leaf name="maize_leaf_L6" subType="8">
         <parameter name="geometryN" value="100" />
         <parameter name="gf" value="3" />
@@ -411,7 +411,7 @@
         <parameter name="leafGeometry" phi="1.3" x="0.80" />
         <parameter name="leafGeometry" phi="2.7" x="0.78" />
         <parameter name="leafGeometry" phi="4.0" x="0.05" />
-    <parameter name="leafOOPCurvature" phi="0.0000" kappa="-0.008900" /><parameter name="leafOOPCurvature" phi="0.2500" kappa="0.016600" /><parameter name="leafOOPCurvature" phi="0.5000" kappa="0.023730" /><parameter name="leafOOPCurvature" phi="0.7500" kappa="-0.044690" /><parameter name="leafOOPCurvature" phi="1.0000" kappa="-0.016790" /><parameter name="leafAsymmetry" phi="0.0000" offset="0.001590" /><parameter name="leafAsymmetry" phi="0.2500" offset="0.023670" /><parameter name="leafAsymmetry" phi="0.5000" offset="-0.070620" /><parameter name="leafAsymmetry" phi="0.7500" offset="-0.134720" /><parameter name="leafAsymmetry" phi="1.0000" offset="-0.005330" /><parameter name="leafEdgeCurl" phi="0.0000" angle="-0.000090" /><parameter name="leafEdgeCurl" phi="0.2500" angle="0.033430" /><parameter name="leafEdgeCurl" phi="0.5000" angle="-0.031030" /><parameter name="leafEdgeCurl" phi="0.7500" angle="0.179880" /><parameter name="leafEdgeCurl" phi="1.0000" angle="0.045640" /><parameter name="leafCrossSection" phi="0.0000" curv="0.000050" /><parameter name="leafCrossSection" phi="0.2500" curv="0.004190" /><parameter name="leafCrossSection" phi="0.5000" curv="0.014630" /><parameter name="leafCrossSection" phi="0.7500" curv="0.147910" /><parameter name="leafCrossSection" phi="1.0000" curv="0.012860" /></leaf>
+    </leaf>
     <leaf name="maize_leaf_L7" subType="9">
         <parameter name="geometryN" value="100" />
         <parameter name="gf" value="3" />
@@ -447,7 +447,7 @@
         <parameter name="leafGeometry" phi="1.3" x="0.78" />
         <parameter name="leafGeometry" phi="2.7" x="0.78" />
         <parameter name="leafGeometry" phi="4.0" x="0.05" />
-    <parameter name="leafOOPCurvature" phi="0.0000" kappa="0.011390" /><parameter name="leafOOPCurvature" phi="0.2500" kappa="-0.010130" /><parameter name="leafOOPCurvature" phi="0.5000" kappa="0.020330" /><parameter name="leafOOPCurvature" phi="0.7500" kappa="0.007710" /><parameter name="leafOOPCurvature" phi="1.0000" kappa="-0.018770" /><parameter name="leafAsymmetry" phi="0.0000" offset="0.000000" /><parameter name="leafAsymmetry" phi="0.2500" offset="-0.003340" /><parameter name="leafAsymmetry" phi="0.5000" offset="-0.036450" /><parameter name="leafAsymmetry" phi="0.7500" offset="-0.147430" /><parameter name="leafAsymmetry" phi="1.0000" offset="-0.066190" /><parameter name="leafEdgeCurl" phi="0.0000" angle="-0.000800" /><parameter name="leafEdgeCurl" phi="0.2500" angle="-0.070050" /><parameter name="leafEdgeCurl" phi="0.5000" angle="-0.022440" /><parameter name="leafEdgeCurl" phi="0.7500" angle="-0.053620" /><parameter name="leafEdgeCurl" phi="1.0000" angle="-0.092910" /><parameter name="leafCrossSection" phi="0.0000" curv="-0.000340" /><parameter name="leafCrossSection" phi="0.2500" curv="-0.019200" /><parameter name="leafCrossSection" phi="0.5000" curv="0.025430" /><parameter name="leafCrossSection" phi="0.7500" curv="0.110470" /><parameter name="leafCrossSection" phi="1.0000" curv="-0.149330" /></leaf>
+    </leaf>
     <leaf name="maize_leaf_L8" subType="10">
         <parameter name="geometryN" value="100" />
         <parameter name="gf" value="3" />
@@ -483,7 +483,7 @@
         <parameter name="leafGeometry" phi="1.3" x="0.78" />
         <parameter name="leafGeometry" phi="2.7" x="0.77" />
         <parameter name="leafGeometry" phi="4.0" x="0.05" />
-    <parameter name="leafOOPCurvature" phi="0.0000" kappa="-0.014320" /><parameter name="leafOOPCurvature" phi="0.2500" kappa="0.010600" /><parameter name="leafOOPCurvature" phi="0.5000" kappa="-0.032760" /><parameter name="leafOOPCurvature" phi="0.7500" kappa="-0.022360" /><parameter name="leafOOPCurvature" phi="1.0000" kappa="-0.025880" /><parameter name="leafAsymmetry" phi="0.0000" offset="-0.000420" /><parameter name="leafAsymmetry" phi="0.2500" offset="-0.015130" /><parameter name="leafAsymmetry" phi="0.5000" offset="-0.069270" /><parameter name="leafAsymmetry" phi="0.7500" offset="-0.123440" /><parameter name="leafAsymmetry" phi="1.0000" offset="0.029020" /><parameter name="leafEdgeCurl" phi="0.0000" angle="0.000090" /><parameter name="leafEdgeCurl" phi="0.2500" angle="-0.129020" /><parameter name="leafEdgeCurl" phi="0.5000" angle="-0.110220" /><parameter name="leafEdgeCurl" phi="0.7500" angle="-0.068370" /><parameter name="leafEdgeCurl" phi="1.0000" angle="0.014190" /><parameter name="leafCrossSection" phi="0.0000" curv="0.000090" /><parameter name="leafCrossSection" phi="0.2500" curv="-0.044980" /><parameter name="leafCrossSection" phi="0.5000" curv="-0.175290" /><parameter name="leafCrossSection" phi="0.7500" curv="-0.114390" /><parameter name="leafCrossSection" phi="1.0000" curv="0.002550" /></leaf>
+    </leaf>
     <leaf name="maize_leaf_L9" subType="11">
         <parameter name="geometryN" value="100" />
         <parameter name="gf" value="3" />
@@ -519,7 +519,7 @@
         <parameter name="leafGeometry" phi="1.3" x="0.80" />
         <parameter name="leafGeometry" phi="2.7" x="0.79" />
         <parameter name="leafGeometry" phi="4.0" x="0.05" />
-    <parameter name="leafOOPCurvature" phi="0.0000" kappa="0.037400" /><parameter name="leafOOPCurvature" phi="0.2500" kappa="0.067140" /><parameter name="leafOOPCurvature" phi="0.5000" kappa="0.049780" /><parameter name="leafOOPCurvature" phi="0.7500" kappa="-0.001650" /><parameter name="leafOOPCurvature" phi="1.0000" kappa="0.000770" /><parameter name="leafAsymmetry" phi="0.0000" offset="0.000390" /><parameter name="leafAsymmetry" phi="0.2500" offset="0.036270" /><parameter name="leafAsymmetry" phi="0.5000" offset="0.285120" /><parameter name="leafAsymmetry" phi="0.7500" offset="0.127390" /><parameter name="leafAsymmetry" phi="1.0000" offset="-0.013670" /><parameter name="leafEdgeCurl" phi="0.0000" angle="0.000460" /><parameter name="leafEdgeCurl" phi="0.2500" angle="-0.117860" /><parameter name="leafEdgeCurl" phi="0.5000" angle="-0.357980" /><parameter name="leafEdgeCurl" phi="0.7500" angle="-0.363140" /><parameter name="leafEdgeCurl" phi="1.0000" angle="-0.080050" /><parameter name="leafCrossSection" phi="0.0000" curv="0.000380" /><parameter name="leafCrossSection" phi="0.2500" curv="-0.022660" /><parameter name="leafCrossSection" phi="0.5000" curv="-0.351280" /><parameter name="leafCrossSection" phi="0.7500" curv="-0.580150" /><parameter name="leafCrossSection" phi="1.0000" curv="-0.019010" /></leaf>
+    </leaf>
     <leaf name="maize_leaf_L10" subType="12">
         <parameter name="geometryN" value="100" />
         <parameter name="gf" value="3" />
@@ -555,5 +555,5 @@
         <parameter name="leafGeometry" phi="1.3" x="0.79" />
         <parameter name="leafGeometry" phi="2.7" x="0.79" />
         <parameter name="leafGeometry" phi="4.0" x="0.05" />
-    <parameter name="leafOOPCurvature" phi="0.0000" kappa="-0.033730" /><parameter name="leafOOPCurvature" phi="0.2500" kappa="-0.039470" /><parameter name="leafOOPCurvature" phi="0.5000" kappa="-0.039300" /><parameter name="leafOOPCurvature" phi="0.7500" kappa="-0.014960" /><parameter name="leafOOPCurvature" phi="1.0000" kappa="-0.044940" /><parameter name="leafAsymmetry" phi="0.0000" offset="0.000210" /><parameter name="leafAsymmetry" phi="0.2500" offset="-0.012840" /><parameter name="leafAsymmetry" phi="0.5000" offset="-0.008140" /><parameter name="leafAsymmetry" phi="0.7500" offset="0.089340" /><parameter name="leafAsymmetry" phi="1.0000" offset="0.038480" /><parameter name="leafEdgeCurl" phi="0.0000" angle="-0.003410" /><parameter name="leafEdgeCurl" phi="0.2500" angle="-0.282610" /><parameter name="leafEdgeCurl" phi="0.5000" angle="-0.365800" /><parameter name="leafEdgeCurl" phi="0.7500" angle="-0.371940" /><parameter name="leafEdgeCurl" phi="1.0000" angle="-0.171310" /><parameter name="leafCrossSection" phi="0.0000" curv="-0.001180" /><parameter name="leafCrossSection" phi="0.2500" curv="-0.060480" /><parameter name="leafCrossSection" phi="0.5000" curv="-0.334070" /><parameter name="leafCrossSection" phi="0.7500" curv="-0.964770" /><parameter name="leafCrossSection" phi="1.0000" curv="-0.130140" /></leaf>
+    </leaf>
 </plant>

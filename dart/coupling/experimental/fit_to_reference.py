@@ -60,6 +60,7 @@ from dart.coupling.experimental.reverse_engineer_maize import (
 MAX_WORKERS = int(os.environ.get("FIT_MAX_WORKERS", "64"))
 
 # Per-leaf parameter bounds: (name, low, high) — tightened to prevent CPlantBox crashes
+# Bounds for exponential growth (gf=1/3).  Gompertz (gf=4) uses wider lmax and r.
 LEAF_PARAM_BOUNDS = [
     ("lmax",           10.0,  100.0),  # cm
     ("r",              0.5,    5.0),   # cm/day — must be < lmax/2
@@ -75,6 +76,21 @@ LEAF_PARAM_BOUNDS = [
     ("curv_k3",        0.0,    0.15),
     ("curv_k4",        0.0,    0.15),
 ]
+
+# Gompertz-specific bounds overrides: K (lmax) is the asymptotic maximum (larger),
+# r is the sigmoid steepness parameter (different range from exponential r).
+GOMPERTZ_LEAF_BOUNDS_OVERRIDES = {
+    "lmax": (50.0, 250.0),   # Gompertz K: asymptotic max length
+    "r":    (1.0,   15.0),   # Gompertz r: sigmoid steepness, NOT initial growth rate
+}
+
+
+def leaf_bounds_for_gf(gf):
+    """Return LEAF_PARAM_BOUNDS adjusted for growth function type."""
+    if gf != 4:
+        return list(LEAF_PARAM_BOUNDS)
+    return [(name, *GOMPERTZ_LEAF_BOUNDS_OVERRIDES.get(name, (lo, hi)))
+            for name, lo, hi in LEAF_PARAM_BOUNDS]
 
 STEM_PARAM_BOUNDS = [
     ("lmax",   50.0,  300.0),
@@ -322,9 +338,19 @@ def grow_and_extract(xml_path, day, leaf_params_by_position, stem_params):
             except Exception:
                 continue
 
+            # Set growth function type if specified (4 = Gompertz)
+            gf = int(params.get("gf", lp.gf))
+            if gf != lp.gf:
+                lp.gf = gf
+                lp.f_gf = plant.createGrowthFunction(gf)
+
             # Clamp to safe ranges to prevent CPlantBox crashes
             lp.lmax = max(1.0, params["lmax"])
-            lp.r = max(0.1, min(params["r"], params["lmax"] * 0.5))  # r < lmax/2
+            if gf == 4:
+                # Gompertz r is sigmoid steepness, not initial rate — no lmax/2 cap
+                lp.r = max(0.5, params["r"])
+            else:
+                lp.r = max(0.1, min(params["r"], params["lmax"] * 0.5))  # r < lmax/2
             lp.theta = max(0.01, min(params["theta"], 1.5))
             lp.tropismS = max(0.0, min(params["tropismS"], 0.15))
             lp.tropismAge = max(0.0, params["tropismAge"])
@@ -383,6 +409,12 @@ def grow_and_loft(xml_path, day, leaf_params_by_position, stem_params):
                 lp = plant.getOrganRandomParameter(4, sub_type)
             except Exception:
                 continue
+
+            gf = int(params.get("gf", lp.gf))
+            if gf != lp.gf:
+                lp.gf = gf
+                lp.f_gf = plant.createGrowthFunction(gf)
+
             lp.lmax = params["lmax"]
             lp.r = params["r"]
             lp.theta = params["theta"]
@@ -425,9 +457,11 @@ def skeleton_chamfer(skel1, skel2):
 
 
 def evaluate_leaf(params_vec, pos, ref_stages, xml_path, stem_params,
-                  other_leaf_params):
+                  other_leaf_params, gf=3):
     """Objective for a single leaf: skeleton Chamfer across ALL stages."""
-    params = _params_to_dict(params_vec, LEAF_PARAM_BOUNDS)
+    bounds = leaf_bounds_for_gf(gf)
+    params = _params_to_dict(params_vec, bounds)
+    params["gf"] = gf
     all_leaf_params = dict(other_leaf_params)
     all_leaf_params[pos] = params
 
@@ -561,10 +595,17 @@ def fit_stem(ref_stages, xml_path, leaf_params, n_evals=200, verbose=False):
 
 
 def fit_leaf(pos, ref_stages, xml_path, stem_params, other_leaf_params,
-             n_evals=300, verbose=False, n_parallel=1):
-    """Fit one leaf position with CMA-ES."""
+             n_evals=300, verbose=False, n_parallel=1, gf=3,
+             gompertz_init=None):
+    """Fit one leaf position with CMA-ES.
+
+    Args:
+        gf: growth function type (3=CWLimited/exponential, 4=Gompertz)
+        gompertz_init: optional dict with 'K' and 'r' for Gompertz initialization
+    """
     if verbose:
-        print(f"\n[Leaf {pos}] Fitting ({n_evals} evals)...")
+        gf_name = "Gompertz" if gf == 4 else "exp"
+        print(f"\n[Leaf {pos}] Fitting ({n_evals} evals, gf={gf} {gf_name})...")
 
     # Initial guess from reference (most mature stage where this leaf exists)
     ref_leaf = None
@@ -578,11 +619,22 @@ def fit_leaf(pos, ref_stages, xml_path, stem_params, other_leaf_params,
             print(f"  Skipped (no reference leaf)")
         return None, 999.0
 
+    bounds = leaf_bounds_for_gf(gf)
+
     # Initial guess from extracted traits
     curv = ref_leaf.curvature_profile
+
+    if gf == 4 and gompertz_init:
+        # Use Gompertz-fitted K and r as initialization
+        x0_lmax = gompertz_init["K"]
+        x0_r = gompertz_init["r"]
+    else:
+        x0_lmax = ref_leaf.length
+        x0_r = 2.0
+
     x0 = [
-        ref_leaf.length,                      # lmax
-        2.0,                                  # r
+        x0_lmax,                              # lmax (or K for Gompertz)
+        x0_r,                                 # r
         ref_leaf.insertion_angle,             # theta
         float(np.mean(curv)) if curv else 0.05,  # tropismS
         20.0,                                 # tropismAge
@@ -597,8 +649,8 @@ def fit_leaf(pos, ref_stages, xml_path, stem_params, other_leaf_params,
         x0.extend([0.05] * 5)
 
     # Scale to [0,1]
-    bounds_lo = [b[1] for b in LEAF_PARAM_BOUNDS]
-    bounds_hi = [b[2] for b in LEAF_PARAM_BOUNDS]
+    bounds_lo = [b[1] for b in bounds]
+    bounds_hi = [b[2] for b in bounds]
     ranges = [hi - lo for lo, hi in zip(bounds_lo, bounds_hi)]
 
     x0_scaled = [(x - lo) / rng for x, lo, rng in zip(x0, bounds_lo, ranges)]
@@ -607,7 +659,7 @@ def fit_leaf(pos, ref_stages, xml_path, stem_params, other_leaf_params,
     def objective(x_scaled):
         x_real = [lo + x * rng for x, lo, rng in zip(x_scaled, bounds_lo, ranges)]
         return evaluate_leaf(x_real, pos, ref_stages, xml_path, stem_params,
-                             other_leaf_params)
+                             other_leaf_params, gf=gf)
 
     popsize = max(8, 2 * N_LEAF_PARAMS)
     es = cma.CMAEvolutionStrategy(x0_scaled, 0.15, {  # sigma=0.15 (tighter)
@@ -634,7 +686,8 @@ def fit_leaf(pos, ref_stages, xml_path, stem_params, other_leaf_params,
 
     best_scaled = es.result.xbest
     best_real = [lo + x * rng for x, lo, rng in zip(best_scaled, bounds_lo, ranges)]
-    best_params = _params_to_dict(best_real, LEAF_PARAM_BOUNDS)
+    best_params = _params_to_dict(best_real, bounds)
+    best_params["gf"] = gf  # preserve gf in output params
 
     if verbose:
         print(f"  Result: lmax={best_params['lmax']:.1f}, r={best_params['r']:.2f}, "
@@ -686,7 +739,9 @@ def export_fitted_xml(xml_path, output_path, stem_params, leaf_params_by_positio
 
         for param_elem in leaf_elem.findall("parameter"):
             name = param_elem.get("name")
-            if name == "lmax":
+            if name == "gf" and "gf" in params:
+                param_elem.set("value", str(int(params["gf"])))
+            elif name == "lmax":
                 param_elem.set("value", str(params["lmax"]))
             elif name == "r":
                 param_elem.set("value", str(params["r"]))
@@ -841,13 +896,49 @@ def main():
                         help="CMA-ES evaluations for stem (default: 200)")
     parser.add_argument("--workers", "-w", type=int, default=1,
                         help=f"Parallel workers for leaf fitting (default: 1)")
+    parser.add_argument("--gompertz", nargs="*", type=int, default=None,
+                        help="Leaf positions to fit with Gompertz (gf=4). "
+                             "If flag given with no args, uses positions 5-10.")
+    parser.add_argument("--gompertz-init", default=None,
+                        help="JSON with Gompertz K/r per position "
+                             "(default: gaps_cplantbox.json from reverse-engineer)")
     parser.add_argument("--verbose", "-v", action="store_true")
     args = parser.parse_args()
+
+    # Resolve Gompertz positions
+    if args.gompertz is not None:
+        gompertz_positions = set(args.gompertz) if args.gompertz else set(range(5, 11))
+    else:
+        gompertz_positions = set()
 
     output_dir = Path(args.output)
     output_dir.mkdir(parents=True, exist_ok=True)
 
     xml_path = args.xml or str(_COUPLING_DIR / "data" / "maize_calibrated.xml")
+
+    # Load Gompertz initialization (K/r per position)
+    gompertz_init_by_pos = {}
+    if gompertz_positions:
+        gompertz_init_path = args.gompertz_init
+        if gompertz_init_path is None:
+            gompertz_init_path = str(
+                _COUPLING_DIR / "experimental" / "output" / "reverse_engineer"
+                / "gaps_cplantbox.json")
+        if os.path.exists(gompertz_init_path):
+            with open(gompertz_init_path) as f:
+                gaps_data = json.load(f)
+            for entry in gaps_data:
+                if entry.get("parameter") == "growth_function":
+                    pos = entry["leaf_positions"][0]
+                    if pos in gompertz_positions:
+                        ev = entry["extracted_values"]
+                        gompertz_init_by_pos[pos] = {
+                            "K": ev["K"], "r": ev.get("r_exp", 5.0),
+                        }
+            print(f"  Loaded Gompertz init for positions: "
+                  f"{sorted(gompertz_init_by_pos.keys())}")
+        else:
+            print(f"  Warning: Gompertz init file not found: {gompertz_init_path}")
 
     print("=" * 70)
     print("CPlantBox FIT-TO-REFERENCE (CMA-ES)")
@@ -856,6 +947,8 @@ def main():
     print(f"Template XML: {xml_path}")
     print(f"Output: {args.output}")
     print(f"Evals/leaf: {args.evals}, Stem evals: {args.stem_evals}")
+    if gompertz_positions:
+        print(f"Gompertz (gf=4) positions: {sorted(gompertz_positions)}")
 
     # Step 1: Load reference
     print("\n[1/5] Loading reference OBJ models...")
@@ -929,15 +1022,22 @@ def main():
     fitted_leaf_params = dict(init_leaf_params)  # start with initial guesses
     t0 = time.time()
 
+    def _leaf_fit_kwargs(pos):
+        """Return gf and gompertz_init kwargs for a given leaf position."""
+        gf = 4 if pos in gompertz_positions else 3
+        gi = gompertz_init_by_pos.get(pos) if gf == 4 else None
+        return {"gf": gf, "gompertz_init": gi}
+
     if n_leaf_parallel > 1:
         # Parallel across leaves
         with ProcessPoolExecutor(max_workers=n_leaf_parallel) as executor:
             futures = {}
             for pos in all_positions:
                 other = {p: v for p, v in fitted_leaf_params.items() if p != pos}
+                kw = _leaf_fit_kwargs(pos)
                 f = executor.submit(fit_leaf, pos, ref_stages, xml_path,
                                     stem_params, other, args.evals,
-                                    args.verbose)
+                                    args.verbose, **kw)
                 futures[f] = pos
 
             for future in as_completed(futures):
@@ -946,16 +1046,18 @@ def main():
                     params, fitness = future.result()
                     if params:
                         fitted_leaf_params[pos] = params
-                        print(f"  Leaf {pos}: Chamfer={fitness:.2f}cm")
+                        gf_label = " [Gompertz]" if pos in gompertz_positions else ""
+                        print(f"  Leaf {pos}{gf_label}: Chamfer={fitness:.2f}cm")
                 except Exception as e:
                     print(f"  Leaf {pos}: FAILED ({e})")
     else:
         # Sequential
         for pos in all_positions:
             other = {p: v for p, v in fitted_leaf_params.items() if p != pos}
+            kw = _leaf_fit_kwargs(pos)
             params, fitness = fit_leaf(pos, ref_stages, xml_path,
                                        stem_params, other, args.evals,
-                                       args.verbose)
+                                       args.verbose, **kw)
             if params:
                 fitted_leaf_params[pos] = params
 

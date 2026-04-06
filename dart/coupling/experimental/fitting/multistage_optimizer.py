@@ -38,6 +38,9 @@ LEAF_PARAMS = [
     'kappa_base', 'kappa_mid', 'kappa_tip',
 ]
 
+# Growth function type is NOT part of the CMA-ES vector (it's discrete).
+# It's carried as a separate key in the leaf params dict.
+
 CURVATURE_PHI = [0.0, 0.5, 1.0]
 
 
@@ -71,6 +74,9 @@ def _grow_single(stem_params, leaf_params_list, day=60, template_xml=None):
                         'collarLength': p['collarLength'],
                         'InitBeta': p['initBeta'],
                     }
+                    # Set growth function type if specified (4 = Gompertz)
+                    if 'gf' in p:
+                        xml_map['gf'] = int(p['gf'])
 
                     to_remove = []
                     for elem in organ:
@@ -171,12 +177,15 @@ def _grow_worker_multi(args):
     return results
 
 
-def _default_leaf_params(stats_pos, position=0):
+def _default_leaf_params(stats_pos, position=0, gf=3):
     """Default params with position-dependent biological gradients.
 
     In real maize:
     - Lower leaves: wider angle, earlier tropism, longer collar
     - Upper leaves: more vertical, later tropism, shorter collar
+
+    Args:
+        gf: growth function type. 4=Gompertz uses wider lmax/r ranges.
     """
     pos_frac = position / max(N_POSITIONS - 1, 1)  # 0=bottom, 1=top
 
@@ -186,7 +195,7 @@ def _default_leaf_params(stats_pos, position=0):
     # TropismAge: lower=3 (early droop), upper=8 (late droop)
     trop_age_default = 3.0 + 5.0 * pos_frac
 
-    return {
+    params = {
         'lmax': float(stats_pos.get('lmax', 60.0)),
         'Width_blade': float(stats_pos.get('Width_blade', 4.0)),
         'theta': theta_default,
@@ -200,27 +209,44 @@ def _default_leaf_params(stats_pos, position=0):
         'kappa_tip': 0.0,
     }
 
+    # Carry gf as metadata (not part of CMA-ES vector)
+    if gf != 3:
+        params['gf'] = gf
 
-def _leaf_params_from_vec(vec):
-    return {k: v for k, v in zip(LEAF_PARAMS, vec)}
+    return params
+
+
+def _leaf_params_from_vec(vec, extra=None):
+    """Convert CMA-ES vector to param dict, optionally merging extra keys (e.g. gf)."""
+    d = {k: v for k, v in zip(LEAF_PARAMS, vec)}
+    if extra:
+        d.update(extra)
+    return d
 
 
 def _leaf_params_to_vec(params):
     return [params[k] for k in LEAF_PARAMS]
 
 
-def _leaf_bounds(stats_pos):
-    default = _default_leaf_params(stats_pos, position=0)
+def _leaf_bounds(stats_pos, gf=3):
+    default = _default_leaf_params(stats_pos, position=0, gf=gf)
     x0 = _leaf_params_to_vec(default)
     lmax = default['lmax']
     width = default['Width_blade']
     r = default['r']
     tage = default['tropismAge']
 
-    lo = [max(lmax*0.5, 20), max(width*0.3, 1), 0.2, 0.001, 1.0,
-          max(r*0.3, 0.5), 0.0, -3.14, 0.0, 0.0, 0.0]
-    hi = [lmax*1.8, width*2.5, 0.85, 0.1, max(tage*2, 15),
-          r*3.0, 30.0, 3.14, 0.05, 0.15, 0.25]
+    if gf == 4:
+        # Gompertz: K (lmax) is asymptotic max, r is sigmoid steepness
+        lo = [max(lmax*0.5, 50), max(width*0.3, 1), 0.2, 0.001, 1.0,
+              1.0, 0.0, -3.14, 0.0, 0.0, 0.0]
+        hi = [lmax*2.5, width*2.5, 0.85, 0.1, max(tage*2, 15),
+              15.0, 30.0, 3.14, 0.05, 0.15, 0.25]
+    else:
+        lo = [max(lmax*0.5, 20), max(width*0.3, 1), 0.2, 0.001, 1.0,
+              max(r*0.3, 0.5), 0.0, -3.14, 0.0, 0.0, 0.0]
+        hi = [lmax*1.8, width*2.5, 0.85, 0.1, max(tage*2, 15),
+              r*3.0, 30.0, 3.14, 0.05, 0.15, 0.25]
     return np.array(x0), np.array(lo), np.array(hi)
 
 
@@ -448,7 +474,11 @@ def fit_plant_multistage(
     per_leaf_losses = []
 
     for pos in range(N_POSITIONS):
-        x0, lo, hi = _leaf_bounds(per_pos[pos])
+        # Determine gf for this position (carried in leaf_params_list)
+        pos_gf = int(leaf_params_list[pos].get('gf', 3)) if isinstance(leaf_params_list[pos], dict) else 3
+        pos_extra = {'gf': pos_gf} if pos_gf != 3 else {}
+
+        x0, lo, hi = _leaf_bounds(per_pos[pos], gf=pos_gf)
 
         opts = cma.CMAOptions()
         opts['maxfevals'] = leaf_evals
@@ -467,7 +497,7 @@ def fit_plant_multistage(
             grow_args = []
             for x in solutions:
                 lp = list(leaf_params_list)
-                lp[pos] = _leaf_params_from_vec(x)
+                lp[pos] = _leaf_params_from_vec(x, extra=pos_extra)
                 grow_args.append((stem_params, lp, days, template_xml))
 
             with mp.Pool(min(n_workers, len(solutions))) as pool:
@@ -486,10 +516,11 @@ def fit_plant_multistage(
             es.tell(solutions, fitnesses)
 
         best_x = es.result.xbest
-        leaf_params_list[pos] = _leaf_params_from_vec(best_x)
+        leaf_params_list[pos] = _leaf_params_from_vec(best_x, extra=pos_extra)
         per_leaf_losses.append(float(es.result.fbest))
 
-        print(f"  Leaf {pos} (st={pos+2}): avg_chamfer={es.result.fbest:.2f} cm  "
+        gf_label = " [Gompertz]" if pos_gf == 4 else ""
+        print(f"  Leaf {pos} (st={pos+2}){gf_label}: avg_chamfer={es.result.fbest:.2f} cm  "
               f"lmax={best_x[0]:.1f} Wbl={best_x[1]:.1f} theta={best_x[2]:.2f} "
               f"r={best_x[5]:.1f} tropAge={best_x[4]:.1f}",
               file=sys.stderr)

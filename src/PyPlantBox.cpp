@@ -1260,6 +1260,7 @@ PYBIND11_MODULE(plantbox, m) {
              .value("negexp", Plant::GrowthFunctionTypes::gft_negexp)
              .value("linear", Plant::GrowthFunctionTypes::gft_linear)
              .value("CWLim", Plant::GrowthFunctionTypes::gft_CWLim)
+             .value("gompertz", Plant::GrowthFunctionTypes::gft_gompertz)
              .export_values();
 
     py::class_<ExudationModel, std::shared_ptr<ExudationModel>>(m, "ExudationModel")
