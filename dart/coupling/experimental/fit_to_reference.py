@@ -382,11 +382,15 @@ def grow_and_extract(xml_path, day, leaf_params_by_position, stem_params):
         return skeletons
 
     except Exception as e:
-        # Log first failure per process for debugging
-        if not hasattr(grow_and_extract, "_logged"):
-            grow_and_extract._logged = True
-            print(f"  [grow_and_extract FAILED] day={day}: {type(e).__name__}: {e}",
-                  file=sys.stderr, flush=True)
+        # Log failures with Gompertz context for debugging
+        import traceback
+        gomp_info = {pos: f"gf={p.get('gf','?')},lmax={p.get('lmax','?')},r={p.get('r','?')}"
+                     for pos, p in leaf_params_by_position.items()
+                     if p.get("gf") == 4}
+        print(f"  [grow_and_extract FAILED] day={day}: {type(e).__name__}: {e}"
+              f"{f' Gompertz leaves: {gomp_info}' if gomp_info else ''}",
+              file=sys.stderr, flush=True)
+        traceback.print_exc(file=sys.stderr)
         return None
 
 
@@ -1010,6 +1014,16 @@ def main():
                     "curv_k3": 0.05, "curv_k4": 0.05,
                 }
                 break
+
+    # Tag Gompertz positions BEFORE fitting so CMA-ES evaluations see
+    # other Gompertz leaves at gf=4 (matching the final analyze_fit run).
+    for pos in gompertz_positions:
+        if pos in init_leaf_params:
+            init_leaf_params[pos]["gf"] = 4
+            gi = gompertz_init_by_pos.get(pos)
+            if gi:
+                init_leaf_params[pos]["lmax"] = gi["K"]
+                init_leaf_params[pos]["r"] = gi.get("r", 5.0)
 
     stem_params, stem_error = fit_stem(ref_stages, xml_path, init_leaf_params,
                                         n_evals=args.stem_evals, verbose=args.verbose)
