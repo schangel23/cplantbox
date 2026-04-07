@@ -107,7 +107,7 @@ def leaf_bounds_for_gf(gf, K_hint=None):
 STEM_PARAM_BOUNDS = [
     ("lmax",   50.0,  300.0),
     ("r",       0.5,   10.0),
-    ("ln",      3.0,   30.0),
+    ("ln",      3.0,   20.0),   # tightened: 16 leaves on 214cm stem → ~13cm mean
     ("lb",      1.0,   15.0),
 ]
 
@@ -572,10 +572,18 @@ def fit_stem(ref_stages, xml_path, leaf_params, n_evals=200, verbose=False):
     # L(t) = lmax*(1-exp(-r/lmax*t)) = ref_height → r = -lmax/t * ln(1 - h/lmax)
     ratio = min(ref_height / x0_lmax, 0.95)
     x0_r = -x0_lmax / last_day * math.log(1 - ratio)
+    # ln init: from reference internode lengths, or height / n_leaves fallback
+    n_leaves = len(set(l.position for l in mature["leaves"] if l.length > 3))
+    if stem and stem.internode_lengths:
+        x0_ln = np.mean(stem.internode_lengths)
+    else:
+        x0_ln = ref_height / max(n_leaves, 10)
+    x0_ln = np.clip(x0_ln, 5.0, 18.0)
+
     x0 = [
         x0_lmax,
         x0_r,
-        np.mean(stem.internode_lengths) if stem and stem.internode_lengths else 14.0,
+        x0_ln,
         4.0,
     ]
     sigma0 = 0.3  # relative scale
