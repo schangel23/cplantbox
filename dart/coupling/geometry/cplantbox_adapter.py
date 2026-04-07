@@ -126,11 +126,13 @@ def apply_stem_profile(skeleton, widths, stem_profile):
     return 2.0 * radii  # diameter
 
 
-def _leaf_wave_params(leaf_length, rng, position=None, deformation_stats=None):
+def _leaf_wave_params(leaf_length, rng, position=None, deformation_stats=None,
+                      species='maize'):
     """Generate blade deformation parameters for a single leaf.
 
     When deformation_stats are provided (from MaizeField3D extraction), uses
     measured distributions. Otherwise falls back to hand-tuned ranges.
+    Species-aware: wheat leaves are much stiffer/straighter than maize.
 
     Note: curl is always hand-tuned because the MaizeField3D 3-point NURBS
     cross-sections are inherently symmetric and can't capture asymmetric curl.
@@ -142,6 +144,7 @@ def _leaf_wave_params(leaf_length, rng, position=None, deformation_stats=None):
             position-specific measured stats.
         deformation_stats: List of per-position stat dicts from
             load_deformation_stats(), or None for hand-tuned fallback.
+        species: 'maize' or 'wheat'. Wheat uses much smaller amplitudes.
     """
     # Length-dependent intensity: short leaves (~20 cm) get ~0.2x,
     # long leaves (~70 cm) get ~1.0x. Clamp to [0.15, 1.0].
@@ -222,6 +225,17 @@ def _leaf_wave_params(leaf_length, rng, position=None, deformation_stats=None):
     fold_freq = rng.uniform(0.8, 2.5)
     fold_phase = rng.uniform(0, 2 * np.pi)
 
+    # Species scaling: wheat leaves are stiff, erect, and mostly flat.
+    # Dampen all deformation amplitudes to ~15-25% of maize values.
+    if species == 'wheat':
+        scale = 0.2
+        normal_amp *= scale
+        lateral_amp *= scale
+        twist_max *= scale
+        curl_amp *= scale * 0.5  # wheat has almost no curl
+        edge_ruffle_amp *= scale
+        fold_amp *= scale
+
     return {
         "wave_normal_amp": normal_amp,
         "wave_normal_freq": normal_freq,
@@ -244,7 +258,7 @@ def _leaf_wave_params(leaf_length, rng, position=None, deformation_stats=None):
     }
 
 
-def extract_organs_from_plant(plant, deformation_stats=None) -> list[dict]:
+def extract_organs_from_plant(plant, deformation_stats=None, species='maize') -> list[dict]:
     """Extract organ skeletons and widths from a CPlantBox MappedPlant.
 
     Args:
@@ -335,6 +349,7 @@ def extract_organs_from_plant(plant, deformation_stats=None) -> list[dict]:
             leaf_length, rng,
             position=leaf_position,
             deformation_stats=deformation_stats,
+            species=species,
         )
 
         organs.append({
@@ -410,7 +425,7 @@ def load_fitted_params(json_path):
 def extract_organs_for_lofter(plant, min_stem_nodes=50, min_leaf_nodes=20,
                               skip_roots=True, deformation_stats=None,
                               stem_profile=None, name_prefix="",
-                              fitted_params=None):
+                              fitted_params=None, species='maize'):
     """
     Extract organs from CPlantBox with resampling for high-resolution meshes.
 
@@ -630,6 +645,7 @@ def extract_organs_for_lofter(plant, min_stem_nodes=50, min_leaf_nodes=20,
             leaf_length, rng,
             position=leaf_position,
             deformation_stats=deformation_stats,
+            species=species,
         )
 
         # Scale wave/deformation amplitudes by maturity: young emerging
@@ -644,10 +660,19 @@ def extract_organs_for_lofter(plant, min_stem_nodes=50, min_leaf_nodes=20,
                 if k in wave_params:
                     wave_params[k] *= unfurl
 
+        # Midrib gutter: concave U-shaped cross-section typical of maize leaves.
+        # Depth scales with blade width — wider leaves have a deeper channel.
+        # Values from MaizeField3D: ~0.3-0.8 cm for 4-6 cm wide blades.
+        n_skel = len(skeleton)
+        gutter_depth_scale = 0.18 if species == 'maize' else 0.06  # fraction of width
+        gutter_depths = widths * gutter_depth_scale
+        if maturity < 0.95:
+            gutter_depths *= unfurl  # young leaves are flat
+
         # Extract spline-based geometry features from CPlantBox LeafRandomParameter
         # (leafOOPCurvPhi/Kappa, leafAsymmetry, leafEdgeCurl, leafCrossSection).
         # These are empty lists if not set in the XML — the lofter treats empty as no-op.
-        spline_features = {}
+        spline_features = {'gutter_depths': gutter_depths}
         for attr_phi, attr_val, key in [
             ('leafOOPCurvPhi', 'leafOOPCurvKappa', 'oop_curv_spline'),
             ('leafAsymmetryPhi', 'leafAsymmetryOffset', 'asymmetry_spline'),
@@ -667,19 +692,26 @@ def extract_organs_for_lofter(plant, min_stem_nodes=50, min_leaf_nodes=20,
         # Also includes extended feature CPs (OOP, asymmetry, edge_curl, cross_section).
         fitted_extras = {}
         if fitted_params is not None:
-            stages = fitted_params.get('stage_results', [])
-            if stages:
-                final_deforms = stages[-1].get('deform_params', {})
-                leaf_key = str(leaf_position)
-                if leaf_key in final_deforms:
-                    leaf_deforms = final_deforms[leaf_key]
-                    cps = leaf_deforms.get('control_points', {})
-                    if cps:
-                        fitted_extras['fitted_deform_cps'] = cps
-                    # Extended feature CPs override the XML defaults
-                    ext_cps = leaf_deforms.get('extended_cp', {})
-                    if ext_cps:
-                        fitted_extras['fitted_extended_cps'] = ext_cps
+            leaf_key = str(leaf_position)
+
+            # Format 1: per_leaf_avg_cps from fit_to_reference.py --with-deformations
+            avg_cps = fitted_params.get('per_leaf_avg_cps', {})
+            if leaf_key in avg_cps:
+                fitted_extras['fitted_extended_cps'] = avg_cps[leaf_key]
+
+            # Format 2: stage_results from multistage_optimizer (legacy)
+            if not fitted_extras:
+                stages = fitted_params.get('stage_results', [])
+                if stages:
+                    final_deforms = stages[-1].get('deform_params', {})
+                    if leaf_key in final_deforms:
+                        leaf_deforms = final_deforms[leaf_key]
+                        cps = leaf_deforms.get('control_points', {})
+                        if cps:
+                            fitted_extras['fitted_deform_cps'] = cps
+                        ext_cps = leaf_deforms.get('extended_cp', {})
+                        if ext_cps:
+                            fitted_extras['fitted_extended_cps'] = ext_cps
 
         organs.append({
             "type": "leaf",

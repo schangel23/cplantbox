@@ -849,11 +849,42 @@ def optimize_deformations(ref_stages, xml_path, stem_params, leaf_params_by_posi
             print(f"    Stage {stage['stage']} (day {day:.0f}): "
                   f"deform_chamfer={deform_chamfer:.2f}cm")
 
+        # Map leaf indices back to positions using organ metadata
+        leaf_idx = 0
+        position_keyed_params = {}
+        for organ in organs:
+            if organ.get('type') not in ('stem', 'root'):
+                if leaf_idx in best_params:
+                    pos = organ.get('position')
+                    if pos is not None:
+                        position_keyed_params[pos] = best_params[leaf_idx]
+                leaf_idx += 1
+
         deform_results["per_stage"].append({
             "stage": stage["stage"], "day": day,
             "deform_chamfer": deform_chamfer,
-            "deform_params": best_params,
+            "deform_params": position_keyed_params,
         })
+
+    # Build per-leaf average CPs across stages (for coupling pipeline use)
+    leaf_cp_accum = {}  # pos -> list of extended_cp dicts
+    for sr in deform_results["per_stage"]:
+        for pos, params in sr["deform_params"].items():
+            if "extended_cp" in params:
+                if pos not in leaf_cp_accum:
+                    leaf_cp_accum[pos] = []
+                leaf_cp_accum[pos].append(params["extended_cp"])
+
+    # Average across stages
+    avg_cps = {}
+    for pos, cp_list in leaf_cp_accum.items():
+        avg = {}
+        for feat_name in cp_list[0]:
+            vals = [cp[feat_name] for cp in cp_list]
+            avg[feat_name] = [float(np.mean([v[i] for v in vals]))
+                              for i in range(len(vals[0]))]
+        avg_cps[pos] = avg
+    deform_results["per_leaf_avg_cps"] = avg_cps
 
     return deform_results
 
@@ -901,14 +932,23 @@ def _grow_for_deformations(xml_path, day, leaf_params_by_position, stem_params):
 
         organs = extract_organs_for_lofter(plant)
 
-        # Convert to diff_lofter format (list of dicts with numpy arrays)
+        # Convert to diff_lofter format, tracking leaf position for CP mapping
         organ_dicts = []
+        leaf_counter = 0
+        leaves = plant.getOrgans(4)
         for organ in organs:
-            organ_dicts.append({
+            d = {
                 'skeleton': np.array(organ['skeleton']),
                 'widths': np.array(organ['widths']),
                 'type': organ.get('type', 'leaf'),
-            })
+            }
+            if organ.get('type') not in ('stem', 'root'):
+                # Map leaf to position via subType
+                if leaf_counter < len(leaves):
+                    st = int(leaves[leaf_counter].getParameter('subType'))
+                    d['position'] = st - 1
+                leaf_counter += 1
+            organ_dicts.append(d)
         return organ_dicts
 
     except Exception as e:
@@ -1253,22 +1293,32 @@ def main():
         deform_elapsed = time.time() - t0_deform
         print(f"  Deformation optimization took {deform_elapsed:.0f}s")
 
-        # Save deformation results
+        # Save deformation results (per-stage Chamfer + per-leaf average CPs)
         deform_json = output_dir / "deformation_results.json"
-        # Strip non-serializable data from params before saving
-        deform_save = {"per_stage": []}
-        for sr in deform_results["per_stage"]:
-            deform_save["per_stage"].append({
-                "stage": sr["stage"], "day": sr["day"],
-                "deform_chamfer": sr["deform_chamfer"],
-            })
+        deform_save = {
+            "per_stage": [
+                {"stage": sr["stage"], "day": sr["day"],
+                 "deform_chamfer": sr["deform_chamfer"]}
+                for sr in deform_results["per_stage"]
+            ],
+            # Per-leaf average CPs for coupling pipeline use
+            "per_leaf_avg_cps": {
+                str(pos): cps
+                for pos, cps in deform_results.get("per_leaf_avg_cps", {}).items()
+            },
+        }
         deform_json.write_text(json.dumps(deform_save, indent=2))
+        print(f"  Saved deformation CPs: {deform_json}")
 
         # Print deformation summary
         deform_chamfers = [sr["deform_chamfer"] for sr in deform_results["per_stage"]]
         if deform_chamfers:
             print(f"  Deformation Chamfer: mean={np.mean(deform_chamfers):.2f}cm, "
                   f"best={min(deform_chamfers):.2f}cm")
+        avg_cps = deform_results.get("per_leaf_avg_cps", {})
+        if avg_cps:
+            print(f"  Per-leaf average CPs: {len(avg_cps)} leaves "
+                  f"({', '.join(sorted(str(p) for p in avg_cps))})")
         results["deformation_results"] = deform_save
 
     # Print summary
