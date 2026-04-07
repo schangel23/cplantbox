@@ -80,8 +80,8 @@ LEAF_PARAM_BOUNDS = [
 # Gompertz-specific bounds overrides: K (lmax) is the asymptotic maximum (larger),
 # r is the sigmoid steepness parameter (different range from exponential r).
 # r lower bound is K-dependent — see leaf_bounds_for_gf().
-GOMPERTZ_LMAX_BOUNDS = (50.0, 250.0)
-GOMPERTZ_R_BOUNDS = (4.0, 15.0)  # base bounds; r_min raised per-leaf in fit_leaf
+GOMPERTZ_LMAX_BOUNDS = (15.0, 150.0)   # tightened: observed max is ~92 cm
+GOMPERTZ_R_BOUNDS = (4.0, 15.0)        # base bounds; r_min raised per-leaf in fit_leaf
 
 
 def leaf_bounds_for_gf(gf, K_hint=None):
@@ -934,38 +934,9 @@ def main():
 
     xml_path = args.xml or str(_COUPLING_DIR / "data" / "maize_calibrated.xml")
 
-    # Load Gompertz initialization (K/r per position)
+    # Gompertz init will be computed from reference data (step 1).
+    # Placeholder until reference is loaded.
     gompertz_init_by_pos = {}
-    if gompertz_positions:
-        gompertz_init_path = args.gompertz_init
-        if gompertz_init_path is None:
-            gompertz_init_path = str(
-                _COUPLING_DIR / "experimental" / "output" / "reverse_engineer"
-                / "gaps_cplantbox.json")
-        if os.path.exists(gompertz_init_path):
-            with open(gompertz_init_path) as f:
-                gaps_data = json.load(f)
-            for entry in gaps_data:
-                if entry.get("parameter") == "growth_function":
-                    pos = entry["leaf_positions"][0]
-                    if pos in gompertz_positions:
-                        ev = entry["extracted_values"]
-                        K = ev["K"]
-                        # gaps_cplantbox.json has r_exp (exponential-fitted rate)
-                        # which is WRONG for Gompertz (gives t_m ~400 days).
-                        # Compute a Gompertz-compatible r so inflection t_m falls
-                        # within the leaf's growth window (~20-40 days age).
-                        # Target: t_m = K*ln(K/r)/(r*e) ≈ 35 days.
-                        # Solving numerically: r ≈ 6 for K~170.
-                        # Heuristic: r = K / 30 (gives t_m ≈ 30-40 days).
-                        r_gompertz = max(3.0, min(K / 30.0, 12.0))
-                        gompertz_init_by_pos[pos] = {"K": K, "r": r_gompertz}
-            print(f"  Loaded Gompertz init for positions: "
-                  f"{sorted(gompertz_init_by_pos.keys())}")
-            for p, gi in sorted(gompertz_init_by_pos.items()):
-                print(f"    pos {p}: K={gi['K']:.1f}, r={gi['r']:.2f}")
-        else:
-            print(f"  Warning: Gompertz init file not found: {gompertz_init_path}")
 
     print("=" * 70)
     print("CPlantBox FIT-TO-REFERENCE (CMA-ES)")
@@ -985,6 +956,28 @@ def main():
     all_positions = sorted(set(
         l.position for s in ref_stages for l in s["leaves"] if l.length > 5))
     print(f"  Fitting {len(all_positions)} leaf positions: {all_positions}")
+
+    # Compute Gompertz K from OBSERVED max lengths (not extrapolated gaps values)
+    if gompertz_positions:
+        max_obs_length = {}
+        for stage in ref_stages:
+            for leaf in stage["leaves"]:
+                pos = leaf.position
+                if pos in gompertz_positions:
+                    if pos not in max_obs_length or leaf.length > max_obs_length[pos]:
+                        max_obs_length[pos] = leaf.length
+
+        for pos in gompertz_positions:
+            if pos in max_obs_length and max_obs_length[pos] > 5:
+                K = max_obs_length[pos] * 1.3  # 30% headroom beyond observed max
+                r = K / 30.0  # K/30 → t_m ≈ 37.5 days
+                gompertz_init_by_pos[pos] = {"K": K, "r": r}
+
+        print(f"  Gompertz K from observed max lengths (×1.3):")
+        for p in sorted(gompertz_init_by_pos):
+            gi = gompertz_init_by_pos[p]
+            print(f"    pos {p}: max_obs={max_obs_length.get(p, 0):.1f} → "
+                  f"K={gi['K']:.1f}, r={gi['r']:.2f}")
 
     # Ensure XML has subtypes for all positions
     prep_xml = output_dir / "template_prepared.xml"
