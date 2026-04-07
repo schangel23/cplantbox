@@ -79,17 +79,29 @@ LEAF_PARAM_BOUNDS = [
 
 # Gompertz-specific bounds overrides: K (lmax) is the asymptotic maximum (larger),
 # r is the sigmoid steepness parameter (different range from exponential r).
-GOMPERTZ_LEAF_BOUNDS_OVERRIDES = {
-    "lmax": (50.0, 250.0),   # Gompertz K: asymptotic max length
-    "r":    (1.0,   15.0),   # Gompertz r: sigmoid steepness, NOT initial growth rate
-}
+# r lower bound is K-dependent — see leaf_bounds_for_gf().
+GOMPERTZ_LMAX_BOUNDS = (50.0, 250.0)
+GOMPERTZ_R_BOUNDS = (4.0, 15.0)  # base bounds; r_min raised per-leaf in fit_leaf
 
 
-def leaf_bounds_for_gf(gf):
-    """Return LEAF_PARAM_BOUNDS adjusted for growth function type."""
+def leaf_bounds_for_gf(gf, K_hint=None):
+    """Return LEAF_PARAM_BOUNDS adjusted for growth function type.
+
+    Args:
+        K_hint: expected lmax (K) for this leaf. Used to compute Gompertz r_min
+                so that t_m < 50 days (leaf actually grows during simulation).
+                Gompertz: t_m = K*ln(K/r)/(r*e).  r_min ≈ K/30 * 0.7 ensures
+                t_m < 55 days for all K in [50, 250].
+    """
     if gf != 4:
         return list(LEAF_PARAM_BOUNDS)
-    return [(name, *GOMPERTZ_LEAF_BOUNDS_OVERRIDES.get(name, (lo, hi)))
+    # Compute K-dependent r lower bound
+    if K_hint and K_hint > 0:
+        r_lo = max(GOMPERTZ_R_BOUNDS[0], K_hint / 40.0)
+    else:
+        r_lo = GOMPERTZ_R_BOUNDS[0]
+    overrides = {"lmax": GOMPERTZ_LMAX_BOUNDS, "r": (r_lo, GOMPERTZ_R_BOUNDS[1])}
+    return [(name, *overrides.get(name, (lo, hi)))
             for name, lo, hi in LEAF_PARAM_BOUNDS]
 
 STEM_PARAM_BOUNDS = [
@@ -125,7 +137,7 @@ def load_reference(export_dir, n_samples=20, verbose=False):
     for stage_num, fpath in files:
         if verbose:
             print(f"  Parsing stage {stage_num}...")
-        verts, groups = parse_obj(fpath)
+        verts, groups, _normals = parse_obj(fpath)
         # Flip Z: OBJ has Z negative (plant grows down), CPlantBox has Z positive
         verts[:, 2] *= -1
         all_verts.append(verts)
@@ -461,9 +473,9 @@ def skeleton_chamfer(skel1, skel2):
 
 
 def evaluate_leaf(params_vec, pos, ref_stages, xml_path, stem_params,
-                  other_leaf_params, gf=3):
+                  other_leaf_params, gf=3, K_hint=None):
     """Objective for a single leaf: skeleton Chamfer across ALL stages."""
-    bounds = leaf_bounds_for_gf(gf)
+    bounds = leaf_bounds_for_gf(gf, K_hint=K_hint)
     params = _params_to_dict(params_vec, bounds)
     params["gf"] = gf
     all_leaf_params = dict(other_leaf_params)
@@ -623,8 +635,6 @@ def fit_leaf(pos, ref_stages, xml_path, stem_params, other_leaf_params,
             print(f"  Skipped (no reference leaf)")
         return None, 999.0
 
-    bounds = leaf_bounds_for_gf(gf)
-
     # Initial guess from extracted traits
     curv = ref_leaf.curvature_profile
 
@@ -635,6 +645,10 @@ def fit_leaf(pos, ref_stages, xml_path, stem_params, other_leaf_params,
     else:
         x0_lmax = ref_leaf.length
         x0_r = 2.0
+
+    # K_hint for Gompertz r lower bound (ensures t_m < ~55 days)
+    K_hint = x0_lmax if gf == 4 else None
+    bounds = leaf_bounds_for_gf(gf, K_hint=K_hint)
 
     x0 = [
         x0_lmax,                              # lmax (or K for Gompertz)
@@ -663,7 +677,7 @@ def fit_leaf(pos, ref_stages, xml_path, stem_params, other_leaf_params,
     def objective(x_scaled):
         x_real = [lo + x * rng for x, lo, rng in zip(x_scaled, bounds_lo, ranges)]
         return evaluate_leaf(x_real, pos, ref_stages, xml_path, stem_params,
-                             other_leaf_params, gf=gf)
+                             other_leaf_params, gf=gf, K_hint=K_hint)
 
     popsize = max(8, 2 * N_LEAF_PARAMS)
     es = cma.CMAEvolutionStrategy(x0_scaled, 0.15, {  # sigma=0.15 (tighter)
