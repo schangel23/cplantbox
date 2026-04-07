@@ -799,6 +799,125 @@ def export_fitted_xml(xml_path, output_path, stem_params, leaf_params_by_positio
 
 
 # ---------------------------------------------------------------------------
+# Deformation optimization (4 Optuna features via diff_lofter)
+# ---------------------------------------------------------------------------
+
+def optimize_deformations(ref_stages, xml_path, stem_params, leaf_params_by_position,
+                          n_steps=200, verbose=False):
+    """GPU deformation optimization using 4 extended features.
+
+    For each stage, grows plant with fitted structural params, then optimizes
+    baseline spline deformations + 4 extended features (out_of_plane_curv,
+    asymmetry, edge_curl, cross_section_profile) via Adam gradient descent
+    against the reference point cloud.
+
+    Returns dict with per-stage deformation Chamfer and control points.
+    """
+    import torch
+    from dart.coupling.experimental.fitting.multistage_optimizer import _optimize_deformations_single
+
+    device = 'cuda' if torch.cuda.is_available() else 'cpu'
+    if verbose:
+        print(f"\n  Deformation optimization: {n_steps} Adam steps, device={device}")
+
+    deform_results = {"per_stage": [], "per_leaf_deform_chamfer": {}}
+
+    for stage in ref_stages:
+        day = stage["day"]
+
+        # Build target point cloud from all reference leaf meshes
+        ref_pts_list = []
+        for leaf in stage["leaves"]:
+            if leaf.position in stage.get("leaf_mesh_points", {}):
+                ref_pts_list.append(stage["leaf_mesh_points"][leaf.position])
+        if not ref_pts_list:
+            continue
+
+        target_np = np.concatenate(ref_pts_list, axis=0)
+        target_pc = torch.tensor(target_np, dtype=torch.float32, device=device)
+
+        # Grow plant and extract organs for diff_lofter
+        organs = _grow_for_deformations(xml_path, day, leaf_params_by_position, stem_params)
+        if not organs:
+            continue
+
+        # Run deformation optimization
+        deform_chamfer, best_params = _optimize_deformations_single(
+            organs, target_pc, device=device, n_steps=n_steps, lr=0.03)
+
+        if verbose:
+            print(f"    Stage {stage['stage']} (day {day:.0f}): "
+                  f"deform_chamfer={deform_chamfer:.2f}cm")
+
+        deform_results["per_stage"].append({
+            "stage": stage["stage"], "day": day,
+            "deform_chamfer": deform_chamfer,
+            "deform_params": best_params,
+        })
+
+    return deform_results
+
+
+def _grow_for_deformations(xml_path, day, leaf_params_by_position, stem_params):
+    """Grow plant and return organ dicts suitable for diff_lofter."""
+    try:
+        plant = pb.Plant()
+        plant.readParameters(str(xml_path))
+
+        sp = plant.getOrganRandomParameter(3, 1)
+        if stem_params:
+            sp.lmax = stem_params["lmax"]
+            sp.r = stem_params["r"]
+            sp.ln = stem_params["ln"]
+            sp.lb = stem_params["lb"]
+
+        for pos, params in leaf_params_by_position.items():
+            sub_type = pos + 1
+            try:
+                lp = plant.getOrganRandomParameter(4, sub_type)
+            except Exception:
+                continue
+
+            gf = int(params.get("gf", lp.gf))
+            if gf != lp.gf:
+                lp.gf = gf
+                lp.f_gf = plant.createGrowthFunction(gf)
+
+            lp.lmax = params["lmax"]
+            lp.r = params["r"]
+            lp.theta = params["theta"]
+            lp.tropismS = params["tropismS"]
+            lp.tropismAge = params["tropismAge"]
+            lp.tropismExponent = params["tropismExponent"]
+            lp.collarLength = params["collarLength"]
+            phi = [0.0, 0.25, 0.5, 0.75, 1.0]
+            kappa = [params[f"curv_k{i}"] for i in range(5)]
+            lp.leafCurvaturePhi = phi
+            lp.leafCurvatureKappa = kappa
+
+        setup_successor_where(plant)
+        plant.initialize(False)
+        plant.simulate(day)
+
+        organs = extract_organs_for_lofter(plant)
+
+        # Convert to diff_lofter format (list of dicts with numpy arrays)
+        organ_dicts = []
+        for organ in organs:
+            organ_dicts.append({
+                'skeleton': np.array(organ['skeleton']),
+                'widths': np.array(organ['widths']),
+                'type': organ.get('type', 'leaf'),
+            })
+        return organ_dicts
+
+    except Exception as e:
+        print(f"    [_grow_for_deformations FAILED] day={day}: {e}",
+              file=sys.stderr)
+        return None
+
+
+# ---------------------------------------------------------------------------
 # Post-fit analysis
 # ---------------------------------------------------------------------------
 
@@ -920,6 +1039,11 @@ def main():
     parser.add_argument("--gompertz-init", default=None,
                         help="JSON with Gompertz K/r per position "
                              "(default: gaps_cplantbox.json from reverse-engineer)")
+    parser.add_argument("--with-deformations", action="store_true",
+                        help="Run GPU deformation optimization (4 Optuna features) "
+                             "after CMA-ES structural fitting")
+    parser.add_argument("--deform-steps", type=int, default=200,
+                        help="Adam steps per stage for deformation optimization (default: 200)")
     parser.add_argument("--verbose", "-v", action="store_true")
     args = parser.parse_args()
 
@@ -1095,7 +1219,8 @@ def main():
     print(f"  Fitting took {elapsed:.0f}s")
 
     # Step 5: Export XML + analysis
-    print("\n[5/5] Exporting fitted XML and analyzing results...")
+    n_steps = 6 if args.with_deformations else 5
+    print(f"\n[5/{n_steps}] Exporting fitted XML and analyzing results...")
     fitted_xml = output_dir / "maize_fitted.xml"
     export_fitted_xml(xml_path, str(fitted_xml), stem_params, fitted_leaf_params)
     print(f"  XML: {fitted_xml}")
@@ -1116,6 +1241,35 @@ def main():
 
     (output_dir / "fit_results.json").write_text(
         json.dumps(results, indent=2, default=str))
+
+    # Step 6: Deformation optimization (optional)
+    if args.with_deformations:
+        print(f"\n[6/{n_steps}] Deformation optimization "
+              f"(4 features, {args.deform_steps} Adam steps)...")
+        t0_deform = time.time()
+        deform_results = optimize_deformations(
+            ref_stages, str(fitted_xml), stem_params, fitted_leaf_params,
+            n_steps=args.deform_steps, verbose=args.verbose)
+        deform_elapsed = time.time() - t0_deform
+        print(f"  Deformation optimization took {deform_elapsed:.0f}s")
+
+        # Save deformation results
+        deform_json = output_dir / "deformation_results.json"
+        # Strip non-serializable data from params before saving
+        deform_save = {"per_stage": []}
+        for sr in deform_results["per_stage"]:
+            deform_save["per_stage"].append({
+                "stage": sr["stage"], "day": sr["day"],
+                "deform_chamfer": sr["deform_chamfer"],
+            })
+        deform_json.write_text(json.dumps(deform_save, indent=2))
+
+        # Print deformation summary
+        deform_chamfers = [sr["deform_chamfer"] for sr in deform_results["per_stage"]]
+        if deform_chamfers:
+            print(f"  Deformation Chamfer: mean={np.mean(deform_chamfers):.2f}cm, "
+                  f"best={min(deform_chamfers):.2f}cm")
+        results["deformation_results"] = deform_save
 
     # Print summary
     print("\n" + "=" * 70)
