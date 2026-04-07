@@ -565,9 +565,16 @@ def fit_stem(ref_stages, xml_path, leaf_params, n_evals=200, verbose=False):
     # Initial guess from reference
     mature = ref_stages[-1]
     stem = mature["stem"]
+    ref_height = stem.height if stem else 180.0
+    # Compute r init so exponential growth reaches ref_height by last day
+    last_day = mature["day"]
+    x0_lmax = ref_height * 1.3  # 30% headroom
+    # L(t) = lmax*(1-exp(-r/lmax*t)) = ref_height → r = -lmax/t * ln(1 - h/lmax)
+    ratio = min(ref_height / x0_lmax, 0.95)
+    x0_r = -x0_lmax / last_day * math.log(1 - ratio)
     x0 = [
-        stem.height if stem else 180.0,
-        2.5,
+        x0_lmax,
+        x0_r,
         np.mean(stem.internode_lengths) if stem and stem.internode_lengths else 14.0,
         4.0,
     ]
