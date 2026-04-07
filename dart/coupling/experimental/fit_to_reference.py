@@ -936,11 +936,20 @@ def main():
                     pos = entry["leaf_positions"][0]
                     if pos in gompertz_positions:
                         ev = entry["extracted_values"]
-                        gompertz_init_by_pos[pos] = {
-                            "K": ev["K"], "r": ev.get("r_exp", 5.0),
-                        }
+                        K = ev["K"]
+                        # gaps_cplantbox.json has r_exp (exponential-fitted rate)
+                        # which is WRONG for Gompertz (gives t_m ~400 days).
+                        # Compute a Gompertz-compatible r so inflection t_m falls
+                        # within the leaf's growth window (~20-40 days age).
+                        # Target: t_m = K*ln(K/r)/(r*e) ≈ 35 days.
+                        # Solving numerically: r ≈ 6 for K~170.
+                        # Heuristic: r = K / 30 (gives t_m ≈ 30-40 days).
+                        r_gompertz = max(3.0, min(K / 30.0, 12.0))
+                        gompertz_init_by_pos[pos] = {"K": K, "r": r_gompertz}
             print(f"  Loaded Gompertz init for positions: "
                   f"{sorted(gompertz_init_by_pos.keys())}")
+            for p, gi in sorted(gompertz_init_by_pos.items()):
+                print(f"    pos {p}: K={gi['K']:.1f}, r={gi['r']:.2f}")
         else:
             print(f"  Warning: Gompertz init file not found: {gompertz_init_path}")
 
