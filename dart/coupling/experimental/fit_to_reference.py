@@ -59,61 +59,295 @@ from dart.coupling.experimental.reverse_engineer_maize import (
 # ---------------------------------------------------------------------------
 MAX_WORKERS = int(os.environ.get("FIT_MAX_WORKERS", "64"))
 
-# Per-leaf parameter bounds: (name, low, high) — tightened to prevent CPlantBox crashes
-# Bounds for exponential growth (gf=1/3).  Gompertz (gf=4) uses wider lmax and r.
-LEAF_PARAM_BOUNDS = [
-    ("lmax",           10.0,  100.0),  # cm
-    ("r",              0.5,    5.0),   # cm/day — must be < lmax/2
-    ("theta",          0.05,   1.4),   # rad (3° to 80°)
-    ("tropismS",       0.001,  0.15),  # 1/cm — above 0.15 causes extreme bending
-    ("tropismAge",     2.0,   60.0),   # days
-    ("tropismExponent", 0.5,   3.0),
-    ("collarLength",   0.0,   10.0),   # cm
-    # 5 curvature spline knots — moderate range
-    ("curv_k0",        0.0,    0.15),
-    ("curv_k1",        0.0,    0.15),
-    ("curv_k2",        0.0,    0.15),
-    ("curv_k3",        0.0,    0.15),
-    ("curv_k4",        0.0,    0.15),
+# Parameter names (fixed structure — 12 leaf params, 4 stem params)
+LEAF_PARAM_NAMES = [
+    "lmax", "r", "theta", "tropismS", "tropismAge",
+    "tropismExponent", "collarLength",
+    "curv_k0", "curv_k1", "curv_k2", "curv_k3", "curv_k4",
 ]
+STEM_PARAM_NAMES = ["lmax", "r", "ln", "lb"]
+N_LEAF_PARAMS = len(LEAF_PARAM_NAMES)
+N_STEM_PARAMS = len(STEM_PARAM_NAMES)
 
-# Gompertz-specific bounds overrides: K (lmax) is the asymptotic maximum (larger),
-# r is the sigmoid steepness parameter (different range from exponential r).
-# r lower bound is K-dependent — see leaf_bounds_for_gf().
-GOMPERTZ_LMAX_BOUNDS = (15.0, 150.0)   # tightened: observed max is ~92 cm
-GOMPERTZ_R_BOUNDS = (4.0, 15.0)        # base bounds; r_min raised per-leaf in fit_leaf
+# Hard physical safety limits — CPlantBox crashes or produces nonsense beyond these
+SAFETY_LIMITS = {
+    "lmax": (1.0, 200.0),
+    "r": (0.1, 20.0),
+    "theta": (0.01, 1.5),
+    "tropismS": (0.0, 0.2),
+    "tropismAge": (0.5, 80.0),
+    "tropismExponent": (0.5, 3.0),
+    "collarLength": (0.0, 30.0),
+    "curv_k": (0.0, 0.2),
+}
 
 
-def leaf_bounds_for_gf(gf, K_hint=None):
-    """Return LEAF_PARAM_BOUNDS adjusted for growth function type.
+# ---------------------------------------------------------------------------
+# Reference-derived initialization helpers
+# ---------------------------------------------------------------------------
 
-    Args:
-        K_hint: expected lmax (K) for this leaf. Used to compute Gompertz r_min
-                so that t_m < 50 days (leaf actually grows during simulation).
-                Gompertz: t_m = K*ln(K/r)/(r*e).  r_min ≈ K/30 * 0.7 ensures
-                t_m < 55 days for all K in [50, 250].
+def _fit_exponential_r(day_length_pairs, lmax):
+    """Fit exponential growth rate from multi-stage (day, length) observations.
+
+    Model: L(t) = lmax * (1 - exp(-r/lmax * t))
     """
-    if gf != 4:
-        return list(LEAF_PARAM_BOUNDS)
-    # Compute K-dependent r lower bound
-    if K_hint and K_hint > 0:
-        r_lo = max(GOMPERTZ_R_BOUNDS[0], K_hint / 40.0)
+    if len(day_length_pairs) < 2:
+        return lmax / 30.0
+
+    from scipy.optimize import curve_fit as _curve_fit
+    days = np.array([d for d, _l in day_length_pairs])
+    lengths = np.array([_l for _d, _l in day_length_pairs])
+
+    def model(t, r):
+        return lmax * (1.0 - np.exp(-r / lmax * t))
+
+    try:
+        popt, _ = _curve_fit(model, days, lengths, p0=[lmax / 30.0],
+                             bounds=(0.01, lmax * 0.5), maxfev=1000)
+        return float(popt[0])
+    except Exception:
+        # Fallback: solve from last observation
+        t, L = days[-1], min(lengths[-1], lmax * 0.95)
+        if L > 0 and t > 0 and L < lmax:
+            return float(-lmax / t * math.log(1.0 - L / lmax))
+        return lmax / 30.0
+
+
+def _fit_gompertz_kr(day_length_pairs):
+    """Fit Gompertz K and r from multi-stage observations.
+
+    Model: L(t) = K * exp(ln(L0/K) * exp(-r*t/K))
+    """
+    if len(day_length_pairs) < 2:
+        max_l = max(l for _, l in day_length_pairs) if day_length_pairs else 50.0
+        return max_l * 1.3, max_l * 1.3 / 30.0
+
+    from scipy.optimize import curve_fit as _curve_fit
+    days = np.array([d for d, _l in day_length_pairs])
+    lengths = np.array([_l for _d, _l in day_length_pairs])
+    L0 = max(lengths[0], 0.5)
+    max_L = float(max(lengths))
+
+    def model(t, K, r):
+        return K * np.exp(np.log(L0 / K) * np.exp(-r * t / K))
+
+    try:
+        K_init = max_L * 1.3
+        r_init = K_init / 30.0
+        popt, _ = _curve_fit(model, days, lengths,
+                             p0=[K_init, r_init],
+                             bounds=([max_L, 0.1], [max_L * 3.0, max_L]),
+                             maxfev=2000)
+        return float(popt[0]), float(popt[1])
+    except Exception:
+        K = max_L * 1.3
+        return K, K / 30.0
+
+
+def _estimate_tropism_age(curvature_profile, length, r, lmax):
+    """Estimate tropismAge from where curvature first exceeds background.
+
+    CPlantBox grows the leaf straight for tropismAge days, then the tip bends.
+    """
+    if not curvature_profile or len(curvature_profile) < 3:
+        return 20.0
+
+    curv = np.array(curvature_profile)
+    threshold = np.percentile(curv, 25) + 0.5 * np.std(curv)
+    if threshold < 1e-4:
+        threshold = 0.01
+
+    above = np.where(curv > threshold)[0]
+    frac = above[0] / len(curv) if len(above) > 0 else 0.9
+
+    target = frac * length
+    ratio = min(target / max(lmax, 1.0), 0.95)
+    if ratio > 0 and r > 0 and lmax > 0:
+        tropism_age = -lmax / r * math.log(1.0 - ratio)
+        return max(2.0, min(tropism_age, 70.0))
+    return 20.0
+
+
+def _estimate_collar_length(curvature_profile, length):
+    """Estimate collar length from distance to first curvature peak."""
+    if not curvature_profile or len(curvature_profile) < 5:
+        return 2.0
+
+    curv = np.array(curvature_profile)
+    half = len(curv) // 2
+    threshold = np.percentile(curv, 50)
+    above = np.where(curv[:half] > threshold)[0]
+
+    if len(above) > 0:
+        frac = above[0] / len(curv)
+        return max(0.0, min(frac * length, length * 0.2))
+    return 2.0
+
+
+def compute_leaf_init_and_bounds(pos, ref_stages, gf=3):
+    """Compute reference-derived x0 and bounds for one leaf position.
+
+    Analyzes all stages where this leaf appears to derive data-driven
+    initial values and tight bounds for CMA-ES.
+
+    Returns:
+        (x0, bounds) where x0 is a list of floats and bounds is
+        [(name, lo, hi), ...] with len == N_LEAF_PARAMS.
+    """
+    observations = []
+    for stage in ref_stages:
+        leaf = next((l for l in stage["leaves"] if l.position == pos), None)
+        if leaf and leaf.length > 2:
+            observations.append((stage["day"], leaf))
+
+    if not observations:
+        bounds = [(n, 10.0, 100.0) if n == "lmax"
+                  else (n, 0.5, 5.0) if n == "r"
+                  else (n, 0.1, 1.2) if n == "theta"
+                  else (n, 0.001, 0.1) if n == "tropismS"
+                  else (n, 5.0, 50.0) if n == "tropismAge"
+                  else (n, 0.5, 3.0) if n == "tropismExponent"
+                  else (n, 0.0, 10.0) if n == "collarLength"
+                  else (n, 0.0, 0.1)
+                  for n in LEAF_PARAM_NAMES]
+        x0 = [50.0, 2.0, 0.5, 0.03, 20.0, 1.5, 3.0,
+              0.03, 0.03, 0.03, 0.03, 0.03]
+        return x0, bounds
+
+    _, mature_leaf = max(observations, key=lambda x: x[1].length)
+    max_length = max(leaf.length for _, leaf in observations)
+    curv = mature_leaf.curvature_profile
+    day_len = [(d, l.length) for d, l in observations if l.length > 2]
+
+    # --- lmax + r (coupled for Gompertz) ---
+    if gf == 4:
+        K, gomp_r = _fit_gompertz_kr(day_len)
+        x0_lmax = K
+        lmax_lo = max(max_length, SAFETY_LIMITS["lmax"][0])
+        lmax_hi = min(K * 2.0, SAFETY_LIMITS["lmax"][1])
+        x0_r = gomp_r
+        r_lo = max(x0_r * 0.3, SAFETY_LIMITS["r"][0])
+        r_hi = min(x0_r * 3.0, SAFETY_LIMITS["r"][1])
     else:
-        r_lo = GOMPERTZ_R_BOUNDS[0]
-    overrides = {"lmax": GOMPERTZ_LMAX_BOUNDS, "r": (r_lo, GOMPERTZ_R_BOUNDS[1])}
-    return [(name, *overrides.get(name, (lo, hi)))
-            for name, lo, hi in LEAF_PARAM_BOUNDS]
+        x0_lmax = max_length * 1.1
+        lmax_lo = max(max_length * 0.7, SAFETY_LIMITS["lmax"][0])
+        lmax_hi = min(max_length * 1.5, SAFETY_LIMITS["lmax"][1])
+        x0_r = _fit_exponential_r(day_len, x0_lmax)
+        r_lo = max(x0_r * 0.3, SAFETY_LIMITS["r"][0])
+        r_hi = min(x0_r * 3.0, min(x0_lmax * 0.5, SAFETY_LIMITS["r"][1]))
 
-STEM_PARAM_BOUNDS = [
-    ("lmax",   50.0,  300.0),
-    ("r",       0.5,   10.0),
-    ("ln",      3.0,   20.0),   # tightened: 16 leaves on 214cm stem → ~13cm mean
-    ("lb",      1.0,   15.0),
-]
+    # --- theta ---
+    x0_theta = mature_leaf.insertion_angle
+    theta_lo = max(x0_theta * 0.5, SAFETY_LIMITS["theta"][0])
+    theta_hi = min(x0_theta * 2.0, SAFETY_LIMITS["theta"][1])
 
-PARAM_NAMES = [b[0] for b in LEAF_PARAM_BOUNDS]
-N_LEAF_PARAMS = len(LEAF_PARAM_BOUNDS)
-N_STEM_PARAMS = len(STEM_PARAM_BOUNDS)
+    # --- tropismS ---
+    if curv and len(curv) > 0:
+        mean_curv = float(np.mean(curv))
+        max_curv = float(np.max(curv))
+        x0_tropS = mean_curv
+        tropS_lo = max(mean_curv * 0.3, SAFETY_LIMITS["tropismS"][0])
+        tropS_hi = min(max_curv * 2.0, SAFETY_LIMITS["tropismS"][1])
+    else:
+        x0_tropS, tropS_lo, tropS_hi = 0.03, 0.001, 0.1
+
+    # --- tropismAge ---
+    x0_tropAge = _estimate_tropism_age(curv, mature_leaf.length, x0_r, x0_lmax)
+    tropAge_lo = max(x0_tropAge * 0.3, SAFETY_LIMITS["tropismAge"][0])
+    tropAge_hi = min(x0_tropAge * 3.0, SAFETY_LIMITS["tropismAge"][1])
+
+    # --- tropismExponent (hard to extract — keep broad) ---
+    x0_tropExp = 1.5
+    tropExp_lo, tropExp_hi = SAFETY_LIMITS["tropismExponent"]
+
+    # --- collarLength ---
+    x0_collar = _estimate_collar_length(curv, mature_leaf.length)
+    collar_lo = 0.0
+    collar_hi = min(max(x0_collar * 2.5, 3.0), SAFETY_LIMITS["collarLength"][1])
+
+    # --- curvature knots ---
+    if curv and len(curv) >= 5:
+        indices = np.linspace(0, len(curv) - 1, 5, dtype=int)
+        curv_arr = np.array(curv)
+        curv_x0 = [float(curv_arr[i]) for i in indices]
+        curv_max = min(float(np.max(curv_arr)) * 2.0, SAFETY_LIMITS["curv_k"][1])
+    else:
+        curv_x0 = [x0_tropS] * 5
+        curv_max = min(0.1, SAFETY_LIMITS["curv_k"][1])
+
+    x0 = [x0_lmax, x0_r, x0_theta, x0_tropS, x0_tropAge, x0_tropExp, x0_collar,
+          *curv_x0]
+    bounds = [
+        ("lmax",           lmax_lo,   lmax_hi),
+        ("r",              r_lo,      r_hi),
+        ("theta",          theta_lo,  theta_hi),
+        ("tropismS",       tropS_lo,  tropS_hi),
+        ("tropismAge",     tropAge_lo, tropAge_hi),
+        ("tropismExponent", tropExp_lo, tropExp_hi),
+        ("collarLength",   collar_lo, collar_hi),
+        ("curv_k0",        0.0,       curv_max),
+        ("curv_k1",        0.0,       curv_max),
+        ("curv_k2",        0.0,       curv_max),
+        ("curv_k3",        0.0,       curv_max),
+        ("curv_k4",        0.0,       curv_max),
+    ]
+    return x0, bounds
+
+
+def compute_stem_init_and_bounds(ref_stages):
+    """Compute reference-derived x0 and bounds for the stem.
+
+    Returns:
+        (x0, bounds) where bounds is [(name, lo, hi), ...] with len == N_STEM_PARAMS.
+    """
+    mature = ref_stages[-1]
+    stem = mature["stem"]
+    ref_height = stem.height if stem else 180.0
+    last_day = mature["day"]
+
+    # lmax
+    x0_lmax = ref_height * 1.3
+    lmax_lo = max(ref_height * 0.9, 50.0)
+    lmax_hi = min(ref_height * 2.0, 300.0)
+
+    # r: solve L(t) = lmax*(1-exp(-r/lmax*t)) = ref_height
+    ratio = min(ref_height / x0_lmax, 0.95)
+    x0_r = -x0_lmax / last_day * math.log(1.0 - ratio)
+    r_lo = max(x0_r * 0.3, 0.5)
+    r_hi = min(x0_r * 3.0, 15.0)
+
+    # ln: from internode lengths
+    n_leaves = len(set(l.position for l in mature["leaves"] if l.length > 3))
+    if stem and stem.internode_lengths and len(stem.internode_lengths) > 0:
+        internode_arr = np.array(stem.internode_lengths)
+        x0_ln = float(np.mean(internode_arr))
+        ln_lo = max(float(np.min(internode_arr)) * 0.5, 1.0)
+        ln_hi = min(float(np.max(internode_arr)) * 1.5, 30.0)
+    else:
+        x0_ln = ref_height / max(n_leaves, 8)
+        ln_lo = max(x0_ln * 0.5, 1.0)
+        ln_hi = min(x0_ln * 2.0, 30.0)
+
+    # lb: insertion height of lowest leaf across all stages
+    lowest_h = float("inf")
+    for stage in ref_stages:
+        for leaf in stage["leaves"]:
+            if leaf.length > 3 and leaf.insertion_height < lowest_h:
+                lowest_h = leaf.insertion_height
+    if lowest_h == float("inf"):
+        lowest_h = 4.0
+    x0_lb = max(lowest_h, 1.0)
+    lb_lo = max(x0_lb * 0.3, 1.0)
+    lb_hi = min(x0_lb * 2.0, 20.0)
+
+    x0 = [x0_lmax, x0_r, x0_ln, x0_lb]
+    bounds = [
+        ("lmax", lmax_lo, lmax_hi),
+        ("r",    r_lo,    r_hi),
+        ("ln",   ln_lo,   ln_hi),
+        ("lb",   lb_lo,   lb_hi),
+    ]
+    return x0, bounds
 
 
 # ---------------------------------------------------------------------------
@@ -473,9 +707,8 @@ def skeleton_chamfer(skel1, skel2):
 
 
 def evaluate_leaf(params_vec, pos, ref_stages, xml_path, stem_params,
-                  other_leaf_params, gf=3, K_hint=None):
+                  other_leaf_params, bounds, gf=3):
     """Objective for a single leaf: skeleton Chamfer across ALL stages."""
-    bounds = leaf_bounds_for_gf(gf, K_hint=K_hint)
     params = _params_to_dict(params_vec, bounds)
     params["gf"] = gf
     all_leaf_params = dict(other_leaf_params)
@@ -506,9 +739,9 @@ def evaluate_leaf(params_vec, pos, ref_stages, xml_path, stem_params,
     return total_error / max(n_compared, 1)
 
 
-def evaluate_stem(params_vec, ref_stages, xml_path, leaf_params_by_position):
+def evaluate_stem(params_vec, ref_stages, xml_path, leaf_params_by_position, bounds):
     """Objective for stem: height + internode pattern across stages."""
-    params = _params_to_dict(params_vec, STEM_PARAM_BOUNDS)
+    params = _params_to_dict(params_vec, bounds)
 
     total_error = 0.0
     n_compared = 0
@@ -558,47 +791,27 @@ def evaluate_stem(params_vec, ref_stages, xml_path, leaf_params_by_position):
 # ---------------------------------------------------------------------------
 
 def fit_stem(ref_stages, xml_path, leaf_params, n_evals=200, verbose=False):
-    """Fit stem parameters with CMA-ES."""
+    """Fit stem parameters with CMA-ES using reference-derived init/bounds."""
+    x0, stem_bounds = compute_stem_init_and_bounds(ref_stages)
+
     if verbose:
         print("\n[Stem] Fitting stem parameters...")
+        print(f"  Reference-derived x0:")
+        for (name, lo, hi), val in zip(stem_bounds, x0):
+            print(f"    {name:>6s}: x0={val:7.2f}  bounds=[{lo:.2f}, {hi:.2f}]")
 
-    # Initial guess from reference
-    mature = ref_stages[-1]
-    stem = mature["stem"]
-    ref_height = stem.height if stem else 180.0
-    # Compute r init so exponential growth reaches ref_height by last day
-    last_day = mature["day"]
-    x0_lmax = ref_height * 1.3  # 30% headroom
-    # L(t) = lmax*(1-exp(-r/lmax*t)) = ref_height → r = -lmax/t * ln(1 - h/lmax)
-    ratio = min(ref_height / x0_lmax, 0.95)
-    x0_r = -x0_lmax / last_day * math.log(1 - ratio)
-    # ln init: from reference internode lengths, or height / n_leaves fallback
-    n_leaves = len(set(l.position for l in mature["leaves"] if l.length > 3))
-    if stem and stem.internode_lengths:
-        x0_ln = np.mean(stem.internode_lengths)
-    else:
-        x0_ln = ref_height / max(n_leaves, 10)
-    x0_ln = np.clip(x0_ln, 5.0, 18.0)
+    sigma0 = 0.3
 
-    x0 = [
-        x0_lmax,
-        x0_r,
-        x0_ln,
-        4.0,
-    ]
-    sigma0 = 0.3  # relative scale
-
-    # Scale to [0,1] for CMA-ES
-    bounds_lo = [b[1] for b in STEM_PARAM_BOUNDS]
-    bounds_hi = [b[2] for b in STEM_PARAM_BOUNDS]
+    bounds_lo = [b[1] for b in stem_bounds]
+    bounds_hi = [b[2] for b in stem_bounds]
     ranges = [hi - lo for lo, hi in zip(bounds_lo, bounds_hi)]
 
-    x0_scaled = [(x - lo) / r for x, lo, r in zip(x0, bounds_lo, ranges)]
-    x0_scaled = [np.clip(x, 0.01, 0.99) for x in x0_scaled]
+    x0_scaled = [np.clip((x - lo) / rng, 0.01, 0.99)
+                 for x, lo, rng in zip(x0, bounds_lo, ranges)]
 
     def objective(x_scaled):
-        x_real = [lo + x * r for x, lo, r in zip(x_scaled, bounds_lo, ranges)]
-        return evaluate_stem(x_real, ref_stages, xml_path, leaf_params)
+        x_real = [lo + x * rng for x, lo, rng in zip(x_scaled, bounds_lo, ranges)]
+        return evaluate_stem(x_real, ref_stages, xml_path, leaf_params, stem_bounds)
 
     es = cma.CMAEvolutionStrategy(x0_scaled, sigma0, {
         "bounds": [0, 1],
@@ -613,8 +826,8 @@ def fit_stem(ref_stages, xml_path, leaf_params, n_evals=200, verbose=False):
         es.tell(solutions, fitnesses)
 
     best_scaled = es.result.xbest
-    best_real = [lo + x * r for x, lo, r in zip(best_scaled, bounds_lo, ranges)]
-    best_params = _params_to_dict(best_real, STEM_PARAM_BOUNDS)
+    best_real = [lo + x * rng for x, lo, rng in zip(best_scaled, bounds_lo, ranges)]
+    best_params = _params_to_dict(best_real, stem_bounds)
     best_fitness = es.result.fbest
 
     if verbose:
@@ -628,74 +841,48 @@ def fit_stem(ref_stages, xml_path, leaf_params, n_evals=200, verbose=False):
 def fit_leaf(pos, ref_stages, xml_path, stem_params, other_leaf_params,
              n_evals=300, verbose=False, n_parallel=1, gf=3,
              gompertz_init=None):
-    """Fit one leaf position with CMA-ES.
+    """Fit one leaf position with CMA-ES using reference-derived init/bounds.
 
     Args:
         gf: growth function type (3=CWLimited/exponential, 4=Gompertz)
-        gompertz_init: optional dict with 'K' and 'r' for Gompertz initialization
+        gompertz_init: ignored (kept for API compat). Init is now computed
+                       from reference data via compute_leaf_init_and_bounds.
     """
+    # Check that this leaf exists in reference data
+    has_ref = any(
+        any(l.position == pos and l.length > 2 for l in s["leaves"])
+        for s in ref_stages
+    )
+    if not has_ref:
+        if verbose:
+            print(f"\n[Leaf {pos}] Skipped (no reference leaf)")
+        return None, 999.0
+
+    # Compute init and bounds from reference data
+    x0, bounds = compute_leaf_init_and_bounds(pos, ref_stages, gf=gf)
+
     if verbose:
         gf_name = "Gompertz" if gf == 4 else "exp"
         print(f"\n[Leaf {pos}] Fitting ({n_evals} evals, gf={gf} {gf_name})...")
-
-    # Initial guess from reference (most mature stage where this leaf exists)
-    ref_leaf = None
-    for s in reversed(ref_stages):
-        ref_leaf = next((l for l in s["leaves"] if l.position == pos), None)
-        if ref_leaf and ref_leaf.length > 5:
-            break
-
-    if ref_leaf is None or ref_leaf.length < 2:
-        if verbose:
-            print(f"  Skipped (no reference leaf)")
-        return None, 999.0
-
-    # Initial guess from extracted traits
-    curv = ref_leaf.curvature_profile
-
-    if gf == 4 and gompertz_init:
-        # Use Gompertz-fitted K and r as initialization
-        x0_lmax = gompertz_init["K"]
-        x0_r = gompertz_init["r"]
-    else:
-        x0_lmax = ref_leaf.length
-        x0_r = 2.0
-
-    # K_hint for Gompertz r lower bound (ensures t_m < ~55 days)
-    K_hint = x0_lmax if gf == 4 else None
-    bounds = leaf_bounds_for_gf(gf, K_hint=K_hint)
-
-    x0 = [
-        x0_lmax,                              # lmax (or K for Gompertz)
-        x0_r,                                 # r
-        ref_leaf.insertion_angle,             # theta
-        float(np.mean(curv)) if curv else 0.05,  # tropismS
-        20.0,                                 # tropismAge
-        1.5,                                  # tropismExponent
-        3.0,                                  # collarLength
-    ]
-    # Add curvature knots
-    if len(curv) >= 5:
-        indices = np.linspace(0, len(curv) - 1, 5, dtype=int)
-        x0.extend([float(curv[i]) for i in indices])
-    else:
-        x0.extend([0.05] * 5)
+        print(f"  Reference-derived x0:")
+        for (name, lo, hi), val in zip(bounds, x0):
+            print(f"    {name:>16s}: x0={val:8.3f}  bounds=[{lo:.3f}, {hi:.3f}]")
 
     # Scale to [0,1]
     bounds_lo = [b[1] for b in bounds]
     bounds_hi = [b[2] for b in bounds]
     ranges = [hi - lo for lo, hi in zip(bounds_lo, bounds_hi)]
 
-    x0_scaled = [(x - lo) / rng for x, lo, rng in zip(x0, bounds_lo, ranges)]
-    x0_scaled = [np.clip(x, 0.02, 0.98) for x in x0_scaled]
+    x0_scaled = [np.clip((x - lo) / rng, 0.02, 0.98)
+                 for x, lo, rng in zip(x0, bounds_lo, ranges)]
 
     def objective(x_scaled):
         x_real = [lo + x * rng for x, lo, rng in zip(x_scaled, bounds_lo, ranges)]
         return evaluate_leaf(x_real, pos, ref_stages, xml_path, stem_params,
-                             other_leaf_params, gf=gf, K_hint=K_hint)
+                             other_leaf_params, bounds, gf=gf)
 
     popsize = max(8, 2 * N_LEAF_PARAMS)
-    es = cma.CMAEvolutionStrategy(x0_scaled, 0.15, {  # sigma=0.15 (tighter)
+    es = cma.CMAEvolutionStrategy(x0_scaled, 0.15, {
         "bounds": [0, 1],
         "maxfevals": n_evals,
         "verbose": -9,
@@ -707,9 +894,7 @@ def fit_leaf(pos, ref_stages, xml_path, stem_params, other_leaf_params,
     best_fitness = float("inf")
     while not es.stop():
         solutions = es.ask()
-
         fitnesses = [objective(s) for s in solutions]
-
         es.tell(solutions, fitnesses)
         gen += 1
         if es.result.fbest < best_fitness:
@@ -720,11 +905,11 @@ def fit_leaf(pos, ref_stages, xml_path, stem_params, other_leaf_params,
     best_scaled = es.result.xbest
     best_real = [lo + x * rng for x, lo, rng in zip(best_scaled, bounds_lo, ranges)]
     best_params = _params_to_dict(best_real, bounds)
-    best_params["gf"] = gf  # preserve gf in output params
+    best_params["gf"] = gf
 
     if verbose:
         print(f"  Result: lmax={best_params['lmax']:.1f}, r={best_params['r']:.2f}, "
-              f"theta={math.degrees(best_params['theta']):.0f}°, "
+              f"theta={math.degrees(best_params['theta']):.0f}\u00b0, "
               f"tropS={best_params['tropismS']:.4f}, "
               f"tropAge={best_params['tropismAge']:.1f}")
         print(f"  Skeleton Chamfer: {best_fitness:.2f}cm ({gen} generations)")
@@ -1092,8 +1277,8 @@ def main():
                         help="Leaf positions to fit with Gompertz (gf=4). "
                              "If flag given with no args, uses positions 5-10.")
     parser.add_argument("--gompertz-init", default=None,
-                        help="JSON with Gompertz K/r per position "
-                             "(default: gaps_cplantbox.json from reverse-engineer)")
+                        help="(deprecated, ignored) Gompertz init is now computed "
+                             "from reference data automatically")
     parser.add_argument("--with-deformations", action="store_true",
                         help="Run GPU deformation optimization (4 Optuna features) "
                              "after CMA-ES structural fitting")
@@ -1113,10 +1298,6 @@ def main():
 
     xml_path = args.xml or str(_COUPLING_DIR / "data" / "maize_calibrated.xml")
 
-    # Gompertz init will be computed from reference data (step 1).
-    # Placeholder until reference is loaded.
-    gompertz_init_by_pos = {}
-
     print("=" * 70)
     print("CPlantBox FIT-TO-REFERENCE (CMA-ES)")
     print("=" * 70)
@@ -1135,28 +1316,6 @@ def main():
     all_positions = sorted(set(
         l.position for s in ref_stages for l in s["leaves"] if l.length > 5))
     print(f"  Fitting {len(all_positions)} leaf positions: {all_positions}")
-
-    # Compute Gompertz K from OBSERVED max lengths (not extrapolated gaps values)
-    if gompertz_positions:
-        max_obs_length = {}
-        for stage in ref_stages:
-            for leaf in stage["leaves"]:
-                pos = leaf.position
-                if pos in gompertz_positions:
-                    if pos not in max_obs_length or leaf.length > max_obs_length[pos]:
-                        max_obs_length[pos] = leaf.length
-
-        for pos in gompertz_positions:
-            if pos in max_obs_length and max_obs_length[pos] > 5:
-                K = max_obs_length[pos] * 1.3  # 30% headroom beyond observed max
-                r = K / 30.0  # K/30 → t_m ≈ 37.5 days
-                gompertz_init_by_pos[pos] = {"K": K, "r": r}
-
-        print(f"  Gompertz K from observed max lengths (×1.3):")
-        for p in sorted(gompertz_init_by_pos):
-            gi = gompertz_init_by_pos[p]
-            print(f"    pos {p}: max_obs={max_obs_length.get(p, 0):.1f} → "
-                  f"K={gi['K']:.1f}, r={gi['r']:.2f}")
 
     # Ensure XML has subtypes for all positions
     prep_xml = output_dir / "template_prepared.xml"
@@ -1192,33 +1351,15 @@ def main():
 
     # Step 3: Fit stem
     print("\n[3/5] Fitting stem...")
-    # Use dummy leaf params for stem fitting (from reference extraction)
+    # Build init leaf params from reference for stem fitting context
     init_leaf_params = {}
     for pos in all_positions:
-        for s in reversed(ref_stages):
-            ref = next((l for l in s["leaves"] if l.position == pos), None)
-            if ref and ref.length > 5:
-                curv = ref.curvature_profile
-                init_leaf_params[pos] = {
-                    "lmax": ref.length, "r": 2.0,
-                    "theta": ref.insertion_angle,
-                    "tropismS": float(np.mean(curv)) if curv else 0.05,
-                    "tropismAge": 20.0, "tropismExponent": 1.5,
-                    "collarLength": 3.0,
-                    "curv_k0": 0.05, "curv_k1": 0.05, "curv_k2": 0.05,
-                    "curv_k3": 0.05, "curv_k4": 0.05,
-                }
-                break
-
-    # Tag Gompertz positions BEFORE fitting so CMA-ES evaluations see
-    # other Gompertz leaves at gf=4 (matching the final analyze_fit run).
-    for pos in gompertz_positions:
-        if pos in init_leaf_params:
-            init_leaf_params[pos]["gf"] = 4
-            gi = gompertz_init_by_pos.get(pos)
-            if gi:
-                init_leaf_params[pos]["lmax"] = gi["K"]
-                init_leaf_params[pos]["r"] = gi.get("r", 5.0)
+        gf = 4 if pos in gompertz_positions else 3
+        x0, leaf_bounds = compute_leaf_init_and_bounds(pos, ref_stages, gf=gf)
+        params = {name: val for (name, _lo, _hi), val in zip(leaf_bounds, x0)}
+        if gf == 4:
+            params["gf"] = 4
+        init_leaf_params[pos] = params
 
     stem_params, stem_error = fit_stem(ref_stages, xml_path, init_leaf_params,
                                         n_evals=args.stem_evals, verbose=args.verbose)
@@ -1231,11 +1372,9 @@ def main():
     fitted_leaf_params = dict(init_leaf_params)  # start with initial guesses
     t0 = time.time()
 
-    def _leaf_fit_kwargs(pos):
-        """Return gf and gompertz_init kwargs for a given leaf position."""
-        gf = 4 if pos in gompertz_positions else 3
-        gi = gompertz_init_by_pos.get(pos) if gf == 4 else None
-        return {"gf": gf, "gompertz_init": gi}
+    def _leaf_gf(pos):
+        """Return gf for a given leaf position."""
+        return 4 if pos in gompertz_positions else 3
 
     if n_leaf_parallel > 1:
         # Parallel across leaves
@@ -1243,10 +1382,9 @@ def main():
             futures = {}
             for pos in all_positions:
                 other = {p: v for p, v in fitted_leaf_params.items() if p != pos}
-                kw = _leaf_fit_kwargs(pos)
                 f = executor.submit(fit_leaf, pos, ref_stages, xml_path,
                                     stem_params, other, args.evals,
-                                    args.verbose, **kw)
+                                    args.verbose, gf=_leaf_gf(pos))
                 futures[f] = pos
 
             for future in as_completed(futures):
@@ -1263,10 +1401,9 @@ def main():
         # Sequential
         for pos in all_positions:
             other = {p: v for p, v in fitted_leaf_params.items() if p != pos}
-            kw = _leaf_fit_kwargs(pos)
             params, fitness = fit_leaf(pos, ref_stages, xml_path,
                                        stem_params, other, args.evals,
-                                       args.verbose, **kw)
+                                       args.verbose, gf=_leaf_gf(pos))
             if params:
                 fitted_leaf_params[pos] = params
 
