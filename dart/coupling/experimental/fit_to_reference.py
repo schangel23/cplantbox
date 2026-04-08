@@ -385,7 +385,7 @@ def load_reference(export_dir, n_samples=20, verbose=False):
     for stage_num, fpath in files:
         if verbose:
             print(f"  Parsing stage {stage_num}...")
-        verts, groups, _normals = parse_obj(fpath)
+        verts, groups = parse_obj(fpath)[:2]
         # Flip Z: OBJ has Z negative (plant grows down), CPlantBox has Z positive
         verts[:, 2] *= -1
         all_verts.append(verts)

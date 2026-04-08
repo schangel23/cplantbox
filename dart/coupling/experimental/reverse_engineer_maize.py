@@ -81,6 +81,9 @@ class LeafG1:
     width_profile_normalized: list  # (10,) normalized widths at 10 evenly-spaced positions
     asymmetry_profile: list       # (N,) left-right width difference cm
     area: float                   # cm² (integrated width × arc-length)
+    # Sheath parameters (for lofter sheath wrapping)
+    sheath: Optional[dict] = None  # {"fraction": (N,), "center_xy": (2,),
+                                   #  "radius": float, "wrap_angle": float (rad)}
 
 
 @dataclass
@@ -125,10 +128,22 @@ class Gap:
 # ===========================================================================
 
 def parse_obj(path):
-    """Parse Wavefront OBJ file, return vertices (cm) and face groups."""
+    """Parse Wavefront OBJ file, return vertices (cm), face groups, and per-vertex normals.
+
+    Returns:
+        verts: (N, 3) ndarray in cm
+        groups: dict of group_name -> list of faces (each face = list of vertex indices)
+        vert_normals: (N, 3) ndarray of averaged per-vertex normals (unit vectors),
+                      or None if the OBJ has no vn lines.
+    """
     verts = []
+    vnormals = []
     groups = {}
     current_group = "default"
+
+    # Accumulate normal indices per vertex for averaging
+    vert_normal_accum = defaultdict(list)
+
     with open(path) as f:
         for line in f:
             parts = line.strip().split()
@@ -138,16 +153,45 @@ def parse_obj(path):
                 verts.append([float(parts[1]) * 100,
                               float(parts[2]) * 100,
                               float(parts[3]) * 100])  # m → cm
+            elif parts[0] == "vn" and len(parts) >= 4:
+                vnormals.append([float(parts[1]),
+                                 float(parts[2]),
+                                 float(parts[3])])
             elif parts[0] == "g" and len(parts) > 1:
                 current_group = parts[1]
                 if current_group not in groups:
                     groups[current_group] = []
             elif parts[0] == "f":
-                face = [int(p.split("/")[0]) - 1 for p in parts[1:]]
+                face_verts = []
+                for p in parts[1:]:
+                    components = p.split("/")
+                    vi = int(components[0]) - 1
+                    face_verts.append(vi)
+                    # Collect normal index if present (format: v/vt/vn or v//vn)
+                    if len(components) >= 3 and components[2]:
+                        ni = int(components[2]) - 1
+                        vert_normal_accum[vi].append(ni)
                 if current_group not in groups:
                     groups[current_group] = []
-                groups[current_group].append(face)
-    return np.array(verts, dtype=np.float64), groups
+                groups[current_group].append(face_verts)
+
+    verts_arr = np.array(verts, dtype=np.float64)
+
+    # Build per-vertex averaged normals
+    vert_normals = None
+    if vnormals:
+        vnormals_arr = np.array(vnormals, dtype=np.float64)
+        vert_normals = np.zeros((len(verts), 3), dtype=np.float64)
+        for vi, ni_list in vert_normal_accum.items():
+            if ni_list:
+                avg = vnormals_arr[ni_list].mean(axis=0)
+                nl = np.linalg.norm(avg)
+                if nl > 1e-10:
+                    vert_normals[vi] = avg / nl
+                else:
+                    vert_normals[vi] = [0, 0, 1]
+
+    return verts_arr, groups, vert_normals
 
 
 def find_connected_components(faces):
@@ -334,6 +378,69 @@ def _correspond_chains(chain_a, chain_b, verts, n_samples=20):
     return skeleton, widths, pts_a, pts_b
 
 
+def _refine_skeleton(skeleton, widths, pts_a, pts_b, verts, vert_ids):
+    """Refine skeleton using cross-section centroid projection.
+
+    The initial boundary-midpoint skeleton uses only the two boundary chains.
+    This projects ALL mesh interior vertices onto the skeleton, bins them into
+    cross-sections, and replaces each skeleton point with the bin centroid.
+    Reduces chamfer from ~6cm to ~2cm in a single pass (verified).
+
+    Args:
+        skeleton: (N, 3) initial boundary-midpoint skeleton
+        widths: (N,) initial widths
+        pts_a: (N, 3) left boundary points
+        pts_b: (N, 3) right boundary points
+        verts: Full vertex array (global indices)
+        vert_ids: Set of vertex indices belonging to this leaf
+
+    Returns:
+        (skeleton, widths, pts_a, pts_b) — all refined in-place shapes
+    """
+    n_skel = len(skeleton)
+    all_pts = verts[sorted(vert_ids)]
+
+    # Skip refinement for tiny leaves (fewer vertices than skeleton samples)
+    if len(all_pts) < n_skel:
+        return skeleton, widths, pts_a, pts_b
+
+    # Tangent frame at each skeleton point
+    tangents = np.zeros((n_skel, 3))
+    tangents[0] = skeleton[1] - skeleton[0]
+    tangents[-1] = skeleton[-1] - skeleton[-2]
+    for i in range(1, n_skel - 1):
+        tangents[i] = skeleton[i + 1] - skeleton[i - 1]
+    tn = np.linalg.norm(tangents, axis=1, keepdims=True)
+    tangents /= np.maximum(tn, 1e-8)
+
+    # Assign each mesh vertex to nearest skeleton point
+    skel_tree = cKDTree(skeleton)
+    _, skel_idx = skel_tree.query(all_pts)
+
+    # Per-bin centroid and max perpendicular extent
+    new_skel = skeleton.copy()
+    new_widths = widths.copy()
+    for i in range(n_skel):
+        mask = skel_idx == i
+        if mask.sum() < 2:
+            continue
+        bin_pts = all_pts[mask]
+        centroid = bin_pts.mean(axis=0)
+        new_skel[i] = centroid
+
+        # Width = 2 × max perpendicular distance from centroid
+        offsets = bin_pts - centroid
+        perp = offsets - np.outer(np.dot(offsets, tangents[i]), tangents[i])
+        new_widths[i] = np.linalg.norm(perp, axis=1).max() * 2
+
+    # Update pts_a/pts_b: shift by the same delta as the skeleton
+    delta = new_skel - skeleton
+    new_pts_a = pts_a + delta
+    new_pts_b = pts_b + delta
+
+    return new_skel, new_widths, new_pts_a, new_pts_b
+
+
 def _compute_curvature(skeleton):
     """Compute in-plane and out-of-plane curvature from skeleton points.
 
@@ -495,8 +602,712 @@ def _compute_cross_section_angle(left_pts, right_pts, skeleton, normals):
     return angles
 
 
-def extract_leaf_g1(comp, verts, faces, leaf_id, position, n_samples=20):
-    """Extract full G1 representation from a leaf mesh component."""
+def _detect_sheath(skeleton, verts, vert_ids, stem_center_xy, stem_radius):
+    """Detect sheath wrapping at the leaf base and compute lofter-compatible params.
+
+    Z-slices the FULL leaf vertex set to find where angular extent around the
+    stem exceeds 90°. Maps the sheath Z-range back to skeleton nodes via Z.
+
+    Args:
+        skeleton: (N, 3) skeleton points (base at index 0)
+        verts: Full vertex array
+        vert_ids: Set/list of vertex indices belonging to this leaf
+        stem_center_xy: (2,) XY position of stem axis
+        stem_radius: float, stem radius in cm
+
+    Returns:
+        dict with keys: fraction (N,), center_xy (2,), radius, wrap_angle (rad),
+              sheath_height (float, cm)
+        or None if no sheath detected.
+    """
+    if stem_center_xy is None or len(skeleton) < 3:
+        return None
+
+    leaf_pts = verts[sorted(vert_ids)]
+    n_skel = len(skeleton)
+
+    z_range = leaf_pts[:, 2].max() - leaf_pts[:, 2].min()
+    if z_range < 2.0:
+        return None
+
+    # Step 1: Z-slice full leaf to find angular wrap at each height
+    # Use fixed 0.5cm spacing (not proportional) so sheaths aren't missed on tall leaves
+    z_min, z_max = leaf_pts[:, 2].min(), leaf_pts[:, 2].max()
+    n_slices = max(20, int(z_range / 0.5))
+    z_edges = np.linspace(z_min, z_max, n_slices)
+    dz = 1.0  # fixed 1cm band for robust sheath detection
+
+    wrap_at_z = np.zeros(n_slices)
+    radius_at_z = np.zeros(n_slices)
+
+    for si in range(n_slices):
+        mask = np.abs(leaf_pts[:, 2] - z_edges[si]) < dz
+        if mask.sum() < 3:
+            continue
+        pts = leaf_pts[mask]
+        angles = np.arctan2(pts[:, 1] - stem_center_xy[1],
+                           pts[:, 0] - stem_center_xy[0])
+        angles_sorted = np.sort(angles)
+        gaps = np.diff(angles_sorted)
+        wrap_gap = 2 * np.pi + angles_sorted[0] - angles_sorted[-1]
+        gaps = np.append(gaps, wrap_gap)
+        wrap_at_z[si] = 2 * np.pi - gaps.max()
+        radius_at_z[si] = np.linalg.norm(
+            pts[:, :2] - stem_center_xy, axis=1).mean()
+
+    # Step 2: Find sheath Z-range (contiguous from base where wrap > 90°)
+    sheath_threshold = np.pi / 2
+    sheath_z_top = z_min
+    for si in range(n_slices):
+        if wrap_at_z[si] > sheath_threshold:
+            sheath_z_top = z_edges[si]
+        elif z_edges[si] > sheath_z_top + 3.0:
+            # Allow 3cm gap then stop
+            break
+
+    sheath_height = sheath_z_top - z_min
+    if sheath_height < 1.0:
+        return None
+
+    # Representative wrap angle and radius
+    sheath_mask = (wrap_at_z > sheath_threshold) & (z_edges <= sheath_z_top)
+    if sheath_mask.sum() == 0:
+        return None
+    wrap_angle = float(np.median(wrap_at_z[sheath_mask]))
+    sheath_r = float(np.median(radius_at_z[sheath_mask]))
+    sheath_r = max(sheath_r, stem_radius)
+
+    # Step 3: Map to skeleton fraction via Z position
+    transition = min(2.0, sheath_height * 0.3)
+    fraction = np.zeros(n_skel)
+    for i in range(n_skel):
+        z_i = skeleton[i, 2]
+        if z_i <= sheath_z_top - transition:
+            fraction[i] = 1.0
+        elif z_i <= sheath_z_top:
+            fraction[i] = (sheath_z_top - z_i) / max(transition, 0.01)
+
+    if (fraction > 0.1).sum() < 2:
+        return None
+
+    return {
+        "fraction": fraction.tolist(),
+        "center_xy": stem_center_xy.tolist(),
+        "radius": sheath_r,
+        "wrap_angle": wrap_angle,
+        "sheath_height": sheath_height,
+    }
+
+
+# ===========================================================================
+# STEP 2b: BFS-Based Skeleton Extraction (sheath + blade continuous)
+# ===========================================================================
+
+# Region labels for BFS layers
+_BLADE = 0
+_COLLAR = 1
+_SHEATH = 2
+
+
+def _build_adjacency(faces, vert_ids):
+    """Build vertex adjacency graph (edge-only) for a leaf component.
+
+    Returns:
+        adj: dict of vertex_id -> set of neighbor vertex_ids
+        boundary_verts: set of boundary vertex ids
+        comp_faces: list of faces belonging to this component
+    """
+    comp_faces = [f for f in faces if all(v in vert_ids for v in f)]
+
+    adj = defaultdict(set)
+    edge_face_count = defaultdict(int)
+    for face in comp_faces:
+        n = len(face)
+        for i in range(n):
+            a, b = face[i], face[(i + 1) % n]
+            adj[a].add(b)
+            adj[b].add(a)
+            e = (min(a, b), max(a, b))
+            edge_face_count[e] += 1
+
+    boundary_edges = {e for e, c in edge_face_count.items() if c == 1}
+    boundary_verts = set()
+    for a, b in boundary_edges:
+        boundary_verts.add(a)
+        boundary_verts.add(b)
+
+    return adj, boundary_verts, comp_faces
+
+
+def _find_tip_vertex(vert_ids, verts, adj, boundary_verts, stem_center_xy=None):
+    """Find the tip vertex for BFS start.
+
+    The tip is the boundary vertex farthest from the stem center in 3D.
+    For horizontal/drooping leaves, this correctly picks the distal tip
+    rather than a random low-Z vertex.
+
+    Fallback for closed meshes (no boundary): farthest vertex from centroid.
+    """
+    candidates = boundary_verts if boundary_verts else vert_ids
+
+    if stem_center_xy is not None and len(candidates) > 2:
+        # Farthest from stem center in XY + Z distance from stem base
+        # Use full 3D distance from stem axis (projected to nearest Z)
+        stem_z = verts[sorted(vert_ids), 2].max()  # stem insertion ≈ max Z
+        stem_3d = np.array([stem_center_xy[0], stem_center_xy[1], stem_z])
+        best = max(candidates,
+                   key=lambda v: np.linalg.norm(verts[v] - stem_3d))
+    else:
+        # Fallback: farthest from centroid
+        centroid = verts[sorted(vert_ids)].mean(axis=0)
+        best = max(candidates,
+                   key=lambda v: np.linalg.norm(verts[v] - centroid))
+
+    return best
+
+
+def _bfs_layers(tip, adj, vert_ids):
+    """Breadth-first search from tip. Returns ordered list of layers.
+
+    Each layer is a list of vertex indices forming a cross-section.
+    """
+    visited = {tip}
+    layers = [[tip]]
+    while True:
+        next_layer = []
+        for v in layers[-1]:
+            for nb in adj[v]:
+                if nb not in visited and nb in vert_ids:
+                    visited.add(nb)
+                    next_layer.append(nb)
+        if not next_layer:
+            break
+        layers.append(next_layer)
+    return layers
+
+
+def _compute_arc_span(layer_pts_xy, center_xy):
+    """Compute angular arc span of points around a center.
+
+    Returns arc span in radians.
+    """
+    if len(layer_pts_xy) < 2:
+        return 0.0
+    dxy = layer_pts_xy - center_xy
+    angles = np.arctan2(dxy[:, 1], dxy[:, 0])
+    angles_sorted = np.sort(angles)
+    if len(angles_sorted) < 2:
+        return 0.0
+    gaps = np.diff(angles_sorted)
+    wrap_gap = 2 * np.pi + angles_sorted[0] - angles_sorted[-1]
+    all_gaps = np.append(gaps, wrap_gap)
+    return float(2 * np.pi - all_gaps.max())
+
+
+def _classify_layers(layers, verts, stem_center_xy):
+    """Classify each BFS layer as BLADE, COLLAR, or SHEATH.
+
+    Returns:
+        labels: list of _BLADE/_COLLAR/_SHEATH per layer
+        arc_spans: list of arc span in radians per layer
+    """
+    labels = []
+    arc_spans = []
+
+    for layer in layers:
+        pts = verts[layer]
+        if len(layer) < 3 or stem_center_xy is None:
+            labels.append(_BLADE)
+            arc_spans.append(0.0)
+            continue
+
+        span = _compute_arc_span(pts[:, :2], stem_center_xy)
+        arc_spans.append(span)
+
+        if span >= np.deg2rad(150):
+            labels.append(_SHEATH)
+        elif span >= np.deg2rad(90):
+            labels.append(_COLLAR)
+        else:
+            labels.append(_BLADE)
+
+    return labels, arc_spans
+
+
+def _angular_midpoint(layer, verts, stem_center_xy):
+    """Compute the angular midpoint of a layer on the leaf surface.
+
+    Places the skeleton point at the midpoint of the covered arc,
+    at the mean radius from the stem center.
+
+    Returns (x, y, z) position.
+    """
+    pts = verts[layer]
+    dxy = pts[:, :2] - stem_center_xy
+    angles = np.arctan2(dxy[:, 1], dxy[:, 0])
+    r = np.linalg.norm(dxy, axis=1).mean()
+    z = pts[:, 2].mean()
+
+    # Find the largest angular gap (where the leaf doesn't wrap)
+    angles_sorted = np.sort(angles)
+    gaps = np.diff(angles_sorted)
+    wrap_gap = 2 * np.pi + angles_sorted[0] - angles_sorted[-1]
+    all_gaps = np.append(gaps, wrap_gap)
+    gap_idx = np.argmax(all_gaps)
+
+    if gap_idx < len(gaps):
+        # Gap is between sorted angles[gap_idx] and sorted angles[gap_idx+1]
+        arc_start = angles_sorted[gap_idx + 1]
+        arc_end = angles_sorted[gap_idx] + 2 * np.pi
+    else:
+        # Gap is the wrap-around gap
+        arc_start = angles_sorted[0]
+        arc_end = angles_sorted[-1]
+
+    mid_angle = (arc_start + arc_end) / 2.0
+
+    x = stem_center_xy[0] + r * np.cos(mid_angle)
+    y = stem_center_xy[1] + r * np.sin(mid_angle)
+    return np.array([x, y, z])
+
+
+def _layer_skeleton_point(layer, verts, region, stem_center_xy, arc_span):
+    """Compute skeleton point for one BFS layer.
+
+    BLADE: vertex centroid
+    SHEATH: angular midpoint at mean radius from stem center
+    COLLAR: blend between centroid and angular midpoint
+    """
+    pts = verts[layer]
+    centroid = pts.mean(axis=0)
+
+    if region == _BLADE or stem_center_xy is None or len(layer) < 3:
+        return centroid
+
+    if region == _SHEATH:
+        return _angular_midpoint(layer, verts, stem_center_xy)
+
+    # COLLAR: blend based on arc span (90° → 100% centroid, 150° → 100% angular)
+    t = np.clip((arc_span - np.deg2rad(90)) / np.deg2rad(60), 0, 1)
+    angular_pt = _angular_midpoint(layer, verts, stem_center_xy)
+    return (1 - t) * centroid + t * angular_pt
+
+
+def _layer_width(layer, verts, region, stem_center_xy, arc_span,
+                 tangent=None):
+    """Compute width for one BFS layer.
+
+    BLADE: max perpendicular extent relative to skeleton tangent.
+           Falls back to max pairwise distance if no tangent.
+    SHEATH: arc length = r * arc_span
+    COLLAR: linear span (transition)
+    """
+    pts = verts[layer]
+    if len(layer) < 2:
+        return 0.0
+
+    if region == _SHEATH and stem_center_xy is not None:
+        dxy = pts[:, :2] - stem_center_xy
+        r = np.linalg.norm(dxy, axis=1).mean()
+        return float(r * arc_span)
+
+    # BLADE or COLLAR: max perpendicular extent from centroid
+    centroid = pts.mean(axis=0)
+    offsets = pts - centroid
+
+    if tangent is not None:
+        tn = np.linalg.norm(tangent)
+        if tn > 1e-8:
+            t_unit = tangent / tn
+            # Remove component along tangent
+            perp = offsets - np.outer(np.dot(offsets, t_unit), t_unit)
+            return float(np.linalg.norm(perp, axis=1).max() * 2)
+
+    # Fallback: max pairwise distance
+    from scipy.spatial.distance import pdist
+    return float(pdist(pts).max())
+
+
+def _layer_normal(layer, vert_normals, verts, stem_center_xy=None):
+    """Average per-vertex normals for a BFS layer.
+
+    If vert_normals is None, fall back to gravity-referenced normals.
+    For sheath layers, ensure normal points outward from stem.
+    """
+    if vert_normals is None:
+        return np.array([0.0, 0.0, 1.0])
+
+    avg = vert_normals[layer].mean(axis=0)
+    nl = np.linalg.norm(avg)
+    if nl < 1e-10:
+        return np.array([0.0, 0.0, 1.0])
+    avg /= nl
+
+    # For sheath: ensure normal points away from stem center
+    if stem_center_xy is not None and len(layer) >= 3:
+        pts = verts[layer]
+        center_xy = pts[:, :2].mean(axis=0)
+        outward = center_xy - stem_center_xy
+        outward_3d = np.array([outward[0], outward[1], 0.0])
+        if np.dot(avg, outward_3d) < 0:
+            avg = -avg
+
+    return avg
+
+
+def extract_leaf_g1_bfs(comp, verts, faces, leaf_id, position, n_samples=20,
+                        stem_center_xy=None, stem_radius=1.0,
+                        vert_normals=None):
+    """Extract G1 representation using BFS cross-sectional layers.
+
+    Produces a continuous skeleton from tip → blade → collar → sheath → base.
+    The sheath region is annotated on the skeleton, not separated.
+    """
+    vert_ids = comp
+
+    # Build adjacency
+    adj, boundary_verts, comp_faces = _build_adjacency(faces, vert_ids)
+
+    if len(vert_ids) < 4 or len(comp_faces) < 2:
+        # Degenerate leaf
+        center = verts[list(vert_ids)].mean(axis=0)
+        return LeafG1(
+            leaf_id=leaf_id, position=position,
+            skeleton=[center.tolist()], widths=[0.0],
+            per_point_normals=[[0, 0, 1]], curvature_profile=[],
+            oop_curvature_profile=[], twist_profile=[],
+            cross_section_angles=[np.pi], length=0.0, max_width=0.0,
+            insertion_angle=0.0, insertion_height=center[2],
+            base_point=center.tolist(), tip_point=center.tolist(),
+            width_profile_normalized=[0] * 10, asymmetry_profile=[0.0],
+            area=0.0,
+        )
+
+    # Find tip and run BFS
+    tip = _find_tip_vertex(vert_ids, verts, adj, boundary_verts, stem_center_xy)
+    layers = _bfs_layers(tip, adj, vert_ids)
+
+    if len(layers) < 3:
+        center = verts[list(vert_ids)].mean(axis=0)
+        return LeafG1(
+            leaf_id=leaf_id, position=position,
+            skeleton=[center.tolist()], widths=[0.0],
+            per_point_normals=[[0, 0, 1]], curvature_profile=[],
+            oop_curvature_profile=[], twist_profile=[],
+            cross_section_angles=[np.pi], length=0.0, max_width=0.0,
+            insertion_angle=0.0, insertion_height=center[2],
+            base_point=center.tolist(), tip_point=center.tolist(),
+            width_profile_normalized=[0] * 10, asymmetry_profile=[0.0],
+            area=0.0,
+        )
+
+    # Classify layers
+    labels, arc_spans = _classify_layers(layers, verts, stem_center_xy)
+
+    # ---- Build skeleton: blade centroids + CIRCUMFERENTIAL sheath path ----
+    # The skeleton traces the actual leaf path:
+    #   blade: one centroid per BFS layer (flat cross-sections)
+    #   sheath: angular-binned path wrapping around the stem
+    # The mesh is one continuous quad strip — same technique in both regions.
+
+    # Find first collar/sheath layer
+    first_sheath = None
+    for i, l in enumerate(labels):
+        if l >= _COLLAR:
+            first_sheath = i
+            break
+
+    # BLADE: one centroid per BFS layer
+    blade_skeleton = []
+    blade_normals = []
+    blade_end = first_sheath if first_sheath is not None else len(layers)
+    for i in range(blade_end):
+        pt = _layer_skeleton_point(layers[i], verts, labels[i], stem_center_xy,
+                                   arc_spans[i])
+        n = _layer_normal(layers[i], vert_normals, verts, stem_center_xy)
+        blade_skeleton.append(pt)
+        blade_normals.append(n)
+
+    # Blade tangents for width
+    blade_tangents = np.zeros((blade_end, 3))
+    if blade_end >= 2:
+        ba = np.array(blade_skeleton)
+        blade_tangents[0] = ba[1] - ba[0]
+        blade_tangents[-1] = ba[-1] - ba[-2]
+        for i in range(1, blade_end - 1):
+            blade_tangents[i] = ba[i + 1] - ba[i - 1]
+
+    blade_widths = []
+    for i in range(blade_end):
+        w = _layer_width(layers[i], verts, labels[i], stem_center_xy,
+                         arc_spans[i], tangent=blade_tangents[i])
+        blade_widths.append(w)
+
+    # SHEATH: circumferential path around stem (angular-binned)
+    sheath_skeleton = []
+    sheath_normals = []
+    sheath_widths = []
+
+    if first_sheath is not None and stem_center_xy is not None:
+        sheath_vids = []
+        for i in range(first_sheath, len(layers)):
+            sheath_vids.extend(layers[i])
+
+        if sheath_vids:
+            sheath_pts = verts[sheath_vids]
+            dxy = sheath_pts[:, :2] - stem_center_xy
+            angles = np.arctan2(dxy[:, 1], dxy[:, 0])
+
+            # Entry angle from last blade point
+            if blade_skeleton:
+                entry_angle = np.arctan2(
+                    blade_skeleton[-1][1] - stem_center_xy[1],
+                    blade_skeleton[-1][0] - stem_center_xy[0])
+            else:
+                entry_angle = 0.0
+
+            # Unwrap angles relative to entry
+            rel_angles = (angles - entry_angle + np.pi) % (2 * np.pi) - np.pi
+            # Pick dominant wrapping direction
+            if (rel_angles < 0).sum() > (rel_angles > 0).sum():
+                rel_angles[rel_angles > 0] -= 2 * np.pi
+            else:
+                rel_angles[rel_angles < 0] += 2 * np.pi
+
+            order = np.argsort(rel_angles)
+            angle_min, angle_max = rel_angles[order[0]], rel_angles[order[-1]]
+            angle_range = abs(angle_max - angle_min)
+
+            # ~1 skeleton point per 20° of wrap
+            n_sh = max(3, int(np.degrees(angle_range) / 20))
+            angle_bins = np.linspace(angle_min, angle_max, n_sh + 1)
+
+            for bi in range(n_sh):
+                lo, hi = angle_bins[bi], angle_bins[bi + 1]
+                mask = (rel_angles >= lo) & (rel_angles < hi)
+                if bi == n_sh - 1:
+                    mask |= (rel_angles == hi)
+                if mask.sum() == 0:
+                    continue
+
+                bin_pts = sheath_pts[mask]
+                skel_pt = bin_pts.mean(axis=0)
+                sheath_skeleton.append(skel_pt)
+
+                # Width = Z extent of the angular bin
+                z_span = bin_pts[:, 2].max() - bin_pts[:, 2].min()
+                sheath_widths.append(max(z_span, 0.5))
+
+                # Normal: radially outward from stem
+                out_xy = skel_pt[:2] - stem_center_xy
+                out_n = np.linalg.norm(out_xy)
+                if out_n > 1e-8:
+                    sheath_normals.append(np.array([out_xy[0]/out_n, out_xy[1]/out_n, 0.0]))
+                else:
+                    sheath_normals.append(np.array([0.0, 0.0, 1.0]))
+
+    # Combine blade + sheath
+    raw_skeleton = np.array(blade_skeleton + sheath_skeleton)
+    raw_widths = np.array(blade_widths + sheath_widths)
+    raw_normals = np.array(blade_normals + sheath_normals)
+    raw_is_sheath = np.array([False] * len(blade_skeleton) + [True] * len(sheath_skeleton))
+
+    # Gaussian-smooth skeleton (sigma=1 layer) to remove zigzag
+    if len(raw_skeleton) >= 5:
+        from scipy.ndimage import gaussian_filter1d
+        # Preserve endpoints
+        smoothed = gaussian_filter1d(raw_skeleton, sigma=1.0, axis=0)
+        smoothed[0] = raw_skeleton[0]
+        smoothed[-1] = raw_skeleton[-1]
+        raw_skeleton = smoothed
+
+    # Resample to n_samples points via arc-length parameterization
+    diffs = np.diff(raw_skeleton, axis=0)
+    seg_lens = np.linalg.norm(diffs, axis=1)
+    cum_arc = np.concatenate([[0], np.cumsum(seg_lens)])
+    total_arc = cum_arc[-1]
+
+    if total_arc < 0.1:
+        center = raw_skeleton.mean(axis=0)
+        return LeafG1(
+            leaf_id=leaf_id, position=position,
+            skeleton=[center.tolist()], widths=[0.0],
+            per_point_normals=[[0, 0, 1]], curvature_profile=[],
+            oop_curvature_profile=[], twist_profile=[],
+            cross_section_angles=[np.pi], length=0.0, max_width=0.0,
+            insertion_angle=0.0, insertion_height=center[2],
+            base_point=center.tolist(), tip_point=center.tolist(),
+            width_profile_normalized=[0] * 10, asymmetry_profile=[0.0],
+            area=0.0,
+        )
+
+    t_uniform = np.linspace(0, total_arc, n_samples)
+    skeleton = np.zeros((n_samples, 3))
+    for dim in range(3):
+        skeleton[:, dim] = np.interp(t_uniform, cum_arc, raw_skeleton[:, dim])
+
+    # Interpolate raw widths to resampled skeleton (smooth, no gaps)
+    widths = np.interp(t_uniform, cum_arc, raw_widths)
+
+    normals = np.zeros((n_samples, 3))
+    for dim in range(3):
+        normals[:, dim] = np.interp(t_uniform, cum_arc, raw_normals[:, dim])
+    # Re-normalize normals
+    norms = np.linalg.norm(normals, axis=1, keepdims=True)
+    normals = normals / np.maximum(norms, 1e-10)
+
+    # Interpolate sheath flag to resampled skeleton
+    raw_sheath_float = raw_is_sheath.astype(float)
+    resampled_sheath = np.interp(t_uniform, cum_arc, raw_sheath_float)
+
+    # Curvature via existing helper
+    curvature, oop_curvature = _compute_curvature(skeleton)
+
+    # Twist via existing helper
+    twist = _compute_twist(skeleton, normals)
+
+    # Cross-section angles — approximate from widths (no left/right chains in BFS)
+    cs_angles = np.full(n_samples, np.pi)  # default flat
+
+    # Arc length
+    length = float(total_arc)
+
+    # Insertion angle
+    if n_samples >= 2:
+        first_seg = skeleton[1] - skeleton[0]
+        fl = np.linalg.norm(first_seg)
+        if fl > 0.01:
+            insertion_angle = float(np.arccos(np.clip(abs(first_seg[2]) / fl, 0, 1)))
+        else:
+            insertion_angle = 0.0
+    else:
+        insertion_angle = 0.0
+
+    # Width profile normalized to 10 positions
+    resampled_arc = np.linspace(0, total_arc, n_samples)
+    t_10 = np.linspace(0, total_arc, 10)
+    wp = np.interp(t_10, resampled_arc, widths)
+    max_w = widths.max()
+    if max_w > 0.01:
+        wp_norm = (wp / max_w).tolist()
+    else:
+        wp_norm = [0.0] * 10
+
+    # Asymmetry — not available from BFS (no left/right chains), set to zero
+    asymmetry = [0.0] * n_samples
+
+    # Area
+    area = float(getattr(np, 'trapezoid', np.trapz)(widths, resampled_arc))
+
+    # Build sheath dict from circumferential skeleton
+    sheath = None
+    has_sheath = raw_is_sheath.any()
+    if has_sheath and stem_center_xy is not None:
+        # Fraction: interpolated from raw sheath flag
+        fraction = np.interp(t_uniform, cum_arc, raw_is_sheath.astype(float))
+
+        # Wrap angle and radius from sheath skeleton points
+        sheath_skel_pts = raw_skeleton[raw_is_sheath]
+        if len(sheath_skel_pts) >= 2:
+            dxy = sheath_skel_pts[:, :2] - stem_center_xy
+            sheath_r = float(np.linalg.norm(dxy, axis=1).mean())
+            sh_angles = np.arctan2(dxy[:, 1], dxy[:, 0])
+            ang_diffs = np.diff(sh_angles)
+            ang_diffs = (ang_diffs + np.pi) % (2 * np.pi) - np.pi
+            wrap_angle = float(abs(ang_diffs.sum()))
+        else:
+            sheath_r = stem_radius
+            wrap_angle = np.pi
+
+        sheath_z = sheath_skel_pts[:, 2]
+        sheath_height = float(sheath_z.max() - sheath_z.min()) if len(sheath_z) > 1 else 0.0
+
+        nonzero = np.where(fraction > 0.01)[0]
+        if len(nonzero) >= 1:
+            sheath = {
+                "fraction": fraction.tolist(),
+                "center_xy": stem_center_xy.tolist(),
+                "radius": sheath_r,
+                "wrap_angle": wrap_angle,
+                "sheath_height": float(sheath_height),
+                "sheath_start_idx": int(nonzero[0]),
+                "sheath_end_idx": int(nonzero[-1]),
+            }
+
+    # ---- CPlantBox compatibility: reverse to BASE→TIP, clamp widths ----
+    # CPlantBox convention: skeleton[0] = base (stem attachment), skeleton[-1] = tip
+    # Our BFS goes tip→sheath(base), so reverse everything
+    skeleton = skeleton[::-1].copy()
+    widths = widths[::-1].copy()
+    normals = normals[::-1].copy()
+    if len(curvature) > 0:
+        curvature = curvature[::-1].copy()
+        oop_curvature = oop_curvature[::-1].copy()
+    if len(twist) > 0:
+        twist = twist[::-1].copy()
+    cs_angles = cs_angles[::-1].copy()
+    asymmetry = asymmetry[::-1]
+    if sheath is not None:
+        sheath["fraction"] = sheath["fraction"][::-1]
+        old_start = sheath["sheath_start_idx"]
+        old_end = sheath["sheath_end_idx"]
+        sheath["sheath_start_idx"] = n_samples - 1 - old_end
+        sheath["sheath_end_idx"] = n_samples - 1 - old_start
+
+    # Recompute normalized width profile after reversal
+    resampled_arc = np.linspace(0, total_arc, n_samples)
+    t_10 = np.linspace(0, total_arc, 10)
+    wp = np.interp(t_10, resampled_arc, widths)
+    max_w = widths.max()
+    wp_norm = (wp / max_w).tolist() if max_w > 0.01 else [0.0] * 10
+
+    # Clamp minimum width to 0.15 cm (CPlantBox convention, prevents degenerate tris)
+    widths = np.maximum(widths, 0.15)
+
+    # Tip taper: linear from 70% to 100% of length (CPlantBox convention)
+    if n_samples >= 4 and total_arc > 1.0:
+        cum_len = np.linspace(0, total_arc, n_samples)
+        for i in range(n_samples):
+            frac = cum_len[i] / total_arc
+            if frac > 0.70:
+                t = (frac - 0.70) / 0.30
+                widths[i] = max(widths[i] * (1.0 - t), 0.15)
+
+    # Insertion angle: angle of first skeleton segment from vertical (at base)
+    if n_samples >= 2:
+        first_seg = skeleton[1] - skeleton[0]
+        fl = np.linalg.norm(first_seg)
+        if fl > 0.01:
+            insertion_angle = float(np.arccos(np.clip(abs(first_seg[2]) / fl, 0, 1)))
+
+    # Area after width adjustments
+    area = float(getattr(np, 'trapezoid', np.trapz)(widths, resampled_arc))
+
+    return LeafG1(
+        leaf_id=leaf_id, position=position,
+        skeleton=skeleton.tolist(), widths=widths.tolist(),
+        per_point_normals=normals.tolist(),
+        curvature_profile=curvature.tolist(),
+        oop_curvature_profile=oop_curvature.tolist(),
+        twist_profile=twist.tolist(),
+        cross_section_angles=cs_angles.tolist(),
+        length=length,
+        max_width=float(widths.max()) if len(widths) > 0 else 0.0,
+        insertion_angle=insertion_angle,
+        insertion_height=float(skeleton[0, 2]),  # base = index 0 after reversal
+        base_point=skeleton[0].tolist(),   # base = index 0 (stem attachment)
+        tip_point=skeleton[-1].tolist(),  # tip = last index (leaf end)
+        width_profile_normalized=wp_norm,
+        asymmetry_profile=asymmetry,
+        area=area,
+        sheath=sheath,
+    )
+
+
+def extract_leaf_g1_boundary(comp, verts, faces, leaf_id, position, n_samples=20,
+                             stem_center_xy=None, stem_radius=1.0,
+                             vert_normals=None):
+    """Extract G1 using boundary-edge walking (legacy method)."""
     vert_ids = comp
     boundary_edges, comp_faces = _find_boundary_edges(faces, vert_ids)
 
@@ -519,6 +1330,10 @@ def extract_leaf_g1(comp, verts, faces, leaf_id, position, n_samples=20):
     chain_a, chain_b = _split_boundary(loop, verts)
     skeleton, widths, pts_a, pts_b = _correspond_chains(
         chain_a, chain_b, verts, n_samples)
+
+    # Refine skeleton using cross-section centroid projection
+    skeleton, widths, pts_a, pts_b = _refine_skeleton(
+        skeleton, widths, pts_a, pts_b, verts, vert_ids)
 
     # Per-point normals
     comp_verts_arr = verts  # full vertex array (face indices are global)
@@ -571,9 +1386,13 @@ def extract_leaf_g1(comp, verts, faces, leaf_id, position, n_samples=20):
     # Area (trapezoidal integration of width along arc length)
     if length > 0.1:
         cum_arc = np.concatenate([[0], np.cumsum(seg_lens)])
-        area = float(np.trapezoid(widths, cum_arc))
+        area = float(getattr(np, 'trapezoid', np.trapz)(widths, cum_arc))
     else:
         area = 0.0
+
+    # Sheath detection
+    sheath = _detect_sheath(skeleton, verts, vert_ids,
+                            stem_center_xy, stem_radius)
 
     return LeafG1(
         leaf_id=leaf_id, position=position,
@@ -591,7 +1410,26 @@ def extract_leaf_g1(comp, verts, faces, leaf_id, position, n_samples=20):
         width_profile_normalized=wp_norm,
         asymmetry_profile=asymmetry,
         area=area,
+        sheath=sheath,
     )
+
+
+def extract_leaf_g1(comp, verts, faces, leaf_id, position, n_samples=20,
+                    stem_center_xy=None, stem_radius=1.0,
+                    vert_normals=None, method="bfs"):
+    """Extract G1 representation from a leaf mesh component.
+
+    Args:
+        method: "bfs" (default, BFS cross-sectional layers) or
+                "boundary" (legacy boundary-edge walking)
+    """
+    if method == "boundary":
+        return extract_leaf_g1_boundary(comp, verts, faces, leaf_id, position,
+                                        n_samples, stem_center_xy, stem_radius,
+                                        vert_normals)
+    return extract_leaf_g1_bfs(comp, verts, faces, leaf_id, position,
+                               n_samples, stem_center_xy, stem_radius,
+                               vert_normals)
 
 
 def extract_stem_g1(verts, faces, leaf_bases):
@@ -664,16 +1502,33 @@ def extract_stem_g1(verts, faces, leaf_bases):
 def _extract_stage_g1(args):
     """Worker function for parallel G1 extraction of a single stage.
 
-    Args: tuple of (idx, stage_num, verts, groups, canonical, position_map, n_samples)
+    Args: tuple of (idx, stage_num, fpath_str, verts, groups, vert_normals,
+          canonical, position_map, n_samples)
     Returns: StageData for this stage.
     """
-    idx, stage_num, fpath_str, verts, groups, canonical_serialized, position_map, n_samples = args
+    idx, stage_num, fpath_str, verts, groups, vert_normals, canonical_serialized, position_map, n_samples = args
 
-    # Gather all leaf faces
+    # Gather all faces by group
     leaf_faces = []
+    stem_faces = []
     for gname, gfaces in groups.items():
         if "leaf" in gname.lower():
             leaf_faces.extend(gfaces)
+        elif "stem" in gname.lower():
+            stem_faces.extend(gfaces)
+
+    # Extract stem center and radius FIRST (needed for sheath detection)
+    stem_center_xy = None
+    stem_radius = 1.0
+    if stem_faces:
+        stem_vids = set()
+        for f in stem_faces:
+            stem_vids.update(f)
+        if stem_vids:
+            sv = verts[sorted(stem_vids)]
+            stem_center_xy = np.array(sv[:, :2].mean(axis=0))
+            stem_radius = float(np.linalg.norm(
+                sv[:, :2] - stem_center_xy, axis=1).mean())
 
     # Extract each tracked leaf
     leaves = []
@@ -682,16 +1537,13 @@ def _extract_stage_g1(args):
         if str(idx) in stage_map:
             comp = set(stage_map[str(idx)])
             g1 = extract_leaf_g1(comp, verts, leaf_faces, lid,
-                                 position_map[lid_str], n_samples)
+                                 position_map[lid_str], n_samples,
+                                 stem_center_xy=stem_center_xy,
+                                 stem_radius=stem_radius,
+                                 vert_normals=vert_normals)
             leaves.append(g1)
 
     leaves.sort(key=lambda l: l.position)
-
-    # Stem
-    stem_faces = []
-    for gname, gfaces in groups.items():
-        if "stem" in gname.lower():
-            stem_faces.extend(gfaces)
     leaf_bases = [(l.insertion_height, l.position)
                   for l in leaves if l.length > 1.0]
     stem = extract_stem_g1(verts, stem_faces, leaf_bases)
@@ -730,12 +1582,14 @@ def process_all_stages(export_dir, stages_range=None, n_samples=20, verbose=Fals
     all_verts = []
     all_groups = []
     all_comps = []
+    all_vert_normals = []
     for stage_num, fpath in files:
         if verbose:
             print(f"  Parsing stage {stage_num}: {fpath.name}")
-        verts, groups = parse_obj(fpath)
+        verts, groups, vert_normals = parse_obj(fpath)
         all_verts.append(verts)
         all_groups.append(groups)
+        all_vert_normals.append(vert_normals)
         # Find leaf components
         leaf_faces = []
         for gname, gfaces in groups.items():
@@ -773,7 +1627,7 @@ def process_all_stages(export_dir, stages_range=None, n_samples=20, verbose=Fals
                   f"{len(files)} stages)...")
         worker_args = [
             (idx, stage_num, fpath.name, all_verts[idx], all_groups[idx],
-             canonical_ser, position_map_ser, n_samples)
+             all_vert_normals[idx], canonical_ser, position_map_ser, n_samples)
             for idx, (stage_num, fpath) in enumerate(files)
         ]
         stages = []
@@ -797,18 +1651,39 @@ def process_all_stages(export_dir, stages_range=None, n_samples=20, verbose=Fals
                 print(f"  Extracting G1 for stage {stage_num}...")
             verts = all_verts[idx]
             groups = all_groups[idx]
+            vnorms = all_vert_normals[idx]
 
             leaf_faces = []
             for gname, gfaces in groups.items():
                 if "leaf" in gname.lower():
                     leaf_faces.extend(gfaces)
 
+            # Extract stem center for sheath detection
+            stem_faces_seq = []
+            for gname, gfaces in groups.items():
+                if "stem" in gname.lower():
+                    stem_faces_seq.extend(gfaces)
+            stem_center_xy_seq = None
+            stem_radius_seq = 1.0
+            if stem_faces_seq:
+                sv_ids = set()
+                for f in stem_faces_seq:
+                    sv_ids.update(f)
+                if sv_ids:
+                    sv = verts[sorted(sv_ids)]
+                    stem_center_xy_seq = np.array(sv[:, :2].mean(axis=0))
+                    stem_radius_seq = float(np.linalg.norm(
+                        sv[:, :2] - stem_center_xy_seq, axis=1).mean())
+
             leaves = []
             for lid, stage_map in canonical.items():
                 if idx in stage_map:
                     comp = stage_map[idx]
                     g1 = extract_leaf_g1(comp, verts, leaf_faces, lid,
-                                         position_map[lid], n_samples)
+                                         position_map[lid], n_samples,
+                                         stem_center_xy=stem_center_xy_seq,
+                                         stem_radius=stem_radius_seq,
+                                         vert_normals=vnorms)
                     leaves.append(g1)
 
             leaves.sort(key=lambda l: l.position)
@@ -1461,7 +2336,7 @@ def analyze_lofter_gaps(stages, export_dir, verbose=False):
             print(f"  Lofter round-trip for stage {stage_data.stage}...")
 
         # Load original mesh
-        verts_orig, groups_orig = parse_obj(export_dir / stage_data.file)
+        verts_orig, groups_orig, _ = parse_obj(export_dir / stage_data.file)
         leaf_faces_orig = []
         for gname, gfaces in groups_orig.items():
             if "leaf" in gname.lower():
@@ -1577,7 +2452,7 @@ def analyze_lofter_gaps(stages, export_dir, verbose=False):
                 print(f"    Diff-lofter on {device}")
 
             stage_data = test_stages[-1]  # most mature
-            verts_orig, groups_orig = parse_obj(export_dir / stage_data.file)
+            verts_orig, groups_orig, _ = parse_obj(export_dir / stage_data.file)
             leaf_faces_orig = []
             for gname, gfaces in groups_orig.items():
                 if "leaf" in gname.lower():
