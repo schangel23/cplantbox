@@ -7,7 +7,8 @@ from pathlib import Path
 
 
 def write_segment_sif_csv(output_path, iter_result, plant_idx,
-                          clearsky_par_wm2, fqe=0.01, sunlit_frac=0.2):
+                          clearsky_par_wm2, fqe=0.01, sunlit_frac=0.2,
+                          n_par_bands=6):
     """Write per-segment SIF CSV for one plant at one timestep.
 
     Columns: segment_idx, n_triangles, total_area_cm2,
@@ -29,6 +30,10 @@ def write_segment_sif_csv(output_path, iter_result, plant_idx,
 
     # Per-segment tri_data for area/apar if available
     tri_data = iter_result.get('tri_data')
+
+    # DART outputs absorption fractions (absorbed/incident), not absolute W/m².
+    # Scale by incident PAR per band to get absolute aPAR.
+    actual_par_per_band = clearsky_par_wm2 / max(n_par_bands, 1)
 
     fieldnames = ['segment_idx', 'n_triangles', 'total_area_cm2',
                   'apar_umol', 'tleaf_C', 'gs_mol', 'An_umol',
@@ -55,10 +60,12 @@ def write_segment_sif_csv(output_path, iter_result, plant_idx,
                 td = tri_data[si]
                 n_tris = td.get('n_triangles', 0)
                 area_cm2 = td.get('total_area_cm2', 0.0)
-                apar_umol = td.get('mean_apar_umol', 0.0)
+                # mean_apar_umol from baleno.py is fraction * 4.57;
+                # multiply by actual_par_per_band to get absolute µmol/m²/s
+                apar_umol = td.get('mean_apar_umol', 0.0) * actual_par_per_band
                 n_sunlit = td.get('n_sunlit', 0)
                 n_total = td.get('n_total', max(n_tris, 1))
-                # SIF = eta * fqe * apar (W/m2 PAR)
+                # SIF = eta * fqe * apar (absolute W/m2 PAR)
                 apar_wm2 = apar_umol / 4.57 if apar_umol > 0 else 0.0
                 sif_wm2 = eta_val * fqe * apar_wm2
 
@@ -81,19 +88,25 @@ def write_segment_sif_csv(output_path, iter_result, plant_idx,
 
 def write_triangle_sif_csv(output_path, tri_data_raw, plant_idx,
                            clearsky_par_wm2, fqe=0.01, sunlit_frac=0.2,
-                           apar_shaded_threshold_umol=10.0):
+                           apar_shaded_threshold_umol=10.0,
+                           n_par_bands=6):
     """Write per-triangle SIF CSV for one plant (opt-in, large file).
 
     tri_data_raw: list of dicts per triangle with keys:
         tri_idx, segment_idx, apar_Wm2, tleaf_C, eta, area_cm2
+
+    Note: apar_Wm2 from DART is an absorption fraction (absorbed/incident),
+    not absolute W/m².  We convert to absolute by multiplying by incident
+    PAR per spectral band (clearsky_par_wm2 / n_par_bands).
     """
     output_path = Path(output_path)
     if tri_data_raw is None or len(tri_data_raw) == 0:
         return
 
-    # Fixed threshold: Baleno apar_Wm2 is per-triangle absorbed energy,
-    # not comparable to clearsky PAR.  Use absolute threshold (10 µmol).
     par_threshold = apar_shaded_threshold_umol
+
+    # Convert DART absorption fractions to absolute W/m²
+    actual_par_per_band = clearsky_par_wm2 / max(n_par_bands, 1)
 
     fieldnames = ['tri_idx', 'segment_idx', 'apar_Wm2', 'tleaf_C',
                   'eta', 'SIF_W_m2', 'sunlit', 'area_cm2']
@@ -102,7 +115,8 @@ def write_triangle_sif_csv(output_path, tri_data_raw, plant_idx,
         writer = csv.DictWriter(f, fieldnames=fieldnames)
         writer.writeheader()
         for td in tri_data_raw:
-            apar_wm2 = td.get('apar_Wm2', 0.0)
+            apar_frac = td.get('apar_Wm2', 0.0)
+            apar_wm2 = apar_frac * actual_par_per_band  # fraction → absolute W/m²
             eta_val = td.get('eta', 0.0)
             sif_wm2 = eta_val * fqe * apar_wm2
             # Use DART sunlit classification if available, else threshold
@@ -127,7 +141,8 @@ def write_triangle_sif_csv(output_path, tri_data_raw, plant_idx,
 def compute_sunlit_shaded_summary(iter_results, clearsky_par_wm2,
                                   fqe=0.01, sunlit_frac=0.2,
                                   ground_area_m2=None,
-                                  apar_shaded_threshold_umol=10.0):
+                                  apar_shaded_threshold_umol=10.0,
+                                  n_par_bands=6):
     """Compute sunlit/shaded summary stats across all plants.
 
     Args:
@@ -140,6 +155,7 @@ def compute_sunlit_shaded_summary(iter_results, clearsky_par_wm2,
         apar_shaded_threshold_umol: fixed aPAR threshold [µmol] below which
             a triangle is classified as shaded.  Default 10 µmol matches
             _is_shaded() in baleno.py.
+        n_par_bands: number of PAR spectral bands in DART simulation.
 
     Returns:
         dict with sunlit/shaded stats + canopy SIF, or empty dict on failure.
@@ -147,9 +163,10 @@ def compute_sunlit_shaded_summary(iter_results, clearsky_par_wm2,
     if iter_results is None:
         return {}
 
-    # Fixed threshold: Baleno apar_Wm2 is per-triangle absorbed energy,
-    # not comparable to clearsky PAR.  Use absolute threshold (10 µmol).
     par_threshold = apar_shaded_threshold_umol
+
+    # DART outputs absorption fractions; scale by incident PAR per band.
+    actual_par_per_band = clearsky_par_wm2 / max(n_par_bands, 1)
 
     all_apar_sunlit = []
     all_apar_shaded = []
@@ -172,7 +189,8 @@ def compute_sunlit_shaded_summary(iter_results, clearsky_par_wm2,
             continue
 
         for td in tri_raw:
-            apar_wm2 = td.get('apar_Wm2', 0.0)
+            apar_frac = td.get('apar_Wm2', 0.0)
+            apar_wm2 = apar_frac * actual_par_per_band  # fraction → absolute W/m²
             apar_umol = apar_wm2 * 4.57
             tleaf_c = td.get('tleaf_C', 25.0)
             eta_val = td.get('eta', 0.0)
