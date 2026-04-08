@@ -90,6 +90,7 @@ def _fit_exponential_r(day_length_pairs, lmax):
     """Fit exponential growth rate from multi-stage (day, length) observations.
 
     Model: L(t) = lmax * (1 - exp(-r/lmax * t))
+    Time is shifted so the first observation is t=0 (approximates emergence).
     """
     if len(day_length_pairs) < 2:
         return lmax / 30.0
@@ -98,33 +99,44 @@ def _fit_exponential_r(day_length_pairs, lmax):
     days = np.array([d for d, _l in day_length_pairs])
     lengths = np.array([_l for _d, _l in day_length_pairs])
 
+    # Shift to time-since-emergence (first observation ≈ emergence)
+    t0 = days[0]
+    t_rel = days - t0
+
     def model(t, r):
         return lmax * (1.0 - np.exp(-r / lmax * t))
 
     try:
-        popt, _ = _curve_fit(model, days, lengths, p0=[lmax / 30.0],
+        popt, _ = _curve_fit(model, t_rel, lengths, p0=[lmax / 15.0],
                              bounds=(0.01, lmax * 0.5), maxfev=1000)
         return float(popt[0])
     except Exception:
         # Fallback: solve from last observation
-        t, L = days[-1], min(lengths[-1], lmax * 0.95)
+        t = t_rel[-1]
+        L = min(lengths[-1], lmax * 0.95)
         if L > 0 and t > 0 and L < lmax:
             return float(-lmax / t * math.log(1.0 - L / lmax))
-        return lmax / 30.0
+        return lmax / 15.0
 
 
 def _fit_gompertz_kr(day_length_pairs):
     """Fit Gompertz K and r from multi-stage observations.
 
     Model: L(t) = K * exp(ln(L0/K) * exp(-r*t/K))
+    Time is shifted so the first observation is t=0.
     """
     if len(day_length_pairs) < 2:
         max_l = max(l for _, l in day_length_pairs) if day_length_pairs else 50.0
-        return max_l * 1.3, max_l * 1.3 / 30.0
+        return max_l * 1.3, max_l * 1.3 / 15.0
 
     from scipy.optimize import curve_fit as _curve_fit
     days = np.array([d for d, _l in day_length_pairs])
     lengths = np.array([_l for _d, _l in day_length_pairs])
+
+    # Shift to time-since-emergence
+    t0 = days[0]
+    t_rel = days - t0
+
     L0 = max(lengths[0], 0.5)
     max_L = float(max(lengths))
 
@@ -133,15 +145,15 @@ def _fit_gompertz_kr(day_length_pairs):
 
     try:
         K_init = max_L * 1.3
-        r_init = K_init / 30.0
-        popt, _ = _curve_fit(model, days, lengths,
+        r_init = K_init / 15.0
+        popt, _ = _curve_fit(model, t_rel, lengths,
                              p0=[K_init, r_init],
                              bounds=([max_L, 0.1], [max_L * 3.0, max_L]),
                              maxfev=2000)
         return float(popt[0]), float(popt[1])
     except Exception:
         K = max_L * 1.3
-        return K, K / 30.0
+        return K, K / 15.0
 
 
 def _estimate_tropism_age(curvature_profile, length, r, lmax):
@@ -220,41 +232,43 @@ def compute_leaf_init_and_bounds(pos, ref_stages, gf=3):
     day_len = [(d, l.length) for d, l in observations if l.length > 2]
 
     # --- lmax + r (coupled for Gompertz) ---
+    # Bounds are wide: reference-derived x0 provides the starting point,
+    # but CPlantBox params don't map 1:1 to observed geometry.
     if gf == 4:
         K, gomp_r = _fit_gompertz_kr(day_len)
         x0_lmax = K
-        lmax_lo = max(max_length, SAFETY_LIMITS["lmax"][0])
-        lmax_hi = min(K * 2.0, SAFETY_LIMITS["lmax"][1])
+        lmax_lo = max(max_length * 0.5, SAFETY_LIMITS["lmax"][0])
+        lmax_hi = min(K * 3.0, SAFETY_LIMITS["lmax"][1])
         x0_r = gomp_r
-        r_lo = max(x0_r * 0.3, SAFETY_LIMITS["r"][0])
-        r_hi = min(x0_r * 3.0, SAFETY_LIMITS["r"][1])
+        r_lo = max(x0_r * 0.15, SAFETY_LIMITS["r"][0])
+        r_hi = min(x0_r * 5.0, SAFETY_LIMITS["r"][1])
     else:
         x0_lmax = max_length * 1.1
-        lmax_lo = max(max_length * 0.7, SAFETY_LIMITS["lmax"][0])
-        lmax_hi = min(max_length * 1.5, SAFETY_LIMITS["lmax"][1])
+        lmax_lo = max(min(max_length * 0.5, 10.0), SAFETY_LIMITS["lmax"][0])
+        lmax_hi = min(max_length * 2.5, SAFETY_LIMITS["lmax"][1])
         x0_r = _fit_exponential_r(day_len, x0_lmax)
-        r_lo = max(x0_r * 0.3, SAFETY_LIMITS["r"][0])
-        r_hi = min(x0_r * 3.0, min(x0_lmax * 0.5, SAFETY_LIMITS["r"][1]))
+        r_lo = max(min(x0_r * 0.15, 0.5), SAFETY_LIMITS["r"][0])
+        r_hi = min(x0_r * 5.0, min(x0_lmax * 0.5, SAFETY_LIMITS["r"][1]))
 
     # --- theta ---
     x0_theta = mature_leaf.insertion_angle
-    theta_lo = max(x0_theta * 0.5, SAFETY_LIMITS["theta"][0])
-    theta_hi = min(x0_theta * 2.0, SAFETY_LIMITS["theta"][1])
+    theta_lo = max(x0_theta * 0.3, SAFETY_LIMITS["theta"][0])
+    theta_hi = min(x0_theta * 3.0, SAFETY_LIMITS["theta"][1])
 
     # --- tropismS ---
     if curv and len(curv) > 0:
         mean_curv = float(np.mean(curv))
         max_curv = float(np.max(curv))
         x0_tropS = mean_curv
-        tropS_lo = max(mean_curv * 0.3, SAFETY_LIMITS["tropismS"][0])
-        tropS_hi = min(max_curv * 2.0, SAFETY_LIMITS["tropismS"][1])
+        tropS_lo = max(mean_curv * 0.1, SAFETY_LIMITS["tropismS"][0])
+        tropS_hi = min(max(max_curv * 3.0, 0.15), SAFETY_LIMITS["tropismS"][1])
     else:
-        x0_tropS, tropS_lo, tropS_hi = 0.03, 0.001, 0.1
+        x0_tropS, tropS_lo, tropS_hi = 0.03, 0.001, 0.15
 
     # --- tropismAge ---
     x0_tropAge = _estimate_tropism_age(curv, mature_leaf.length, x0_r, x0_lmax)
-    tropAge_lo = max(x0_tropAge * 0.3, SAFETY_LIMITS["tropismAge"][0])
-    tropAge_hi = min(x0_tropAge * 3.0, SAFETY_LIMITS["tropismAge"][1])
+    tropAge_lo = max(min(x0_tropAge * 0.2, 2.0), SAFETY_LIMITS["tropismAge"][0])
+    tropAge_hi = min(x0_tropAge * 4.0, SAFETY_LIMITS["tropismAge"][1])
 
     # --- tropismExponent (hard to extract — keep broad) ---
     x0_tropExp = 1.5
