@@ -231,13 +231,22 @@ def compute_leaf_init_and_bounds(pos, ref_stages, gf=3):
     curv = mature_leaf.curvature_profile
     day_len = [(d, l.length) for d, l in observations if l.length > 2]
 
+    # --- Bounds first (needed to clamp x0) ---
+    # Union of reference-derived and proven global — never more restrictive
+    # than the baseline that achieved 35cm.
+    if gf == 4:
+        global_lmax = (15.0, 150.0)
+        global_r = (max(4.0, max_length / 40.0), 15.0)
+    else:
+        global_lmax = (10.0, 100.0)
+        global_r = (0.5, 5.0)
+
     # --- Compute reference-derived x0 ---
-    # x0 from reference, bounds = union(reference-derived, proven global)
-    # so we never restrict CMA-ES more than the baseline that achieved 35cm.
     if gf == 4:
         K, gomp_r = _fit_gompertz_kr(day_len)
-        x0_lmax = K
-        x0_r = gomp_r
+        # Clamp Gompertz K to sensible range: observed max + headroom, not wild extrapolation
+        x0_lmax = float(np.clip(K, max_length, max_length * 1.5))
+        x0_r = float(np.clip(gomp_r, global_r[0], global_r[1]))
     else:
         x0_lmax = max_length * 1.1
         x0_r = _fit_exponential_r(day_len, x0_lmax)
@@ -260,18 +269,6 @@ def compute_leaf_init_and_bounds(pos, ref_stages, gf=3):
     else:
         curv_x0 = [x0_tropS] * 5
 
-    x0 = [x0_lmax, x0_r, x0_theta, x0_tropS, x0_tropAge, x0_tropExp, x0_collar,
-          *curv_x0]
-
-    # --- Bounds: union of reference-derived and proven global ---
-    # Global bounds that achieved 35cm baseline (never be more restrictive):
-    if gf == 4:
-        global_lmax = (15.0, 150.0)
-        global_r = (max(4.0, x0_lmax / 40.0), 15.0)
-    else:
-        global_lmax = (10.0, 100.0)
-        global_r = (0.5, 5.0)
-
     bounds = [
         ("lmax",           max(min(global_lmax[0], x0_lmax * 0.5), SAFETY_LIMITS["lmax"][0]),
                            min(max(global_lmax[1], x0_lmax * 2.0), SAFETY_LIMITS["lmax"][1])),
@@ -288,6 +285,12 @@ def compute_leaf_init_and_bounds(pos, ref_stages, gf=3):
         ("curv_k3",        0.0,       0.15),
         ("curv_k4",        0.0,       0.15),
     ]
+
+    # Assemble x0 and clamp each value inside its bounds
+    x0_raw = [x0_lmax, x0_r, x0_theta, x0_tropS, x0_tropAge, x0_tropExp,
+              x0_collar, *curv_x0]
+    x0 = [float(np.clip(v, lo, hi)) for v, (_, lo, hi) in zip(x0_raw, bounds)]
+
     return x0, bounds
 
 
