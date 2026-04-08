@@ -231,79 +231,62 @@ def compute_leaf_init_and_bounds(pos, ref_stages, gf=3):
     curv = mature_leaf.curvature_profile
     day_len = [(d, l.length) for d, l in observations if l.length > 2]
 
-    # --- lmax + r (coupled for Gompertz) ---
-    # Bounds are wide: reference-derived x0 provides the starting point,
-    # but CPlantBox params don't map 1:1 to observed geometry.
+    # --- Compute reference-derived x0 ---
+    # x0 from reference, bounds = union(reference-derived, proven global)
+    # so we never restrict CMA-ES more than the baseline that achieved 35cm.
     if gf == 4:
         K, gomp_r = _fit_gompertz_kr(day_len)
         x0_lmax = K
-        lmax_lo = max(max_length * 0.5, SAFETY_LIMITS["lmax"][0])
-        lmax_hi = min(K * 3.0, SAFETY_LIMITS["lmax"][1])
         x0_r = gomp_r
-        r_lo = max(x0_r * 0.15, SAFETY_LIMITS["r"][0])
-        r_hi = min(x0_r * 5.0, SAFETY_LIMITS["r"][1])
     else:
         x0_lmax = max_length * 1.1
-        lmax_lo = max(min(max_length * 0.5, 10.0), SAFETY_LIMITS["lmax"][0])
-        lmax_hi = min(max_length * 2.5, SAFETY_LIMITS["lmax"][1])
         x0_r = _fit_exponential_r(day_len, x0_lmax)
-        r_lo = max(min(x0_r * 0.15, 0.5), SAFETY_LIMITS["r"][0])
-        r_hi = min(x0_r * 5.0, min(x0_lmax * 0.5, SAFETY_LIMITS["r"][1]))
 
-    # --- theta ---
     x0_theta = mature_leaf.insertion_angle
-    theta_lo = max(x0_theta * 0.3, SAFETY_LIMITS["theta"][0])
-    theta_hi = min(x0_theta * 3.0, SAFETY_LIMITS["theta"][1])
 
-    # --- tropismS ---
     if curv and len(curv) > 0:
-        mean_curv = float(np.mean(curv))
-        max_curv = float(np.max(curv))
-        x0_tropS = mean_curv
-        tropS_lo = max(mean_curv * 0.1, SAFETY_LIMITS["tropismS"][0])
-        tropS_hi = min(max(max_curv * 3.0, 0.15), SAFETY_LIMITS["tropismS"][1])
+        x0_tropS = float(np.mean(curv))
     else:
-        x0_tropS, tropS_lo, tropS_hi = 0.03, 0.001, 0.15
+        x0_tropS = 0.03
 
-    # --- tropismAge ---
     x0_tropAge = _estimate_tropism_age(curv, mature_leaf.length, x0_r, x0_lmax)
-    tropAge_lo = max(min(x0_tropAge * 0.2, 2.0), SAFETY_LIMITS["tropismAge"][0])
-    tropAge_hi = min(x0_tropAge * 4.0, SAFETY_LIMITS["tropismAge"][1])
-
-    # --- tropismExponent (hard to extract — keep broad) ---
     x0_tropExp = 1.5
-    tropExp_lo, tropExp_hi = SAFETY_LIMITS["tropismExponent"]
-
-    # --- collarLength ---
     x0_collar = _estimate_collar_length(curv, mature_leaf.length)
-    collar_lo = 0.0
-    collar_hi = min(max(x0_collar * 2.5, 3.0), SAFETY_LIMITS["collarLength"][1])
 
-    # --- curvature knots ---
     if curv and len(curv) >= 5:
         indices = np.linspace(0, len(curv) - 1, 5, dtype=int)
         curv_arr = np.array(curv)
         curv_x0 = [float(curv_arr[i]) for i in indices]
-        curv_max = min(float(np.max(curv_arr)) * 2.0, SAFETY_LIMITS["curv_k"][1])
     else:
         curv_x0 = [x0_tropS] * 5
-        curv_max = min(0.1, SAFETY_LIMITS["curv_k"][1])
 
     x0 = [x0_lmax, x0_r, x0_theta, x0_tropS, x0_tropAge, x0_tropExp, x0_collar,
           *curv_x0]
+
+    # --- Bounds: union of reference-derived and proven global ---
+    # Global bounds that achieved 35cm baseline (never be more restrictive):
+    if gf == 4:
+        global_lmax = (15.0, 150.0)
+        global_r = (max(4.0, x0_lmax / 40.0), 15.0)
+    else:
+        global_lmax = (10.0, 100.0)
+        global_r = (0.5, 5.0)
+
     bounds = [
-        ("lmax",           lmax_lo,   lmax_hi),
-        ("r",              r_lo,      r_hi),
-        ("theta",          theta_lo,  theta_hi),
-        ("tropismS",       tropS_lo,  tropS_hi),
-        ("tropismAge",     tropAge_lo, tropAge_hi),
-        ("tropismExponent", tropExp_lo, tropExp_hi),
-        ("collarLength",   collar_lo, collar_hi),
-        ("curv_k0",        0.0,       curv_max),
-        ("curv_k1",        0.0,       curv_max),
-        ("curv_k2",        0.0,       curv_max),
-        ("curv_k3",        0.0,       curv_max),
-        ("curv_k4",        0.0,       curv_max),
+        ("lmax",           max(min(global_lmax[0], x0_lmax * 0.5), SAFETY_LIMITS["lmax"][0]),
+                           min(max(global_lmax[1], x0_lmax * 2.0), SAFETY_LIMITS["lmax"][1])),
+        ("r",              max(min(global_r[0], x0_r * 0.2), SAFETY_LIMITS["r"][0]),
+                           min(max(global_r[1], x0_r * 5.0), SAFETY_LIMITS["r"][1])),
+        ("theta",          0.05,  1.4),
+        ("tropismS",       0.001, 0.15),
+        ("tropismAge",     2.0,   60.0),
+        ("tropismExponent", 0.5,  3.0),
+        ("collarLength",   0.0,   10.0),
+        ("curv_k0",        0.0,       0.15),
+        ("curv_k1",        0.0,       0.15),
+        ("curv_k2",        0.0,       0.15),
+        ("curv_k3",        0.0,       0.15),
+        ("curv_k4",        0.0,       0.15),
     ]
     return x0, bounds
 
