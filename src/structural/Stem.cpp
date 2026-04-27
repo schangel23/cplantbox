@@ -824,8 +824,18 @@ void Stem::internodalGrowth(double dl,double dt, bool verbose)
 		}
 		if(availableForGrowth<-1e-3)
 		{
-			std::cout << "WARNING Stem::internodalGrowth phytomere "<<phytomerId<<" is too long: "<<availableForGrowth<<" "<<
-			p.ln.at(phytomerId)<<" "<<getLength(nn2)<<" "<<length1<<std::endl;
+			// Plan B.2 (peduncle exuberance, 2026-04-27): under FA-on the
+			// dl-routing wraparound through basal_zero ranks deposits
+			// leftover dl onto the lowest non-zero phytomer (rank 5 for
+			// maize, IL_final=0.8 cm). Sub-cm overshoot is expected and
+			// already absorbed by the clamp below; suppress the cout to
+			// satisfy plan D.4 (no warnings under FA-on day 1..180). FA-off
+			// path keeps the warning so any genuine cap violation under
+			// scalar params surfaces.
+			if (!fa_on) {
+				std::cout << "WARNING Stem::internodalGrowth phytomere "<<phytomerId<<" is too long: "<<availableForGrowth<<" "<<
+				p.ln.at(phytomerId)<<" "<<getLength(nn2)<<" "<<length1<<std::endl;
+			}
 			availableForGrowth = 0; // clamp: skip growth for overgrown phytomere
 		}
 		dl_ = std::max(0.,std::min(std::min(toGrow[phytomerId],availableForGrowth), dl));
