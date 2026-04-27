@@ -2906,52 +2906,18 @@ def extract_organs_for_lofter(plant, min_stem_nodes=50, min_leaf_nodes=20,
                     o['skeleton'][:, 2] += tassel_shift_z
             tassel_base_z = target_base_z  # keep downstream logic consistent
 
-    # Trim stem above the highest leaf attachment point.
-    # CPlantBox grows the stem beyond the last leaf, but the bare tip
-    # looks unrealistic in the mesh.  Truncate to highest_leaf_base + margin.
-    # If a tassel organ is attached to the stem, extend the cut to the
-    # (shifted) tassel's insertion z so the stem and tassel tubes overlap
-    # instead of leaving an air gap (loft_organs smoothing further shrinks
-    # each cap ~1 cm inward — see project_tassel_smoothing_gap memory).
-    if leaf_bases_z:
-        max_leaf_z = max(leaf_bases_z)
-        margin = 2.0  # cm above last leaf attachment
-        cut_z = max_leaf_z + margin
-        if tassel_base_z is not None:
-            cut_z = max(cut_z, tassel_base_z + 3.0)  # +3 cm overlap into tassel
-        for o in organs:
-            if o['type'] != 'stem':
-                continue
-            # Tassel organs (spike + branches) must not be trimmed — they
-            # live above the leaf canopy by design and their tips carry the
-            # anther billboards.
-            oname = o.get('name', '')
-            if oname.startswith(('tassel_spike_', 'tassel_branch_')):
-                continue
-            skel = o['skeleton']
-            if skel[-1, 2] <= cut_z:
-                continue
-            # Find last node at or below cut_z
-            above = np.where(skel[:, 2] > cut_z)[0]
-            if len(above) == 0:
-                continue
-            first_above = above[0]
-            if first_above < 2:
-                continue  # don't trim to nothing
-            # Interpolate crossing point
-            p_below = skel[first_above - 1]
-            p_above = skel[first_above]
-            dz = p_above[2] - p_below[2]
-            if abs(dz) > 1e-12:
-                t = (cut_z - p_below[2]) / dz
-                crossing = p_below + t * (p_above - p_below)
-                w_cross = o['widths'][first_above - 1] + t * (
-                    o['widths'][first_above] - o['widths'][first_above - 1])
-                o['skeleton'] = np.vstack([skel[:first_above], crossing[np.newaxis]])
-                o['widths'] = np.concatenate([o['widths'][:first_above], [w_cross]])
-            else:
-                o['skeleton'] = skel[:first_above]
-                o['widths'] = o['widths'][:first_above]
+    # Cosmetic stem trim removed (Plan B.3 / S4 of
+    # PLAN_PEDUNCLE_EXUBERANCE_2026-04-27.md, 2026-04-27).  The
+    # structural fix in StemRandomParameter::realize() (FA-aware ln_
+    # sizing + tassel-peduncle gate) and Stem::simulate (per-rank Phase
+    # IV cessation gate) now keep the mainstem skeleton at topmost-leaf
+    # insertion z + ~2 cm by construction, so the lofter no longer needs
+    # to mask apex overshoot here.  HI#4 closes via the C++ skeleton
+    # itself, not via post-hoc geometry surgery.  See
+    # project_peduncle_exuberance_root_cause memory for the diagnostic
+    # and the commit history (per-rank cessation gate + ln basal_floor +
+    # tassel-peduncle gate) for the underlying fix.
+
 
     # Pass leaf attachment heights to stems for internode modulation.
     if leaf_bases_z:
