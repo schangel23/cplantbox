@@ -69,5 +69,10 @@ tutorial/jupyter/.ipynb_checkpoints/
 # Coupling pipeline output (generated data, OBJ meshes, session results)
 dart/coupling/output/
 
+# Outputs generated next to blender_preview scripts (legacy in-place writes)
+dart/tools/blender_preview/stages/
+dart/tools/blender_preview/stages_nodonor/
+dart/tools/blender_preview/vr_stages/
+
 # Virtual environments
 cpbenv/
