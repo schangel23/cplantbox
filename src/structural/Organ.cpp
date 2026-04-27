@@ -774,10 +774,26 @@ void Organ::createSegments(double l, double dt, bool verbose, int PhytoIdx)
  * Creates a new lateral
  *  @param dt       time step [day]
  *  @param verbose  turns console output on or off
+ *
+ * S3b (plan §A, decision 3 pull-based trigger): consults
+ * ``pending_lateral_pni_override_`` to let the FA-path mid-stem insertion
+ * driver attach a lateral at an arbitrary parent node index. When the
+ * override is <0 (default), the lateral's pni defaults to ``nodes.size()-1``
+ * which reproduces the pre-S3b scalar-path behavior bit-for-bit
+ * (Hard Invariant #1). The override is cleared at the top of this call so it
+ * cannot leak across call sites.
  */
 void Organ::createLateral(double dt, bool verbose)
 {
     auto rp = getOrganRandomParameter(); // rename
+
+    // S3b: resolve pni once, then clear the override so subsequent scalar-path
+    // createLateral calls (e.g. the scalar branching-zone burst loop) cannot
+    // inherit a stale override from a prior FA-path call.
+    int lateral_pni = (pending_lateral_pni_override_ >= 0)
+        ? pending_lateral_pni_override_
+        : (static_cast<int>(nodes.size()) - 1);
+    pending_lateral_pni_override_ = -1;
 
     for(int i = 0; i < rp->successorST.size(); i++){//go through each successor rule
         //found id
@@ -809,20 +825,20 @@ void Organ::createLateral(double dt, bool verbose)
 
                     switch(ot){
                     case Organism::ot_root:{
-                        auto lateral = std::make_shared<Root>(plant.lock(), st,  delay, shared_from_this(),  nodes.size() - 1);
-						lateral->has_rel_coord = this->has_rel_coord;						   
+                        auto lateral = std::make_shared<Root>(plant.lock(), st,  delay, shared_from_this(),  lateral_pni);
+						lateral->has_rel_coord = this->has_rel_coord;
                         children.push_back(lateral);
                         lateral->simulate(growth_dt,verbose);
                         break;}
                     case Organism::ot_stem:{
-                        auto lateral = std::make_shared<Stem>(plant.lock(), st, delay, shared_from_this(),  nodes.size() - 1);
-						lateral->has_rel_coord = this->has_rel_coord;						   
+                        auto lateral = std::make_shared<Stem>(plant.lock(), st, delay, shared_from_this(),  lateral_pni);
+						lateral->has_rel_coord = this->has_rel_coord;
                         children.push_back(lateral);
                         lateral->simulate(growth_dt,verbose);
                         break;}
                     case Organism::ot_leaf:{
-                        auto lateral = std::make_shared<Leaf>(plant.lock(), st,  delay, shared_from_this(),  nodes.size() - 1);
-						lateral->has_rel_coord = this->has_rel_coord;						   
+                        auto lateral = std::make_shared<Leaf>(plant.lock(), st,  delay, shared_from_this(),  lateral_pni);
+						lateral->has_rel_coord = this->has_rel_coord;
                         children.push_back(lateral);
                         lateral->simulate(growth_dt,verbose);//age-ageLN,verbose);
                         break;}

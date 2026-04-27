@@ -44,9 +44,11 @@ def convert_obj_to_dart(input_path, output_path, scale=0.01, zero_pad_groups=Tru
 
     stats = {'n_vertices': 0, 'n_normals': 0, 'n_faces': 0, 'n_groups': 0, 'groups': []}
 
-    # Pattern for group names like organ_0, organ_1, ..., organ_11
-    # Also handles plant-prefixed names like p0_organ_0, p1_organ_11
-    group_pat = re.compile(r'^((?:p\d+_)?organ_)(\d+)$')
+    # Pattern for group names like organ_N, tassel_spike_N, tassel_branch_N.
+    # Also handles plant-prefixed names like p0_organ_0, p1_tassel_spike_15.
+    group_pat = re.compile(
+        r'^((?:p\d+_)?(?:organ|tassel_spike|tassel_branch)_)(\d+)$'
+    )
 
     lines_out = []
     with open(input_path, 'r') as f:
@@ -109,7 +111,9 @@ def convert_mapping_json_groups(mapping_json_path, output_path=None, zero_pad=Tr
         mapping = json.load(f)
 
     if zero_pad:
-        group_pat = re.compile(r'^((?:p\d+_)?organ_)(\d+)$')
+        group_pat = re.compile(
+            r'^((?:p\d+_)?(?:organ|tassel_spike|tassel_branch)_)(\d+)$'
+        )
         for organ in mapping.get('organs', []):
             name = organ.get('name', '')
             m = group_pat.match(name)

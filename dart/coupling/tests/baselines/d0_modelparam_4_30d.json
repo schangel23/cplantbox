@@ -1,0 +1,16 @@
+{
+  "n_leaf_nodes": 0,
+  "n_leaves": 0,
+  "n_mainstem_nodes": 209,
+  "n_organs": 4081,
+  "n_root_nodes": 15518,
+  "n_roots": 1054,
+  "n_segments_total": 28111,
+  "n_stems": 3027,
+  "seed": 7,
+  "sha256": "170accd94cb0b4fb668f647fa3b0c0846cd9dbfabe0b8a2535b1ff78493dabb0",
+  "sim_days": 30,
+  "slug": "modelparam_4_30d",
+  "use_daily_met": false,
+  "xml": "modelparameter/structural/plant/4.xml"
+}

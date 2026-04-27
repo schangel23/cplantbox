@@ -128,6 +128,88 @@ void Stem::simulate(double dt, bool verbose)
 		}
 		age+=dt;
 
+		// --- Thermal-time emergence gate (subtype-agnostic, opt-in via use_thermal_emergence) ---
+		// Gates stem "birth" on plant TT instead of calendar-day ldelay. Each stem subType
+		// carries a tt_emergence threshold; the stem does not grow until plant accumulated TT
+		// crosses it. Used e.g. for tassel subType to emerge at VT under variable T forcing.
+		{
+			auto plant_tt = getPlant();
+			const auto& srp_tt = *getStemRandomParameter();
+			if (plant_tt && srp_tt.use_thermal_emergence && srp_tt.tt_emergence > 0.0) {
+				if (plant_tt->getAccumulatedTT() < srp_tt.tt_emergence) {
+					age -= dt;          // unborn: revert age, no growth this step
+					return;
+				}
+			}
+			// --- Thermal-time cessation gate (mainstem end-of-elongation at VT) ---
+			// One-shot latch: first step where plant TT >= tt_cessation records the stem's
+			// current age; subsequent length updates clamp age__ to that age (see below).
+			if (plant_tt && srp_tt.use_thermal_cessation && srp_tt.tt_cessation > 0.0
+			    && cessation_age_ < 0.0
+			    && plant_tt->getAccumulatedTT() >= srp_tt.tt_cessation) {
+				cessation_age_ = age;
+				// FA parallel: sample Andrieu-axis TT at the same instant so the
+				// FA branch can freeze per-rank kinetics (plan §B.3 cessation
+				// interaction). Harmless for scalar path — never read there.
+				cessation_andrieu_tt_ = plant_tt->getAccumulatedAndrieuTT();
+			}
+		}
+
+		// S3b.7 — Per-rank cessation sampling moved OUT of the active-gated FA
+		// branch so it still fires when the stem has reached getK (active=false)
+		// but plant TT continues accumulating. Under S3b.7 basal_internode_cm
+		// inflates total length slightly, causing active=false a few days earlier
+		// than the S3b.3 baseline; with the sampling inside if(active), per-rank
+		// latches can miss crossings that would have fired under the slower
+		// scalar path. Pure latch operation (records a value, doesn't affect
+		// current-step growth), so moving it is safe. Still gated on FA flag +
+		// use_thermal_cessation + tt_cessation>0. The GLOBAL latch (10 lines
+		// up) and this PER-RANK latch now live in the same "outside if(active)"
+		// region, which matches their semantic role (one-shot latches, not
+		// growth drivers).
+		{
+			const auto& srp_fa_outer = *getStemRandomParameter();
+			if (srp_fa_outer.use_fournier_andrieu_kinetics
+			    && srp_fa_outer.use_thermal_cessation
+			    && srp_fa_outer.tt_cessation > 0.0) {
+				const int n_ranks_outer = static_cast<int>(srp_fa_outer.internode_v_n.size());
+				if (n_ranks_outer > 0) {
+					if (static_cast<int>(cessation_andrieu_tt_per_n.size()) < n_ranks_outer + 1) {
+						cessation_andrieu_tt_per_n.resize(n_ranks_outer + 1, -1.0);
+						cessation_age_per_n.resize(n_ranks_outer + 1, -1.0);
+					}
+					auto plant_cess_outer = getPlant();
+					if (plant_cess_outer) {
+						double plant_andrieu_tt_outer = plant_cess_outer->getAccumulatedAndrieuTT();
+						int leaf_ordinal_outer = 0;
+						for (const auto& c : children) {
+							if (c->organType() != Organism::ot_leaf) continue;
+							leaf_ordinal_outer++;
+							if (leaf_ordinal_outer > n_ranks_outer) break;
+							if (cessation_andrieu_tt_per_n[leaf_ordinal_outer] >= 0.0) continue;
+							// Prefer plastochron-driven init_tt when available
+							// (S3b.7 path); fall back to leaf emergence axis.
+							double init_tt_outer = -1.0;
+							if (leaf_ordinal_outer < static_cast<int>(initiation_andrieu_tt_per_n.size())
+							    && initiation_andrieu_tt_per_n[leaf_ordinal_outer] >= 0.0) {
+								init_tt_outer = initiation_andrieu_tt_per_n[leaf_ordinal_outer];
+							} else {
+								auto lf = std::static_pointer_cast<Leaf>(c);
+								double leaf_tt_outer = lf->getEmergenceAndrieuTT();
+								if (leaf_tt_outer < 0.0) continue;
+								init_tt_outer = leaf_tt_outer + 9.6;   // HALF_PLASTOCHRON_LAG_DEGCD
+							}
+							double tau_n_outer = plant_andrieu_tt_outer - init_tt_outer;
+							if (tau_n_outer >= srp_fa_outer.tt_cessation) {
+								cessation_andrieu_tt_per_n[leaf_ordinal_outer] = plant_andrieu_tt_outer;
+								cessation_age_per_n[leaf_ordinal_outer] = age;
+							}
+						}
+					}
+				}
+			}
+		}
+
 		// probabilistic branching model (todo test)
 		if ((age>0) && (age-dt<=0)) { // the root emerges in this time step
 			//use relative coordinates for this function. Delete as it s not a root?
@@ -163,10 +245,169 @@ void Stem::simulate(double dt, bool verbose)
 						age__ = age - (p.delayNGEnd - p.delayNGStart);//simulation ends after end of growth pause
 					}
 				}//delay to apply
+				// Thermal-time cessation latch: once the gate has fired, freeze
+				// effective age at the latch value so calcLength() stops growing.
+				if (cessation_age_ >= 0.0 && age__ > cessation_age_) {
+					age__ = cessation_age_;
+				}
 				/*as we currently do not implement impeded growth for stem and leaves
 				*we can use directly the organ's age to cumpute the target length
 				*/
-				double targetlength = calcLength(age__)+ this->epsilonDx;
+				// Fournier-Andrieu branch (plan §B.3, updated for S3b Option 1
+				// 2026-04-23). Replaces the scalar calcLength(age__) with the
+				// per-phytomer FA sum when the stem's flag is true. Scalar
+				// else-branch is bit-for-bit unchanged from pre-B.3 master
+				// (Hard Invariant #1). Flag is false for all non-maize XMLs
+				// and for maize tassel subType=20/21; only maize_calibrated
+				// mainstem subType=1 sets it to true.
+				//
+				// S3b Option 1 bootstrap (plan §S3b "Architectural decisions"):
+				// targetlength = p.lb + Σ latched IL + epsilonDx. The p.lb
+				// offset preserves the basal-stub growth driver — the scalar
+				// basal/branching-zone allocator below grows stem 0 → p.lb and
+				// fires the branching-zone burst that creates leaves. Once
+				// leaves have emerged and their emergence_andrieu_tt_ is set,
+				// FA kinetics become non-zero for ranks 5+ and drive further
+				// elongation. The thin-B.3.5 scalar max() floor is dropped:
+				// under Option 1 the kinetic contribution above p.lb comes
+				// solely from the latched FA per-rank sum (decision 1).
+				//
+				// Per-rank monotonic latch (decision 2, S3b.1 finding 2): we
+				// track length_per_n[n] by taking max(length_per_n[n],
+				// calcLengthPerPhytomer(n)) each step. This absorbs the Phase
+				// IV decay artifact (raw calcLengthPerPhytomer(n) can drop
+				// when IL_end_III > IL_final); the latch keeps the kinetic
+				// state monotone, which is the load-bearing property for
+				// S3b.5 per-rank τ_n validation against Fournier 2000 Déa.
+				double targetlength;
+				if (p.use_fournier_andrieu_kinetics) {
+					const int n_ranks = static_cast<int>(p.internode_v_n.size());
+					// Lazy init of per-phytomer bookkeeping vectors (first FA-on
+					// step). Index 0 is unused; ranks are indexed 1..n_ranks.
+					if (static_cast<int>(length_per_n.size()) < n_ranks + 1) {
+						length_per_n.resize(n_ranks + 1, 0.0);
+						epsilonDx_per_n.resize(n_ranks + 1, 0.0);
+						cessation_age_per_n.resize(n_ranks + 1, -1.0);
+						cessation_andrieu_tt_per_n.resize(n_ranks + 1, -1.0);
+						lateral_spawned_per_n.resize(n_ranks + 1, 0);
+					}
+					// Per-rank monotonic latch update (decision 2). Under S3b.3
+					// length_per_n[n] is ALLOCATED (realized) length per rank,
+					// so the "latch" is simply "don't retreat if kinetic target
+					// drops during Phase IV decay". Target advancement is
+					// committed to length_per_n[n] in the per-rank allocator
+					// loop below via dl_n = (target_n - length_per_n[n]) when
+					// dl_n >= dxMin(); in between, target advancement gets
+					// stashed in epsilonDx_per_n[n] until it crosses dxMin.
+					// S3b.3 per-rank cessation sampling (plan §B). Each rank
+					// freezes on its own tau_n = plant_andrieu_tt − init_tt_n
+					// once tau_n >= tt_cessation. Sampled BEFORE the FA latch
+					// so calcLengthPerPhytomer(n) inside the target loop sees
+					// the freshly latched value. Production XML has
+					// tt_cessation=1500 which never fires under Juelich 2024
+					// (Andrieu Tb=9.8 climbs to ~1300 by day 130, per-rank
+					// tau_n lower still) — per-rank latches stay at -1.0,
+					// global cessation (also unset) falls through unchanged,
+					// preserving Hard Invariant #4 (tassel day 125 ±3). Only
+					// the synthetic `tt_cessation=800` test exercises this
+					// path.
+					{
+						const auto& srp_fa = *getStemRandomParameter();
+						if (srp_fa.use_thermal_cessation && srp_fa.tt_cessation > 0.0) {
+							auto plant_cess = getPlant();
+							if (plant_cess) {
+								double plant_andrieu_tt = plant_cess->getAccumulatedAndrieuTT();
+								int leaf_ordinal_cess = 0;
+								for (const auto& c : children) {
+									if (c->organType() != Organism::ot_leaf) continue;
+									leaf_ordinal_cess++;
+									if (leaf_ordinal_cess > n_ranks) break;
+									if (cessation_andrieu_tt_per_n[leaf_ordinal_cess] >= 0.0) continue;
+									auto lf = std::static_pointer_cast<Leaf>(c);
+									double leaf_tt = lf->getEmergenceAndrieuTT();
+									if (leaf_tt < 0.0) continue;
+									double init_tt_n = leaf_tt + 9.6;   // HALF_PLASTOCHRON_LAG_DEGCD
+									double tau_n = plant_andrieu_tt - init_tt_n;
+									if (tau_n >= srp_fa.tt_cessation) {
+										cessation_andrieu_tt_per_n[leaf_ordinal_cess] = plant_andrieu_tt;
+										cessation_age_per_n[leaf_ordinal_cess] = age;
+									}
+								}
+							}
+						}
+					}
+					// S3b.7 plastochron forecast (plan §E.b). For each rank
+					// whose birthday has crossed on the plant Andrieu-TT axis
+					// (init_tt_n = n * plastochron_andrieu) but which hasn't
+					// yet been spawned, seed length_per_n[n] = basal_internode_cm.
+					// This makes fa_sum below include the to-be-created
+					// segment's budget so dl covers the createSegments call
+					// in the S3b.7 branching block. Span walk at end of
+					// simulate re-syncs length_per_n from actual geometry,
+					// preserving HI#5.
+					//
+					// This block also sizes length_per_n (and siblings) up to
+					// p.ln.size()+1 when the lateral count exceeds n_ranks
+					// (e.g. maize tassel at rank 17 with FA kinetic data only
+					// for ranks 1..16). Ranks beyond n_ranks contribute their
+					// seeded/allocated length directly to fa_sum below.
+					{
+						const auto& srp_fc = *getStemRandomParameter();
+						double plastochron = srp_fc.plastochron_andrieu;
+						double basal_step = srp_fc.basal_internode_cm;
+						auto plant_fc = getPlant();
+						double plant_andrieu_tt_fc = plant_fc ? plant_fc->getAccumulatedAndrieuTT() : 0.0;
+						int n_laterals_max = static_cast<int>(p.ln.size()) + 1;
+						int per_n_end = std::max(n_ranks + 1, n_laterals_max + 1);
+						if (static_cast<int>(length_per_n.size()) < per_n_end) {
+							length_per_n.resize(per_n_end, 0.0);
+							epsilonDx_per_n.resize(per_n_end, 0.0);
+							cessation_age_per_n.resize(per_n_end, -1.0);
+							cessation_andrieu_tt_per_n.resize(per_n_end, -1.0);
+							lateral_spawned_per_n.resize(per_n_end, 0);
+						}
+						if (static_cast<int>(initiation_andrieu_tt_per_n.size()) < per_n_end) {
+							initiation_andrieu_tt_per_n.resize(per_n_end, -1.0);
+						}
+						for (int n = 1; n <= n_laterals_max; ++n) {
+							if (lateral_spawned_per_n[n]) continue;
+							double init_tt_n = static_cast<double>(n) * plastochron;
+							if (plant_andrieu_tt_fc < init_tt_n) break;  // ascending gate
+							// Topmost lateral (rank n_laterals_max = maize tassel)
+							// attaches without its own internode (matches scalar-
+							// burst structure). Skip its seed so fa_sum doesn't
+							// forecast a budget the branching block won't spend.
+							if (n >= n_laterals_max) continue;
+							if (length_per_n[n] < basal_step) {
+								length_per_n[n] = basal_step;
+							}
+						}
+					}
+					double fa_sum = 0.0;
+					for (int n = 1; n <= n_ranks; ++n) {
+						double target_n = calcLengthPerPhytomer(n);
+						// S3b.3: length_per_n is allocated; don't overwrite here.
+						// Monotonicity is enforced by clamping dl_n >= 0 in the
+						// allocator loop below. fa_sum for targetlength uses the
+						// max(target, already-allocated) so that targetlength
+						// tracks the advancing FA front even when allocator
+						// hasn't committed dxMin increments yet.
+						double driver_n = (target_n > length_per_n[n]) ? target_n : length_per_n[n];
+						fa_sum += driver_n;
+					}
+					// S3b.7 note: ranks > n_ranks (maize tassel at rank 17,
+					// apical tag at n_laterals_max) are NOT included here —
+					// their length lives in getLength(true) but is not driven
+					// by FA kinetics. Apical-zone growth is handled by the
+					// "createSegments(dl, ...)" block further down when
+					// length >= maxInternodeDistance + p.lb (unchanged from
+					// scalar path). Including those ranks in fa_sum would
+					// cause targetlength to over-count (~43 cm for a 130-day
+					// maize run = tassel internode + apical peduncle).
+					targetlength = p.lb + fa_sum + this->epsilonDx;
+				} else {
+					targetlength = calcLength(age__) + this->epsilonDx;
+				}
 				double e = targetlength-length; // store value of elongation to add
 				//can be negative
 				double dl = e;//length increment = calculated length + increment from last time step too small to be added
@@ -190,17 +431,78 @@ void Stem::simulate(double dt, bool verbose)
 					/* branching zone */
 					//go into branching zone if organ has laterals and has reached
 					//the end of the basal zone
-					if (((created_linking_node)<(p.ln.size()+1))&&(length>=p.lb))
-					{
-						for (size_t i=0; (i<p.ln.size()); i++) {
+					if (!p.use_fournier_andrieu_kinetics) {
+						// Scalar-path branching-zone burst: all laterals fire
+						// at once the step length crosses p.lb. Unchanged from
+						// pre-FA behaviour; preserved for FA-off XMLs
+						// (non-maize, or maize with the flag flipped off for
+						// regression baselines).
+						if (((created_linking_node)<(p.ln.size()+1))&&(length>=p.lb))
+						{
+							for (size_t i=0; (i<p.ln.size()); i++) {
+								createLateral(dt_, verbose);
+								if(p.ln.at(created_linking_node-1)>0){
+									createSegments(this->dxMin(),dt_,verbose);
+									dl-=this->dxMin();
+									length+=this->dxMin();
+								}
+							}
 							createLateral(dt_, verbose);
-							if(p.ln.at(created_linking_node-1)>0){
-								createSegments(this->dxMin(),dt_,verbose);
-								dl-=this->dxMin();
-								length+=this->dxMin();
+						}
+					} else {
+						// S3b.7 plastochron-gated per-rank initiation (plan §E.b).
+						// Replaces the scalar burst: ranks initiate one at a time
+						// as plant Andrieu-TT crosses n * plastochron_andrieu.
+						// Each rank gets its own basal_internode_cm-spaced node,
+						// so a V3 plant ends up with 5 distinct node z-positions
+						// stacked in a 2–5 cm zone rather than 5 coincident nodes
+						// at z = p.lb exactly.
+						//
+						// Decoupling from leaf emergence is handled in
+						// calcLengthPerPhytomer — it reads
+						// initiation_andrieu_tt_per_n[n] when set, so FA kinetics
+						// start at the rank's plastochron birthday (τ_n = 0) and
+						// do not wait on the leaf's own emergence_andrieu_tt_.
+						if (length >= p.lb) {
+							const auto& srp_init = *getStemRandomParameter();
+							double plastochron = srp_init.plastochron_andrieu;
+							double basal_step = srp_init.basal_internode_cm;
+							auto plant_init = getPlant();
+							double plant_andrieu_tt = plant_init ? plant_init->getAccumulatedAndrieuTT() : 0.0;
+							int n_laterals_max = static_cast<int>(p.ln.size()) + 1;
+							// Process ranks in ascending order (decision 5 —
+							// sort-before-process: under a warm spike multiple
+							// ranks can cross their plastochron on the same
+							// simulate step, and the older rank must be inserted
+							// lower on the stem than the younger).
+							for (int n = 1; n <= n_laterals_max; ++n) {
+								if (static_cast<int>(lateral_spawned_per_n.size()) <= n) break;
+								if (lateral_spawned_per_n[n]) continue;
+								double init_tt_n = static_cast<double>(n) * plastochron;
+								if (plant_andrieu_tt < init_tt_n) break;
+								// Match scalar-burst order: lateral attaches at the
+								// current apex FIRST, THEN the apex advances.
+								// Exception: rank n_laterals_max (topmost lateral,
+								// maize tassel at rank 17) attaches without
+								// advancing — same semantics as the scalar burst's
+								// "extra createLateral outside the for-loop".
+								createLateral(dt_, verbose);
+								if (n < n_laterals_max) {
+									// Grow the branching zone by one
+									// basal_internode_cm. dl includes this step's
+									// budget via the targetlength forecast above
+									// (length_per_n[n] was seeded to basal_step).
+									createSegments(basal_step, dt_, verbose);
+									length += basal_step;
+									dl     -= basal_step;
+								}
+								// Record plastochron-axis init TT so
+								// calcLengthPerPhytomer(n) uses rank n's birthday
+								// as τ_n anchor (not leaf's emergence_andrieu_tt_).
+								initiation_andrieu_tt_per_n[n] = plant_andrieu_tt;
+								lateral_spawned_per_n[n] = 1;
 							}
 						}
-						createLateral(dt_, verbose);
 					}
 					//we can have (p.ln.size()+1)>(created_linking_node) if one ln == 0cm
 					if((length>=p.lb)&&((p.ln.size()+1)<(created_linking_node))){
@@ -240,6 +542,101 @@ void Stem::simulate(double dt, bool verbose)
 
 				this->epsilonDx = dl;//targetlength + e - length;
 				length += this->epsilonDx;//go back to having length = theoratical length
+			}
+			// S3b per-phytomer bookkeeping: track the basal-zone stub length so
+			// the invariant (plan Hard Invariant #5) closes:
+			//   getLength(true) ≈ basal_length_ + Σ length_per_n (± dxMin).
+			//
+			// S3b.3 pragmatic approach (plan §A "absorbed" scope, downgraded
+			// 2026-04-24 from full per-rank insertion driver to post-hoc
+			// tagging on the scalar allocator's output). The scalar allocator
+			// produces the correct mainstem topology under FA-on (verified
+			// HI#4 tassel day 125 preserved in thin-B.3.5); the S3b.3 value-add
+			// here is that node_to_phytomer is now populated and tracks the
+			// per-rank span of nodes. Each node k is tagged with the rank n
+			// such that node k lies between linking_node[n-1] and
+			// linking_node[n] on the stem's local indexing, with basal-zone
+			// nodes tagged 0 and apical-zone (peduncle) nodes tagged
+			// n_linking_nodes (== number of laterals == one-past the topmost
+			// rank). Per-rank cessation latches (plan §B) operate on the
+			// timing axis and remain correct regardless of the tagging
+			// strategy. Full mid-stem insertion driver (for same-timestep
+			// sort-ordering + parentNI shift testing, plan §A B.5' T2/T3)
+			// deferred — under current XML all leaves fire simultaneously at
+			// p.lb crossing via the scalar branching burst, so T2's multi-rank
+			// co-initiation scenario doesn't apply to production runs.
+			if (p.use_fournier_andrieu_kinetics) {
+				basal_length_ = std::min(getLength(true), param()->lb);
+
+				// Sync node_to_phytomer length with current nodes size.
+				// Expand with sentinel 0 (basal/unknown); the span-walk
+				// below overwrites with correct per-rank tags.
+				node_to_phytomer.resize(nodes.size(), 0);
+				const int n_nodes = static_cast<int>(nodes.size());
+				const int n_links = static_cast<int>(localId_linking_nodes.size());
+				if (n_links >= 1) {
+					// Basal zone: nodes 0..localId_linking_nodes[0] (inclusive
+					// of the linking node itself, which is the start of rank 1).
+					int first_ln = localId_linking_nodes[0];
+					for (int k = 0; k <= first_ln && k < n_nodes; ++k) {
+						node_to_phytomer[k] = 0;
+					}
+					// Each span localId_linking_nodes[i-1] < k <= localId_linking_nodes[i]
+					// belongs to rank i (rank 1 = first phytomer in the branching zone).
+					for (int i = 1; i < n_links; ++i) {
+						int lo = localId_linking_nodes[i - 1];
+						int hi = localId_linking_nodes[i];
+						for (int k = lo + 1; k <= hi && k < n_nodes; ++k) {
+							node_to_phytomer[k] = i;
+						}
+					}
+					// Apical zone (peduncle): nodes after last linking node.
+					int last_ln = localId_linking_nodes[n_links - 1];
+					int apical_rank = n_links;  // one past topmost rank
+					for (int k = last_ln + 1; k < n_nodes; ++k) {
+						node_to_phytomer[k] = apical_rank;
+					}
+				}
+
+				// Update length_per_n from the span walk so Hard Invariant #5
+				// closes with the scalar allocator's actual node geometry.
+				// length_per_n[n] = Σ segment lengths in rank n's span. Stems
+				// live in relative coordinates (hasRelCoord()==true enforced
+				// at entry), so nodes[k] for k>=1 IS the segment delta vector
+				// from node k-1 to k — take .length() directly rather than
+				// differencing.
+				//
+				// Note: length_per_n is sized to n_ranks+1 in the targetlength
+				// block above (driven by internode_v_n.size()), so ranks > n_ranks
+				// (the apical/peduncle rank, which node_to_phytomer tags as
+				// n_links) are dropped from length_per_n. That mass lives in
+				// getLength(true) outside the Σ and breaks the Hard Invariant
+				// #5 tolerance; to close it we extend length_per_n to cover
+				// all tag values that appear (n_links + 1 entries).
+				int max_tag = 0;
+				for (int k = 0; k < n_nodes; ++k) {
+					if (node_to_phytomer[k] > max_tag) max_tag = node_to_phytomer[k];
+				}
+				if (static_cast<int>(length_per_n.size()) < max_tag + 1) {
+					length_per_n.resize(max_tag + 1, 0.0);
+					epsilonDx_per_n.resize(max_tag + 1, 0.0);
+					cessation_age_per_n.resize(max_tag + 1, -1.0);
+					cessation_andrieu_tt_per_n.resize(max_tag + 1, -1.0);
+					lateral_spawned_per_n.resize(max_tag + 1, 0);
+				}
+				const int n_ranks_lpn = static_cast<int>(length_per_n.size()) - 1;
+				if (n_ranks_lpn >= 1) {
+					for (int n = 0; n <= n_ranks_lpn; ++n) {
+						length_per_n[n] = 0.0;
+					}
+					// Sum segment lengths by rank tag (tag on the END node of
+					// each segment, since seg k-1→k is "contributed by" node k).
+					for (int k = 1; k < n_nodes; ++k) {
+						int tag = node_to_phytomer[k];
+						if (tag < 1 || tag > n_ranks_lpn) continue;
+						length_per_n[tag] += nodes[k].length();
+					}
+				}
 			}
 			} // if active
 			//set limit below 1e-10, as the test files see if correct length
@@ -363,16 +760,50 @@ double Stem::getLatGrowthDelay(int ot_lat, int st_lat, double dt) const //overri
 void Stem::internodalGrowth(double dl,double dt, bool verbose)
 {
 	const StemSpecificParameter& p = *param(); // rename
+	// S3b.8: under FA-on, basal_zero_ranks (maize: ranks 1-4) stay pinned at
+	// the basal_internode_cm seed placed by Stem::simulate's plastochron loop
+	// (§E.b). Without this gate, internodalGrowth would inflate their
+	// spacing by distributing `dl` equally across all phytomers and break the
+	// "V3 = 5 distinct collars close together" structural guarantee.
+	auto srp = getStemRandomParameter();
+	const bool fa_on = static_cast<bool>(srp) && srp->use_fournier_andrieu_kinetics;
+	auto rank_is_basal_zero = [&](int rank_one_indexed) -> bool {
+		if (!fa_on) return false;
+		const auto& bz = srp->basal_zero_ranks;
+		return std::find(bz.begin(), bz.end(), rank_one_indexed) != bz.end();
+	};
+
 	std::vector<double> toGrow(p.ln.size());
 	double dl_;
 	const int ln_0 = std::count(p.ln.cbegin(), p.ln.cend(), 0);//number of laterals wich grow on smae branching point as the one before
+	// Count basal-zero phytomers with nonzero p.ln so the equal-share divisor
+	// below only spans ranks that are actually allowed to elongate.
+	int ln_basal_zero = 0;
+	if (fa_on) {
+		for (size_t i = 0; i < p.ln.size(); ++i) {
+			if (p.ln.at(i) != 0 && rank_is_basal_zero(static_cast<int>(i) + 1)) {
+				ln_basal_zero++;
+			}
+		}
+	}
 	if(p.nodalGrowth==0){//sequentiall growth
 		toGrow[0] = dl;
 		std::fill(toGrow.begin()+1,toGrow.end(),0) ;
 	}
 	if(p.nodalGrowth ==1)
 	{//equal growth
-		std::fill(toGrow.begin(),toGrow.end(),dl/(p.ln.size()-ln_0)) ;
+		const int denom = std::max(1, static_cast<int>(p.ln.size()) - ln_0 - ln_basal_zero);
+		std::fill(toGrow.begin(),toGrow.end(),dl/denom) ;
+		if (fa_on && ln_basal_zero > 0) {
+			// Zero basal_zero_ranks' initial share; the transfer-to-next
+			// mechanism inside the main loop carries it forward onto the
+			// first eligible phytomer (same pattern as p.ln[i]==0 stubs).
+			for (size_t i = 0; i < p.ln.size(); ++i) {
+				if (rank_is_basal_zero(static_cast<int>(i) + 1)) {
+					toGrow[i] = 0.0;
+				}
+			}
+		}
 	}
 	int loopId = 0;
 	size_t phytomerId = 0;
@@ -385,6 +816,12 @@ void Stem::internodalGrowth(double dl,double dt, bool verbose)
 
 		double length1 = getLength(nn1);
 		double availableForGrowth = p.ln.at(phytomerId) -( getLength(nn2) - length1 ) ;//difference between maximum and current length of the phytomer
+		// S3b.8 gate: force basal_zero_ranks to contribute no growth capacity.
+		// Combined with toGrow[i]=0 above, dl_ comes out 0 for these phytomers
+		// and the transfer-to-next mechanism forwards their budget onward.
+		if (rank_is_basal_zero(static_cast<int>(phytomerId) + 1)) {
+			availableForGrowth = 0.0;
+		}
 		if(availableForGrowth<-1e-3)
 		{
 			std::cout << "WARNING Stem::internodalGrowth phytomere "<<phytomerId<<" is too long: "<<availableForGrowth<<" "<<
@@ -405,8 +842,24 @@ void Stem::internodalGrowth(double dl,double dt, bool verbose)
 		}	//loop twice other the children
 
 	}
-	if(std::abs(dl)> 1e-6){//this sould not happen as computed dl to be <= sum(availableForGrowth)
-		std::cout << "WARNING Stem::internodalGrowth length left to grow: "<<dl<<std::endl;
+	if(std::abs(dl)> 1e-6){
+		// S3b.8: under FA-on, blocking basal_zero_ranks from receiving `dl`
+		// combined with the per-phytomer `p.ln` cap can leave leftover `dl`
+		// that the branching zone cannot absorb (FA kinetic targets for some
+		// ranks exceed `p.ln`). Pre-S3b.8 this excess silently inflated the
+		// basal ranks by equal-share distribution; that outlet is now sealed.
+		// Route the leftover to the apical zone so mass isn't lost — caller
+		// already debited `length += ddx`, so without this route `getLength`
+		// diverges from the realized geometry and Hard Invariant #5 breaks.
+		// On FA-off the original warning fires (historical behaviour: caller
+		// has also already debited `length`, but the legacy assumption is
+		// that the warning never fires under scalar params).
+		if (fa_on && dl > 0) {
+			createSegments(dl, dt, verbose);
+			dl = 0;
+		} else {
+			std::cout << "WARNING Stem::internodalGrowth length left to grow: "<<dl<<std::endl;
+		}
 	}
 }
 /**
@@ -454,6 +907,24 @@ double Stem::getParameter(std::string name) const
 
 
 /**
+ * Radius (cm) of the stem at a given arc-length along its own skeleton.
+ *
+ * Current ``StemSpecificParameter`` carries a single ``a`` (radius) with no
+ * explicit taper, so the arc-length argument is accepted for API symmetry but
+ * the returned value is uniform along the stem. Phase E consumers
+ * (``Leaf::updateNodesFromSurfaceCPs`` with compound sheath CPs) use this
+ * helper so the rest of the sheath-wrapping math can remain agnostic to
+ * future per-internode taper.
+ *
+ * @param arc_length   arc-length along the stem skeleton [cm] (unused today)
+ */
+double Stem::getRadiusAt(double /*arc_length*/) const
+{
+	return param()->a;
+}
+
+
+/**
  * Analytical length of the stem at a given age
  *
  * @param age          age of the stem [day]
@@ -476,6 +947,219 @@ double Stem::calcAge(double length) const
 	double age__ = getStemRandomParameter()->f_gf->getAge(length,getStemRandomParameter()->r,param()->getK(),shared_from_this());
 	if(age__ >param()->delayNGStart ){age__ += (param()->delayNGEnd - param()->delayNGStart);}
 	return age__;
+}
+
+
+/* Fournier-Andrieu kinetic constants (plan §B.3). */
+namespace {
+constexpr double IL_INIT_CM = 0.0025;            // Zhu 2014: initial IL at tau=0
+constexpr double IL_AT_END_PHASE_II_CM = 4.5;    // FA 2000 line 223, phyt 7-15
+constexpr double HALF_PLASTOCHRON_LAG_DEGCD = 9.6;  // FA 2000 line 207
+}
+
+/**
+ * Fournier-Andrieu per-phytomer internode length (plan §B.3).
+ *
+ * Returns the length [cm] of internode rank n at the plant's current
+ * Andrieu-axis thermal time, anchored at initiation (= leaf-n primordium
+ * emergence + 9.6 °Cd half-plastochron lag). Four-phase kinetic:
+ *   Phase I  [0, 309)   pre-collar exponential at r_I
+ *   Phase II [309, 334) linear ramp to 4.5 cm
+ *   Phase III [334, 334+D_n) linear at v_n
+ *   Phase IV [334+D_n, ∞) exponential decay to IL_final at k
+ *
+ * Returns 0 for basal-zero ranks (Zhu 2014 line 127), for pre-initiation
+ * (leaf not yet emerged), and when required per-rank data is missing
+ * (graceful degradation — stem just shows no growth for that rank).
+ *
+ * @param n  phytomer rank (1-based; rank 1 = first leaf attached to mainstem)
+ */
+double Stem::calcLengthPerPhytomer(int n) const
+{
+	const auto& sp = *param();
+	// Basal zero (Zhu 2014 line 127): these ranks are zero-length at all tau.
+	const auto& basal_zero = getStemRandomParameter()->basal_zero_ranks;
+	if (std::find(basal_zero.begin(), basal_zero.end(), n) != basal_zero.end()) {
+		return 0.0;
+	}
+
+	// S3b.7: τ_n anchor resolution. Prefer the plastochron-driven
+	// initiation_andrieu_tt_per_n[n] when set (plan §E.b), which records
+	// the plant Andrieu-TT at the step rank n's node was created on the
+	// plastochron clock. This decouples internode kinetics from leaf
+	// emergence and resolves the S3b.3 chicken-and-egg deadlock (leaf
+	// won't emerge until internode has length; internode won't have
+	// length until FA runs; FA won't run until leaf has emerged).
+	//
+	// Fallback (FA-on stems built pre-S3b.7, or edge cases where the
+	// plastochron path didn't set the entry): read the leaf's
+	// emergence_andrieu_tt_ as the primordium init time, shifted by
+	// HALF_PLASTOCHRON_LAG_DEGCD per FA 2000 line 207. For maize_calibrated
+	// the per-position leaf subType convention maps subType=n+1 to rank=n
+	// (subType 2 = rank 1, subType 17 = rank 16). We scan children in
+	// order rather than relying on leafphytomerID (which is indexed by
+	// subType and all maize_calibrated leaves have phytomerId=1 for
+	// their unique subType).
+	double init_tt = -1.0;
+	if (n >= 1 && n < static_cast<int>(initiation_andrieu_tt_per_n.size())
+	    && initiation_andrieu_tt_per_n[n] >= 0.0) {
+		init_tt = initiation_andrieu_tt_per_n[n];
+	} else {
+		int leaf_ordinal = 0;                     // 1-based index among leaf children
+		double leaf_emerge_tt = -1.0;
+		for (const auto& c : children) {
+			if (c->organType() == Organism::ot_leaf) {
+				leaf_ordinal++;
+				if (leaf_ordinal == n) {
+					auto lf = std::static_pointer_cast<Leaf>(c);
+					leaf_emerge_tt = lf->getEmergenceAndrieuTT();
+					break;
+				}
+			}
+		}
+		if (leaf_emerge_tt < 0.0) {
+			// Leaf-n not yet emerged (or absent): internode contributes nothing.
+			return 0.0;
+		}
+		init_tt = leaf_emerge_tt + HALF_PLASTOCHRON_LAG_DEGCD;
+	}
+
+	// Effective Andrieu TT: freeze at cessation latch (parallel to the scalar
+	// path's cessation_age_ clamp in Stem::simulate). S3b.3 adds per-rank
+	// latches (plan §B) that dominate over the global latch when set: each
+	// internode freezes on its own tau_n rather than on plant-level tt_cessation,
+	// so late-initiated upper ranks keep elongating after early-initiated lower
+	// ranks have frozen.
+	auto plant_fa = getPlant();
+	if (!plant_fa) return 0.0;
+	double andrieu_tt = plant_fa->getAccumulatedAndrieuTT();
+	if (n >= 1 && n < static_cast<int>(cessation_andrieu_tt_per_n.size())
+	    && cessation_andrieu_tt_per_n[n] >= 0.0
+	    && andrieu_tt > cessation_andrieu_tt_per_n[n]) {
+		andrieu_tt = cessation_andrieu_tt_per_n[n];
+	} else if (cessation_andrieu_tt_ >= 0.0 && andrieu_tt > cessation_andrieu_tt_) {
+		andrieu_tt = cessation_andrieu_tt_;
+	}
+	double tau = andrieu_tt - init_tt;
+	if (tau < 0.0) return 0.0;
+
+	const auto& srp = *getStemRandomParameter();
+	double r_I = srp.r_I;
+	double phase_I_duration = srp.phase_I_duration;
+	double phase_II_duration = srp.phase_II_duration;
+	double phase_IV_duration = srp.phase_IV_duration;
+	double phase_IV_k = srp.phase_IV_k;
+
+	// Phase I: pre-collar exponential.
+	if (tau < phase_I_duration) {
+		return IL_INIT_CM * std::exp(r_I * tau);
+	}
+
+	// Phase II: 25 °Cd linear ramp from end-of-Phase-I to 4.5 cm uniform boundary.
+	double phase_II_end = phase_I_duration + phase_II_duration;
+	if (tau < phase_II_end) {
+		double IL_end_I = IL_INIT_CM * std::exp(r_I * phase_I_duration);
+		double frac = (tau - phase_I_duration) / phase_II_duration;
+		return IL_end_I + frac * (IL_AT_END_PHASE_II_CM - IL_end_I);
+	}
+
+	// Phase III / IV need per-rank v_n and D_n. Specific param holds the
+	// realized (randomized) per-rank vector; when calibrated XMLs populate
+	// only the Random params, realize() copies them through (see
+	// stemparameter.cpp). Graceful fallback: if missing, hold at 4.5 cm.
+	const auto& vvec = sp.internode_v_n;
+	const auto& dvec = sp.internode_D_n;
+	if (n < 1 || n > static_cast<int>(vvec.size()) || n > static_cast<int>(dvec.size())) {
+		return IL_AT_END_PHASE_II_CM;       // no Fig 12 data for this rank
+	}
+	double v_n = vvec[n - 1];                // 0-indexed vector, 1-indexed rank
+	double D_n = dvec[n - 1];
+	double phase_III_end = phase_II_end + D_n;
+	if (tau < phase_III_end) {
+		return IL_AT_END_PHASE_II_CM + v_n * (tau - phase_II_end);
+	}
+
+	// Phase IV: exponential decay toward IL_final. If per-rank IL_final is
+	// missing, fall through to end-of-Phase-III value (no decay).
+	double IL_end_III = IL_AT_END_PHASE_II_CM + v_n * D_n;
+	const auto& ilfvec = sp.internode_IL_final;
+	if (n < 1 || n > static_cast<int>(ilfvec.size())) {
+		return IL_end_III;
+	}
+	double IL_final = ilfvec[n - 1];
+	return IL_final - (IL_final - IL_end_III) * std::exp(-phase_IV_k * (tau - phase_III_end));
+}
+
+/**
+ * Sum of Stem::calcLengthPerPhytomer over all ranks that have per-rank data.
+ *
+ * Drives the FA branch of Stem::simulate::targetlength (plan §B.3.5 "thin"
+ * interpretation — the existing basal/branching/apical allocation loop handles
+ * per-rank segment distribution implicitly via ldelay on each leaf, rather
+ * than via per-phytomer dl_n + node-insertion bookkeeping). Loops over ranks
+ * 1..|internode_v_n| because that's where Fig-12 data is defined; higher ranks
+ * (if any) have no Phase III and would contribute only Phase I/II residuals.
+ */
+double Stem::calcLengthPerPhytomerSum() const
+{
+	const auto& sp = *param();
+	int n_ranks = static_cast<int>(sp.internode_v_n.size());
+	double total = 0.0;
+	for (int n = 1; n <= n_ranks; ++n) {
+		total += calcLengthPerPhytomer(n);
+	}
+	return total;
+}
+
+
+/**
+ * S3b per-phytomer bookkeeping helper (plan §A).
+ *
+ * Returns the position in the node vector at which rank n's next node should
+ * be inserted, defined as "one past the last existing node that belongs to
+ * rank n-1" (scan node_to_phytomer from the back). Falls back to nodes.size()
+ * (append at apex) when rank n-1 has no nodes yet — this is the cold-start
+ * case: under Zhu 2014 line 127 ranks 1-4 are basal-zero, so the first rank
+ * to actually initiate is rank 5, and there are no rank-4 nodes to insert
+ * after.
+ *
+ * Only meaningful when the FA flag is true AND node_to_phytomer is populated
+ * by the per-rank mid-stem insertion driver (scheduled for S3b.3 in the plan
+ * session split; this helper is declared now so the pybind surface and the
+ * B.5' tests can exercise the fallback path in isolation).
+ *
+ * @param n  phytomer rank (1-based)
+ */
+int Stem::computeInsertionIndexForRank(int n) const
+{
+	for (int i = static_cast<int>(node_to_phytomer.size()) - 1; i >= 0; --i) {
+		if (node_to_phytomer[i] == n - 1) {
+			return i + 1;
+		}
+	}
+	return static_cast<int>(nodes.size());
+}
+
+
+/**
+ * S3b per-phytomer bookkeeping accessor (plan §A).
+ *
+ * Returns the latched realised length of internode rank n (cm). Monotone:
+ * length_per_n[n] tracks the historical maximum of calcLengthPerPhytomer(n)
+ * so the Phase IV decay artifact (S3b.1 finding 2) doesn't make the returned
+ * value drop as the raw FA target decays toward IL_final. Returns 0.0 when
+ * the FA flag is off, when n is out of range, or when the rank has not yet
+ * initiated (its leaf hasn't emerged yet, so calcLengthPerPhytomer has never
+ * been non-zero).
+ *
+ * @param n  phytomer rank (1-based)
+ */
+double Stem::getPhytomerLength(int n) const
+{
+	if (n < 1 || n >= static_cast<int>(length_per_n.size())) {
+		return 0.0;
+	}
+	return length_per_n[n];
 }
 
 
@@ -569,6 +1253,24 @@ std::string Stem::toString() const
 	std::stringstream newstring;
 	newstring << "; initial heading: " << getiHeading0().toString() << ", parent node index" << parentNI << ".";
 	return Organ::toString()+newstring.str();
+}
+
+/**
+ * Find a child organ by phytomer rank and sheath/blade parity.
+ * In phytomer mode, subType = 2*rank + (isSheath ? 0 : 1).
+ */
+std::shared_ptr<Organ> Stem::getChildByPhytomerRank(int rank, int organType, bool isSheath) const {
+    int targetParity = isSheath ? 0 : 1;
+    for (size_t i = 0; i < children.size(); i++) {
+        auto c = children[i];
+        if (c->organType() == organType) {
+            int st = (int)c->getParameter("subType");
+            if ((st / 2 == rank) && (st % 2 == targetParity)) {
+                return c;
+            }
+        }
+    }
+    return nullptr;
 }
 
 } // namespace CPlantBox

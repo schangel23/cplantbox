@@ -1,0 +1,10 @@
+{
+  "n_leaf_nodes": 3132,
+  "n_mainstem_nodes": 1303,
+  "n_organs": 1094,
+  "n_segments_total": 24361,
+  "seed": 7,
+  "sha256": "c1a0b270a80c8a8922ccb1a82cf61b567a9fa2bdf4788f5fd09ba82602c156f0",
+  "sim_days": 60,
+  "xml": "dart/coupling/data/maize_calibrated.xml"
+}

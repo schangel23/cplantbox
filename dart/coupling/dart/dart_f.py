@@ -180,12 +180,26 @@ def create_dart_f_simulation(obj_paths, prospect_params, eta_file_path,
         xdim, ydim, zdim = dart_obj.dims
         xc, yc, zc = dart_obj.center
 
+        # Tassel is non-fluorescent (low chlorophyll, like stem): reuse
+        # ``stem_bark`` OP but doubleFace=1 since branches are thin.
+        # Midribs are weakly fluorescent (less chlorophyll than blade);
+        # we route them to the fluorescent leaf OP for now — when SIF
+        # parameters get a separate midrib calibration, swap to a
+        # dedicated ``leaf_fluorescent_midrib`` ident here.
         groups_list = []
         for gi, gname in enumerate(gnames):
             g = ptd.object_3d.create_Group(num=gi + 1, name=gname)
+            is_midrib = gname.endswith('_midrib')
+            is_tassel = gname.startswith(('tassel_spike_', 'tassel_branch_'))
             is_stem = gname.endswith('_00')
-            op_ident = 'stem_bark' if is_stem else 'leaf_fluorescent'
-            df = 0 if is_stem else 1
+            if is_midrib:
+                op_ident, df = 'leaf_fluorescent', 1
+            elif is_tassel:
+                op_ident, df = 'stem_bark', 1
+            elif is_stem:
+                op_ident, df = 'stem_bark', 0
+            else:
+                op_ident, df = 'leaf_fluorescent', 1
             g.set_nodes(ident=op_ident)
             gop = g.GroupOpticalProperties
             gop.SurfaceOpticalProperties.doubleFace = df

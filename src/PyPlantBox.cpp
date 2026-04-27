@@ -644,7 +644,8 @@ PYBIND11_MODULE(plantbox, m) {
             .def_readwrite("maxTil", &SeedRandomParameter::maxTil)
             .def_readwrite("maxTils", &SeedRandomParameter::maxTils)
             .def_readwrite("simtime", &SeedRandomParameter::simtime)
-            .def_readwrite("simtimes", &SeedRandomParameter::simtimes);
+            .def_readwrite("simtimes", &SeedRandomParameter::simtimes)
+            .def_readwrite("decompose_phytomer", &SeedRandomParameter::decompose_phytomer);
     py::class_<SeedSpecificParameter, OrganSpecificParameter, std::shared_ptr<SeedSpecificParameter>>(m, "SeedSpecificParameter")
             .def(py::init<>())
             .def(py::init<int, Vector3d , double, int, int, int, double, double, double, double, int, double>())
@@ -726,7 +727,24 @@ PYBIND11_MODULE(plantbox, m) {
       .def_readwrite("leafEdgeCurlPhi", &LeafRandomParameter::leafEdgeCurlPhi)
       .def_readwrite("leafEdgeCurlAngle", &LeafRandomParameter::leafEdgeCurlAngle)
       .def_readwrite("leafCrossSectionPhi", &LeafRandomParameter::leafCrossSectionPhi)
-      .def_readwrite("leafCrossSectionCurv", &LeafRandomParameter::leafCrossSectionCurv);
+      .def_readwrite("leafCrossSectionCurv", &LeafRandomParameter::leafCrossSectionCurv)
+      .def_readwrite("sl_ratio", &LeafRandomParameter::sl_ratio)
+      .def_readwrite("use_thermal_elongation", &LeafRandomParameter::use_thermal_elongation)
+      .def_readwrite("T_base", &LeafRandomParameter::T_base)
+      .def_readwrite("T_opt", &LeafRandomParameter::T_opt)
+      .def_readwrite("T_max", &LeafRandomParameter::T_max)
+      .def_readwrite("LER_max", &LeafRandomParameter::LER_max)
+      .def_readwrite("phyllochron_tt", &LeafRandomParameter::phyllochron_tt)
+      .def_readwrite("use_thermal_emergence", &LeafRandomParameter::use_thermal_emergence)
+      .def_readwrite("tt_emergence", &LeafRandomParameter::tt_emergence)
+      .def_readwrite("use_fa_kinetics", &LeafRandomParameter::use_fa_kinetics)
+      .def_readwrite("tau_extension_n", &LeafRandomParameter::tau_extension_n)
+      .def_readwrite("sigma_extension_n", &LeafRandomParameter::sigma_extension_n)
+      .def_readwrite("surface_cps", &LeafRandomParameter::surface_cps)
+      .def_readwrite("surface_n_u", &LeafRandomParameter::surface_n_u)
+      .def_readwrite("surface_n_v", &LeafRandomParameter::surface_n_v)
+      .def_readwrite("surface_deg_u", &LeafRandomParameter::surface_deg_u)
+      .def_readwrite("surface_deg_v", &LeafRandomParameter::surface_deg_v);
 
     py::class_<LeafSpecificParameter, OrganSpecificParameter, std::shared_ptr<LeafSpecificParameter>>(m, "LeafSpecificParameter")
             .def(py::init<>())
@@ -786,7 +804,24 @@ PYBIND11_MODULE(plantbox, m) {
             .def_readwrite("delayNGEnd", &StemRandomParameter::delayNGEnd)
             .def_readwrite("delayNGEnds", &StemRandomParameter::delayNGEnds)
             .def_readwrite("tropismAge", &StemRandomParameter::tropismAge)
-            .def_readwrite("tropismAges", &StemRandomParameter::tropismAges);
+            .def_readwrite("tropismAges", &StemRandomParameter::tropismAges)
+            .def_readwrite("use_thermal_emergence", &StemRandomParameter::use_thermal_emergence)
+            .def_readwrite("tt_emergence", &StemRandomParameter::tt_emergence)
+            .def_readwrite("use_thermal_cessation", &StemRandomParameter::use_thermal_cessation)
+            .def_readwrite("tt_cessation", &StemRandomParameter::tt_cessation)
+            .def_readwrite("use_fournier_andrieu_kinetics", &StemRandomParameter::use_fournier_andrieu_kinetics)
+            .def_readwrite("Tb_kinetic", &StemRandomParameter::Tb_kinetic)
+            .def_readwrite("r_I", &StemRandomParameter::r_I)
+            .def_readwrite("phase_I_duration", &StemRandomParameter::phase_I_duration)
+            .def_readwrite("phase_II_duration", &StemRandomParameter::phase_II_duration)
+            .def_readwrite("phase_IV_duration", &StemRandomParameter::phase_IV_duration)
+            .def_readwrite("phase_IV_k", &StemRandomParameter::phase_IV_k)
+            .def_readwrite("basal_zero_ranks", &StemRandomParameter::basal_zero_ranks)
+            .def_readwrite("internode_v_n", &StemRandomParameter::internode_v_n)
+            .def_readwrite("internode_D_n", &StemRandomParameter::internode_D_n)
+            .def_readwrite("internode_IL_final", &StemRandomParameter::internode_IL_final)
+            .def_readwrite("plastochron_andrieu", &StemRandomParameter::plastochron_andrieu)
+            .def_readwrite("basal_internode_cm", &StemRandomParameter::basal_internode_cm);
     py::class_<StemSpecificParameter, OrganSpecificParameter, std::shared_ptr<StemSpecificParameter>>(m, "StemSpecificParameter")
             .def(py::init<>())
             .def(py::init<int , double, double, const std::vector<double>&, double, double, double, double, double>())
@@ -800,7 +835,11 @@ PYBIND11_MODULE(plantbox, m) {
             .def("getK",&StemSpecificParameter::getK)
             .def("nob", &StemSpecificParameter::nob)
             .def_readwrite("delayNGStart", &StemSpecificParameter::delayNGStart)
-            .def_readwrite("delayNGEnd", &StemSpecificParameter::delayNGEnd);
+            .def_readwrite("delayNGEnd", &StemSpecificParameter::delayNGEnd)
+            .def_readwrite("use_fournier_andrieu_kinetics", &StemSpecificParameter::use_fournier_andrieu_kinetics)
+            .def_readwrite("internode_v_n", &StemSpecificParameter::internode_v_n)
+            .def_readwrite("internode_D_n", &StemSpecificParameter::internode_D_n)
+            .def_readwrite("internode_IL_final", &StemSpecificParameter::internode_IL_final);
     /**
      * Root.h
      */
@@ -851,7 +890,19 @@ PYBIND11_MODULE(plantbox, m) {
             .def("param", &Leaf::param)
             .def("leafArea", &Leaf::leafArea, py::arg("realized")=false, py::arg("withPetiole")=false)
             .def("leafCenter", &Leaf::leafCenter, py::arg("realized")=false)
-            .def("leafLength", &Leaf::leafLength, py::arg("realized")=false);
+            .def("leafLength", &Leaf::leafLength, py::arg("realized")=false)
+            .def("hasEmerged", &Leaf::hasEmerged)
+            .def("hasLigulated", &Leaf::hasLigulated)
+            .def("computePseudostemHeight", &Leaf::computePseudostemHeight)
+            .def_readwrite("emerged", &Leaf::emerged)
+            .def_readwrite("ligulated", &Leaf::ligulated)
+            .def_readwrite("emergence_tt", &Leaf::emergence_tt)
+            .def_readwrite("accumulated_tt", &Leaf::accumulated_tt)
+            .def_readwrite("coordinated_lmax", &Leaf::coordinated_lmax)
+            .def_readwrite("lmax_set", &Leaf::lmax_set)
+            .def_readwrite("emergence_andrieu_tt_", &Leaf::emergence_andrieu_tt_)
+            .def("getEmergenceAndrieuTT", &Leaf::getEmergenceAndrieuTT)
+            .def("getEffectiveSurfaceCPs", &Leaf::getEffectiveSurfaceCPs);
     /**
      * Stem.h
      */
@@ -862,7 +913,23 @@ PYBIND11_MODULE(plantbox, m) {
            .def("calcAge", &Stem::calcAge)
            .def("getStemRandomParameter", &Stem::getStemRandomParameter)
            .def("param", &Stem::param)
-           .def("getLocalIdLinkingNodes", &Stem::getLocalIdLinkingNodes);
+           .def("getLocalIdLinkingNodes", &Stem::getLocalIdLinkingNodes)
+           .def("getChildByPhytomerRank", &Stem::getChildByPhytomerRank)
+           .def("getRadiusAt", &Stem::getRadiusAt, py::arg("arc_length") = 0.0)
+           .def("calcLengthPerPhytomer", &Stem::calcLengthPerPhytomer)
+           .def("calcLengthPerPhytomerSum", &Stem::calcLengthPerPhytomerSum)
+           .def("computeInsertionIndexForRank", &Stem::computeInsertionIndexForRank)
+           .def("get_phytomer_length", &Stem::getPhytomerLength)
+           .def_readwrite("cessation_age_", &Stem::cessation_age_)
+           .def_readwrite("cessation_andrieu_tt_", &Stem::cessation_andrieu_tt_)
+           .def_readwrite("basal_length_", &Stem::basal_length_)
+           .def_readwrite("length_per_n", &Stem::length_per_n)
+           .def_readwrite("epsilonDx_per_n", &Stem::epsilonDx_per_n)
+           .def_readwrite("cessation_age_per_n", &Stem::cessation_age_per_n)
+           .def_readwrite("cessation_andrieu_tt_per_n", &Stem::cessation_andrieu_tt_per_n)
+           .def_readwrite("node_to_phytomer", &Stem::node_to_phytomer)
+           .def_readwrite("lateral_spawned_per_n", &Stem::lateral_spawned_per_n)
+           .def_readwrite("initiation_andrieu_tt_per_n", &Stem::initiation_andrieu_tt_per_n);
     /*
      * RootSystem.h
      */
@@ -969,7 +1036,17 @@ PYBIND11_MODULE(plantbox, m) {
             .def("createGrowthFunction", &Plant::createGrowthFunction)
             .def("write", &Plant::write)
             .def("abs2rel", &Plant::abs2rel)
-            .def("rel2abs", &Plant::rel2abs);
+            .def("rel2abs", &Plant::rel2abs)
+            .def("setAirTemperature", &Plant::setAirTemperature)
+            .def("getAirTemperature", &Plant::getAirTemperature)
+            .def("getAccumulatedTT", &Plant::getAccumulatedTT)
+            .def("setAccumulatedTT", &Plant::setAccumulatedTT)
+            .def("setCardinalTemperatures", &Plant::setCardinalTemperatures)
+            .def("getCardinalTBase", &Plant::getCardinalTBase)
+            .def("getAccumulatedAndrieuTT", &Plant::getAccumulatedAndrieuTT)
+            .def("setAccumulatedAndrieuTT", &Plant::setAccumulatedAndrieuTT)
+            .def("setAndrieuTBase", &Plant::setAndrieuTBase)
+            .def("getAndrieuTBase", &Plant::getAndrieuTBase);
 
 
 	py::class_<MappedPlant, Plant, MappedSegments,  std::shared_ptr<MappedPlant>>(m, "MappedPlant")

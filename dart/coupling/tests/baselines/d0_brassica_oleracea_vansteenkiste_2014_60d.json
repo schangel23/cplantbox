@@ -1,0 +1,16 @@
+{
+  "n_leaf_nodes": 1265,
+  "n_leaves": 11,
+  "n_mainstem_nodes": 47,
+  "n_organs": 8977,
+  "n_root_nodes": 39132,
+  "n_roots": 8965,
+  "n_segments_total": 31467,
+  "n_stems": 1,
+  "seed": 7,
+  "sha256": "2e3731cbb705dbff5190b2a145c772371d72540e8e2868178a2acda00b8437c1",
+  "sim_days": 60,
+  "slug": "brassica_oleracea_vansteenkiste_2014_60d",
+  "use_daily_met": false,
+  "xml": "modelparameter/structural/plant/Brassica_oleracea_Vansteenkiste_2014.xml"
+}

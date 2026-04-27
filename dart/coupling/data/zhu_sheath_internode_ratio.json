@@ -1,0 +1,59 @@
+{
+  "_meta": {
+    "source": "Zhu et al. 2014, Ann Bot 113:1217-1228, Supplementary Methods S1 + Fig S2",
+    "extracted_from": "Desktop/PHD_Papers_Markdown/Zhu et al. - 2014.../mcu051supp/mcu051supp.md line 9-12",
+    "extraction_method": "analytical form from Eq. S1 (no figure digitization needed)",
+    "fitting_dataset": "combined: Déa NS 1996 + 2000, Déa HD 2000, Nobilis NS 1998 + 2000",
+    "fitting_method": "nonlinear least squares (R nls function, stats package)",
+    "cultivar_invariance_partial_validation": "fit spans Déa + Nobilis cultivars at multiple densities; ratio shape held across these"
+  },
+  "equation": {
+    "form": "ratio_int_over_sheath(rho) = ratio_max * (2*rho_max - rho_b - rho) * (rho - rho_b) / (rho_max - rho_b)^2",
+    "variables": {
+      "ratio_int_over_sheath": "ratio of final internode length (rank n) to final sheath length (rank n-1)",
+      "rho": "relative phytomer rank = current_rank / final_leaf_number",
+      "rho_b": "left-hand zero of ratio (lowest rank with non-zero internode)",
+      "rho_max": "relative rank where ratio peaks",
+      "ratio_max": "peak ratio value at rho_max"
+    }
+  },
+  "fitted_parameters": {
+    "ratio_max": {"value": 1.29, "sd": 0.2, "unit": "dimensionless"},
+    "rho_max": {"value": 0.78, "sd": 0.03, "unit": "dimensionless (relative rank)"},
+    "rho_b": {"value": 0.24, "sd": 0.02, "unit": "dimensionless (relative rank)"}
+  },
+  "domain_validity": {
+    "rho_min_valid": 0.24,
+    "rho_max_valid": 1.32,
+    "rho_max_valid_derivation": "right-hand zero = 2 * rho_max - rho_b = 2*0.78 - 0.24 = 1.32",
+    "rho_min_below_clamp_to": 0.0,
+    "rho_above_max_clamp_to": 0.0,
+    "physical_interpretation": "internodes 1-4 (rho < 0.24 for N_leaves=15, ≈ rank 4) are zeroed; consistent with Zhu line 127 'length of internodes 1-4 was set to zero'"
+  },
+  "rho_normalization_convention": {
+    "convention": "rank / N_leaves",
+    "source": "Zhu Supp Method S1: 'Relative rank, defined as the ratio between current rank and final rank'",
+    "N_leaves_per_dataset": {
+      "Dea_NS_1996": 17,
+      "Dea_NS_2000": 15,
+      "Dea_HD_2000": 15,
+      "Nobilis_NS_1998": 15,
+      "Nobilis_NS_2000": 15
+    },
+    "for_our_calibration": {
+      "MF3D_SAM_panel_assumed_N_leaves": 16,
+      "_note": "16-leaf library extension (project_16leaf_extension.md). Verify against MF3D metadata if available."
+    },
+    "_warning": "5% mismatch in rho normalization propagates to ~15% error on ratio at upper ranks; pin N_leaves before use"
+  },
+  "sample_evaluations_for_N_leaves_16": {
+    "rank_4_rho_0p25": 0.04,
+    "rank_8_rho_0p50": 0.94,
+    "rank_12_rho_0p75": 1.28,
+    "rank_13_rho_0p8125": 1.29,
+    "rank_15_rho_0p9375": 1.16,
+    "rank_16_rho_1p0": 1.08,
+    "_check_peak": "evaluated at rho=0.78 returns ratio_max=1.29 ✓"
+  },
+  "implementation_pseudocode": "double zhu_ratio(int rank, int N_leaves) {\n    double rho = double(rank) / double(N_leaves);\n    if (rho < 0.24 || rho > 1.32) return 0.0;\n    return 1.29 * (1.32 - rho) * (rho - 0.24) / (0.54 * 0.54);\n}"
+}

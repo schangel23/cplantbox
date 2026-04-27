@@ -1,0 +1,1059 @@
+{
+  "seed": 7,
+  "xml": "maize_calibrated.xml",
+  "max_days": 70,
+  "nielsen_targets": {
+    "1": 17,
+    "2": 25,
+    "3": 33,
+    "4": 51,
+    "5": null,
+    "6": 57
+  },
+  "hits_fa_off": {
+    "1": 17,
+    "2": 25,
+    "3": 33,
+    "4": 51,
+    "5": 51,
+    "6": 57
+  },
+  "hits_fa_on": {
+    "1": 17,
+    "2": 25,
+    "3": 33,
+    "4": 51,
+    "5": 51,
+    "6": 57
+  },
+  "daily_fa_off": [
+    {
+      "day": 1,
+      "tt_tb8": 10.0,
+      "tt_andrieu": 8.2,
+      "total": 0,
+      "coll": 0,
+      "emrg": 0,
+      "whrl": 0
+    },
+    {
+      "day": 2,
+      "tt_tb8": 18.8,
+      "tt_andrieu": 15.2,
+      "total": 0,
+      "coll": 0,
+      "emrg": 0,
+      "whrl": 0
+    },
+    {
+      "day": 3,
+      "tt_tb8": 22.3,
+      "tt_andrieu": 16.9,
+      "total": 0,
+      "coll": 0,
+      "emrg": 0,
+      "whrl": 0
+    },
+    {
+      "day": 4,
+      "tt_tb8": 25.700000000000003,
+      "tt_andrieu": 18.5,
+      "total": 1,
+      "coll": 0,
+      "emrg": 0,
+      "whrl": 1
+    },
+    {
+      "day": 5,
+      "tt_tb8": 30.300000000000004,
+      "tt_andrieu": 21.299999999999997,
+      "total": 1,
+      "coll": 0,
+      "emrg": 0,
+      "whrl": 1
+    },
+    {
+      "day": 6,
+      "tt_tb8": 35.300000000000004,
+      "tt_andrieu": 24.499999999999996,
+      "total": 1,
+      "coll": 0,
+      "emrg": 0,
+      "whrl": 1
+    },
+    {
+      "day": 7,
+      "tt_tb8": 40.7,
+      "tt_andrieu": 28.099999999999994,
+      "total": 1,
+      "coll": 0,
+      "emrg": 0,
+      "whrl": 1
+    },
+    {
+      "day": 8,
+      "tt_tb8": 44.900000000000006,
+      "tt_andrieu": 30.499999999999993,
+      "total": 1,
+      "coll": 0,
+      "emrg": 0,
+      "whrl": 1
+    },
+    {
+      "day": 9,
+      "tt_tb8": 50.50000000000001,
+      "tt_andrieu": 34.29999999999999,
+      "total": 1,
+      "coll": 0,
+      "emrg": 1,
+      "whrl": 0
+    },
+    {
+      "day": 10,
+      "tt_tb8": 57.7,
+      "tt_andrieu": 39.69999999999999,
+      "total": 1,
+      "coll": 0,
+      "emrg": 1,
+      "whrl": 0
+    },
+    {
+      "day": 11,
+      "tt_tb8": 66.2,
+      "tt_andrieu": 46.39999999999999,
+      "total": 2,
+      "coll": 0,
+      "emrg": 1,
+      "whrl": 1
+    },
+    {
+      "day": 12,
+      "tt_tb8": 76.1,
+      "tt_andrieu": 54.499999999999986,
+      "total": 2,
+      "coll": 1,
+      "emrg": 0,
+      "whrl": 1
+    },
+    {
+      "day": 13,
+      "tt_tb8": 86.19999999999999,
+      "tt_andrieu": 62.79999999999998,
+      "total": 2,
+      "coll": 1,
+      "emrg": 0,
+      "whrl": 1
+    },
+    {
+      "day": 14,
+      "tt_tb8": 97.19999999999999,
+      "tt_andrieu": 71.99999999999999,
+      "total": 2,
+      "coll": 1,
+      "emrg": 0,
+      "whrl": 1
+    },
+    {
+      "day": 15,
+      "tt_tb8": 104.69999999999999,
+      "tt_andrieu": 77.69999999999999,
+      "total": 2,
+      "coll": 1,
+      "emrg": 0,
+      "whrl": 1
+    },
+    {
+      "day": 16,
+      "tt_tb8": 112.6,
+      "tt_andrieu": 83.79999999999998,
+      "total": 2,
+      "coll": 1,
+      "emrg": 0,
+      "whrl": 1
+    },
+    {
+      "day": 17,
+      "tt_tb8": 119.19999999999999,
+      "tt_andrieu": 88.59999999999998,
+      "total": 3,
+      "coll": 1,
+      "emrg": 0,
+      "whrl": 2
+    },
+    {
+      "day": 18,
+      "tt_tb8": 126.69999999999999,
+      "tt_andrieu": 94.29999999999998,
+      "total": 3,
+      "coll": 1,
+      "emrg": 1,
+      "whrl": 1
+    },
+    {
+      "day": 19,
+      "tt_tb8": 133.29999999999998,
+      "tt_andrieu": 99.09999999999998,
+      "total": 3,
+      "coll": 1,
+      "emrg": 1,
+      "whrl": 1
+    },
+    {
+      "day": 20,
+      "tt_tb8": 140.7,
+      "tt_andrieu": 104.69999999999997,
+      "total": 3,
+      "coll": 1,
+      "emrg": 1,
+      "whrl": 1
+    },
+    {
+      "day": 21,
+      "tt_tb8": 148.29999999999998,
+      "tt_andrieu": 110.49999999999997,
+      "total": 3,
+      "coll": 1,
+      "emrg": 1,
+      "whrl": 1
+    },
+    {
+      "day": 22,
+      "tt_tb8": 155.7,
+      "tt_andrieu": 116.09999999999997,
+      "total": 3,
+      "coll": 2,
+      "emrg": 0,
+      "whrl": 1
+    },
+    {
+      "day": 23,
+      "tt_tb8": 163.6,
+      "tt_andrieu": 122.19999999999996,
+      "total": 3,
+      "coll": 2,
+      "emrg": 0,
+      "whrl": 1
+    },
+    {
+      "day": 24,
+      "tt_tb8": 169.29999999999998,
+      "tt_andrieu": 126.09999999999997,
+      "total": 3,
+      "coll": 2,
+      "emrg": 1,
+      "whrl": 0
+    },
+    {
+      "day": 25,
+      "tt_tb8": 176.1,
+      "tt_andrieu": 131.09999999999997,
+      "total": 4,
+      "coll": 2,
+      "emrg": 1,
+      "whrl": 1
+    },
+    {
+      "day": 26,
+      "tt_tb8": 184.5,
+      "tt_andrieu": 137.69999999999996,
+      "total": 4,
+      "coll": 2,
+      "emrg": 1,
+      "whrl": 1
+    },
+    {
+      "day": 27,
+      "tt_tb8": 191.2,
+      "tt_andrieu": 142.59999999999997,
+      "total": 4,
+      "coll": 2,
+      "emrg": 1,
+      "whrl": 1
+    },
+    {
+      "day": 28,
+      "tt_tb8": 197.29999999999998,
+      "tt_andrieu": 146.89999999999998,
+      "total": 4,
+      "coll": 2,
+      "emrg": 1,
+      "whrl": 1
+    },
+    {
+      "day": 29,
+      "tt_tb8": 204.49999999999997,
+      "tt_andrieu": 152.29999999999998,
+      "total": 4,
+      "coll": 3,
+      "emrg": 0,
+      "whrl": 1
+    },
+    {
+      "day": 30,
+      "tt_tb8": 210.99999999999997,
+      "tt_andrieu": 156.99999999999997,
+      "total": 4,
+      "coll": 3,
+      "emrg": 0,
+      "whrl": 1
+    },
+    {
+      "day": 31,
+      "tt_tb8": 217.49999999999997,
+      "tt_andrieu": 161.69999999999996,
+      "total": 4,
+      "coll": 3,
+      "emrg": 0,
+      "whrl": 1
+    },
+    {
+      "day": 32,
+      "tt_tb8": 225.29999999999998,
+      "tt_andrieu": 167.69999999999996,
+      "total": 4,
+      "coll": 3,
+      "emrg": 1,
+      "whrl": 0
+    },
+    {
+      "day": 33,
+      "tt_tb8": 231.89999999999998,
+      "tt_andrieu": 172.49999999999997,
+      "total": 5,
+      "coll": 3,
+      "emrg": 1,
+      "whrl": 1
+    },
+    {
+      "day": 34,
+      "tt_tb8": 236.79999999999998,
+      "tt_andrieu": 175.59999999999997,
+      "total": 5,
+      "coll": 3,
+      "emrg": 1,
+      "whrl": 1
+    },
+    {
+      "day": 35,
+      "tt_tb8": 245.1,
+      "tt_andrieu": 182.09999999999997,
+      "total": 5,
+      "coll": 3,
+      "emrg": 1,
+      "whrl": 1
+    },
+    {
+      "day": 36,
+      "tt_tb8": 251.2,
+      "tt_andrieu": 186.39999999999998,
+      "total": 5,
+      "coll": 4,
+      "emrg": 0,
+      "whrl": 1
+    },
+    {
+      "day": 37,
+      "tt_tb8": 256.8,
+      "tt_andrieu": 190.2,
+      "total": 5,
+      "coll": 4,
+      "emrg": 0,
+      "whrl": 1
+    },
+    {
+      "day": 38,
+      "tt_tb8": 263.40000000000003,
+      "tt_andrieu": 195.0,
+      "total": 5,
+      "coll": 4,
+      "emrg": 0,
+      "whrl": 1
+    },
+    {
+      "day": 39,
+      "tt_tb8": 270.1,
+      "tt_andrieu": 199.9,
+      "total": 5,
+      "coll": 4,
+      "emrg": 1,
+      "whrl": 0
+    },
+    {
+      "day": 40,
+      "tt_tb8": 276.20000000000005,
+      "tt_andrieu": 204.20000000000002,
+      "total": 5,
+      "coll": 4,
+      "emrg": 1,
+      "whrl": 0
+    },
+    {
+      "day": 41,
+      "tt_tb8": 279.90000000000003,
+      "tt_andrieu": 206.10000000000002,
+      "total": 5,
+      "coll": 4,
+      "emrg": 1,
+      "whrl": 0
+    },
+    {
+      "day": 42,
+      "tt_tb8": 283.6,
+      "tt_andrieu": 208.00000000000003,
+      "total": 5,
+      "coll": 4,
+      "emrg": 1,
+      "whrl": 0
+    },
+    {
+      "day": 43,
+      "tt_tb8": 286.90000000000003,
+      "tt_andrieu": 209.50000000000003,
+      "total": 5,
+      "coll": 5,
+      "emrg": 0,
+      "whrl": 0
+    },
+    {
+      "day": 44,
+      "tt_tb8": 292.6,
+      "tt_andrieu": 213.40000000000003,
+      "total": 6,
+      "coll": 5,
+      "emrg": 0,
+      "whrl": 1
+    },
+    {
+      "day": 45,
+      "tt_tb8": 301.3,
+      "tt_andrieu": 220.30000000000004,
+      "total": 6,
+      "coll": 5,
+      "emrg": 0,
+      "whrl": 1
+    },
+    {
+      "day": 46,
+      "tt_tb8": 308.7,
+      "tt_andrieu": 225.90000000000003,
+      "total": 6,
+      "coll": 5,
+      "emrg": 0,
+      "whrl": 1
+    },
+    {
+      "day": 47,
+      "tt_tb8": 316.0,
+      "tt_andrieu": 231.40000000000003,
+      "total": 6,
+      "coll": 5,
+      "emrg": 0,
+      "whrl": 1
+    },
+    {
+      "day": 48,
+      "tt_tb8": 324.9,
+      "tt_andrieu": 238.50000000000003,
+      "total": 6,
+      "coll": 5,
+      "emrg": 0,
+      "whrl": 1
+    },
+    {
+      "day": 49,
+      "tt_tb8": 334.4,
+      "tt_andrieu": 246.20000000000002,
+      "total": 6,
+      "coll": 5,
+      "emrg": 0,
+      "whrl": 1
+    },
+    {
+      "day": 50,
+      "tt_tb8": 343.09999999999997,
+      "tt_andrieu": 253.10000000000002,
+      "total": 6,
+      "coll": 5,
+      "emrg": 1,
+      "whrl": 0
+    },
+    {
+      "day": 51,
+      "tt_tb8": 351.99999999999994,
+      "tt_andrieu": 260.20000000000005,
+      "total": 7,
+      "coll": 5,
+      "emrg": 1,
+      "whrl": 1
+    },
+    {
+      "day": 52,
+      "tt_tb8": 361.49999999999994,
+      "tt_andrieu": 267.90000000000003,
+      "total": 7,
+      "coll": 5,
+      "emrg": 1,
+      "whrl": 1
+    },
+    {
+      "day": 53,
+      "tt_tb8": 369.69999999999993,
+      "tt_andrieu": 274.3,
+      "total": 7,
+      "coll": 6,
+      "emrg": 0,
+      "whrl": 1
+    },
+    {
+      "day": 54,
+      "tt_tb8": 379.69999999999993,
+      "tt_andrieu": 282.5,
+      "total": 7,
+      "coll": 6,
+      "emrg": 0,
+      "whrl": 1
+    },
+    {
+      "day": 55,
+      "tt_tb8": 391.49999999999994,
+      "tt_andrieu": 292.5,
+      "total": 7,
+      "coll": 6,
+      "emrg": 0,
+      "whrl": 1
+    },
+    {
+      "day": 56,
+      "tt_tb8": 404.59999999999997,
+      "tt_andrieu": 303.8,
+      "total": 7,
+      "coll": 6,
+      "emrg": 1,
+      "whrl": 0
+    },
+    {
+      "day": 57,
+      "tt_tb8": 418.9,
+      "tt_andrieu": 316.3,
+      "total": 8,
+      "coll": 6,
+      "emrg": 1,
+      "whrl": 1
+    }
+  ],
+  "daily_fa_on": [
+    {
+      "day": 1,
+      "tt_tb8": 10.0,
+      "tt_andrieu": 8.2,
+      "total": 0,
+      "coll": 0,
+      "emrg": 0,
+      "whrl": 0
+    },
+    {
+      "day": 2,
+      "tt_tb8": 18.8,
+      "tt_andrieu": 15.2,
+      "total": 0,
+      "coll": 0,
+      "emrg": 0,
+      "whrl": 0
+    },
+    {
+      "day": 3,
+      "tt_tb8": 22.3,
+      "tt_andrieu": 16.9,
+      "total": 0,
+      "coll": 0,
+      "emrg": 0,
+      "whrl": 0
+    },
+    {
+      "day": 4,
+      "tt_tb8": 25.700000000000003,
+      "tt_andrieu": 18.5,
+      "total": 1,
+      "coll": 0,
+      "emrg": 0,
+      "whrl": 1
+    },
+    {
+      "day": 5,
+      "tt_tb8": 30.300000000000004,
+      "tt_andrieu": 21.299999999999997,
+      "total": 1,
+      "coll": 0,
+      "emrg": 0,
+      "whrl": 1
+    },
+    {
+      "day": 6,
+      "tt_tb8": 35.300000000000004,
+      "tt_andrieu": 24.499999999999996,
+      "total": 1,
+      "coll": 0,
+      "emrg": 0,
+      "whrl": 1
+    },
+    {
+      "day": 7,
+      "tt_tb8": 40.7,
+      "tt_andrieu": 28.099999999999994,
+      "total": 1,
+      "coll": 0,
+      "emrg": 0,
+      "whrl": 1
+    },
+    {
+      "day": 8,
+      "tt_tb8": 44.900000000000006,
+      "tt_andrieu": 30.499999999999993,
+      "total": 1,
+      "coll": 0,
+      "emrg": 0,
+      "whrl": 1
+    },
+    {
+      "day": 9,
+      "tt_tb8": 50.50000000000001,
+      "tt_andrieu": 34.29999999999999,
+      "total": 1,
+      "coll": 0,
+      "emrg": 1,
+      "whrl": 0
+    },
+    {
+      "day": 10,
+      "tt_tb8": 57.7,
+      "tt_andrieu": 39.69999999999999,
+      "total": 1,
+      "coll": 0,
+      "emrg": 1,
+      "whrl": 0
+    },
+    {
+      "day": 11,
+      "tt_tb8": 66.2,
+      "tt_andrieu": 46.39999999999999,
+      "total": 2,
+      "coll": 0,
+      "emrg": 1,
+      "whrl": 1
+    },
+    {
+      "day": 12,
+      "tt_tb8": 76.1,
+      "tt_andrieu": 54.499999999999986,
+      "total": 2,
+      "coll": 1,
+      "emrg": 0,
+      "whrl": 1
+    },
+    {
+      "day": 13,
+      "tt_tb8": 86.19999999999999,
+      "tt_andrieu": 62.79999999999998,
+      "total": 2,
+      "coll": 1,
+      "emrg": 0,
+      "whrl": 1
+    },
+    {
+      "day": 14,
+      "tt_tb8": 97.19999999999999,
+      "tt_andrieu": 71.99999999999999,
+      "total": 2,
+      "coll": 1,
+      "emrg": 0,
+      "whrl": 1
+    },
+    {
+      "day": 15,
+      "tt_tb8": 104.69999999999999,
+      "tt_andrieu": 77.69999999999999,
+      "total": 2,
+      "coll": 1,
+      "emrg": 0,
+      "whrl": 1
+    },
+    {
+      "day": 16,
+      "tt_tb8": 112.6,
+      "tt_andrieu": 83.79999999999998,
+      "total": 2,
+      "coll": 1,
+      "emrg": 0,
+      "whrl": 1
+    },
+    {
+      "day": 17,
+      "tt_tb8": 119.19999999999999,
+      "tt_andrieu": 88.59999999999998,
+      "total": 3,
+      "coll": 1,
+      "emrg": 0,
+      "whrl": 2
+    },
+    {
+      "day": 18,
+      "tt_tb8": 126.69999999999999,
+      "tt_andrieu": 94.29999999999998,
+      "total": 3,
+      "coll": 1,
+      "emrg": 1,
+      "whrl": 1
+    },
+    {
+      "day": 19,
+      "tt_tb8": 133.29999999999998,
+      "tt_andrieu": 99.09999999999998,
+      "total": 3,
+      "coll": 1,
+      "emrg": 1,
+      "whrl": 1
+    },
+    {
+      "day": 20,
+      "tt_tb8": 140.7,
+      "tt_andrieu": 104.69999999999997,
+      "total": 3,
+      "coll": 1,
+      "emrg": 1,
+      "whrl": 1
+    },
+    {
+      "day": 21,
+      "tt_tb8": 148.29999999999998,
+      "tt_andrieu": 110.49999999999997,
+      "total": 3,
+      "coll": 1,
+      "emrg": 1,
+      "whrl": 1
+    },
+    {
+      "day": 22,
+      "tt_tb8": 155.7,
+      "tt_andrieu": 116.09999999999997,
+      "total": 3,
+      "coll": 2,
+      "emrg": 0,
+      "whrl": 1
+    },
+    {
+      "day": 23,
+      "tt_tb8": 163.6,
+      "tt_andrieu": 122.19999999999996,
+      "total": 3,
+      "coll": 2,
+      "emrg": 0,
+      "whrl": 1
+    },
+    {
+      "day": 24,
+      "tt_tb8": 169.29999999999998,
+      "tt_andrieu": 126.09999999999997,
+      "total": 3,
+      "coll": 2,
+      "emrg": 1,
+      "whrl": 0
+    },
+    {
+      "day": 25,
+      "tt_tb8": 176.1,
+      "tt_andrieu": 131.09999999999997,
+      "total": 4,
+      "coll": 2,
+      "emrg": 1,
+      "whrl": 1
+    },
+    {
+      "day": 26,
+      "tt_tb8": 184.5,
+      "tt_andrieu": 137.69999999999996,
+      "total": 4,
+      "coll": 2,
+      "emrg": 1,
+      "whrl": 1
+    },
+    {
+      "day": 27,
+      "tt_tb8": 191.2,
+      "tt_andrieu": 142.59999999999997,
+      "total": 4,
+      "coll": 2,
+      "emrg": 1,
+      "whrl": 1
+    },
+    {
+      "day": 28,
+      "tt_tb8": 197.29999999999998,
+      "tt_andrieu": 146.89999999999998,
+      "total": 4,
+      "coll": 2,
+      "emrg": 1,
+      "whrl": 1
+    },
+    {
+      "day": 29,
+      "tt_tb8": 204.49999999999997,
+      "tt_andrieu": 152.29999999999998,
+      "total": 4,
+      "coll": 3,
+      "emrg": 0,
+      "whrl": 1
+    },
+    {
+      "day": 30,
+      "tt_tb8": 210.99999999999997,
+      "tt_andrieu": 156.99999999999997,
+      "total": 4,
+      "coll": 3,
+      "emrg": 0,
+      "whrl": 1
+    },
+    {
+      "day": 31,
+      "tt_tb8": 217.49999999999997,
+      "tt_andrieu": 161.69999999999996,
+      "total": 4,
+      "coll": 3,
+      "emrg": 0,
+      "whrl": 1
+    },
+    {
+      "day": 32,
+      "tt_tb8": 225.29999999999998,
+      "tt_andrieu": 167.69999999999996,
+      "total": 4,
+      "coll": 3,
+      "emrg": 1,
+      "whrl": 0
+    },
+    {
+      "day": 33,
+      "tt_tb8": 231.89999999999998,
+      "tt_andrieu": 172.49999999999997,
+      "total": 5,
+      "coll": 3,
+      "emrg": 1,
+      "whrl": 1
+    },
+    {
+      "day": 34,
+      "tt_tb8": 236.79999999999998,
+      "tt_andrieu": 175.59999999999997,
+      "total": 5,
+      "coll": 3,
+      "emrg": 1,
+      "whrl": 1
+    },
+    {
+      "day": 35,
+      "tt_tb8": 245.1,
+      "tt_andrieu": 182.09999999999997,
+      "total": 5,
+      "coll": 3,
+      "emrg": 1,
+      "whrl": 1
+    },
+    {
+      "day": 36,
+      "tt_tb8": 251.2,
+      "tt_andrieu": 186.39999999999998,
+      "total": 5,
+      "coll": 4,
+      "emrg": 0,
+      "whrl": 1
+    },
+    {
+      "day": 37,
+      "tt_tb8": 256.8,
+      "tt_andrieu": 190.2,
+      "total": 5,
+      "coll": 4,
+      "emrg": 0,
+      "whrl": 1
+    },
+    {
+      "day": 38,
+      "tt_tb8": 263.40000000000003,
+      "tt_andrieu": 195.0,
+      "total": 5,
+      "coll": 4,
+      "emrg": 0,
+      "whrl": 1
+    },
+    {
+      "day": 39,
+      "tt_tb8": 270.1,
+      "tt_andrieu": 199.9,
+      "total": 5,
+      "coll": 4,
+      "emrg": 1,
+      "whrl": 0
+    },
+    {
+      "day": 40,
+      "tt_tb8": 276.20000000000005,
+      "tt_andrieu": 204.20000000000002,
+      "total": 5,
+      "coll": 4,
+      "emrg": 1,
+      "whrl": 0
+    },
+    {
+      "day": 41,
+      "tt_tb8": 279.90000000000003,
+      "tt_andrieu": 206.10000000000002,
+      "total": 5,
+      "coll": 4,
+      "emrg": 1,
+      "whrl": 0
+    },
+    {
+      "day": 42,
+      "tt_tb8": 283.6,
+      "tt_andrieu": 208.00000000000003,
+      "total": 5,
+      "coll": 4,
+      "emrg": 1,
+      "whrl": 0
+    },
+    {
+      "day": 43,
+      "tt_tb8": 286.90000000000003,
+      "tt_andrieu": 209.50000000000003,
+      "total": 5,
+      "coll": 5,
+      "emrg": 0,
+      "whrl": 0
+    },
+    {
+      "day": 44,
+      "tt_tb8": 292.6,
+      "tt_andrieu": 213.40000000000003,
+      "total": 6,
+      "coll": 5,
+      "emrg": 0,
+      "whrl": 1
+    },
+    {
+      "day": 45,
+      "tt_tb8": 301.3,
+      "tt_andrieu": 220.30000000000004,
+      "total": 6,
+      "coll": 5,
+      "emrg": 0,
+      "whrl": 1
+    },
+    {
+      "day": 46,
+      "tt_tb8": 308.7,
+      "tt_andrieu": 225.90000000000003,
+      "total": 6,
+      "coll": 5,
+      "emrg": 0,
+      "whrl": 1
+    },
+    {
+      "day": 47,
+      "tt_tb8": 316.0,
+      "tt_andrieu": 231.40000000000003,
+      "total": 6,
+      "coll": 5,
+      "emrg": 0,
+      "whrl": 1
+    },
+    {
+      "day": 48,
+      "tt_tb8": 324.9,
+      "tt_andrieu": 238.50000000000003,
+      "total": 6,
+      "coll": 5,
+      "emrg": 0,
+      "whrl": 1
+    },
+    {
+      "day": 49,
+      "tt_tb8": 334.4,
+      "tt_andrieu": 246.20000000000002,
+      "total": 6,
+      "coll": 5,
+      "emrg": 0,
+      "whrl": 1
+    },
+    {
+      "day": 50,
+      "tt_tb8": 343.09999999999997,
+      "tt_andrieu": 253.10000000000002,
+      "total": 6,
+      "coll": 5,
+      "emrg": 1,
+      "whrl": 0
+    },
+    {
+      "day": 51,
+      "tt_tb8": 351.99999999999994,
+      "tt_andrieu": 260.20000000000005,
+      "total": 7,
+      "coll": 5,
+      "emrg": 1,
+      "whrl": 1
+    },
+    {
+      "day": 52,
+      "tt_tb8": 361.49999999999994,
+      "tt_andrieu": 267.90000000000003,
+      "total": 7,
+      "coll": 5,
+      "emrg": 1,
+      "whrl": 1
+    },
+    {
+      "day": 53,
+      "tt_tb8": 369.69999999999993,
+      "tt_andrieu": 274.3,
+      "total": 7,
+      "coll": 6,
+      "emrg": 0,
+      "whrl": 1
+    },
+    {
+      "day": 54,
+      "tt_tb8": 379.69999999999993,
+      "tt_andrieu": 282.5,
+      "total": 7,
+      "coll": 6,
+      "emrg": 0,
+      "whrl": 1
+    },
+    {
+      "day": 55,
+      "tt_tb8": 391.49999999999994,
+      "tt_andrieu": 292.5,
+      "total": 7,
+      "coll": 6,
+      "emrg": 0,
+      "whrl": 1
+    },
+    {
+      "day": 56,
+      "tt_tb8": 404.59999999999997,
+      "tt_andrieu": 303.8,
+      "total": 7,
+      "coll": 6,
+      "emrg": 1,
+      "whrl": 0
+    },
+    {
+      "day": 57,
+      "tt_tb8": 418.9,
+      "tt_andrieu": 316.3,
+      "total": 8,
+      "coll": 6,
+      "emrg": 1,
+      "whrl": 1
+    }
+  ]
+}

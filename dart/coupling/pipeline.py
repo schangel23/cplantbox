@@ -80,6 +80,14 @@ class PipelineConfig:
     baleno_python: str = ""
     cplantbox_root: str = ""
 
+    # Geometry backend
+    # When True, leaf organs are lofted via the canonical 11×5 PlantGL
+    # NurbsPatch backend (`geometry/nurbs_blade.py`) instead of the legacy
+    # quad-ribbon lofter. Experimental — off by default.
+    use_nurbs_leaf_backend: bool = False
+    nurbs_leaf_n_u_eval: int = 30
+    nurbs_leaf_n_v_eval: int = 7
+
     # PROSPECT overrides (None = use built-in stage-based lookup from prospect_params.py)
     # Each entry: {day_range: [lo, hi], label: str, Cab, Car, Cw, Cm, N, CBrown, anthocyanin}
     prospect_stages_override: list | None = None

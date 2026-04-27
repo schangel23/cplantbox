@@ -68,7 +68,7 @@ public:
 
     double psi_air = -954378; // air water potential [cm] for T = 20°C and RH = 0.5
 
-    const int maxSubTypes = 20;
+    const int maxSubTypes = 24;
 
 protected:
 

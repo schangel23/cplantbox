@@ -1,0 +1,16 @@
+{
+  "n_leaf_nodes": 12473,
+  "n_leaves": 87,
+  "n_mainstem_nodes": 361,
+  "n_organs": 1154,
+  "n_root_nodes": 20817,
+  "n_roots": 1066,
+  "n_segments_total": 32497,
+  "n_stems": 1,
+  "seed": 7,
+  "sha256": "2df8a2d035cb302319d78d636a57a00bf811fb01f1fb1ca53bf44cb925cc8594",
+  "sim_days": 60,
+  "slug": "legacy_2020_maize_60d",
+  "use_daily_met": true,
+  "xml": "modelparameter/structural/plant/2020-maize.xml"
+}

@@ -22,6 +22,8 @@ from ..config import (DART_HOME, DART_EB_DIR, DARTRC, OUTPUT_DIR,
                       get_species)
 from ..prospect_params import (get_prospect_params, get_prospect_params_per_position,
                                get_stem_prospect_params,
+                               get_tassel_prospect_params,
+                               get_midrib_prospect_params,
                                log_consistency, log_lops_consistency, vcmax25_from_cab)
 from ..dart.simulation import configure_atmosphere_midlatsum
 from .parsers import detect_delimiter, read_baleno_csv, write_json5
@@ -89,7 +91,10 @@ def step1_create_simu_I():
     file_src_fullpath = simu.get_input_file_path(str(OBJ_PATH))
     obj_info = ptd.OBJtools.objreader(file_src_fullpath)
     gnames = ptd.OBJtools.gnames_dart_order(obj_info.names)
-    n_leaf_groups = sum(1 for g in gnames if not g.endswith('_00'))
+    n_leaf_groups = sum(1 for g in gnames
+                        if not g.endswith('_00')
+                        and not g.endswith('_midrib')
+                        and not g.startswith(('tassel_spike_', 'tassel_branch_')))
 
     per_pos_params = get_prospect_params_per_position(55, n_leaf_groups)
     for i, params in enumerate(per_pos_params):
@@ -108,23 +113,44 @@ def step1_create_simu_I():
         prospect=stem_prospect,
         useMultiplicativeFactorForLUT=0,
     )
+    tassel_prospect = get_tassel_prospect_params(55)
+    simu.add.optical_property(
+        type='Lambertian', ident='maize_tassel',
+        prospect=tassel_prospect,
+        useMultiplicativeFactorForLUT=0,
+    )
+
+    # Midrib OP — registered on demand.
+    _has_midrib = any(g.endswith('_midrib') for g in gnames)
+    if _has_midrib:
+        midrib_prospect = get_midrib_prospect_params(55)
+        simu.add.optical_property(
+            type='Lambertian', ident='maize_leaf_midrib',
+            prospect=midrib_prospect,
+            useMultiplicativeFactorForLUT=0,
+        )
 
     # 3D Object via ObjectFields (same grid as Phase 1)
     xdim, ydim, zdim = obj_info.dims
     xc, yc, zc = obj_info.center
 
-    # Create groups with per-position optical properties + doubleFace
+    # Create groups with per-position optical properties + doubleFace.
+    # Routing precedence: midrib suffix > tassel prefix > stem (organ_00)
+    # > per-position leaf.
     groups_list = []
     leaf_idx = 0
     for gi, gname in enumerate(gnames):
         g = ptd.object_3d.create_Group(num=gi + 1, name=gname)
-        is_stem = gname.endswith('_00')
-        if is_stem:
-            op_ident = 'maize_stem'
+        if gname.endswith('_midrib'):
+            op_ident, df = 'maize_leaf_midrib', 1
+        elif gname.startswith(('tassel_spike_', 'tassel_branch_')):
+            op_ident, df = 'maize_tassel', 1
+        elif gname.endswith('_00'):
+            op_ident, df = 'maize_stem', 0
         else:
             op_ident = f'maize_leaf_pos{leaf_idx}'
             leaf_idx += 1
-        df = 0 if is_stem else 1
+            df = 1
         g.set_nodes(ident=op_ident)
         gop = g.GroupOpticalProperties
         gop.SurfaceOpticalProperties.doubleFace = df

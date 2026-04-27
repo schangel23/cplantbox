@@ -83,6 +83,7 @@ def build_tree(plant: pb.MappedPlant) -> VascularTree:
     # For leaves, CPlantBox's r=0.04 cm is the midrib radius — far smaller than
     # the blade. Use leafBladeSurface * leaf_thickness for realistic tissue mass.
     LEAF_THICKNESS = 0.025  # cm — maize blade thickness (Colbert & Rhoades 1993)
+    SHEATH_THICKNESS = 0.04  # cm — maize sheath thickness (structural, thicker than blade)
     seg_vol = np.pi * radii**2 * seg_len  # default: cylindrical
     leaf_mask = (ot_arr == 4) & (leaf_surf > 0)
     seg_vol[leaf_mask] = leaf_surf[leaf_mask] * LEAF_THICKNESS

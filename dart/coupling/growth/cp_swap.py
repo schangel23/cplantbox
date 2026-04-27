@@ -1,0 +1,183 @@
+"""Runtime swap of per-plant leaf surface_cps from the MF3D library.
+
+Lets each plant in a canopy draw its own donor from the 520-plant
+MaizeField3D pool without regenerating the XML. Mutates
+``LeafRandomParameter`` in memory after ``readParameters()`` and before
+``initialize()`` — CPlantBox re-reads those params on every organ
+creation, so downstream growth, lofting, DART export, and photosynthesis
+all pick up the donor's CPs automatically.
+"""
+from __future__ import annotations
+
+import numpy as np
+import plantbox as pb
+
+_PROFILE_SHAPE_FACTOR = 0.73  # trapezoidal integral of typical maize profile
+
+# Bottom-leaf taper to keep drooping tips above ground (mirrors calibrate.py).
+# Pos 0-1 insert close to the collar; a raw 60-80 cm donor blade would
+# place its tip underground. Apply a multiplicative shrink plus an absolute
+# cap. areaMax scales with lmax; Width_blade is unchanged (a shorter blade
+# of the same max-width is geometrically valid).
+_LMAX_TAPER = {0: 0.60, 1: 0.75, 2: 0.85, 3: 0.90}
+_LMAX_CAP_CM = {0: 32.0, 1: 45.0, 2: 50.0, 3: 50.0}
+
+
+def _apply_bottom_taper(pos: int, lmax: float, max_w: float) -> tuple[float, float]:
+    """Return (lmax', areaMax') after bottom-leaf taper + cap."""
+    factor = _LMAX_TAPER.get(pos)
+    if factor is None:
+        return lmax, lmax * max_w * _PROFILE_SHAPE_FACTOR
+    cap = _LMAX_CAP_CM.get(pos, float("inf"))
+    new_lmax = min(lmax * factor, cap)
+    if new_lmax >= lmax:
+        return lmax, lmax * max_w * _PROFILE_SHAPE_FACTOR
+    area_max = new_lmax * max_w * _PROFILE_SHAPE_FACTOR
+    return new_lmax, area_max
+
+
+def _blade_position_for_subtype(lrp, *, phytomer_mode: bool) -> int | None:
+    """Map a leaf RandomParameter to its MF3D position index.
+
+    Returns None when the leaf is not a blade (e.g. sheath/pseudostem)
+    or has a subType outside the normal range.
+    """
+    try:
+        if int(lrp.getParameter("isPseudostem")) == 1:
+            return None  # sheath — no surface_cps
+    except Exception:
+        pass
+    st = int(lrp.subType)
+    if phytomer_mode:
+        # blade_st = 2 * pos + 1 → pos = (st - 1) // 2
+        if st < 3 or st % 2 == 0:
+            return None
+        return (st - 1) // 2
+    # monolithic: leaf_st = pos + 2 → pos = st - 2
+    if st < 2:
+        return None
+    return st - 2
+
+
+def _detect_phytomer_mode(plant) -> bool:
+    """Decompose-phytomer mode is on when any leaf has isPseudostem=1."""
+    for lrp in plant.getOrganRandomParameter(pb.leaf):
+        try:
+            if int(lrp.getParameter("isPseudostem")) == 1:
+                return True
+        except Exception:
+            continue
+    return False
+
+
+def apply_donor_cps(
+    plant,
+    *,
+    donor_seed: int,
+    mode: str = "draw_coherent",
+    resize_blades: bool = True,
+    verbose: bool = False,
+) -> dict:
+    """Overwrite each blade's ``surface_cps`` with the donor plant's CPs.
+
+    Call AFTER ``plant.readParameters(xml)`` and BEFORE ``plant.initialize()``.
+
+    Args:
+        plant: CPlantBox MappedPlant with parameters loaded.
+        donor_seed: RNG seed selecting which MF3D donor to use.
+        mode: ``"draw_coherent"`` (default; one plant for all positions),
+            ``"draw"`` (independent per-position draws), or ``"median"``
+            (no variation — useful for smoke tests).
+        resize_blades: if True, also set ``lmax``, ``Width_blade``, and
+            ``areaMax`` from the donor's per-position metrics so the
+            blade's absolute scale matches its shape.
+        verbose: print a one-line summary of swapped subtypes.
+
+    Returns:
+        dict with ``donor_seed``, ``mode``, ``positions``, and a list of
+        modified subtypes — suitable for logging in a canopy snapshot.
+    """
+    from dart.coupling.geometry.canonical_library import (
+        build_from_maizefield3d,
+        _default_canonical_json,
+    )
+
+    lib = build_from_maizefield3d(
+        _default_canonical_json(),
+        reducer=mode,
+        draw_seed=int(donor_seed) if mode in ("draw", "draw_coherent") else None,
+    )
+    cps_by_pos = lib["cps_local"]          # (n_pos, N_U, N_V, 3)
+    metrics = lib["chosen_metrics_cm"]     # (n_pos, 2) → (lmax, max_w)
+    positions = np.asarray(lib["positions"], dtype=int)
+    pos_to_idx = {int(p): i for i, p in enumerate(positions)}
+    n_u, n_v = int(lib["n_u"]), int(lib["n_v"])
+    deg_u, deg_v = int(lib["deg_u"]), int(lib["deg_v"])
+
+    phytomer_mode = _detect_phytomer_mode(plant)
+    modified: list[tuple[int, int]] = []  # (subType, pos)
+
+    for lrp in plant.getOrganRandomParameter(pb.leaf):
+        pos = _blade_position_for_subtype(lrp, phytomer_mode=phytomer_mode)
+        if pos is None or pos not in pos_to_idx:
+            continue
+        # Respect the baseline XML's per-position lofter choice. Positions
+        # that ship WITHOUT surface_cps are rendered by the quad-ribbon
+        # lofter (pointed-tip taper, leafGeometry-driven); overwriting them
+        # would force NURBS and lose the pointed bottom-leaf tips. Only
+        # donor-swap positions that already opted into NURBS.
+        if not list(lrp.surface_cps):
+            continue
+        idx = pos_to_idx[pos]
+        raw_lmax = float(metrics[idx][0])
+        max_w = float(metrics[idx][1])
+
+        if resize_blades:
+            new_lmax, new_area = _apply_bottom_taper(pos, raw_lmax, max_w)
+        else:
+            new_lmax = float(lrp.lmax)
+            new_area = float(lrp.areaMax)
+
+        # Rescale library CPs so their midrib arc length equals the target
+        # ``lmax`` in cm. Mirrors calibrate.py (XML-bake path): the C++
+        # ``Leaf::updateNodesFromSurfaceCPs`` and the Python NURBS lofter
+        # both apply ``scale = current_length / lmax`` at runtime, so the CPs
+        # must be in absolute cm with ``midrib_arc == lmax``. Library CPs
+        # are normalised (arc=1); skipping this rescale produced NaN leaf
+        # nodes from the C++ midrib re-projection.
+        grid = np.asarray(cps_by_pos[idx], dtype=np.float64)
+        midrib = grid[:, n_v // 2, :]
+        lib_arc = float(np.sum(np.linalg.norm(np.diff(midrib, axis=0), axis=1)))
+        if lib_arc > 1e-9 and new_lmax > 1e-9:
+            grid = grid * (new_lmax / lib_arc)
+
+        # Setter expects List[Vector3d] flattened row-major (i_u*n_v + i_v).
+        flat = [pb.Vector3d(float(grid[iu, iv, 0]),
+                            float(grid[iu, iv, 1]),
+                            float(grid[iu, iv, 2]))
+                for iu in range(n_u) for iv in range(n_v)]
+        lrp.surface_cps = flat
+        lrp.surface_n_u = n_u
+        lrp.surface_n_v = n_v
+        lrp.surface_deg_u = deg_u
+        lrp.surface_deg_v = deg_v
+
+        if resize_blades:
+            lrp.lmax = new_lmax
+            lrp.Width_blade = max_w / 2.0
+            lrp.areaMax = new_area
+
+        plant.setOrganRandomParameter(lrp)
+        modified.append((int(lrp.subType), int(pos)))
+
+    if verbose:
+        subtypes = ", ".join(f"st{st}->pos{p}" for st, p in modified)
+        print(f"  apply_donor_cps(mode={mode}, seed={donor_seed}): "
+              f"{len(modified)} blades swapped [{subtypes}]")
+
+    return {
+        "donor_seed": int(donor_seed),
+        "mode": mode,
+        "positions": positions.tolist(),
+        "modified_subtypes": modified,
+    }

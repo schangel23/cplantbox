@@ -1,0 +1,1276 @@
+{
+  "seed": 7,
+  "xml": "maize_calibrated.xml",
+  "max_days": 130,
+  "n_ranks": 16,
+  "trajectory": [
+    {
+      "day": 1,
+      "T_mean_C": 18.0,
+      "tt_tb8": 10.0,
+      "tt_andrieu": 8.2,
+      "mainstem_top_z_cm": 9.000015999999974,
+      "mainstem_length_cm": 12.000015999999988,
+      "n_mainstem_nodes": 137
+    },
+    {
+      "day": 2,
+      "T_mean_C": 16.8,
+      "tt_tb8": 18.8,
+      "tt_andrieu": 15.2,
+      "mainstem_top_z_cm": 9.000015999999974,
+      "mainstem_length_cm": 12.000015999999988,
+      "n_mainstem_nodes": 137
+    },
+    {
+      "day": 3,
+      "T_mean_C": 11.5,
+      "tt_tb8": 22.3,
+      "tt_andrieu": 16.9,
+      "mainstem_top_z_cm": 9.000015999999974,
+      "mainstem_length_cm": 12.000015999999988,
+      "n_mainstem_nodes": 137
+    },
+    {
+      "day": 4,
+      "T_mean_C": 11.4,
+      "tt_tb8": 25.700000000000003,
+      "tt_andrieu": 18.5,
+      "mainstem_top_z_cm": 10.511276591155296,
+      "mainstem_length_cm": 13.51127659115532,
+      "n_mainstem_nodes": 138
+    },
+    {
+      "day": 5,
+      "T_mean_C": 12.6,
+      "tt_tb8": 30.300000000000004,
+      "tt_andrieu": 21.299999999999997,
+      "mainstem_top_z_cm": 13.740845263079606,
+      "mainstem_length_cm": 16.740845263079645,
+      "n_mainstem_nodes": 170
+    },
+    {
+      "day": 6,
+      "T_mean_C": 13.0,
+      "tt_tb8": 35.300000000000004,
+      "tt_andrieu": 24.499999999999996,
+      "mainstem_top_z_cm": 16.913205200354945,
+      "mainstem_length_cm": 19.913205200355,
+      "n_mainstem_nodes": 202
+    },
+    {
+      "day": 7,
+      "T_mean_C": 13.4,
+      "tt_tb8": 40.7,
+      "tt_andrieu": 28.099999999999994,
+      "mainstem_top_z_cm": 20.029369801256042,
+      "mainstem_length_cm": 23.02936980125606,
+      "n_mainstem_nodes": 234
+    },
+    {
+      "day": 8,
+      "T_mean_C": 12.2,
+      "tt_tb8": 44.900000000000006,
+      "tt_andrieu": 30.499999999999993,
+      "mainstem_top_z_cm": 23.0903345126718,
+      "mainstem_length_cm": 26.090334512671784,
+      "n_mainstem_nodes": 266
+    },
+    {
+      "day": 9,
+      "T_mean_C": 13.6,
+      "tt_tb8": 50.50000000000001,
+      "tt_andrieu": 34.29999999999999,
+      "mainstem_top_z_cm": 26.09707714809717,
+      "mainstem_length_cm": 29.09707714809712,
+      "n_mainstem_nodes": 298
+    },
+    {
+      "day": 10,
+      "T_mean_C": 15.2,
+      "tt_tb8": 57.7,
+      "tt_andrieu": 39.69999999999999,
+      "mainstem_top_z_cm": 29.050558199991862,
+      "mainstem_length_cm": 32.05055819999176,
+      "n_mainstem_nodes": 330
+    },
+    {
+      "day": 11,
+      "T_mean_C": 16.5,
+      "tt_tb8": 66.2,
+      "tt_andrieu": 46.39999999999999,
+      "mainstem_top_z_cm": 31.951721146605944,
+      "mainstem_length_cm": 34.95172114660581,
+      "n_mainstem_nodes": 361
+    },
+    {
+      "day": 12,
+      "T_mean_C": 17.9,
+      "tt_tb8": 76.1,
+      "tt_andrieu": 54.499999999999986,
+      "mainstem_top_z_cm": 34.80149275337052,
+      "mainstem_length_cm": 37.80149275337034,
+      "n_mainstem_nodes": 393
+    },
+    {
+      "day": 13,
+      "T_mean_C": 18.1,
+      "tt_tb8": 86.19999999999999,
+      "tt_andrieu": 62.79999999999998,
+      "mainstem_top_z_cm": 37.60078336894916,
+      "mainstem_length_cm": 40.60078336894895,
+      "n_mainstem_nodes": 410
+    },
+    {
+      "day": 14,
+      "T_mean_C": 19.0,
+      "tt_tb8": 97.19999999999999,
+      "tt_andrieu": 71.99999999999999,
+      "mainstem_top_z_cm": 40.35048721604566,
+      "mainstem_length_cm": 43.350487216045416,
+      "n_mainstem_nodes": 442
+    },
+    {
+      "day": 15,
+      "T_mean_C": 15.5,
+      "tt_tb8": 104.69999999999999,
+      "tt_andrieu": 77.69999999999999,
+      "mainstem_top_z_cm": 43.051482677059724,
+      "mainstem_length_cm": 46.05148267705943,
+      "n_mainstem_nodes": 473
+    },
+    {
+      "day": 16,
+      "T_mean_C": 15.9,
+      "tt_tb8": 112.6,
+      "tt_andrieu": 83.79999999999998,
+      "mainstem_top_z_cm": 45.704632574683004,
+      "mainstem_length_cm": 48.70463257468271,
+      "n_mainstem_nodes": 490
+    },
+    {
+      "day": 17,
+      "T_mean_C": 14.6,
+      "tt_tb8": 119.19999999999999,
+      "tt_andrieu": 88.59999999999998,
+      "mainstem_top_z_cm": 48.3107844475247,
+      "mainstem_length_cm": 51.31078444752439,
+      "n_mainstem_nodes": 522
+    },
+    {
+      "day": 18,
+      "T_mean_C": 15.5,
+      "tt_tb8": 126.69999999999999,
+      "tt_andrieu": 94.29999999999998,
+      "mainstem_top_z_cm": 50.87077082085419,
+      "mainstem_length_cm": 53.87077082085385,
+      "n_mainstem_nodes": 553
+    },
+    {
+      "day": 19,
+      "T_mean_C": 14.6,
+      "tt_tb8": 133.29999999999998,
+      "tt_andrieu": 99.09999999999998,
+      "mainstem_top_z_cm": 53.38540947254829,
+      "mainstem_length_cm": 56.3854094725479,
+      "n_mainstem_nodes": 570
+    },
+    {
+      "day": 20,
+      "T_mean_C": 15.4,
+      "tt_tb8": 140.7,
+      "tt_andrieu": 104.69999999999997,
+      "mainstem_top_z_cm": 55.85550369432722,
+      "mainstem_length_cm": 58.85550369432677,
+      "n_mainstem_nodes": 601
+    },
+    {
+      "day": 21,
+      "T_mean_C": 15.6,
+      "tt_tb8": 148.29999999999998,
+      "tt_andrieu": 110.49999999999997,
+      "mainstem_top_z_cm": 58.28184254836297,
+      "mainstem_length_cm": 61.281842548362505,
+      "n_mainstem_nodes": 618
+    },
+    {
+      "day": 22,
+      "T_mean_C": 15.4,
+      "tt_tb8": 155.7,
+      "tt_andrieu": 116.09999999999997,
+      "mainstem_top_z_cm": 60.66520111934244,
+      "mainstem_length_cm": 63.665201119341965,
+      "n_mainstem_nodes": 649
+    },
+    {
+      "day": 23,
+      "T_mean_C": 15.9,
+      "tt_tb8": 163.6,
+      "tt_andrieu": 122.19999999999996,
+      "mainstem_top_z_cm": 63.006340762065065,
+      "mainstem_length_cm": 66.00634076206455,
+      "n_mainstem_nodes": 666
+    },
+    {
+      "day": 24,
+      "T_mean_C": 13.7,
+      "tt_tb8": 169.29999999999998,
+      "tt_andrieu": 126.09999999999997,
+      "mainstem_top_z_cm": 65.30600934465475,
+      "mainstem_length_cm": 68.30600934465427,
+      "n_mainstem_nodes": 697
+    },
+    {
+      "day": 25,
+      "T_mean_C": 14.8,
+      "tt_tb8": 176.1,
+      "tt_andrieu": 131.09999999999997,
+      "mainstem_top_z_cm": 67.56494148746346,
+      "mainstem_length_cm": 70.5649414874631,
+      "n_mainstem_nodes": 714
+    },
+    {
+      "day": 26,
+      "T_mean_C": 16.4,
+      "tt_tb8": 184.5,
+      "tt_andrieu": 137.69999999999996,
+      "mainstem_top_z_cm": 69.78385879774315,
+      "mainstem_length_cm": 72.78385879774292,
+      "n_mainstem_nodes": 730
+    },
+    {
+      "day": 27,
+      "T_mean_C": 14.7,
+      "tt_tb8": 191.2,
+      "tt_andrieu": 142.59999999999997,
+      "mainstem_top_z_cm": 71.96347010016017,
+      "mainstem_length_cm": 74.96347010016005,
+      "n_mainstem_nodes": 761
+    },
+    {
+      "day": 28,
+      "T_mean_C": 14.1,
+      "tt_tb8": 197.29999999999998,
+      "tt_andrieu": 146.89999999999998,
+      "mainstem_top_z_cm": 74.10447166322655,
+      "mainstem_length_cm": 77.10447166322655,
+      "n_mainstem_nodes": 778
+    },
+    {
+      "day": 29,
+      "T_mean_C": 15.2,
+      "tt_tb8": 204.49999999999997,
+      "tt_andrieu": 152.29999999999998,
+      "mainstem_top_z_cm": 76.20754742172053,
+      "mainstem_length_cm": 79.20754742172068,
+      "n_mainstem_nodes": 809
+    },
+    {
+      "day": 30,
+      "T_mean_C": 14.5,
+      "tt_tb8": 210.99999999999997,
+      "tt_andrieu": 156.99999999999997,
+      "mainstem_top_z_cm": 78.27336919516682,
+      "mainstem_length_cm": 81.27336919516708,
+      "n_mainstem_nodes": 825
+    },
+    {
+      "day": 31,
+      "T_mean_C": 14.5,
+      "tt_tb8": 217.49999999999997,
+      "tt_andrieu": 161.69999999999996,
+      "mainstem_top_z_cm": 80.30259690244675,
+      "mainstem_length_cm": 83.30259690244712,
+      "n_mainstem_nodes": 842
+    },
+    {
+      "day": 32,
+      "T_mean_C": 15.8,
+      "tt_tb8": 225.29999999999998,
+      "tt_andrieu": 167.69999999999996,
+      "mainstem_top_z_cm": 82.29587877260695,
+      "mainstem_length_cm": 85.29587877260741,
+      "n_mainstem_nodes": 858
+    },
+    {
+      "day": 33,
+      "T_mean_C": 14.6,
+      "tt_tb8": 231.89999999999998,
+      "tt_andrieu": 172.49999999999997,
+      "mainstem_top_z_cm": 84.25385155193341,
+      "mainstem_length_cm": 87.25385155193399,
+      "n_mainstem_nodes": 889
+    },
+    {
+      "day": 34,
+      "T_mean_C": 12.9,
+      "tt_tb8": 236.79999999999998,
+      "tt_andrieu": 175.59999999999997,
+      "mainstem_top_z_cm": 86.17714070735798,
+      "mainstem_length_cm": 89.17714070735867,
+      "n_mainstem_nodes": 905
+    },
+    {
+      "day": 35,
+      "T_mean_C": 16.3,
+      "tt_tb8": 245.1,
+      "tt_andrieu": 182.09999999999997,
+      "mainstem_top_z_cm": 88.06636062626109,
+      "mainstem_length_cm": 91.06636062626193,
+      "n_mainstem_nodes": 921
+    },
+    {
+      "day": 36,
+      "T_mean_C": 14.1,
+      "tt_tb8": 251.2,
+      "tt_andrieu": 186.39999999999998,
+      "mainstem_top_z_cm": 89.9221148127357,
+      "mainstem_length_cm": 92.92211481273667,
+      "n_mainstem_nodes": 938
+    },
+    {
+      "day": 37,
+      "T_mean_C": 13.6,
+      "tt_tb8": 256.8,
+      "tt_andrieu": 190.2,
+      "mainstem_top_z_cm": 91.74499608037428,
+      "mainstem_length_cm": 94.74499608037532,
+      "n_mainstem_nodes": 954
+    },
+    {
+      "day": 38,
+      "T_mean_C": 14.6,
+      "tt_tb8": 263.40000000000003,
+      "tt_andrieu": 195.0,
+      "mainstem_top_z_cm": 93.53558674164067,
+      "mainstem_length_cm": 96.5355867416418,
+      "n_mainstem_nodes": 971
+    },
+    {
+      "day": 39,
+      "T_mean_C": 14.7,
+      "tt_tb8": 270.1,
+      "tt_andrieu": 199.9,
+      "mainstem_top_z_cm": 95.29445879388788,
+      "mainstem_length_cm": 98.29445879388912,
+      "n_mainstem_nodes": 987
+    },
+    {
+      "day": 40,
+      "T_mean_C": 14.1,
+      "tt_tb8": 276.20000000000005,
+      "tt_andrieu": 204.20000000000002,
+      "mainstem_top_z_cm": 97.0221741020803,
+      "mainstem_length_cm": 100.02217410208168,
+      "n_mainstem_nodes": 1016
+    },
+    {
+      "day": 41,
+      "T_mean_C": 11.7,
+      "tt_tb8": 279.90000000000003,
+      "tt_andrieu": 206.10000000000002,
+      "mainstem_top_z_cm": 98.71928457827931,
+      "mainstem_length_cm": 101.7192845782808,
+      "n_mainstem_nodes": 1032
+    },
+    {
+      "day": 42,
+      "T_mean_C": 11.7,
+      "tt_tb8": 283.6,
+      "tt_andrieu": 208.00000000000003,
+      "mainstem_top_z_cm": 100.38633235794964,
+      "mainstem_length_cm": 103.38633235795119,
+      "n_mainstem_nodes": 1048
+    },
+    {
+      "day": 43,
+      "T_mean_C": 11.3,
+      "tt_tb8": 286.90000000000003,
+      "tt_andrieu": 209.50000000000003,
+      "mainstem_top_z_cm": 102.02384997314215,
+      "mainstem_length_cm": 105.02384997314374,
+      "n_mainstem_nodes": 1065
+    },
+    {
+      "day": 44,
+      "T_mean_C": 13.7,
+      "tt_tb8": 292.6,
+      "tt_andrieu": 213.40000000000003,
+      "mainstem_top_z_cm": 103.63236052260936,
+      "mainstem_length_cm": 106.6323605226111,
+      "n_mainstem_nodes": 1081
+    },
+    {
+      "day": 45,
+      "T_mean_C": 16.7,
+      "tt_tb8": 301.3,
+      "tt_andrieu": 220.30000000000004,
+      "mainstem_top_z_cm": 105.21237783890753,
+      "mainstem_length_cm": 108.21237783890939,
+      "n_mainstem_nodes": 1096
+    },
+    {
+      "day": 46,
+      "T_mean_C": 15.4,
+      "tt_tb8": 308.7,
+      "tt_andrieu": 225.90000000000003,
+      "mainstem_top_z_cm": 106.76440665253831,
+      "mainstem_length_cm": 109.76440665254026,
+      "n_mainstem_nodes": 1112
+    },
+    {
+      "day": 47,
+      "T_mean_C": 15.3,
+      "tt_tb8": 316.0,
+      "tt_andrieu": 231.40000000000003,
+      "mainstem_top_z_cm": 108.28894275318285,
+      "mainstem_length_cm": 111.28894275318486,
+      "n_mainstem_nodes": 1128
+    },
+    {
+      "day": 48,
+      "T_mean_C": 16.9,
+      "tt_tb8": 324.9,
+      "tt_andrieu": 238.50000000000003,
+      "mainstem_top_z_cm": 109.7864731480801,
+      "mainstem_length_cm": 112.78647314808217,
+      "n_mainstem_nodes": 1131
+    },
+    {
+      "day": 49,
+      "T_mean_C": 17.5,
+      "tt_tb8": 334.4,
+      "tt_andrieu": 246.20000000000002,
+      "mainstem_top_z_cm": 111.25747621759945,
+      "mainstem_length_cm": 114.25747621760158,
+      "n_mainstem_nodes": 1147
+    },
+    {
+      "day": 50,
+      "T_mean_C": 16.7,
+      "tt_tb8": 343.09999999999997,
+      "tt_andrieu": 253.10000000000002,
+      "mainstem_top_z_cm": 112.70242186805733,
+      "mainstem_length_cm": 115.7024218680596,
+      "n_mainstem_nodes": 1163
+    },
+    {
+      "day": 51,
+      "T_mean_C": 16.9,
+      "tt_tb8": 351.99999999999994,
+      "tt_andrieu": 260.20000000000005,
+      "mainstem_top_z_cm": 114.12177168182727,
+      "mainstem_length_cm": 117.1217716818296,
+      "n_mainstem_nodes": 1178
+    },
+    {
+      "day": 52,
+      "T_mean_C": 17.5,
+      "tt_tb8": 361.49999999999994,
+      "tt_andrieu": 267.90000000000003,
+      "mainstem_top_z_cm": 115.51597906479027,
+      "mainstem_length_cm": 118.51597906479266,
+      "n_mainstem_nodes": 1194
+    },
+    {
+      "day": 53,
+      "T_mean_C": 16.2,
+      "tt_tb8": 369.69999999999993,
+      "tt_andrieu": 274.3,
+      "mainstem_top_z_cm": 116.88548939117388,
+      "mainstem_length_cm": 119.88548939117635,
+      "n_mainstem_nodes": 1209
+    },
+    {
+      "day": 54,
+      "T_mean_C": 18.0,
+      "tt_tb8": 379.69999999999993,
+      "tt_andrieu": 282.5,
+      "mainstem_top_z_cm": 118.23074014582515,
+      "mainstem_length_cm": 121.23074014582768,
+      "n_mainstem_nodes": 1224
+    },
+    {
+      "day": 55,
+      "T_mean_C": 19.8,
+      "tt_tb8": 391.49999999999994,
+      "tt_andrieu": 292.5,
+      "mainstem_top_z_cm": 119.55216106396347,
+      "mainstem_length_cm": 122.5521610639661,
+      "n_mainstem_nodes": 1240
+    },
+    {
+      "day": 56,
+      "T_mean_C": 21.1,
+      "tt_tb8": 404.59999999999997,
+      "tt_andrieu": 303.8,
+      "mainstem_top_z_cm": 120.85017426845798,
+      "mainstem_length_cm": 123.85017426846068,
+      "n_mainstem_nodes": 1243
+    },
+    {
+      "day": 57,
+      "T_mean_C": 22.3,
+      "tt_tb8": 418.9,
+      "tt_andrieu": 316.3,
+      "mainstem_top_z_cm": 122.12519440467307,
+      "mainstem_length_cm": 125.12519440467581,
+      "n_mainstem_nodes": 1258
+    },
+    {
+      "day": 58,
+      "T_mean_C": 23.8,
+      "tt_tb8": 434.7,
+      "tt_andrieu": 330.3,
+      "mainstem_top_z_cm": 123.37762877292502,
+      "mainstem_length_cm": 126.37762877292789,
+      "n_mainstem_nodes": 1273
+    },
+    {
+      "day": 59,
+      "T_mean_C": 17.7,
+      "tt_tb8": 444.4,
+      "tt_andrieu": 338.2,
+      "mainstem_top_z_cm": 124.607877458593,
+      "mainstem_length_cm": 127.60787745859596,
+      "n_mainstem_nodes": 1288
+    },
+    {
+      "day": 60,
+      "T_mean_C": 19.3,
+      "tt_tb8": 455.7,
+      "tt_andrieu": 347.7,
+      "mainstem_top_z_cm": 125.81633345992435,
+      "mainstem_length_cm": 128.81633345992742,
+      "n_mainstem_nodes": 1303
+    },
+    {
+      "day": 61,
+      "T_mean_C": 17.9,
+      "tt_tb8": 465.59999999999997,
+      "tt_andrieu": 355.8,
+      "mainstem_top_z_cm": 127.00338281357674,
+      "mainstem_length_cm": 130.00338281357986,
+      "n_mainstem_nodes": 1306
+    },
+    {
+      "day": 62,
+      "T_mean_C": 15.5,
+      "tt_tb8": 473.09999999999997,
+      "tt_andrieu": 361.5,
+      "mainstem_top_z_cm": 128.16940471793572,
+      "mainstem_length_cm": 131.16940471793887,
+      "n_mainstem_nodes": 1321
+    },
+    {
+      "day": 63,
+      "T_mean_C": 14.2,
+      "tt_tb8": 479.29999999999995,
+      "tt_andrieu": 365.9,
+      "mainstem_top_z_cm": 129.31477165424866,
+      "mainstem_length_cm": 132.3147716542518,
+      "n_mainstem_nodes": 1336
+    },
+    {
+      "day": 64,
+      "T_mean_C": 13.3,
+      "tt_tb8": 484.59999999999997,
+      "tt_andrieu": 369.4,
+      "mainstem_top_z_cm": 130.43984950561196,
+      "mainstem_length_cm": 133.43984950561511,
+      "n_mainstem_nodes": 1339
+    },
+    {
+      "day": 65,
+      "T_mean_C": 16.1,
+      "tt_tb8": 492.7,
+      "tt_andrieu": 375.7,
+      "mainstem_top_z_cm": 131.54499767385133,
+      "mainstem_length_cm": 134.54499767385462,
+      "n_mainstem_nodes": 1354
+    },
+    {
+      "day": 66,
+      "T_mean_C": 15.8,
+      "tt_tb8": 500.5,
+      "tt_andrieu": 381.7,
+      "mainstem_top_z_cm": 132.63056919433143,
+      "mainstem_length_cm": 135.63056919433484,
+      "n_mainstem_nodes": 1368
+    },
+    {
+      "day": 67,
+      "T_mean_C": 18.2,
+      "tt_tb8": 510.7,
+      "tt_andrieu": 390.09999999999997,
+      "mainstem_top_z_cm": 133.69691084873148,
+      "mainstem_length_cm": 136.69691084873494,
+      "n_mainstem_nodes": 1371
+    },
+    {
+      "day": 68,
+      "T_mean_C": 15.5,
+      "tt_tb8": 518.2,
+      "tt_andrieu": 395.79999999999995,
+      "mainstem_top_z_cm": 134.7443632758232,
+      "mainstem_length_cm": 137.74436327582677,
+      "n_mainstem_nodes": 1386
+    },
+    {
+      "day": 69,
+      "T_mean_C": 17.3,
+      "tt_tb8": 527.5,
+      "tt_andrieu": 403.29999999999995,
+      "mainstem_top_z_cm": 135.7732610802869,
+      "mainstem_length_cm": 138.77326108029052,
+      "n_mainstem_nodes": 1400
+    },
+    {
+      "day": 70,
+      "T_mean_C": 23.0,
+      "tt_tb8": 542.5,
+      "tt_andrieu": 416.49999999999994,
+      "mainstem_top_z_cm": 136.78393293959945,
+      "mainstem_length_cm": 139.7839329396031,
+      "n_mainstem_nodes": 1403
+    },
+    {
+      "day": 71,
+      "T_mean_C": 20.8,
+      "tt_tb8": 555.3,
+      "tt_andrieu": 427.49999999999994,
+      "mainstem_top_z_cm": 137.77670170902906,
+      "mainstem_length_cm": 140.77670170903272,
+      "n_mainstem_nodes": 1417
+    },
+    {
+      "day": 72,
+      "T_mean_C": 19.2,
+      "tt_tb8": 566.5,
+      "tt_andrieu": 436.8999999999999,
+      "mainstem_top_z_cm": 138.75188452477016,
+      "mainstem_length_cm": 141.7518845247739,
+      "n_mainstem_nodes": 1430
+    },
+    {
+      "day": 73,
+      "T_mean_C": 16.1,
+      "tt_tb8": 574.6,
+      "tt_andrieu": 443.19999999999993,
+      "mainstem_top_z_cm": 139.70979290525167,
+      "mainstem_length_cm": 142.7097929052554,
+      "n_mainstem_nodes": 1434
+    },
+    {
+      "day": 74,
+      "T_mean_C": 14.7,
+      "tt_tb8": 581.3000000000001,
+      "tt_andrieu": 448.0999999999999,
+      "mainstem_top_z_cm": 140.65073285064966,
+      "mainstem_length_cm": 143.65073285065344,
+      "n_mainstem_nodes": 1447
+    },
+    {
+      "day": 75,
+      "T_mean_C": 16.7,
+      "tt_tb8": 590.0000000000001,
+      "tt_andrieu": 454.9999999999999,
+      "mainstem_top_z_cm": 141.5750049406387,
+      "mainstem_length_cm": 144.57500494064254,
+      "n_mainstem_nodes": 1451
+    },
+    {
+      "day": 76,
+      "T_mean_C": 20.3,
+      "tt_tb8": 602.3000000000001,
+      "tt_andrieu": 465.4999999999999,
+      "mainstem_top_z_cm": 142.48290443041046,
+      "mainstem_length_cm": 145.48290443041435,
+      "n_mainstem_nodes": 1464
+    },
+    {
+      "day": 77,
+      "T_mean_C": 18.4,
+      "tt_tb8": 612.7,
+      "tt_andrieu": 474.0999999999999,
+      "mainstem_top_z_cm": 143.37472134499208,
+      "mainstem_length_cm": 146.37472134499595,
+      "n_mainstem_nodes": 1468
+    },
+    {
+      "day": 78,
+      "T_mean_C": 19.0,
+      "tt_tb8": 623.7,
+      "tt_andrieu": 483.2999999999999,
+      "mainstem_top_z_cm": 144.2507405718931,
+      "mainstem_length_cm": 147.250740571897,
+      "n_mainstem_nodes": 1481
+    },
+    {
+      "day": 79,
+      "T_mean_C": 20.7,
+      "tt_tb8": 636.4000000000001,
+      "tt_andrieu": 494.1999999999999,
+      "mainstem_top_z_cm": 145.1112419521123,
+      "mainstem_length_cm": 148.11124195211633,
+      "n_mainstem_nodes": 1494
+    },
+    {
+      "day": 80,
+      "T_mean_C": 22.2,
+      "tt_tb8": 650.6000000000001,
+      "tt_andrieu": 506.59999999999985,
+      "mainstem_top_z_cm": 145.95650036953162,
+      "mainstem_length_cm": 148.9565003695357,
+      "n_mainstem_nodes": 1498
+    },
+    {
+      "day": 81,
+      "T_mean_C": 23.2,
+      "tt_tb8": 665.8000000000002,
+      "tt_andrieu": 519.9999999999999,
+      "mainstem_top_z_cm": 146.78678583872647,
+      "mainstem_length_cm": 149.7867858387306,
+      "n_mainstem_nodes": 1511
+    },
+    {
+      "day": 82,
+      "T_mean_C": 22.2,
+      "tt_tb8": 680.0000000000002,
+      "tt_andrieu": 532.3999999999999,
+      "mainstem_top_z_cm": 147.6023635912213,
+      "mainstem_length_cm": 150.60236359122547,
+      "n_mainstem_nodes": 1514
+    },
+    {
+      "day": 83,
+      "T_mean_C": 19.8,
+      "tt_tb8": 691.8000000000002,
+      "tt_andrieu": 542.3999999999999,
+      "mainstem_top_z_cm": 148.40349416021644,
+      "mainstem_length_cm": 151.40349416022065,
+      "n_mainstem_nodes": 1527
+    },
+    {
+      "day": 84,
+      "T_mean_C": 19.5,
+      "tt_tb8": 703.3000000000002,
+      "tt_andrieu": 552.0999999999999,
+      "mainstem_top_z_cm": 149.1904334638147,
+      "mainstem_length_cm": 152.19043346381892,
+      "n_mainstem_nodes": 1530
+    },
+    {
+      "day": 85,
+      "T_mean_C": 17.6,
+      "tt_tb8": 712.9000000000002,
+      "tt_andrieu": 559.8999999999999,
+      "mainstem_top_z_cm": 149.9634328867732,
+      "mainstem_length_cm": 152.96343288677747,
+      "n_mainstem_nodes": 1541
+    },
+    {
+      "day": 86,
+      "T_mean_C": 19.7,
+      "tt_tb8": 724.6000000000003,
+      "tt_andrieu": 569.7999999999998,
+      "mainstem_top_z_cm": 150.72273936080748,
+      "mainstem_length_cm": 153.7227393608118,
+      "n_mainstem_nodes": 1546
+    },
+    {
+      "day": 87,
+      "T_mean_C": 20.7,
+      "tt_tb8": 737.3000000000003,
+      "tt_andrieu": 580.6999999999998,
+      "mainstem_top_z_cm": 151.46859544347282,
+      "mainstem_length_cm": 154.4685954434772,
+      "n_mainstem_nodes": 1557
+    },
+    {
+      "day": 88,
+      "T_mean_C": 18.6,
+      "tt_tb8": 747.9000000000003,
+      "tt_andrieu": 589.4999999999998,
+      "mainstem_top_z_cm": 152.2012393956483,
+      "mainstem_length_cm": 155.2012393956527,
+      "n_mainstem_nodes": 1561
+    },
+    {
+      "day": 89,
+      "T_mean_C": 18.3,
+      "tt_tb8": 758.2000000000003,
+      "tt_andrieu": 597.9999999999998,
+      "mainstem_top_z_cm": 152.9209052576483,
+      "mainstem_length_cm": 155.92090525765272,
+      "n_mainstem_nodes": 1566
+    },
+    {
+      "day": 90,
+      "T_mean_C": 19.9,
+      "tt_tb8": 770.1000000000003,
+      "tt_andrieu": 608.0999999999998,
+      "mainstem_top_z_cm": 153.62782292398575,
+      "mainstem_length_cm": 156.62782292399027,
+      "n_mainstem_nodes": 1576
+    },
+    {
+      "day": 91,
+      "T_mean_C": 23.0,
+      "tt_tb8": 785.1000000000003,
+      "tt_andrieu": 621.2999999999998,
+      "mainstem_top_z_cm": 154.32221821681136,
+      "mainstem_length_cm": 157.32221821681588,
+      "n_mainstem_nodes": 1580
+    },
+    {
+      "day": 92,
+      "T_mean_C": 20.7,
+      "tt_tb8": 797.8000000000003,
+      "tt_andrieu": 632.1999999999998,
+      "mainstem_top_z_cm": 155.00431295805114,
+      "mainstem_length_cm": 158.00431295805575,
+      "n_mainstem_nodes": 1589
+    },
+    {
+      "day": 93,
+      "T_mean_C": 20.5,
+      "tt_tb8": 810.3000000000003,
+      "tt_andrieu": 642.8999999999999,
+      "mainstem_top_z_cm": 155.6743250402671,
+      "mainstem_length_cm": 158.67432504027173,
+      "n_mainstem_nodes": 1594
+    },
+    {
+      "day": 94,
+      "T_mean_C": 20.0,
+      "tt_tb8": 822.3000000000003,
+      "tt_andrieu": 653.0999999999999,
+      "mainstem_top_z_cm": 156.33246849626178,
+      "mainstem_length_cm": 159.33246849626644,
+      "n_mainstem_nodes": 1603
+    },
+    {
+      "day": 95,
+      "T_mean_C": 20.2,
+      "tt_tb8": 834.5000000000003,
+      "tt_andrieu": 663.4999999999999,
+      "mainstem_top_z_cm": 156.97895356745036,
+      "mainstem_length_cm": 159.97895356745505,
+      "n_mainstem_nodes": 1608
+    },
+    {
+      "day": 96,
+      "T_mean_C": 18.5,
+      "tt_tb8": 845.0000000000003,
+      "tt_andrieu": 672.1999999999999,
+      "mainstem_top_z_cm": 157.61398677102153,
+      "mainstem_length_cm": 160.61398677102625,
+      "n_mainstem_nodes": 1614
+    },
+    {
+      "day": 97,
+      "T_mean_C": 20.5,
+      "tt_tb8": 857.5000000000003,
+      "tt_andrieu": 682.9,
+      "mainstem_top_z_cm": 158.2377709659086,
+      "mainstem_length_cm": 161.23777096591337,
+      "n_mainstem_nodes": 1621
+    },
+    {
+      "day": 98,
+      "T_mean_C": 22.7,
+      "tt_tb8": 872.2000000000004,
+      "tt_andrieu": 695.8,
+      "mainstem_top_z_cm": 158.850505417592,
+      "mainstem_length_cm": 161.85050541759676,
+      "n_mainstem_nodes": 1627
+    },
+    {
+      "day": 99,
+      "T_mean_C": 19.3,
+      "tt_tb8": 883.5000000000003,
+      "tt_andrieu": 705.3,
+      "mainstem_top_z_cm": 159.4523858617537,
+      "mainstem_length_cm": 162.45238586175853,
+      "n_mainstem_nodes": 1634
+    },
+    {
+      "day": 100,
+      "T_mean_C": 19.2,
+      "tt_tb8": 894.7000000000004,
+      "tt_andrieu": 714.6999999999999,
+      "mainstem_top_z_cm": 160.04360456680465,
+      "mainstem_length_cm": 163.0436045668095,
+      "n_mainstem_nodes": 1639
+    },
+    {
+      "day": 101,
+      "T_mean_C": 21.8,
+      "tt_tb8": 908.5000000000003,
+      "tt_andrieu": 726.6999999999999,
+      "mainstem_top_z_cm": 160.62435039530374,
+      "mainstem_length_cm": 163.62435039530862,
+      "n_mainstem_nodes": 1644
+    },
+    {
+      "day": 102,
+      "T_mean_C": 20.0,
+      "tt_tb8": 920.5000000000003,
+      "tt_andrieu": 736.9,
+      "mainstem_top_z_cm": 161.1948088642895,
+      "mainstem_length_cm": 164.19480886429443,
+      "n_mainstem_nodes": 1650
+    },
+    {
+      "day": 103,
+      "T_mean_C": 21.7,
+      "tt_tb8": 934.2000000000004,
+      "tt_andrieu": 748.8,
+      "mainstem_top_z_cm": 161.75516220454273,
+      "mainstem_length_cm": 164.75516220454767,
+      "n_mainstem_nodes": 1655
+    },
+    {
+      "day": 104,
+      "T_mean_C": 25.4,
+      "tt_tb8": 951.6000000000004,
+      "tt_andrieu": 764.4,
+      "mainstem_top_z_cm": 162.30558941879926,
+      "mainstem_length_cm": 165.30558941880426,
+      "n_mainstem_nodes": 1661
+    },
+    {
+      "day": 105,
+      "T_mean_C": 27.0,
+      "tt_tb8": 970.6000000000004,
+      "tt_andrieu": 781.6,
+      "mainstem_top_z_cm": 162.84626633893214,
+      "mainstem_length_cm": 165.84626633893717,
+      "n_mainstem_nodes": 1666
+    },
+    {
+      "day": 106,
+      "T_mean_C": 20.9,
+      "tt_tb8": 983.5000000000003,
+      "tt_andrieu": 792.7,
+      "mainstem_top_z_cm": 163.37736568211992,
+      "mainstem_length_cm": 166.377365682125,
+      "n_mainstem_nodes": 1672
+    },
+    {
+      "day": 107,
+      "T_mean_C": 21.4,
+      "tt_tb8": 996.9000000000003,
+      "tt_andrieu": 804.3000000000001,
+      "mainstem_top_z_cm": 163.8990571060209,
+      "mainstem_length_cm": 166.89905710602602,
+      "n_mainstem_nodes": 1677
+    },
+    {
+      "day": 108,
+      "T_mean_C": 21.1,
+      "tt_tb8": 1010.0000000000003,
+      "tt_andrieu": 815.6,
+      "mainstem_top_z_cm": 164.41150726296945,
+      "mainstem_length_cm": 167.4115072629746,
+      "n_mainstem_nodes": 1682
+    },
+    {
+      "day": 109,
+      "T_mean_C": 21.2,
+      "tt_tb8": 1023.2000000000004,
+      "tt_andrieu": 827.0,
+      "mainstem_top_z_cm": 164.91487985321237,
+      "mainstem_length_cm": 167.91487985321754,
+      "n_mainstem_nodes": 1687
+    },
+    {
+      "day": 110,
+      "T_mean_C": 19.6,
+      "tt_tb8": 1034.8000000000004,
+      "tt_andrieu": 836.8,
+      "mainstem_top_z_cm": 165.40933567720256,
+      "mainstem_length_cm": 168.40933567720776,
+      "n_mainstem_nodes": 1692
+    },
+    {
+      "day": 111,
+      "T_mean_C": 18.2,
+      "tt_tb8": 1045.0000000000005,
+      "tt_andrieu": 845.1999999999999,
+      "mainstem_top_z_cm": 165.89503268696583,
+      "mainstem_length_cm": 168.89503268697106,
+      "n_mainstem_nodes": 1697
+    },
+    {
+      "day": 112,
+      "T_mean_C": 20.2,
+      "tt_tb8": 1057.2000000000005,
+      "tt_andrieu": 855.5999999999999,
+      "mainstem_top_z_cm": 166.37212603655837,
+      "mainstem_length_cm": 169.37212603656363,
+      "n_mainstem_nodes": 1702
+    },
+    {
+      "day": 113,
+      "T_mean_C": 16.5,
+      "tt_tb8": 1065.7000000000005,
+      "tt_andrieu": 862.3,
+      "mainstem_top_z_cm": 166.84076813162991,
+      "mainstem_length_cm": 169.8407681316352,
+      "n_mainstem_nodes": 1706
+    },
+    {
+      "day": 114,
+      "T_mean_C": 18.6,
+      "tt_tb8": 1076.3000000000004,
+      "tt_andrieu": 871.0999999999999,
+      "mainstem_top_z_cm": 167.30110867810905,
+      "mainstem_length_cm": 170.30110867811436,
+      "n_mainstem_nodes": 1711
+    },
+    {
+      "day": 115,
+      "T_mean_C": 20.8,
+      "tt_tb8": 1089.1000000000004,
+      "tt_andrieu": 882.0999999999999,
+      "mainstem_top_z_cm": 167.75329473002657,
+      "mainstem_length_cm": 170.7532947300319,
+      "n_mainstem_nodes": 1715
+    },
+    {
+      "day": 116,
+      "T_mean_C": 23.1,
+      "tt_tb8": 1104.2000000000003,
+      "tt_andrieu": 895.3999999999999,
+      "mainstem_top_z_cm": 168.19747073649094,
+      "mainstem_length_cm": 171.1974707364963,
+      "n_mainstem_nodes": 1720
+    },
+    {
+      "day": 117,
+      "T_mean_C": 16.4,
+      "tt_tb8": 1112.6000000000004,
+      "tt_andrieu": 901.9999999999999,
+      "mainstem_top_z_cm": 168.63377858783224,
+      "mainstem_length_cm": 171.63377858783764,
+      "n_mainstem_nodes": 1724
+    },
+    {
+      "day": 118,
+      "T_mean_C": 16.7,
+      "tt_tb8": 1121.3000000000004,
+      "tt_andrieu": 908.8999999999999,
+      "mainstem_top_z_cm": 169.06235766092846,
+      "mainstem_length_cm": 172.06235766093388,
+      "n_mainstem_nodes": 1729
+    },
+    {
+      "day": 119,
+      "T_mean_C": 18.1,
+      "tt_tb8": 1131.4000000000003,
+      "tt_andrieu": 917.1999999999998,
+      "mainstem_top_z_cm": 169.48334486372877,
+      "mainstem_length_cm": 172.48334486373423,
+      "n_mainstem_nodes": 1733
+    },
+    {
+      "day": 120,
+      "T_mean_C": 21.9,
+      "tt_tb8": 1145.3000000000004,
+      "tt_andrieu": 929.2999999999998,
+      "mainstem_top_z_cm": 169.8968746789885,
+      "mainstem_length_cm": 172.89687467899398,
+      "n_mainstem_nodes": 1737
+    },
+    {
+      "day": 121,
+      "T_mean_C": 23.3,
+      "tt_tb8": 1160.6000000000004,
+      "tt_andrieu": 942.7999999999998,
+      "mainstem_top_z_cm": 170.3030792072288,
+      "mainstem_length_cm": 173.3030792072343,
+      "n_mainstem_nodes": 1741
+    },
+    {
+      "day": 122,
+      "T_mean_C": 18.8,
+      "tt_tb8": 1171.4000000000003,
+      "tt_andrieu": 951.7999999999998,
+      "mainstem_top_z_cm": 170.70208820893603,
+      "mainstem_length_cm": 173.70208820894157,
+      "n_mainstem_nodes": 1745
+    },
+    {
+      "day": 123,
+      "T_mean_C": 20.3,
+      "tt_tb8": 1183.7000000000003,
+      "tt_andrieu": 962.2999999999998,
+      "mainstem_top_z_cm": 171.09402914601293,
+      "mainstem_length_cm": 174.0940291460185,
+      "n_mainstem_nodes": 1749
+    },
+    {
+      "day": 124,
+      "T_mean_C": 23.8,
+      "tt_tb8": 1199.5000000000002,
+      "tt_andrieu": 976.2999999999998,
+      "mainstem_top_z_cm": 173.38279995241993,
+      "mainstem_length_cm": 176.38279995242564,
+      "n_mainstem_nodes": 1772
+    },
+    {
+      "day": 125,
+      "T_mean_C": 22.2,
+      "tt_tb8": 1213.7000000000003,
+      "tt_andrieu": 988.6999999999998,
+      "mainstem_top_z_cm": 176.9427011388499,
+      "mainstem_length_cm": 179.94270113885582,
+      "n_mainstem_nodes": 1807
+    },
+    {
+      "day": 126,
+      "T_mean_C": 21.2,
+      "tt_tb8": 1226.9000000000003,
+      "tt_andrieu": 1000.0999999999998,
+      "mainstem_top_z_cm": 180.6434580119697,
+      "mainstem_length_cm": 183.6434580119758,
+      "n_mainstem_nodes": 1844
+    },
+    {
+      "day": 127,
+      "T_mean_C": 17.9,
+      "tt_tb8": 1236.8000000000004,
+      "tt_andrieu": 1008.1999999999998,
+      "mainstem_top_z_cm": 183.950310725229,
+      "mainstem_length_cm": 186.9503107252353,
+      "n_mainstem_nodes": 1877
+    },
+    {
+      "day": 128,
+      "T_mean_C": 20.7,
+      "tt_tb8": 1249.5000000000005,
+      "tt_andrieu": 1019.0999999999998,
+      "mainstem_top_z_cm": 187.51942238940427,
+      "mainstem_length_cm": 190.51942238941078,
+      "n_mainstem_nodes": 1913
+    },
+    {
+      "day": 129,
+      "T_mean_C": 19.0,
+      "tt_tb8": 1260.5000000000005,
+      "tt_andrieu": 1028.2999999999997,
+      "mainstem_top_z_cm": 189.9120640052759,
+      "mainstem_length_cm": 192.91206400528256,
+      "n_mainstem_nodes": 1937
+    },
+    {
+      "day": 130,
+      "T_mean_C": 20.6,
+      "tt_tb8": 1273.1000000000004,
+      "tt_andrieu": 1039.0999999999997,
+      "mainstem_top_z_cm": 192.45286345236065,
+      "mainstem_length_cm": 195.45286345236744,
+      "n_mainstem_nodes": 1962
+    }
+  ],
+  "leaf_emergences_final": [
+    {
+      "rank": 1,
+      "subType": 2,
+      "parentNI": 120,
+      "emergence_andrieu_tt": 18.5
+    },
+    {
+      "rank": 2,
+      "subType": 3,
+      "parentNI": 120,
+      "emergence_andrieu_tt": 46.39999999999999
+    },
+    {
+      "rank": 3,
+      "subType": 4,
+      "parentNI": 215,
+      "emergence_andrieu_tt": 88.59999999999998
+    },
+    {
+      "rank": 4,
+      "subType": 5,
+      "parentNI": 322,
+      "emergence_andrieu_tt": 131.09999999999997
+    },
+    {
+      "rank": 5,
+      "subType": 6,
+      "parentNI": 426,
+      "emergence_andrieu_tt": 172.49999999999997
+    },
+    {
+      "rank": 6,
+      "subType": 7,
+      "parentNI": 526,
+      "emergence_andrieu_tt": 213.40000000000003
+    },
+    {
+      "rank": 7,
+      "subType": 8,
+      "parentNI": 630,
+      "emergence_andrieu_tt": 260.20000000000005
+    },
+    {
+      "rank": 8,
+      "subType": 9,
+      "parentNI": 742,
+      "emergence_andrieu_tt": 316.3
+    },
+    {
+      "rank": 9,
+      "subType": 10,
+      "parentNI": 844,
+      "emergence_andrieu_tt": 355.8
+    },
+    {
+      "rank": 10,
+      "subType": 11,
+      "parentNI": 944,
+      "emergence_andrieu_tt": 403.29999999999995
+    },
+    {
+      "rank": 11,
+      "subType": 12,
+      "parentNI": 1044,
+      "emergence_andrieu_tt": 448.0999999999999
+    },
+    {
+      "rank": 12,
+      "subType": 13,
+      "parentNI": 1145,
+      "emergence_andrieu_tt": 506.59999999999985
+    },
+    {
+      "rank": 13,
+      "subType": 14,
+      "parentNI": 1248,
+      "emergence_andrieu_tt": 552.0999999999999
+    },
+    {
+      "rank": 14,
+      "subType": 15,
+      "parentNI": 1349,
+      "emergence_andrieu_tt": 597.9999999999998
+    },
+    {
+      "rank": 15,
+      "subType": 16,
+      "parentNI": 1451,
+      "emergence_andrieu_tt": 653.0999999999999
+    },
+    {
+      "rank": 16,
+      "subType": 17,
+      "parentNI": 1539,
+      "emergence_andrieu_tt": 695.8
+    }
+  ]
+}

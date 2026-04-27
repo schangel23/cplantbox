@@ -18,17 +18,26 @@ class G3Mesh:
     """Triangle mesh produced by G1-to-G3 lofting.
 
     Attributes:
-        vertices:    (M, 3) float64 vertex positions
-        indices:     (K, 3) int32 triangle vertex indices
-        normals:     (M, 3) float64 per-vertex normals
-        uvs:         (M, 2) float64 UV coordinates
-        organ_ids:   (K,)   int32 organ ID per triangle
-        segment_ids: (K,)   int32 original skeleton segment index per triangle
-        organ_meta:  list of dicts with organ metadata for mapping export
+        vertices:     (M, 3) float64 vertex positions
+        indices:      (K, 3) int32 triangle vertex indices
+        normals:      (M, 3) float64 per-vertex normals
+        uvs:          (M, 2) float64 UV coordinates
+        organ_ids:    (K,)   int32 organ ID per triangle
+        segment_ids:  (K,)   int32 original skeleton segment index per triangle
+        organ_meta:   list of dicts with organ metadata for mapping export
+        quad_indices: (Q, 4) int32 quad vertex indices (optional, for OBJ export)
+        quad_organ_ids: (Q,) int32 organ ID per quad (optional)
+        organ_cps:    dict mapping ``organ_id -> (N_U, N_V, 3) float64`` canonical
+                      NURBS control-point grid. Populated only for leaves lofted
+                      with the NURBS backend; absent for quad-ribbon leaves,
+                      stems, roots, and sheaths. Consumers (CP-space fitters)
+                      must use ``organ_cps.get(oid)`` and fall back when None.
     """
 
     def __init__(self, vertices, indices, normals, uvs, organ_ids,
-                 segment_ids=None, organ_meta=None):
+                 segment_ids=None, organ_meta=None,
+                 quad_indices=None, quad_organ_ids=None,
+                 organ_cps=None, is_midrib=None):
         self.vertices = np.asarray(vertices, dtype=np.float64)
         self.indices = np.asarray(indices, dtype=np.int32)
         self.normals = np.asarray(normals, dtype=np.float64)
@@ -39,6 +48,17 @@ class G3Mesh:
         else:
             self.segment_ids = np.full(len(self.indices), -1, dtype=np.int32)
         self.organ_meta = organ_meta or []
+        self.quad_indices = (np.asarray(quad_indices, dtype=np.int32)
+                            if quad_indices is not None else None)
+        self.quad_organ_ids = (np.asarray(quad_organ_ids, dtype=np.int32)
+                              if quad_organ_ids is not None else None)
+        self.organ_cps = dict(organ_cps) if organ_cps else {}
+        # Per-triangle midrib flag: True for tris belonging to the central rib
+        # band of a leaf. Routed to a separate OBJ sub-group + DART optical
+        # property so the midrib gets its own PROSPECT params.
+        self.is_midrib = (np.asarray(is_midrib, dtype=bool)
+                          if is_midrib is not None
+                          else np.zeros(len(self.indices), dtype=bool))
 
     @property
     def n_vertices(self):
@@ -48,18 +68,57 @@ class G3Mesh:
     def n_triangles(self):
         return len(self.indices)
 
-    def to_obj(self, filepath, group_by_organ=True, group_prefix=""):
+    @property
+    def n_quads(self):
+        return len(self.quad_indices) if self.quad_indices is not None else 0
+
+    def to_obj(self, filepath, group_by_organ=True, group_prefix="",
+               prefer_quads=False, write_materials=False):
         """Export mesh to Wavefront OBJ format.
 
         Args:
             filepath: Output .obj file path.
             group_by_organ: If True, write 'g organ_<id>' groups.
-            group_prefix: Optional prefix for group names (e.g. "p0_" for
-                multi-plant exports → "p0_organ_0", "p0_organ_1", ...).
+            group_prefix: Optional prefix for group names.
+            prefer_quads: If True and quad_indices exists, write quads
+                instead of triangles for organs that have them.
+            write_materials: If True, emit 'usemtl <part_type>' lines
+                before each organ group (reads part_type from organ_meta).
         """
         filepath = Path(filepath)
+        use_quads = prefer_quads and self.quad_indices is not None
+
+        # Build organ_id -> part_type lookup from organ_meta
+        part_type_map = {}
+        if write_materials and self.organ_meta:
+            for meta in self.organ_meta:
+                part_type_map[meta["organ_id"]] = meta.get("part_type", meta.get("type", "unknown"))
+
+        # Sidecar .mtl with default material colours so the midrib group
+        # picks up a contrasting Kd in MeshLab / Paraview without any manual
+        # material setup. Only written when write_materials=True.
+        mtl_path = None
+        if write_materials:
+            mtl_path = filepath.with_suffix(".mtl")
+            with open(mtl_path, "w") as fmtl:
+                fmtl.write("# G1-to-G3 default materials\n")
+                # blade: leaf green
+                fmtl.write("newmtl blade\nKa 0.05 0.10 0.05\n"
+                           "Kd 0.30 0.65 0.20\nKs 0.10 0.10 0.10\nNs 12\n\n")
+                fmtl.write("newmtl blade_senescent\nKa 0.10 0.07 0.02\n"
+                           "Kd 0.55 0.40 0.10\nKs 0.05 0.05 0.05\nNs 8\n\n")
+                # midrib: pale yellow-green ridge — visibly distinct from blade
+                fmtl.write("newmtl midrib\nKa 0.10 0.10 0.05\n"
+                           "Kd 0.85 0.90 0.45\nKs 0.20 0.20 0.10\nNs 24\n\n")
+                fmtl.write("newmtl stem\nKa 0.08 0.10 0.03\n"
+                           "Kd 0.45 0.60 0.20\nKs 0.05 0.05 0.05\nNs 8\n\n")
+                fmtl.write("newmtl tassel\nKa 0.10 0.07 0.02\n"
+                           "Kd 0.70 0.55 0.20\nKs 0.10 0.10 0.05\nNs 16\n")
+
         with open(filepath, "w") as f:
             f.write("# G1-to-G3 lofted mesh\n")
+            if mtl_path is not None:
+                f.write(f"mtllib {mtl_path.name}\n")
             for v in self.vertices:
                 f.write(f"v {v[0]:.6f} {v[1]:.6f} {v[2]:.6f}\n")
             for n in self.normals:
@@ -67,20 +126,61 @@ class G3Mesh:
             for uv in self.uvs:
                 f.write(f"vt {uv[0]:.6f} {uv[1]:.6f}\n")
 
+            def _write_face(face):
+                parts = " ".join(f"{v+1}/{v+1}/{v+1}" for v in face)
+                f.write(f"f {parts}\n")
+
             if group_by_organ:
                 unique_ids = np.unique(self.organ_ids)
+                meta_by_id = {m["organ_id"]: m for m in self.organ_meta
+                              if "organ_id" in m}
                 for oid in unique_ids:
-                    gname = f"{group_prefix}organ_{oid}"
-                    f.write(f"g {gname}\n")
-                    mask = self.organ_ids == oid
-                    for tri in self.indices[mask]:
-                        # OBJ is 1-indexed
-                        a, b, c = tri + 1
-                        f.write(f"f {a}/{a}/{a} {b}/{b}/{b} {c}/{c}/{c}\n")
+                    meta = meta_by_id.get(int(oid))
+                    meta_name = meta.get("name", "") if meta else ""
+                    # Senescent leaves flow through as ``senescent_leaf_N`` so
+                    # downstream DART routing can register a withered optical
+                    # property — mirrors the tassel prefix flow.
+                    if meta_name.startswith((
+                        "tassel_spike_", "tassel_branch_", "senescent_leaf_",
+                    )):
+                        gname = f"{group_prefix}{meta_name}"
+                    else:
+                        gname = f"{group_prefix}organ_{oid}"
+                    if use_quads and self.quad_organ_ids is not None:
+                        # Quad-mode mesh has no midrib mask (midrib only on
+                        # tris). Write the whole organ as one quad group.
+                        f.write(f"g {gname}\n")
+                        if write_materials and oid in part_type_map:
+                            f.write(f"usemtl {part_type_map[oid]}\n")
+                        qmask = self.quad_organ_ids == oid
+                        for quad in self.quad_indices[qmask]:
+                            _write_face(quad)
+                    else:
+                        mask = self.organ_ids == oid
+                        # Split into blade tris vs. midrib tris (if any).
+                        # Midrib gets its own group + ``usemtl midrib`` so
+                        # DART / viewers can dispatch a separate property.
+                        midrib_mask = mask & self.is_midrib
+                        blade_mask = mask & ~self.is_midrib
+                        if blade_mask.any():
+                            f.write(f"g {gname}\n")
+                            if write_materials and oid in part_type_map:
+                                f.write(f"usemtl {part_type_map[oid]}\n")
+                            for tri in self.indices[blade_mask]:
+                                _write_face(tri)
+                        if midrib_mask.any():
+                            f.write(f"g {gname}_midrib\n")
+                            if write_materials:
+                                f.write(f"usemtl midrib\n")
+                            for tri in self.indices[midrib_mask]:
+                                _write_face(tri)
             else:
-                for tri in self.indices:
-                    a, b, c = tri + 1
-                    f.write(f"f {a}/{a}/{a} {b}/{b}/{b} {c}/{c}/{c}\n")
+                if use_quads:
+                    for quad in self.quad_indices:
+                        _write_face(quad)
+                else:
+                    for tri in self.indices:
+                        _write_face(tri)
 
     def to_mapping_json(self, filepath):
         """Export triangle-to-segment mapping as JSON for DART→CPlantBox feedback.
@@ -150,6 +250,7 @@ class G3Mesh:
                 "organ_id": oid,
                 "name": meta.get("name", f"organ_{oid}"),
                 "type": meta.get("type", "unknown"),
+                "part_type": meta.get("part_type", meta.get("type", "unknown")),
                 "n_segments": n_orig_segs,
                 "n_node_ids": len(node_ids),
                 "segments": segments,
@@ -348,6 +449,40 @@ def _loft_leaf(organ):
     plane_normal = organ.get("plane_normal")
     per_point_normals = organ.get("per_point_normals")
     gutter_depths = organ.get("gutter_depths")
+    # Raised central midrib: narrow Gaussian bump along frac=0. Combined
+    # with `gutter_depths`, gives the maize cross-section: V-channel with
+    # a small ridge running along the centerline (real maize).
+    # `midrib_amps_cm` is per-skeleton-point amplitude (cm); empty/None disables.
+    # `midrib_half_width` is the Gaussian sigma in normalized [-0.5, 0.5] units.
+    midrib_amps = organ.get("midrib_amps_cm")
+    midrib_half_width = float(organ.get("midrib_half_width", 0.10))
+
+    # H_top analytical invariant (see maize_growth.py:124-132 / learnings
+    # §4.1). Would have caught the day-55/day-88 tassel-gap family before
+    # the user reported it. Active when the caller supplies H_ins, theta,
+    # and lmax; runs once per leaf as a non-fatal warning so it never
+    # breaks a production run but flags drift as it happens. Disabled via
+    # `organ["check_h_top_invariant"] = False`; tolerance defaults to
+    # 5 % of lmax as written in the learnings doc but can be overridden
+    # with `organ["h_top_tolerance_cm"]`.
+    _h_ins = organ.get("insertion_height_cm")
+    _theta = organ.get("theta_rad")
+    _lmax = organ.get("lmax_cm")
+    if (organ.get("check_h_top_invariant", True) and _h_ins is not None
+            and _theta is not None and _lmax is not None
+            and _lmax > 0.1 and len(skeleton) > 0):
+        _h_measured = float(skeleton[-1, 2])
+        _h_predicted = float(_h_ins) + float(np.sin(_theta)) * float(_lmax)
+        _tol = float(organ.get("h_top_tolerance_cm", 0.05 * _lmax))
+        if abs(_h_measured - _h_predicted) > _tol:
+            print(
+                f"  [H_top invariant] "
+                f"{organ.get('name', f'leaf_{organ_id}')}: "
+                f"tip z={_h_measured:.2f} cm vs predicted "
+                f"{_h_predicted:.2f} cm (H_ins={_h_ins:.2f}, "
+                f"theta={float(np.degrees(_theta)):.1f}°, lmax={_lmax:.1f} cm); "
+                f"drift {_h_measured - _h_predicted:+.2f} cm > ±{_tol:.2f} cm"
+            )
 
     # Uniformize skeleton spacing.  CPlantBox skeletons can have variable
     # segment lengths (tropism curves, growth steps).  Uniform spacing
@@ -360,23 +495,38 @@ def _loft_leaf(organ):
     min_seg_len = 0.2  # cm — target uniform spacing
     total_skel_len = np.sum(np.linalg.norm(np.diff(skeleton, axis=0), axis=1))
     avg_spacing = total_skel_len / max(len(skeleton) - 1, 1)
-    if avg_spacing < min_seg_len and len(skeleton) > 3 and total_skel_len > min_seg_len * 2:
+    target_n_verts = organ.get("target_n_verts")
+    # Force resampling when target_n_verts is set (vertex count must match OBJ)
+    needs_resample = (avg_spacing < min_seg_len and len(skeleton) > 3
+                      and total_skel_len > min_seg_len * 2)
+    if target_n_verts is not None or organ.get("arc_positions") is not None:
+        needs_resample = True
+    if needs_resample:
         # Resample at uniform spacing, keeping at least as many points as
         # the original skeleton so no segments are lost in the mapping.
         cum = np.concatenate([[0.0], np.cumsum(np.linalg.norm(
             np.diff(skeleton, axis=0), axis=1))])
-        # If target_n_verts is specified, compute n_new to match
-        target_n_verts = organ.get("target_n_verts")
         if target_n_verts is not None:
             # n_verts = n_skel * n_cross → n_skel = target_n_verts / n_cross
-            _nc = 7 if (organ.get("per_node_displacements") or
-                        organ.get("gutter_depths") or
-                        organ.get("wave_normal_amp", 0) > 0 or
-                        organ.get("curl_amp", 0) > 0) else 2
+            # Use explicit target_n_cross if provided, else infer from effects
+            _nc = organ.get("target_n_cross")
+            if _nc is None:
+                _nc = 7 if (organ.get("per_node_displacements") or
+                            organ.get("gutter_depths") or
+                            organ.get("wave_normal_amp", 0) > 0 or
+                            organ.get("curl_amp", 0) > 0) else 2
             n_new = max(3, target_n_verts // _nc)
         else:
             n_new = max(len(skeleton), int(np.ceil(total_skel_len / min_seg_len)) + 1)
-        new_arc = np.linspace(0, total_skel_len, n_new)
+        # Non-uniform arc positions: if provided, place skeleton points
+        # at specific arc-length fractions (extracted from OBJ grid).
+        custom_arc = organ.get("arc_positions")
+        if custom_arc is not None:
+            custom_arc = np.asarray(custom_arc, dtype=np.float64)
+            n_new = len(custom_arc)
+            new_arc = custom_arc * total_skel_len  # fractions [0,1] → cm
+        else:
+            new_arc = np.linspace(0, total_skel_len, n_new)
         new_skeleton = np.column_stack([
             np.interp(new_arc, cum, skeleton[:, d]) for d in range(3)
         ])
@@ -396,6 +546,10 @@ def _loft_leaf(organ):
         if gutter_depths is not None:
             gd = np.asarray(gutter_depths, dtype=np.float64)
             gutter_depths = np.interp(new_arc, cum, gd)
+
+        if midrib_amps is not None:
+            ma = np.asarray(midrib_amps, dtype=np.float64)
+            midrib_amps = np.interp(new_arc, cum, ma)
 
         # Rebuild orig_segment_map: map each new segment to the original
         # segment whose arc-length interval contains its midpoint.
@@ -435,13 +589,19 @@ def _loft_leaf(organ):
     n = len(skeleton)
 
     # Number of vertices across the width.
-    # Need >=7 for visible edge ruffling and internal blade variation.
-    # With gutter: 7 for smooth curved cross-section.
-    # Without gutter but with wave effects: 7 for edge deformation.
-    # Plain flat ribbon: 2 is fine.
-    has_blade_effects = any(organ.get(k, 0) != 0 for k in (
-        "wave_normal_amp", "curl_amp", "edge_ruffle_amp", "twist_max"))
-    n_cross = 7 if (gutter_depths is not None or has_blade_effects) else 2
+    # When target_n_cross is explicit (OBJ fitting), use it directly.
+    # Otherwise: 7 for curved cross-sections / deformations, 2 for flat ribbons.
+    explicit_n_cross = organ.get("target_n_cross")
+    if explicit_n_cross is not None:
+        n_cross = explicit_n_cross
+    else:
+        has_blade_effects = any(organ.get(k, 0) != 0 for k in (
+            "wave_normal_amp", "curl_amp", "edge_ruffle_amp", "twist_max"))
+        has_midrib = (midrib_amps is not None
+                      and float(np.max(np.abs(np.asarray(midrib_amps)))) > 1e-6)
+        n_cross = 7 if (gutter_depths is not None
+                        or has_blade_effects
+                        or has_midrib) else 2
 
     # Use smoothed tangents for the binormal frame to prevent zigzag artifacts
     # on dense, high-curvature skeletons (e.g. drooping maize leaves with dx=0.1)
@@ -610,7 +770,17 @@ def _loft_leaf(organ):
         binormal /= np.linalg.norm(binormal)
 
     # Cross-section positions: fractions across width [-0.5, ..., 0.5]
-    cross_fracs = np.linspace(-0.5, 0.5, n_cross)
+    # Non-uniform cross fractions: if provided, use per-row custom fractions
+    # (extracted from OBJ grid). Shape: (n_skel, n_cross) or (n_cross,).
+    custom_cross = organ.get("cross_fractions")
+    if custom_cross is not None:
+        custom_cross = np.asarray(custom_cross, dtype=np.float64)
+        if custom_cross.ndim == 1:
+            cross_fracs = custom_cross
+        else:
+            cross_fracs = custom_cross[0]  # first row; per-row handled in loop
+    else:
+        cross_fracs = np.linspace(-0.5, 0.5, n_cross)
     # Gutter profile: parabolic dip (deepest at center, 0 at edges)
     # depth(f) = gutter_depth * (1 - (2*f)^2), where f in [-0.5, 0.5]
     cross_gutter = 1.0 - (2.0 * cross_fracs) ** 2  # 0 at edges, 1 at center
@@ -643,13 +813,42 @@ def _loft_leaf(organ):
         pnd_width_mult = _interp_pnd(
             per_node_disp.get("width_mult", np.ones(n)))
         has_per_node = True
-        # Ensure 7-cross for surface detail
-        if n_cross < 7:
+        # Bump to 7-cross for surface detail (unless caller locked n_cross)
+        if explicit_n_cross is None and n_cross < 7:
             n_cross = 7
             cross_fracs = np.linspace(-0.5, 0.5, n_cross)
             cross_gutter = 1.0 - (2.0 * cross_fracs) ** 2
     else:
         has_per_node = False
+
+    # --- Sheath wrapping parameters ---
+    # When present, the leaf base wraps around the stem in a circular arc.
+    # sheath_frac: (n,) array, 1.0 at base → 0.0 at blade transition
+    # sheath_center: (2,) XY of stem axis
+    # sheath_radius: float, arc radius (cm)
+    # sheath_wrap_angle: float, total angular extent (radians)
+    sheath_params = organ.get("sheath")
+    if sheath_params is not None:
+        sheath_frac_raw = np.asarray(sheath_params.get("fraction", []), dtype=np.float64)
+        if len(sheath_frac_raw) != n:
+            src_t = np.linspace(0, 1, len(sheath_frac_raw))
+            dst_t = np.linspace(0, 1, n)
+            sheath_frac = np.interp(dst_t, src_t, sheath_frac_raw)
+        else:
+            sheath_frac = sheath_frac_raw
+        sheath_center_xy = np.asarray(sheath_params["center_xy"], dtype=np.float64)
+        sheath_r = float(sheath_params["radius"])
+        sheath_wrap_angle = float(sheath_params.get("wrap_angle", np.radians(345)))
+        # Base angle at each skeleton point: direction from stem center to skeleton
+        sheath_base_angle = np.arctan2(
+            skeleton[:, 1] - sheath_center_xy[1],
+            skeleton[:, 0] - sheath_center_xy[0])
+    else:
+        sheath_frac = None
+        sheath_center_xy = None
+        sheath_r = 0.0
+        sheath_wrap_angle = 0.0
+        sheath_base_angle = None
 
     # --- Leaf blade waviness, twist, curl & edge ruffling ---
     # Real maize leaves have dramatic internal bending, edge ruffling,
@@ -665,6 +864,10 @@ def _loft_leaf(organ):
     wave_normal_amp = organ.get("wave_normal_amp", 0.0)
     wave_normal_freq = organ.get("wave_normal_freq", 3.5)
     wave_normal_phase = organ.get("wave_normal_phase", 0.0)
+    # bltree.lsy-style independent ZLeft / ZRight phases. Default both to the
+    # shared phase so legacy organ dicts (no _L/_R keys) stay bit-identical.
+    wave_normal_phase_L = organ.get("wave_normal_phase_L", wave_normal_phase)
+    wave_normal_phase_R = organ.get("wave_normal_phase_R", wave_normal_phase)
     wave_lateral_amp = organ.get("wave_lateral_amp", 0.0)
     wave_lateral_freq = organ.get("wave_lateral_freq", 2.0)
     wave_lateral_phase = organ.get("wave_lateral_phase", 0.0)
@@ -720,7 +923,7 @@ def _loft_leaf(organ):
         oop_curv_spline, asymmetry_spline, edge_curl_spline, cross_section_spline])
 
     # Bump n_cross to 7 if spline features need cross-section detail
-    if has_spline_features and n_cross < 7:
+    if has_spline_features and explicit_n_cross is None and n_cross < 7:
         n_cross = 7
         cross_fracs = np.linspace(-0.5, 0.5, n_cross)
         cross_gutter = 1.0 - (2.0 * cross_fracs) ** 2
@@ -755,6 +958,8 @@ def _loft_leaf(organ):
 
     # Pre-compute per-skeleton-point offsets (midrib-level effects)
     wave_normal_offsets = np.zeros(n)
+    wave_normal_offsets_L = np.zeros(n)
+    wave_normal_offsets_R = np.zeros(n)
     wave_lateral_offsets = np.zeros(n)
     twist_angles = np.zeros(n)
     curl_factors = np.zeros(n)
@@ -767,7 +972,7 @@ def _loft_leaf(organ):
     fitted_cps = organ.get("fitted_deform_cps")
     if fitted_cps is not None:
         has_waves = True
-        if n_cross < 7:
+        if explicit_n_cross is None and n_cross < 7:
             n_cross = 7
             cross_fracs = np.linspace(-0.5, 0.5, n_cross)
             cross_gutter = 1.0 - (2.0 * cross_fracs) ** 2
@@ -790,6 +995,12 @@ def _loft_leaf(organ):
                 interp = _interp_cp(fitted_cps[cp_name])
                 ramp_use = spline_ramp * spline_ramp if use_sq else spline_ramp
                 target_arr[:] = interp * ramp_use
+        # Fitted-CP path has a single `wave_normal` series — mirror it onto
+        # the L/R edges so the per-vertex interpolation below stays equivalent
+        # to the old rigid-center shift for this code path.
+        if 'wave_normal' in fitted_cps:
+            wave_normal_offsets_L[:] = wave_normal_offsets
+            wave_normal_offsets_R[:] = wave_normal_offsets
 
     elif has_waves:
         for i in range(n):
@@ -799,8 +1010,17 @@ def _loft_leaf(organ):
             ramp = max(0.0, (t_frac - ramp_onset) / (1.0 - ramp_onset))
             ramp_sq = ramp * ramp  # quadratic for twist only
 
-            wave_normal_offsets[i] = wave_normal_amp * ramp * np.sin(
-                2 * np.pi * wave_normal_freq * t_frac + wave_normal_phase)
+            # ZLeft / ZRight independent phases (bltree.lsy:9-10). The mean
+            # is kept in `wave_normal_offsets[i]` so the old path — legacy
+            # callers that still read that array — behaves as before when
+            # phase_L == phase_R.
+            _zl = wave_normal_amp * ramp * np.sin(
+                2 * np.pi * wave_normal_freq * t_frac + wave_normal_phase_L)
+            _zr = wave_normal_amp * ramp * np.sin(
+                2 * np.pi * wave_normal_freq * t_frac + wave_normal_phase_R)
+            wave_normal_offsets_L[i] = _zl
+            wave_normal_offsets_R[i] = _zr
+            wave_normal_offsets[i] = 0.5 * (_zl + _zr)
             wave_lateral_offsets[i] = wave_lateral_amp * ramp * np.sin(
                 2 * np.pi * wave_lateral_freq * t_frac + wave_lateral_phase)
             # Twist ramps quadratically (gentle near base, strong at tip)
@@ -915,18 +1135,45 @@ def _loft_leaf(organ):
                 binormal = bn_tw / max(np.linalg.norm(bn_tw), 1e-12)
                 normal = nm_tw / max(np.linalg.norm(nm_tw), 1e-12)
         else:
-            # Apply blade waviness: vertical + lateral displacement
+            # Apply blade waviness: lateral stays at center (symmetric), but
+            # the vertical undulation is now applied per-vertex below so
+            # ZLeft/ZRight can differ independently (bltree.lsy:9-10). When
+            # phase_L == phase_R (legacy fallback) the per-vertex value equals
+            # the old rigid center shift at every cross-section point.
             if has_waves:
-                center += wave_normal_offsets[i] * normal
                 center += wave_lateral_offsets[i] * binormal
             gd = 0.0
             if gutter_depths is not None:
                 gd_idx = min(i, len(gutter_depths) - 1)
                 gd = gutter_depths[gd_idx] if gd_idx >= 0 else 0.0
 
+        # Per-row cross fractions when custom_cross is 2D
+        if custom_cross is not None and custom_cross.ndim == 2 and i < len(custom_cross):
+            row_fracs = custom_cross[i]
+        else:
+            row_fracs = cross_fracs
+
+        # Sheath wrapping: at the leaf base, cross-section follows a
+        # circular arc around the stem instead of a straight line.
+        sheath_f = sheath_frac[i] if sheath_frac is not None else 0.0
+
         for j in range(n_cross):
-            frac = cross_fracs[j]  # -0.5 to 0.5
-            lateral = frac * w * binormal
+            frac = row_fracs[j]  # -0.5 to 0.5
+
+            if sheath_f > 0.01:
+                # Sheath mode: place vertex on circular arc around stem
+                angle = sheath_base_angle[i] + frac * sheath_wrap_angle * sheath_f
+                sheath_pos = np.array([
+                    sheath_center_xy[0] + sheath_r * np.cos(angle),
+                    sheath_center_xy[1] + sheath_r * np.sin(angle),
+                    skeleton[i, 2]
+                ])
+                flat_pos = center + frac * w * binormal
+                # Smooth blend between sheath arc and flat blade
+                lateral_pos = sheath_f * sheath_pos + (1.0 - sheath_f) * flat_pos
+                lateral = lateral_pos - center
+            else:
+                lateral = frac * w * binormal
 
             if has_per_node:
                 # Per-node gutter + cross-section V-angle
@@ -937,8 +1184,17 @@ def _loft_leaf(organ):
                 if abs(pnd_cs_angle[i]) > 0.01:
                     cs_profile = (2.0 * frac) ** 2
                     cs_offset = pnd_cs_angle[i] * cs_profile * normal
+                # Raised central midrib: narrow Gaussian bump opposite the
+                # gutter direction. Stands as a ridge inside the V-channel.
+                midrib_offset = np.zeros(3)
+                if midrib_amps is not None and abs(midrib_amps[i]) > 1e-6:
+                    mid_profile = np.exp(
+                        -(frac / midrib_half_width) ** 2)
+                    midrib_offset = (-gutter_sign * float(midrib_amps[i])
+                                     * mid_profile * normal)
                 v_idx = n_cross * i + j
-                vertices[v_idx] = center + lateral + gutter_offset + cs_offset
+                vertices[v_idx] = (center + lateral + gutter_offset
+                                   + cs_offset + midrib_offset)
             else:
                 # Original parametric deformation model
                 gutter_sign = -1.0 if normal[2] >= 0 else 1.0
@@ -950,6 +1206,18 @@ def _loft_leaf(organ):
                     ruffle_offset *= -1.0
                 fold_profile = np.sin(np.pi * abs(2.0 * frac))
                 fold_offset = fold_factors[i] * fold_profile * normal
+
+                # Per-vertex vertical-undulation offset interpolating L/R
+                # phases across the blade width. frac in [-0.5, +0.5] maps
+                # to [L, R]; midrib (frac=0) gets the mean. When the two
+                # phases match (legacy fallback), this reduces to the old
+                # rigid center shift.
+                wave_frac = 0.5 + frac
+                wave_normal_vertex = (
+                    (1.0 - wave_frac) * wave_normal_offsets_L[i]
+                    + wave_frac * wave_normal_offsets_R[i]
+                )
+                wave_normal_offset = wave_normal_vertex * normal
 
                 w_fade = w / max_w
                 curl_offset *= w_fade
@@ -972,10 +1240,20 @@ def _loft_leaf(organ):
                     cs_profile = (2.0 * frac) ** 2
                     cs_offset = cross_section_values[i] * cs_profile * normal * w_fade
 
+                # Raised central midrib: narrow Gaussian bump opposite the
+                # gutter direction. Stands as a ridge inside the V-channel.
+                midrib_offset = np.zeros(3)
+                if midrib_amps is not None and abs(midrib_amps[i]) > 1e-6:
+                    mid_profile = np.exp(
+                        -(frac / midrib_half_width) ** 2)
+                    midrib_offset = (-gutter_sign * float(midrib_amps[i])
+                                     * mid_profile * normal * w_fade)
+
                 v_idx = n_cross * i + j
                 vertices[v_idx] = (center + lateral + gutter_offset
                                    + curl_offset + ruffle_offset + fold_offset
-                                   + asym_offset + edge_curl_offset + cs_offset)
+                                   + asym_offset + edge_curl_offset + cs_offset
+                                   + wave_normal_offset + midrib_offset)
 
             # Per-vertex normal: for curved cross-section, tilt normals outward
             if n_cross > 2 and gd > 0:
@@ -993,6 +1271,20 @@ def _loft_leaf(organ):
     n_segs = n - 1
     n_tris_per_seg = 2 * (n_cross - 1)
     indices = np.empty((n_segs * n_tris_per_seg, 3), dtype=np.int32)
+    # Midrib triangle mask: True where the strip falls within the central
+    # band of the cross-section (Stage B optical routing). Uses a v-band
+    # half-width in normalised [-0.5, 0.5] frac coordinates.
+    _band_input = organ.get("midrib_band_v_frac", midrib_half_width)
+    if np.isscalar(_band_input):
+        midrib_band_v = float(_band_input)
+    else:
+        # Per-skeleton-point band — quad-ribbon currently uses a single
+        # scalar test (cross_fracs is constant per cross-section), so use
+        # the array's mean. NURBS path uses the full per-u taper.
+        midrib_band_v = float(np.mean(np.asarray(_band_input)))
+    is_midrib_tri = np.zeros(n_segs * n_tris_per_seg, dtype=bool)
+    has_midrib_active = (midrib_amps is not None
+                         and float(np.max(np.abs(np.asarray(midrib_amps)))) > 1e-6)
 
     for i in range(n_segs):
         for j in range(n_cross - 1):
@@ -1003,8 +1295,33 @@ def _loft_leaf(organ):
             tri_base = i * n_tris_per_seg + 2 * j
             indices[tri_base] = [bl, tl, br]
             indices[tri_base + 1] = [br, tl, tr]
+            if has_midrib_active:
+                # Strip j-(j+1) is "midrib" when both rails sit inside the
+                # band. Use the average |frac| of the two rails as the test.
+                mean_abs_frac = 0.5 * (abs(cross_fracs[j])
+                                       + abs(cross_fracs[j + 1]))
+                if mean_abs_frac <= midrib_band_v:
+                    is_midrib_tri[tri_base] = True
+                    is_midrib_tri[tri_base + 1] = True
+
+    # Build quad indices (same grid, one quad per cell instead of 2 tris)
+    emit_quads = organ.get("emit_quads", False)
+    if emit_quads:
+        n_quads_per_seg = n_cross - 1
+        quad_indices = np.empty((n_segs * n_quads_per_seg, 4), dtype=np.int32)
+        for i in range(n_segs):
+            for j in range(n_cross - 1):
+                bl = n_cross * i + j
+                br = n_cross * i + j + 1
+                tl = n_cross * (i + 1) + j
+                tr = n_cross * (i + 1) + j + 1
+                quad_indices[i * n_quads_per_seg + j] = [bl, br, tr, tl]
+    else:
+        quad_indices = None
 
     organ_ids = np.full(len(indices), organ_id, dtype=np.int32)
+    quad_organ_ids = (np.full(len(quad_indices), organ_id, dtype=np.int32)
+                      if quad_indices is not None else None)
 
     orig_seg_map = organ.get("_orig_segment_map")
     segment_ids = np.empty(len(indices), dtype=np.int32)
@@ -1016,7 +1333,57 @@ def _loft_leaf(organ):
         for k in range(n_tris_per_seg):
             segment_ids[i * n_tris_per_seg + k] = sid
 
-    return vertices, indices, normals_arr, uvs, organ_ids, segment_ids
+    # Trim to exact vertex count (for prime OBJ vertex counts where
+    # n_skel * n_cross overshoots by 1-2 vertices).  Remove the excess
+    # tip vertices and any triangles that reference them.
+    trim_n = organ.get("trim_to_n_verts")
+    if trim_n is not None and len(vertices) > trim_n:
+        keep_mask = np.all(indices < trim_n, axis=1)
+        indices = indices[keep_mask]
+        organ_ids = organ_ids[keep_mask]
+        segment_ids = segment_ids[keep_mask]
+        is_midrib_tri = is_midrib_tri[keep_mask]
+        if quad_indices is not None:
+            q_keep = np.all(quad_indices < trim_n, axis=1)
+            quad_indices = quad_indices[q_keep]
+            quad_organ_ids = quad_organ_ids[q_keep]
+        vertices = vertices[:trim_n]
+        normals_arr = normals_arr[:trim_n]
+        uvs = uvs[:trim_n]
+
+    # Per-vertex displacement: direct (M, 3) offsets for 1:1 OBJ matching.
+    # Applied after trim so the displacement array size matches final vertices.
+    per_vert_disp = organ.get("per_vertex_displacements")
+    if per_vert_disp is not None:
+        pvd = np.asarray(per_vert_disp, dtype=np.float64)
+        if pvd.shape == vertices.shape:
+            vertices += pvd
+
+    # Reference faces: use OBJ face connectivity instead of lofter grid.
+    # Stored as pipeline data during fitting; replayed at generation time.
+    # Supports mixed tris (3-vert) and quads (4-vert).
+    ref_faces = organ.get("reference_faces")
+    if ref_faces is not None:
+        ref_quads = [f for f in ref_faces if len(f) == 4]
+        ref_tris = [f for f in ref_faces if len(f) == 3]
+        if ref_quads:
+            quad_indices = np.array(ref_quads, dtype=np.int32)
+            quad_organ_ids = np.full(len(ref_quads), organ_id, dtype=np.int32)
+        # Replace tri indices with reference tris + triangulated quads
+        all_tris = list(ref_tris)
+        for q in ref_quads:
+            all_tris.append([q[0], q[1], q[2]])
+            all_tris.append([q[0], q[2], q[3]])
+        if all_tris:
+            indices = np.array(all_tris, dtype=np.int32)
+            organ_ids = np.full(len(indices), organ_id, dtype=np.int32)
+            segment_ids = np.full(len(indices), 0, dtype=np.int32)
+            # Reference-faces path bypasses the lofter grid, so we can't
+            # tag midrib tris from cross_fracs. Default to no midrib here.
+            is_midrib_tri = np.zeros(len(indices), dtype=bool)
+
+    return (vertices, indices, normals_arr, uvs, organ_ids, segment_ids,
+            quad_indices, quad_organ_ids, is_midrib_tri)
 
 
 def _apply_internode_modulation(skeleton, widths, node_heights_z,
@@ -1095,6 +1462,82 @@ def _apply_internode_modulation(skeleton, widths, node_heights_z,
     return modulated
 
 
+def _clip_stem_above_top_leaf(organ, pad=0.0, min_stub=1.0):
+    """Trim transient young-plant stem stub above the topmost leaf.
+
+    CPlantBox elongates the stem past the last emerged leaf while the
+    next phytomer waits on its phyllochron delay — rendering a bare
+    stub for young plants. Real maize has the pseudostem and leaf
+    sheaths wrapping the apex; there is no visible bare stem above the
+    last leaf. This helper truncates the skeleton at
+    ``max(node_heights_z) + pad`` so the sheath mesh at the top leaf
+    becomes the visual end of the shoot.
+
+    Returns the (possibly modified) organ dict. Skipped when no leaves
+    are attached, the stub is below ``min_stub``, or the skeleton is
+    too short.
+    """
+    # Tassel organs are positioned above the canopy on purpose — their
+    # skeleton is the tassel itself, not a bare stem stub. Do not clip.
+    if organ.get("name", "").startswith(("tassel_spike_", "tassel_branch_")):
+        return organ
+
+    node_heights_z = organ.get("node_heights_z")
+    if not node_heights_z:
+        return organ
+
+    skeleton = np.asarray(organ["skeleton"], dtype=np.float64)
+    widths = np.asarray(organ["widths"], dtype=np.float64)
+    if len(skeleton) < 2:
+        return organ
+
+    z_apex = float(skeleton[-1, 2])
+    z_top_leaf = float(max(node_heights_z))
+    if z_apex - z_top_leaf < min_stub:
+        return organ
+
+    z_clip = z_top_leaf + pad
+    # Honor an opt-in minimum clip height set by the adapter when a tassel
+    # is attached — prevents amputating the mainstem below the tassel base.
+    z_floor = organ.get("no_clip_above_z")
+    if z_floor is not None:
+        z_clip = max(z_clip, float(z_floor))
+    if z_clip >= z_apex:
+        return organ
+
+    z_skel = skeleton[:, 2]
+    below = np.where(z_skel <= z_clip)[0]
+    if len(below) == 0:
+        return organ
+    last_idx = int(below[-1])
+    if last_idx >= len(skeleton) - 1:
+        return organ
+
+    z1 = z_skel[last_idx]
+    z2 = z_skel[last_idx + 1]
+    if z2 > z1 + 1e-9:
+        t = (z_clip - z1) / (z2 - z1)
+        clip_pos = skeleton[last_idx] + t * (skeleton[last_idx + 1] - skeleton[last_idx])
+        clip_w = widths[last_idx] + t * (widths[last_idx + 1] - widths[last_idx])
+    else:
+        clip_pos = skeleton[last_idx].copy()
+        clip_w = widths[last_idx]
+
+    new_skel = np.vstack([skeleton[: last_idx + 1], clip_pos[None, :]])
+    new_widths = np.concatenate([widths[: last_idx + 1], [clip_w]])
+
+    new_organ = dict(organ, skeleton=new_skel, widths=new_widths)
+    # Preserve per-segment mapping: new clipped skeleton has (last_idx + 1)
+    # segments; the last one still originates from subdivided segment
+    # ``last_idx`` (now cut short).
+    orig_map = organ.get("_orig_segment_map")
+    if orig_map is not None:
+        new_organ["_orig_segment_map"] = np.asarray(
+            orig_map[: last_idx + 1], dtype=np.int32,
+        )
+    return new_organ
+
+
 def _loft_stem(organ, n_sides=8):
     """Loft a stem organ into cylindrical tube geometry with end caps.
 
@@ -1112,6 +1555,13 @@ def _loft_stem(organ, n_sides=8):
     widths = np.asarray(organ["widths"], dtype=np.float64)
     organ_id = organ["organ_id"]
     n = len(skeleton)
+
+    # Floor tube width so wall triangles at tapered tips survive the
+    # downstream degenerate-triangle filter (min area 0.001 cm²).  Without
+    # this, tassel branches with 0.02 cm diameter tips get amputated 0.5–
+    # 1.8 cm short of their skeleton tip, while the anther billboards (which
+    # use the full skeleton) extend past the remaining tube.
+    widths = np.maximum(widths, 0.08)
 
     # Apply internode modulation if leaf attachment heights are provided
     node_heights_z = organ.get("node_heights_z")
@@ -1239,7 +1689,9 @@ def _loft_stem(organ, n_sides=8):
 
 
 def loft_organs(organs, stem_sides=8, subdivide=True, target_spacing=0.5,
-                smooth=True, smooth_iterations=3):
+                smooth=True, smooth_iterations=3, use_nurbs_backend=False,
+                nurbs_n_u_eval=30, nurbs_n_v_eval=21,
+                with_tassel_billboards=True, tassel_billboard_seed=42):
     """Loft all organs into a single G3Mesh.
 
     Args:
@@ -1254,6 +1706,18 @@ def loft_organs(organs, stem_sides=8, subdivide=True, target_spacing=0.5,
         target_spacing: Target spacing in cm for skeleton subdivision.
         smooth: If True, apply Laplacian smoothing to the final mesh.
         smooth_iterations: Number of Laplacian smoothing passes.
+        use_nurbs_backend: If True, loft leaves with the canonical 11x5
+            PlantGL ``NurbsPatch`` backend (`nurbs_blade.loft_leaf_nurbs`)
+            instead of the legacy quad-ribbon lofter. Per-organ override:
+            set ``organ["use_nurbs_backend"] = True/False`` to opt in/out.
+        nurbs_n_u_eval, nurbs_n_v_eval: Tessellation resolution for the
+            NURBS backend (30x7 default).
+        with_tassel_billboards: If True and any organs have names starting
+            with ``tassel_spike_`` or ``tassel_branch_``, append anther
+            cross-billboards to the mesh. No-op when no tassel organs are
+            present. Runs after smoothing and before degenerate-triangle
+            removal so over-thin anthers are culled too.
+        tassel_billboard_seed: RNG seed for billboard jitter determinism.
 
     Returns:
         G3Mesh with all organs combined.
@@ -1264,6 +1728,10 @@ def loft_organs(organs, stem_sides=8, subdivide=True, target_spacing=0.5,
     all_uvs = []
     all_organ_ids = []
     all_segment_ids = []
+    all_quad_indices = []
+    all_quad_organ_ids = []
+    all_midrib = []  # per-organ per-tri bool masks; concat into mesh.is_midrib
+    organ_cps: dict = {}
     organ_meta = []
     vertex_offset = 0
 
@@ -1285,12 +1753,23 @@ def loft_organs(organs, stem_sides=8, subdivide=True, target_spacing=0.5,
             "organ_id": organ["organ_id"],
             "name": organ.get("name", f"organ_{organ['organ_id']}"),
             "type": organ["type"],
+            "part_type": organ.get("part_type", organ["type"]),
             "node_ids": node_ids,
             "arc_lengths": orig_arc_norm,
         })
 
-        # Optionally subdivide coarse skeletons before lofting
-        if subdivide:
+        # Optionally subdivide coarse skeletons before lofting.
+        # Leaves carrying a pre-fitted surface_cps_local grid bypass
+        # subdivision entirely — the NURBS backend consumes the library CPs
+        # directly and uses the original skeleton only for per-triangle
+        # segment-ID mapping (identity map).
+        if "surface_cps_local" in organ:
+            organ = dict(organ)
+            orig_skel_n = len(np.asarray(organ["skeleton"], dtype=np.float64))
+            organ["_orig_segment_map"] = np.arange(
+                max(0, orig_skel_n - 1), dtype=np.int32,
+            )
+        elif subdivide:
             skel, wid, orig_seg_map = _subdivide_skeleton(
                 organ["skeleton"], organ["widths"], target_spacing=target_spacing
             )
@@ -1300,10 +1779,51 @@ def loft_organs(organs, stem_sides=8, subdivide=True, target_spacing=0.5,
             organ = dict(organ)
 
         otype = organ["type"]
+        qidxs, qoids = None, None
+        midrib_tags = None  # per-tri bool array; only set by leaf lofters
         if otype == "leaf":
-            verts, idxs, norms, uvs, oids, sids = _loft_leaf(organ)
+            # Per-organ opt-in overrides the global flag.
+            use_nurbs = organ.get("use_nurbs_backend", use_nurbs_backend)
+            if use_nurbs:
+                from .nurbs_blade import loft_leaf_nurbs
+                result = loft_leaf_nurbs(
+                    organ, n_u_eval=nurbs_n_u_eval, n_v_eval=nurbs_n_v_eval,
+                )
+                # NURBS backend returns a tuple with the canonical CP grid
+                # as element 8 and the midrib mask as element 9 (when set).
+                organ_cps[int(organ["organ_id"])] = np.asarray(
+                    result[8], dtype=np.float64
+                )
+                if len(result) > 9:
+                    midrib_tags = np.asarray(result[9], dtype=bool)
+            else:
+                result = _loft_leaf(organ)
+                if len(result) > 8:
+                    midrib_tags = np.asarray(result[8], dtype=bool)
+            verts, idxs, norms, uvs, oids, sids = result[:6]
+            qidxs, qoids = result[6], result[7]
+        elif otype == "sheath":
+            from .sheath_mesher import mesh_sheath
+            verts, idxs, norms, uvs, oids, sids = mesh_sheath(
+                skeleton=organ["skeleton"],
+                radii=organ.get("radii", organ["widths"] / 2.0),
+                wrap_angle=organ.get("wrap_angle", np.radians(330)),
+                overlap_angle=organ.get("overlap_angle", np.radians(30)),
+                thickness=organ.get("sheath_thickness", 0.04),
+                stem_skeleton=organ.get("stem_skeleton"),
+                organ_id=organ["organ_id"],
+            )
         elif otype in ("stem", "root"):
-            verts, idxs, norms, uvs, oids, sids = _loft_stem(organ, n_sides=stem_sides)
+            # Clip transient young-plant stem stub so the topmost sheath
+            # geometry (already wrapping the stem just below) is the visual
+            # end of the shoot — real maize has no bare stem poking above
+            # the last leaf. No cap/cone is added; the top disc is covered
+            # by the sheath mesh at the top leaf.
+            if otype == "stem":
+                organ = _clip_stem_above_top_leaf(organ, pad=0.0)
+            verts, idxs, norms, uvs, oids, sids = _loft_stem(
+                organ, n_sides=stem_sides,
+            )
         else:
             raise ValueError(f"Unknown organ type: {otype!r}")
 
@@ -1313,13 +1833,28 @@ def loft_organs(organs, stem_sides=8, subdivide=True, target_spacing=0.5,
         all_uvs.append(uvs)
         all_organ_ids.append(oids)
         all_segment_ids.append(sids)
+        # Per-tri midrib mask: leaves emit a real bool array (some True if
+        # the organ has midrib_amps_cm > 0); other organs are all-False.
+        if midrib_tags is not None and len(midrib_tags) == len(idxs):
+            all_midrib.append(midrib_tags)
+        else:
+            all_midrib.append(np.zeros(len(idxs), dtype=bool))
+        if qidxs is not None:
+            all_quad_indices.append(qidxs + vertex_offset)
+            all_quad_organ_ids.append(qoids)
         vertex_offset += len(verts)
 
     if not all_verts:
         return G3Mesh(
             np.empty((0, 3)), np.empty((0, 3), dtype=np.int32),
             np.empty((0, 3)), np.empty((0, 2)), np.empty(0, dtype=np.int32),
+            organ_cps=organ_cps,
         )
+
+    quad_idx = (np.concatenate(all_quad_indices)
+                if all_quad_indices else None)
+    quad_oid = (np.concatenate(all_quad_organ_ids)
+                if all_quad_organ_ids else None)
 
     mesh = G3Mesh(
         vertices=np.concatenate(all_verts),
@@ -1329,10 +1864,25 @@ def loft_organs(organs, stem_sides=8, subdivide=True, target_spacing=0.5,
         organ_ids=np.concatenate(all_organ_ids),
         segment_ids=np.concatenate(all_segment_ids),
         organ_meta=organ_meta,
+        quad_indices=quad_idx,
+        quad_organ_ids=quad_oid,
+        organ_cps=organ_cps,
+        is_midrib=np.concatenate(all_midrib) if all_midrib else None,
     )
 
     if smooth:
         mesh = _laplacian_smooth(mesh, iterations=smooth_iterations)
+
+    if with_tassel_billboards:
+        has_tassel = any(
+            o.get("name", "").startswith(("tassel_spike_", "tassel_branch_"))
+            for o in organs
+        )
+        if has_tassel:
+            from .tassel_billboards import append_tassel_billboards
+            append_tassel_billboards(mesh, organs,
+                                     seed=tassel_billboard_seed,
+                                     verbose=True)
 
     mesh = _remove_degenerate_triangles(mesh)
 
@@ -1381,6 +1931,10 @@ def _remove_degenerate_triangles(mesh, min_area_cm2=0.001):
         organ_ids=mesh.organ_ids[keep],
         segment_ids=mesh.segment_ids[keep],
         organ_meta=mesh.organ_meta,
+        quad_indices=mesh.quad_indices,
+        quad_organ_ids=mesh.quad_organ_ids,
+        organ_cps=mesh.organ_cps,
+        is_midrib=mesh.is_midrib[keep],
     )
 
 
@@ -1569,4 +2123,8 @@ def _laplacian_smooth(mesh, iterations=3, lambda_factor=0.5):
 
     return G3Mesh(vertices, mesh.indices.copy(), normals, mesh.uvs.copy(),
                   mesh.organ_ids.copy(), mesh.segment_ids.copy(),
-                  mesh.organ_meta)
+                  mesh.organ_meta,
+                  quad_indices=mesh.quad_indices,
+                  quad_organ_ids=mesh.quad_organ_ids,
+                  organ_cps=mesh.organ_cps,
+                  is_midrib=mesh.is_midrib.copy())

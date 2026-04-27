@@ -402,6 +402,7 @@ void LeafRandomParameter::readXML(tinyxml2::XMLElement* element, bool verbose)
     leafEdgeCurlAngle.resize(0);
     leafCrossSectionPhi.resize(0);
     leafCrossSectionCurv.resize(0);
+    surface_cps.resize(0);
     while(p) {
         std::string key = p->Attribute("name");
         if (key.compare("leafGeometry")==0)  {
@@ -474,6 +475,20 @@ void LeafRandomParameter::readXML(tinyxml2::XMLElement* element, bool verbose)
                 leafCrossSectionCurv.insert(leafCrossSectionCurv.end(), curv_.begin(), curv_.end());
             }else{
                 throw std::invalid_argument ("LeafRandomParameter::readXML: 'phi' or 'curv' tag not found in leafCrossSection parameter description");
+            }
+        }
+        if (key.compare("surface_cp")==0)  {
+            // One element per control point. Attributes x/y/z give the leaf-local
+            // coordinate; attributes u/v are optional but recommended so the
+            // order in the XML is self-describing (we rely on insertion order
+            // to rebuild the (n_u, n_v, 3) grid, but u/v let consumers validate).
+            if ((p->Attribute("x")) && (p->Attribute("y")) && (p->Attribute("z"))) {
+                double x_ = p->DoubleAttribute("x", 0.0);
+                double y_ = p->DoubleAttribute("y", 0.0);
+                double z_ = p->DoubleAttribute("z", 0.0);
+                surface_cps.push_back(Vector3d(x_, y_, z_));
+            } else {
+                throw std::invalid_argument ("LeafRandomParameter::readXML: 'x','y','z' attributes not found in surface_cp parameter description");
             }
         }
         p = p->NextSiblingElement("parameter");
@@ -564,6 +579,28 @@ tinyxml2::XMLElement* LeafRandomParameter::writeXML(tinyxml2::XMLDocument& doc, 
             element->InsertEndChild(c);
         }
     }
+    // Native 2D leaf-surface CP grid (Phase A). Empty vector omits the block.
+    if (!surface_cps.empty()) {
+        // surface_cps is flat with u-major layout: index k = i_u * n_v + i_v.
+        // We emit u/v parametric coordinates alongside x/y/z for self-
+        // describing XML; consumers rely on insertion order to rebuild the grid.
+        int n_u = std::max(surface_n_u, 1);
+        int n_v = std::max(surface_n_v, 1);
+        for (size_t k = 0; k < surface_cps.size(); k++) {
+            int i_u = (n_v > 0) ? static_cast<int>(k / n_v) : 0;
+            int i_v = (n_v > 0) ? static_cast<int>(k % n_v) : 0;
+            double u_param = (n_u > 1) ? static_cast<double>(i_u) / (n_u - 1) : 0.0;
+            double v_param = (n_v > 1) ? static_cast<double>(i_v) / (n_v - 1) : 0.0;
+            tinyxml2::XMLElement* p = doc.NewElement("parameter");
+            p->SetAttribute("name", "surface_cp");
+            p->SetAttribute("u", u_param);
+            p->SetAttribute("v", v_param);
+            p->SetAttribute("x", surface_cps[k].x);
+            p->SetAttribute("y", surface_cps[k].y);
+            p->SetAttribute("z", surface_cps[k].z);
+            element->InsertEndChild(p);
+        }
+    }
     return element;
 }
 
@@ -599,6 +636,25 @@ void LeafRandomParameter::bindParameters()
     bindParameter("isPseudostem", &isPseudostem, "Do the leaf sheaths make a pseudostem?");
     bindParameter("collarLength", &collarLength, "Length of rigid collar zone (cm)", &collarLengths);
     bindParameter("tropismExponent", &tropismExponent, "Position-dependent tropism exponent (1=uniform, >1=tip-heavy)", &tropismExponents);
+    // Fournier coordination / thermal-time elongation (Step 2B)
+    bindParameter("sl_ratio", &sl_ratio, "Sheath:lamina ratio [-]");
+    bindParameter("use_thermal_elongation", &use_thermal_elongation, "Use thermal time elongation [0/1]");
+    bindParameter("T_base", &T_base, "Base temperature [deg C]");
+    bindParameter("T_opt", &T_opt, "Optimal temperature [deg C]");
+    bindParameter("T_max", &T_max, "Maximum temperature [deg C]");
+    bindParameter("LER_max", &LER_max, "Max leaf elongation rate [mm/degCd]");
+    bindParameter("phyllochron_tt", &phyllochron_tt, "Phyllochron thermal time [degCd]");
+    bindParameter("use_thermal_emergence", &use_thermal_emergence, "Use thermal-time gated emergence [0/1]");
+    bindParameter("tt_emergence", &tt_emergence, "Thermal-time emergence threshold [degCd], <0 disables");
+    // Leaf-side FA logistic length kinetics (PLAN_YOUNG_LEAF_PHYSICS §Gap 1)
+    bindParameter("use_fa_kinetics", &use_fa_kinetics, "Use Fournier-Andrieu logistic length kinetics [0/1]");
+    bindParameter("tau_extension_n", &tau_extension_n, "FA logistic half-max plant TT [degCd], <0 disables");
+    bindParameter("sigma_extension_n", &sigma_extension_n, "FA logistic spread [degCd]");
+    // Native 2D leaf-surface NURBS grid (Phase A)
+    bindParameter("surface_n_u", &surface_n_u, "Surface CP grid: number of CPs along midrib");
+    bindParameter("surface_n_v", &surface_n_v, "Surface CP grid: number of CPs across width");
+    bindParameter("surface_deg_u", &surface_deg_u, "Surface CP grid: degree in u direction");
+    bindParameter("surface_deg_v", &surface_deg_v, "Surface CP grid: degree in v direction");
     // other parameters (descriptions only)
     description["leafGeometryPhi"] = "Leaf geometry parametrisation parameter";
     description["leafGeometryX"] = "Leaf geometry parametrisation";

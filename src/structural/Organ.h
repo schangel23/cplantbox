@@ -150,6 +150,13 @@ protected:
 	double epsilonDx = 0; ///< growth increment too small to be added to organ. kept in memory and added to growth of next simulation step
 	size_t created_linking_node = 0;///number of nodes which carry childrens
 
+	/* S3b mid-stem lateral attachment (plan §A, decision 3 pull-based trigger).
+	 * When >=0, Organ::createLateral uses this value as the lateral's pni
+	 * instead of nodes.size()-1. Cleared at the top of createLateral so it
+	 * never leaks across calls. Default -1 preserves pre-S3b behavior
+	 * (Hard Invariant #1). */
+	int pending_lateral_pni_override_ = -1;
+
     /* node data */
     std::vector<Vector3d> nodes; ///< nodes of the organ [cm]
     std::vector<int> nodeIds; ///< global node indices

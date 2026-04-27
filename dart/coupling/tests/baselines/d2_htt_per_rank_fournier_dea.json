@@ -1,0 +1,171 @@
+{
+  "_meta": {
+    "source_sim_json": "s3b5_achieved_per_rank.json",
+    "source_obs_json": "fournier2000_dea_fig6a_per_rank.json",
+    "sim_build": "S3b.3 post-S3b.4 sign-off (FA-on maize_calibrated.xml, seed=7)",
+    "validation_quantity": "calcLengthPerPhytomer(n) \u2014 FA kinetic target curve",
+    "s3b3_downgrade_note": "get_phytomer_length(n) reports scalar-allocator span per project_fa_s3b3_shipped.md; achieved-vs-target residual logged but NOT validated against D\u00e9a. Primary D\u00e9a test is target-vs-obs.",
+    "primary_tolerance_cm": 2.5,
+    "secondary_tolerance_pct": 25.0
+  },
+  "per_rank": {
+    "9": {
+      "delta_tt_cd": 216.0,
+      "rmse_at_delta_cm": 1.019089138285153,
+      "rmse_at_zero_offset_cm": 18.102395530513938,
+      "obs_peak_cm": 22.0,
+      "sim_target_peak_cm": 22.999999999994536,
+      "sim_achieved_peak_cm": 9.98067410955909,
+      "primary_pass": true
+    },
+    "10": {
+      "delta_tt_cd": 250.0,
+      "rmse_at_delta_cm": 0.794867092848853,
+      "rmse_at_zero_offset_cm": 18.27259243677435,
+      "obs_peak_cm": 22.0,
+      "sim_target_peak_cm": 21.999999999583878,
+      "sim_achieved_peak_cm": 9.969694452272094,
+      "primary_pass": true
+    },
+    "11": {
+      "delta_tt_cd": 280.0,
+      "rmse_at_delta_cm": 0.9262898363701493,
+      "rmse_at_zero_offset_cm": 17.68696472273484,
+      "obs_peak_cm": 22.0,
+      "sim_target_peak_cm": 21.99999993264152,
+      "sim_achieved_peak_cm": 10.039637621578656,
+      "primary_pass": true
+    },
+    "12": {
+      "delta_tt_cd": 319.0,
+      "rmse_at_delta_cm": 0.9761083809412155,
+      "rmse_at_zero_offset_cm": 15.215289802148503,
+      "obs_peak_cm": 21.0,
+      "sim_target_peak_cm": 19.999990417144026,
+      "sim_achieved_peak_cm": 10.233742415182292,
+      "primary_pass": true
+    },
+    "13": {
+      "delta_tt_cd": 340.0,
+      "rmse_at_delta_cm": 1.2891490486549195,
+      "rmse_at_zero_offset_cm": 11.222081318996324,
+      "obs_peak_cm": 16.5,
+      "sim_target_peak_cm": 17.999664716760357,
+      "sim_achieved_peak_cm": 10.086568304128678,
+      "primary_pass": true
+    },
+    "14": {
+      "delta_tt_cd": 360.0,
+      "rmse_at_delta_cm": 1.880774707299384,
+      "rmse_at_zero_offset_cm": 8.145230933768266,
+      "obs_peak_cm": 12.0,
+      "sim_target_peak_cm": 18.886593968045055,
+      "sim_achieved_peak_cm": 10.162408415410283,
+      "primary_pass": true
+    },
+    "15": {
+      "delta_tt_cd": 398.0,
+      "rmse_at_delta_cm": 1.1209024194397998,
+      "rmse_at_zero_offset_cm": 5.939084716749482,
+      "obs_peak_cm": 9.0,
+      "sim_target_peak_cm": 11.28399999999996,
+      "sim_achieved_peak_cm": 8.776239880480745,
+      "primary_pass": true
+    }
+  },
+  "mean_delta_tt_cd": 309.0,
+  "std_delta_tt_cd": 59.22595955925312,
+  "max_residual_pct_at_mean_delta": {
+    "9": 99.83894055583193,
+    "10": 83.39614038008573,
+    "11": 42.92727272727282,
+    "12": 15.714285714285497,
+    "13": 43.53439554215308,
+    "14": 60.91428190879057,
+    "15": 79.79664243851511
+  },
+  "secondary_pass": false,
+  "primary_pass": true,
+  "achieved_vs_target_day130": {
+    "1": {
+      "achieved_cm": 0.0,
+      "target_cm": 0.0,
+      "delta_cm": 0.0
+    },
+    "2": {
+      "achieved_cm": 9.441807810106027,
+      "target_cm": 0.0,
+      "delta_cm": 9.441807810106027
+    },
+    "3": {
+      "achieved_cm": 10.686755179778984,
+      "target_cm": 0.0,
+      "delta_cm": 10.686755179778984
+    },
+    "4": {
+      "achieved_cm": 10.362954824546733,
+      "target_cm": 0.0,
+      "delta_cm": 10.362954824546733
+    },
+    "5": {
+      "achieved_cm": 9.980941810102486,
+      "target_cm": 0.8000000000000002,
+      "delta_cm": 9.180941810102485
+    },
+    "6": {
+      "achieved_cm": 10.301050976675953,
+      "target_cm": 7.0,
+      "delta_cm": 3.3010509766759526
+    },
+    "7": {
+      "achieved_cm": 11.143142981643173,
+      "target_cm": 14.000000000000002,
+      "delta_cm": -2.8568570183568287
+    },
+    "8": {
+      "achieved_cm": 10.190101857655776,
+      "target_cm": 21.99999999999974,
+      "delta_cm": -11.809898142343965
+    },
+    "9": {
+      "achieved_cm": 9.98067410955909,
+      "target_cm": 22.999999999994536,
+      "delta_cm": -13.019325890435447
+    },
+    "10": {
+      "achieved_cm": 9.969694452272094,
+      "target_cm": 21.999999999583878,
+      "delta_cm": -12.030305547311784
+    },
+    "11": {
+      "achieved_cm": 10.039637621578649,
+      "target_cm": 21.99999993264152,
+      "delta_cm": -11.96036231106287
+    },
+    "12": {
+      "achieved_cm": 10.233742415182292,
+      "target_cm": 19.999990417144026,
+      "delta_cm": -9.766248001961735
+    },
+    "13": {
+      "achieved_cm": 10.086568304128633,
+      "target_cm": 17.999664716760357,
+      "delta_cm": -7.913096412631724
+    },
+    "14": {
+      "achieved_cm": 10.162408415410283,
+      "target_cm": 18.886593968045055,
+      "delta_cm": -8.724185552634772
+    },
+    "15": {
+      "achieved_cm": 8.776239880480745,
+      "target_cm": 11.28399999999996,
+      "delta_cm": -2.507760119519215
+    },
+    "16": {
+      "achieved_cm": 10.403670151081911,
+      "target_cm": 4.48261441819837,
+      "delta_cm": 5.921055732883541
+    }
+  }
+}

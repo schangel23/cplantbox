@@ -99,6 +99,16 @@ std::shared_ptr<Organ> Leaf::copy(std::shared_ptr<Organism> p)
 }
 
 /**
+ * Cardinal temperature response: piecewise linear [0,1].
+ * Returns 0 for T <= T_base or T >= T_max, 1 at T_opt.
+ */
+static double cardinalTemperature(double T, double T_base, double T_opt, double T_max) {
+    if (T <= T_base || T >= T_max) return 0.0;
+    if (T <= T_opt) return (T - T_base) / (T_opt - T_base);
+    return (T_max - T) / (T_max - T_opt);
+}
+
+/**
  * Simulates f_gf of this leaf for a time span dt
  *
  * @param dt       time step [day]
@@ -120,6 +130,85 @@ void Leaf::simulate(double dt, bool verbose)
 		}
 		age+=dt;
 
+		// --- Thermal-time emergence gate (subtype-agnostic, opt-in via use_thermal_emergence) ---
+		// Gates leaf "birth" on plant TT instead of calendar-day ldelay. Each leaf subType
+		// carries a tt_emergence threshold; the leaf does not grow until plant accumulated TT
+		// crosses it. Compatible with both phytomer-mode and monolithic-leaf pipelines.
+		{
+			auto plant_tt = getPlant();
+			const auto& lrp_tt = *getLeafRandomParameter();
+			if (plant_tt && lrp_tt.use_thermal_emergence && lrp_tt.tt_emergence > 0.0) {
+				if (plant_tt->getAccumulatedTT() < lrp_tt.tt_emergence) {
+					age -= dt;          // unborn: revert age, no growth this step
+					return;
+				}
+			}
+		}
+
+		// --- Fournier coordination (only in phytomer mode with thermal elongation) ---
+		auto plant_ptr = getPlant();
+		bool phytomer_mode = false;
+		bool thermal_elongation = false;
+		if (plant_ptr) {
+		    auto seed_rp = plant_ptr->getSeedRandomParameter();
+		    if (seed_rp && seed_rp->decompose_phytomer > 0) {
+		        phytomer_mode = true;
+		    }
+		}
+		if (phytomer_mode && getLeafRandomParameter()->use_thermal_elongation) {
+		    thermal_elongation = true;
+		    // Accumulate thermal time
+		    double T = plant_ptr->getAirTemperature();
+		    double f_T = cardinalTemperature(T,
+		        getLeafRandomParameter()->T_base,
+		        getLeafRandomParameter()->T_opt,
+		        getLeafRandomParameter()->T_max);
+		    accumulated_tt += f_T * dt;  // dt in days, f_T dimensionless [0,1]
+
+		    int my_subtype = param()->subType;
+		    bool is_sheath = (my_subtype % 2 == 0);
+		    int my_rank = my_subtype / 2;
+
+		    // --- Emergence check (sheath only) ---
+		    // Use length-based check: a sheath has "emerged" from the pseudostem
+		    // when its length exceeds the max length of older sheaths that have
+		    // already emerged, or simply when it has grown past a threshold.
+		    // For rank 0 (no predecessors), any growth means emergence.
+		    if (is_sheath && !emerged) {
+		        if (my_rank == 0 && length > 0.01) {
+		            emerged = true;
+		            emergence_tt = accumulated_tt;
+		        } else if (my_rank > 0 && length > 0.01) {
+		            // Check if our length exceeds a minimum threshold
+		            // (In real Fournier, this is when tip > pseudostem tube top.
+		            // Here we approximate: sheath emerges when its length > 0.)
+		            emerged = true;
+		            emergence_tt = accumulated_tt;
+		        }
+		    }
+
+		    // --- Blade coordination: poll previous sheath ---
+		    if (!is_sheath && !lmax_set) {
+		        auto parent_stem = std::dynamic_pointer_cast<Stem>(getParent());
+		        if (parent_stem && my_rank > 0) {
+		            auto prev_sheath = parent_stem->getChildByPhytomerRank(
+		                my_rank - 1, Organism::ot_leaf, /*isSheath=*/true);
+		            if (prev_sheath) {
+		                auto prev_leaf = std::dynamic_pointer_cast<Leaf>(prev_sheath);
+		                if (prev_leaf && prev_leaf->hasEmerged()) {
+		                    coordinated_lmax = param()->getK();
+		                    lmax_set = true;
+		                }
+		            }
+		        }
+		        if (my_rank == 0) {
+		            // First blade has no predecessor — activate immediately
+		            coordinated_lmax = param()->getK();
+		            lmax_set = true;
+		        }
+		    }
+		}
+
 		// probabilistic branching model (todo test)
 		if ((age>0) && (age-dt<=0)) { // the leaf emerges in this time step
 			//currently, does not use absolute coordinates for these function.
@@ -129,6 +218,17 @@ void Leaf::simulate(double dt, bool verbose)
 				if (plant.lock()->rand()>p) { // not rand()<p
 					age -= dt; // the leaf does not emerge in this time step
 				}
+			}
+		}
+
+		// Fournier-Andrieu plumbing (plan §B.4): sample plant's Andrieu TT at the
+		// first step the leaf is actually born. Cheap bookkeeping — no effect on
+		// the scalar path (field is only read when a sibling mainstem has
+		// use_fournier_andrieu_kinetics=true and calls Stem::calcLengthPerPhytomerSum).
+		if (age > 0.0 && emergence_andrieu_tt_ < 0.0) {
+			auto plant_fa = getPlant();
+			if (plant_fa) {
+				emergence_andrieu_tt_ = plant_fa->getAccumulatedAndrieuTT();
 			}
 		}
 
@@ -150,11 +250,48 @@ void Leaf::simulate(double dt, bool verbose)
 					dt_=dt;
 				}
 
-				double targetlength = calcLength(age_+dt_)+ this->epsilonDx;
-				double e = targetlength-length; // unimpeded elongation in time step dt
-				double dl = std::max(e, 0.);// length increment = calculated length + increment from last time step too small to be added
-				length = getLength(true);
-				this->epsilonDx = 0.; // now it is "spent" on targetlength (no need for -this->epsilonDx in the following)
+				double dl;
+				const auto& lrp_fa = *getLeafRandomParameter();
+				const bool fa_kinetics = lrp_fa.use_fa_kinetics
+				                         && lrp_fa.tau_extension_n >= 0.0
+				                         && plant_ptr;
+				if (fa_kinetics) {
+				    // Fournier-Andrieu logistic length kinetics (PLAN_YOUNG_LEAF_PHYSICS §Gap 1)
+				    //   length_target(TT) = lmax / (1 + exp(-(TT - tau)/sigma))
+				    // TT is the plant's accumulated TT (Tb=8 axis, same accumulator that drives
+				    // tt_emergence). Saturates exactly to lmax at large TT, so mature renders are
+				    // bit-identical to the scalar path that capped at lmax via getK().
+				    const double TT = plant_ptr->getAccumulatedTT();
+				    const double sigma = std::max(lrp_fa.sigma_extension_n, 1e-3);
+				    const double m = 1.0 / (1.0 + std::exp(-(TT - lrp_fa.tau_extension_n) / sigma));
+				    const double Lmax = param()->getK();
+				    const double targetlength = Lmax * m + this->epsilonDx;
+				    const double e = targetlength - length;
+				    dl = std::max(e, 0.0);
+				    length = getLength(true);
+				    this->epsilonDx = 0.;
+				} else if (thermal_elongation) {
+				    // Thermal-time-based elongation
+				    double T = plant_ptr->getAirTemperature();
+				    double f_T = cardinalTemperature(T,
+				        getLeafRandomParameter()->T_base,
+				        getLeafRandomParameter()->T_opt,
+				        getLeafRandomParameter()->T_max);
+				    double dTT = f_T * dt_;  // thermal time increment
+				    double ler = getLeafRandomParameter()->LER_max * 0.1;  // mm/degCd -> cm/degCd
+				    double k = (coordinated_lmax > 0) ? coordinated_lmax : param()->getK();
+				    double remaining = k - length;
+				    dl = std::min(ler * dTT, std::max(remaining, 0.0));
+				    length = getLength(true);
+				    this->epsilonDx = 0.;
+				} else {
+				    // Original calendar-day elongation
+				    double targetlength = calcLength(age_+dt_)+ this->epsilonDx;
+				    double e = targetlength-length; // unimpeded elongation in time step dt
+				    dl = std::max(e, 0.);// length increment
+				    length = getLength(true);
+				    this->epsilonDx = 0.; // now it is "spent" on targetlength
+				}
 				// create geometry
 				if (p.laterals) { // leaf has laterals
 					/* basal zone */
@@ -212,7 +349,189 @@ void Leaf::simulate(double dt, bool verbose)
 			active = getLength(false)<=(p.getK()*(1 - 1e-11)); // become inactive, if final length is nearly reached
 		}
 	} // if alive
+}
 
+/**
+ * True when this leaf's RandomParameter carries a populated 2D surface CP
+ * grid (Phase D). The grid must have ``n_u * n_v`` flat entries.
+ */
+bool Leaf::hasSurfaceCPs() const
+{
+	auto lrp = getLeafRandomParameter();
+	if (!lrp) return false;
+	int n_u = lrp->surface_n_u;
+	int n_v = lrp->surface_n_v;
+	if (n_u < 2 || n_v < 1) return false;
+	return (int)lrp->surface_cps.size() == n_u * n_v;
+}
+
+namespace {
+// Build a droop-free template from the mature CP grid: preserve blade width
+// (local x) but zero out droop (local y) and stretch the v=midrib z to match
+// the mature arc-length. Non-midrib v-columns keep their (z - midrib_z)
+// offset so cross-midrib ribboning is preserved.
+std::vector<Vector3d> buildFlatTemplate(
+	const std::vector<Vector3d>& mature, int n_u, int n_v)
+{
+	const int v_mid = n_v / 2;
+	std::vector<double> s(n_u, 0.0);
+	for (int i = 1; i < n_u; ++i) {
+		Vector3d d = mature[i * n_v + v_mid].minus(mature[(i - 1) * n_v + v_mid]);
+		s[i] = s[i - 1] + std::sqrt(d.times(d));
+	}
+	std::vector<Vector3d> flat(mature.size());
+	for (int iu = 0; iu < n_u; ++iu) {
+		const double mid_z = mature[iu * n_v + v_mid].z;
+		for (int iv = 0; iv < n_v; ++iv) {
+			const Vector3d& cp = mature[iu * n_v + iv];
+			flat[iu * n_v + iv] = Vector3d(cp.x, 0.0, s[iu] + (cp.z - mid_z));
+		}
+	}
+	return flat;
+}
+} // anonymous
+
+/**
+ * Maturity-dependent shape blend. Mature leaves (m >= kYoungFadeEnd) return
+ * ``lrp->surface_cps`` unchanged. Younger leaves are blended toward a flat
+ * template (zero y, straight +z midrib) with weight
+ *     alpha = (1 - m/kYoungFadeEnd)^kYoungExp,  m = length / lmax in [0,1].
+ * The blend removes droop early while leaving mature silhouettes untouched.
+ */
+std::vector<Vector3d> Leaf::getEffectiveSurfaceCPs() const
+{
+	auto lrp = getLeafRandomParameter();
+	if (!lrp) return {};
+	const int n_u = lrp->surface_n_u;
+	const int n_v = lrp->surface_n_v;
+	if (n_u < 2 || n_v < 1) return lrp->surface_cps;
+	if ((int)lrp->surface_cps.size() != n_u * n_v) return lrp->surface_cps;
+	const double mature_length = std::max(lrp->lmax, 1e-9);
+	const double m = std::min(std::max(getLength(true) / mature_length, 0.0), 1.0);
+	if (m >= kYoungFadeEnd) return lrp->surface_cps; // early-out for mature
+	double alpha = std::pow(1.0 - m / kYoungFadeEnd, kYoungExp);
+	alpha = std::min(std::max(alpha, 0.0), 1.0);
+	if (alpha < 1e-6) return lrp->surface_cps;
+	auto flat = buildFlatTemplate(lrp->surface_cps, n_u, n_v);
+	std::vector<Vector3d> out(lrp->surface_cps.size());
+	const double w_mat = 1.0 - alpha;
+	for (size_t i = 0; i < out.size(); ++i) {
+		const Vector3d& a = lrp->surface_cps[i];
+		const Vector3d& b = flat[i];
+		out[i] = Vector3d(
+			w_mat * a.x + alpha * b.x,
+			w_mat * a.y + alpha * b.y,
+			w_mat * a.z + alpha * b.z);
+	}
+	return out;
+}
+
+/**
+ * Re-project internal midrib nodes onto the library-derived midrib.
+ *
+ * Procedure
+ *  1. Extract the v=midrib u-line (11 points in leaf-local frame) from the
+ *     LRP's CP grid.
+ *  2. Scale all local points by (current_length / mature_length).
+ *  3. Build the insertion frame from ``nodes[0]`` (collar) and ``iHeading0``
+ *     (collar tangent): ``x_local = tangent x UP``, ``y_local = tangent x
+ *     x_local``, ``R = [x_local, y_local, tangent]``.
+ *  4. For each existing internal node i >= 1 at original arc-length s_i from
+ *     the collar along the (tropism-evolved) midrib, compute
+ *     ``frac_i = s_i / total_arc`` and linearly interpolate along the
+ *     11-point v=midrib polyline at ``frac_i``, transform via ``R`` plus
+ *     collar translation, then ``setNode(i, ...)``.
+ *
+ * Node 0 (collar) is never overwritten — it stays glued to the parent organ.
+ */
+void Leaf::updateNodesFromSurfaceCPs()
+{
+	auto lrp = getLeafRandomParameter();
+	if (!lrp) return;
+	const int n_u = lrp->surface_n_u;
+	const int n_v = lrp->surface_n_v;
+	const int v_mid = n_v / 2;
+	const double mature_length = std::max(lrp->lmax, 1e-9);
+	const double current_length = getLength(true);
+	if (current_length < 1e-9) return;
+	const double scale = current_length / mature_length;
+
+	// Maturity-aware blend (young-stage flat template). Mature leaves early-out.
+	const std::vector<Vector3d> eff = getEffectiveSurfaceCPs();
+	if ((int)eff.size() != n_u * n_v) return;
+
+	// --- 1-2. Extract v=midrib column, scale ---
+	std::vector<Vector3d> midrib_local; midrib_local.reserve(n_u);
+	for (int i_u = 0; i_u < n_u; ++i_u) {
+		const Vector3d& cp = eff[i_u * n_v + v_mid];
+		midrib_local.push_back(Vector3d(cp.x * scale, cp.y * scale, cp.z * scale));
+	}
+
+	// Arc-length along the library midrib (leaf-local), for interpolation.
+	std::vector<double> lib_cum(n_u, 0.0);
+	for (int i_u = 1; i_u < n_u; ++i_u) {
+		Vector3d d = midrib_local[i_u].minus(midrib_local[i_u - 1]);
+		lib_cum[i_u] = lib_cum[i_u - 1] + std::sqrt(d.times(d));
+	}
+	const double lib_total = std::max(lib_cum.back(), 1e-12);
+
+	// --- 3. Insertion frame (world) ---
+	Vector3d collar = nodes.front();
+	Vector3d tangent = getiHeading0();
+	double tlen = std::sqrt(tangent.times(tangent));
+	if (tlen < 1e-9) return;
+	tangent = tangent.times(1.0 / tlen);
+	Vector3d up(0.0, 0.0, 1.0);
+	Vector3d x_local = tangent.cross(up);
+	double xlen = std::sqrt(x_local.times(x_local));
+	if (xlen < 1e-6) {
+		// tangent parallel to world up: pick deterministic alt axis.
+		Vector3d alt = (std::abs(tangent.x) < 0.9)
+			? Vector3d(1.0, 0.0, 0.0) : Vector3d(0.0, 1.0, 0.0);
+		x_local = tangent.cross(alt);
+		xlen = std::sqrt(x_local.times(x_local));
+	}
+	if (xlen < 1e-12) return;
+	x_local = x_local.times(1.0 / xlen);
+	Vector3d y_local = tangent.cross(x_local);
+	double ylen = std::sqrt(y_local.times(y_local));
+	if (ylen < 1e-12) return;
+	y_local = y_local.times(1.0 / ylen);
+	// Columns of R (world-from-local): R = [x_local | y_local | tangent].
+
+	// --- 4. Per-internal-node reprojection ---
+	// Original per-node arc lengths (tropism-evolved midrib).
+	const int N = (int)nodes.size();
+	std::vector<double> orig_cum(N, 0.0);
+	for (int i = 1; i < N; ++i) {
+		Vector3d d = nodes[i].minus(nodes[i - 1]);
+		orig_cum[i] = orig_cum[i - 1] + std::sqrt(d.times(d));
+	}
+	const double orig_total = std::max(orig_cum.back(), 1e-12);
+
+	for (int i = 1; i < N; ++i) {
+		double frac = std::min(std::max(orig_cum[i] / orig_total, 0.0), 1.0);
+		double target_s = frac * lib_total;
+		// Find library segment k s.t. lib_cum[k] <= target_s < lib_cum[k+1]
+		int k = 0;
+		while (k + 1 < n_u && lib_cum[k + 1] < target_s) ++k;
+		double seg_len = lib_cum[k + 1] - lib_cum[k];
+		double t_interp = (seg_len > 1e-12)
+			? (target_s - lib_cum[k]) / seg_len : 0.0;
+		t_interp = std::min(std::max(t_interp, 0.0), 1.0);
+		const Vector3d& p0 = midrib_local[k];
+		const Vector3d& p1 = midrib_local[k + 1];
+		Vector3d local(
+			p0.x + (p1.x - p0.x) * t_interp,
+			p0.y + (p1.y - p0.y) * t_interp,
+			p0.z + (p1.z - p0.z) * t_interp);
+		// world = R * local + collar
+		Vector3d world(
+			x_local.x * local.x + y_local.x * local.y + tangent.x * local.z + collar.x,
+			x_local.y * local.x + y_local.y * local.y + tangent.y * local.z + collar.y,
+			x_local.z * local.x + y_local.z * local.y + tangent.z * local.z + collar.z);
+		setNode(i, world);
+	}
 }
 
 /**
@@ -860,6 +1179,36 @@ Vector3d Leaf::getIncrement(const Vector3d& p, double sdx, int n)
 	//Vector2d ab = getLeafRandomParameter()->f_tf->getHeading(p, ons, dx(),shared_from_this());
     Vector3d sv = ons.times(Vector3d::rotAB(ab.x,ab.y));
     return sv.times(sdx);
+}
+
+/**
+ * Pseudostem height = max tip z of all sheath organs with rank < this sheath's rank.
+ * Excludes the current sheath so emergence detection works correctly.
+ */
+double Leaf::computePseudostemHeight() const {
+    auto parent_stem = std::dynamic_pointer_cast<Stem>(getParent());
+    if (!parent_stem) return 0.0;
+
+    int my_st = param()->subType;
+    int my_rank = my_st / 2;
+
+    double max_h = 0.0;
+    for (int i = 0; i < parent_stem->getNumberOfChildren(); i++) {
+        auto child = parent_stem->getChild(i);
+        if (child->organType() == Organism::ot_leaf) {
+            int st = (int)child->getParameter("subType");
+            if (st % 2 == 0 && st / 2 < my_rank) {  // older sheath (lower rank)
+                auto leaf_child = std::dynamic_pointer_cast<Leaf>(child);
+                if (leaf_child && leaf_child->nodes.size() > 0) {
+                    // Use nodes.back().z directly — this method is called from
+                    // Python after simulate(), when nodes are in absolute coords.
+                    double tip_z = leaf_child->nodes.back().z;
+                    max_h = std::max(max_h, tip_z);
+                }
+            }
+        }
+    }
+    return max_h;
 }
 
 } // namespace CPlantBox

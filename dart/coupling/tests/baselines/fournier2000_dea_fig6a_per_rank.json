@@ -1,0 +1,36 @@
+{
+  "_source": {
+    "paper": "Fournier C. 2000, Annals of Botany 86:551-563",
+    "title": "Dynamics of the Elongation of Internodes in Maize (Zea mays L.): Analysis of Phases of Elongation and their Relationships to Phytomer Development",
+    "figure": "Fig 6A",
+    "cultivar": "Déa",
+    "site": "Grignon (France)",
+    "experiment": "1A (X-ray measurements, n=10 plants averaged)",
+    "axes": {
+      "x": "Thermal time since plant emergence (°Cd), Tb = 10 °C",
+      "y": "Internode length l_n (cm)"
+    },
+    "ranks_available": [9, 10, 11, 12, 13, 14, 15]
+  },
+  "_digitization": {
+    "method": "Manual visual reading from `_page_5_Figure_6.jpeg` (markdown-extracted, 1020-px tall).",
+    "tool": "Not WebPlotDigitizer — eyeballed anchors at TT = 460, 470, ..., 640 °Cd.",
+    "estimated_precision": {
+      "il_cm": "±1.0 cm (compared to ±0.5 cm for WPD on this figure)",
+      "tt_deg_cd": "±5 °Cd"
+    },
+    "refine_if": "S3b.5 residual between target-under-thin and this curve lands within ±10–15%. In that case, redo with WPD to halve the uncertainty band before writeup.",
+    "plan_reference": "Replaces plan-nominated 'Birch 2002 Déa Fig-4' — Birch 2002 Fig 4 is apex H for P3527+C87 (not Déa, not per-rank). Per-rank Déa H(TT) exists only in Fournier 2000 Fig 6A. Plan source list already cites Fournier 2000; only Figure/paper pointer needs correcting."
+  },
+  "_notes_on_asymptotes": "Max internode length in Déa ~22 cm, peaks at ranks 9-11 per Birch 2002 Fig 6a text (\"maximum... occurred on internodes 9 and 10. Above internode 11, internode length declined\"). Ranks 13-15 are still rising at TT=640 °Cd where the figure ends; their final asymptotes are not captured here but are ~20, ~16, ~11 cm per Birch 2002 Fig 6a Déa static data.",
+  "tt_deg_cd": [460, 470, 480, 490, 500, 510, 520, 530, 540, 550, 560, 570, 580, 590, 600, 610, 620, 630, 640],
+  "per_rank_il_cm": {
+    "9":  [0.8, 2.0, 4.0, 7.0, 11.5, 15.5, 18.5, 20.5, 21.5, 22.0, 22.0, 22.0, 22.0, 22.0, 22.0, 22.0, 22.0, 22.0, 22.0],
+    "10": [0.0, 0.3, 1.0, 2.5, 5.0,  9.0,  13.0, 17.0, 19.5, 21.5, 22.0, 22.0, 22.0, 22.0, 22.0, 22.0, 22.0, 22.0, 22.0],
+    "11": [0.0, 0.0, 0.2, 0.5, 1.5,  3.0,  5.5,  9.0,  12.5, 16.0, 19.0, 21.0, 22.0, 22.0, 22.0, 22.0, 22.0, 22.0, 22.0],
+    "12": [0.0, 0.0, 0.0, 0.1, 0.5,  1.0,  2.0,  4.0,  6.5,  9.5,  12.5, 15.0, 17.0, 18.5, 19.5, 20.0, 20.5, 21.0, 21.0],
+    "13": [0.0, 0.0, 0.0, 0.0, 0.0,  0.3,  1.0,  2.0,  3.5,  5.0,  7.0,  9.0,  11.0, 12.5, 14.0, 15.0, 15.5, 16.0, 16.5],
+    "14": [0.0, 0.0, 0.0, 0.0, 0.0,  0.0,  0.3,  1.0,  2.0,  3.0,  4.5,  6.0,  7.5,  8.5,  9.5,  10.5, 11.0, 11.5, 12.0],
+    "15": [0.0, 0.0, 0.0, 0.0, 0.0,  0.0,  0.0,  0.3,  1.0,  1.5,  2.5,  3.5,  4.5,  5.5,  6.5,  7.5,  8.0,  8.5,  9.0]
+  }
+}

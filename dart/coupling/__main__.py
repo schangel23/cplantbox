@@ -21,6 +21,59 @@ def cli():
         "--threads", type=int, default=None,
         help="DART thread count (default: 8). Sets DART_THREADS env var.",
     )
+
+    # --- DART PlantSimulation-learnings features (§3.1, §3.2) ---
+    # Propagated via COUPLING_* env vars so every subcommand that
+    # reaches geometry/cplantbox_adapter.py::extract_organs_for_lofter
+    # picks them up. Defaults keep the old behaviour intact.
+    plantsim = parser.add_argument_group("plantsim learnings (§3.1, §3.2)")
+    plantsim.add_argument(
+        "--enable-leaf-fracture", action="store_true",
+        help="Enable §3.1 stochastic leaf fracture "
+             "(Bernoulli-gated tip truncation, see DART_PLANTSIMULATION_LEARNINGS.md).",
+    )
+    plantsim.add_argument(
+        "--fracture-seed", type=int, default=None,
+        help="RNG seed for leaf fracture (default: 1234).",
+    )
+    plantsim.add_argument(
+        "--fracture-split", type=int, default=None,
+        help="Rank threshold: ranks < split use break-prob-low (default: 6).",
+    )
+    plantsim.add_argument(
+        "--fracture-prob-low", type=float, default=None,
+        help="Bernoulli break probability for low-rank leaves (default: 0.05).",
+    )
+    plantsim.add_argument(
+        "--fracture-prob-high", type=float, default=None,
+        help="Bernoulli break probability for high-rank leaves (default: 0.20).",
+    )
+    plantsim.add_argument(
+        "--fracture-break-lo", type=float, default=None,
+        help="Min surviving fraction when a leaf breaks (default: 0.55).",
+    )
+    plantsim.add_argument(
+        "--fracture-break-hi", type=float, default=None,
+        help="Max surviving fraction when a leaf breaks (default: 0.90).",
+    )
+    plantsim.add_argument(
+        "--enable-senescent-split", action="store_true",
+        help="Enable §3.2 healthy/withered DART optical-property split.",
+    )
+    plantsim.add_argument(
+        "--senescent-threshold", type=float, default=None,
+        help="rho_senesce threshold above which a leaf is tagged as "
+             "`senescent_leaf_N` for DART routing (default: 0.50).",
+    )
+    plantsim.add_argument(
+        "--no-fa", action="store_true",
+        help="Disable Fournier-Andrieu per-phytomer internode kinetics on the "
+             "mainstem. S3b.7/S3b.8 geometry (plastochron-driven rank initiation "
+             "+ basal_zero_ranks gate in internodalGrowth) are gated on this "
+             "flag; disabling reverts to the scalar-burst path used for "
+             "regression baselines. Default: FA-on.",
+    )
+
     sub = parser.add_subparsers(dest="command", required=True)
 
     # Phase 1 — DART RT simulation
@@ -162,6 +215,32 @@ def cli():
             os.sched_setaffinity(0, set(range(n)))
         except (OSError, AttributeError):
             pass
+
+    # --- plantsim learnings env vars ---
+    # Read by geometry/cplantbox_adapter.py::get_plantsim_feature_kwargs_from_env,
+    # which every call site splats into extract_organs_for_lofter. Sub-flags are
+    # only forwarded when the master toggle is on — that way a stale
+    # "--fracture-seed 42" without --enable-leaf-fracture is a no-op.
+    if args.enable_leaf_fracture:
+        os.environ["COUPLING_LEAF_FRACTURE"] = "1"
+        for cli_name, env_name in (
+            ("fracture_seed",       "COUPLING_LEAF_FRACTURE_SEED"),
+            ("fracture_split",      "COUPLING_LEAF_FRACTURE_SPLIT"),
+            ("fracture_prob_low",   "COUPLING_LEAF_FRACTURE_PROB_LOW"),
+            ("fracture_prob_high",  "COUPLING_LEAF_FRACTURE_PROB_HIGH"),
+            ("fracture_break_lo",   "COUPLING_LEAF_FRACTURE_BREAK_LO"),
+            ("fracture_break_hi",   "COUPLING_LEAF_FRACTURE_BREAK_HI"),
+        ):
+            v = getattr(args, cli_name)
+            if v is not None:
+                os.environ[env_name] = str(v)
+    if args.enable_senescent_split:
+        os.environ["COUPLING_SENESCENT_SPLIT"] = "1"
+        if args.senescent_threshold is not None:
+            os.environ["COUPLING_SENESCENT_RHO_THRESHOLD"] = str(args.senescent_threshold)
+    # S3b.8 opt-out — FA-on is the default in grow.py::init_plant/grow_plant.
+    if getattr(args, "no_fa", False):
+        os.environ["COUPLING_NO_FA"] = "1"
 
     if args.command == "simulation":
         from .dart.simulation import main

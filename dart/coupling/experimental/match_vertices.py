@@ -58,21 +58,62 @@ def load_all_stages(export_dir):
     return files, all_verts, all_groups, all_comps, canonical, pos_map
 
 
-def process_leaf(verts, leaf_faces, comp, g1):
+def _best_n_cross(n_obj, preferred=2, candidates=(2, 3, 4, 5, 6, 7)):
+    """Find n_cross that divides n_obj exactly, preferring `preferred`.
+
+    Returns (n_cross, n_target, exact_match) where n_target is the actual
+    vertex count to request (may be n_obj±1 for prime counts).
+    """
+    # Try exact match first
+    if n_obj % preferred == 0 and n_obj // preferred >= 3:
+        return preferred, n_obj, True
+    for nc in candidates:
+        if n_obj % nc == 0 and n_obj // nc >= 3:
+            return nc, n_obj, True
+    # For prime counts, try n_obj±1
+    for delta in [1, -1]:
+        n_try = n_obj + delta
+        if n_try % preferred == 0 and n_try // preferred >= 3:
+            return preferred, n_try, False
+        for nc in candidates:
+            if n_try % nc == 0 and n_try // nc >= 3:
+                return nc, n_try, False
+    return preferred, (n_obj // preferred) * preferred, False
+
+
+def process_leaf(verts, leaf_faces, comp, g1, n_cross=2):
     """Run bare lofter on extracted skeleton, compute per-vertex displacement.
 
-    Returns:
-        base_verts: (M, 3) bare lofter output
-        corrected_verts: (M, 3) lofter + displacement = matches OBJ
-        displacements: (M, 3) per-vertex correction vectors
-        obj_leaf_verts: (N, 3) original OBJ vertices for this leaf
-        match_indices: (M,) index into obj_leaf_verts for each lofter vertex
-        mesh_indices: (K, 3) triangle indices from lofter
+    Auto-detects the best n_cross to match the OBJ vertex count exactly.
+    When target_n_verts is set (= OBJ vertex count) and n_cross divides it,
+    the lofter produces exactly the right vertex count for 1:1 matching.
+    The resulting per_vertex_displacements can be fed back into the lofter.
+
+    Args:
+        verts: Full-scene vertex array.
+        leaf_faces: List of face tuples for all leaves.
+        comp: Set of vertex indices belonging to this leaf.
+        g1: Extracted G1 skeleton object.
+        n_cross: Preferred cross-section vertex count (2=flat, 7=curved).
+
+    Returns dict with:
+        base_verts, corrected_verts, displacements, per_vertex_displacements,
+        obj_leaf_verts, match_indices, mesh_indices, match_dists,
+        n_cross, n_skel, vertex_count_match
     """
     skel = np.array(g1.skeleton)
     widths = np.array(g1.widths)
     if len(skel) < 3 or widths.max() < 0.1:
         return None
+
+    # OBJ vertices for this leaf
+    comp_ids = sorted(comp)
+    obj_leaf_verts = verts[comp_ids]
+    n_obj = len(obj_leaf_verts)
+
+    # Use n_cross directly: produce n_cross × n_skel grid, trim to n_obj
+    nc = n_cross
+    n_grid = ((n_obj + nc - 1) // nc) * nc  # next multiple of nc >= n_obj
 
     organ = {
         "type": "leaf",
@@ -81,7 +122,11 @@ def process_leaf(verts, leaf_faces, comp, g1):
         "organ_id": g1.leaf_id,
         "name": f"leaf_{g1.position}",
         "node_ids": list(range(len(skel))),
+        "target_n_verts": n_grid,
+        "target_n_cross": nc,
     }
+    if n_grid != n_obj:
+        organ["trim_to_n_verts"] = n_obj
 
     try:
         mesh = loft_organs([organ], subdivide=True, smooth=False)
@@ -91,26 +136,26 @@ def process_leaf(verts, leaf_faces, comp, g1):
     base_verts = mesh.vertices
     mesh_indices = mesh.indices
 
-    # OBJ vertices for this leaf
-    comp_ids = sorted(comp)
-    obj_leaf_verts = verts[comp_ids]
-
-    # Nearest-neighbor: for each lofter vert, find closest OBJ vert
+    # Nearest-neighbor matching (works for both exact and approximate)
     obj_tree = KDTree(obj_leaf_verts)
     dists, match_idx = obj_tree.query(base_verts)
-
-    # Displacement = target - source
     displacements = obj_leaf_verts[match_idx] - base_verts
     corrected_verts = base_verts + displacements
+    vtx_match = len(base_verts) == n_obj
+    n_skel_used = len(base_verts) // nc
 
     return {
         "base_verts": base_verts,
         "corrected_verts": corrected_verts,
         "displacements": displacements,
+        "per_vertex_displacements": displacements,
         "obj_leaf_verts": obj_leaf_verts,
         "match_indices": match_idx,
         "mesh_indices": mesh_indices,
         "match_dists": dists,
+        "n_cross": nc,
+        "n_skel": n_skel_used,
+        "vertex_count_match": vtx_match,
     }
 
 
@@ -217,6 +262,10 @@ def main():
     parser.add_argument("--output", "-o", default="output/matched")
     parser.add_argument("--stages", default="all",
                         help="Stages to process: 'all', 'last', or '1,8,14'")
+    parser.add_argument("--n-cross", type=int, default=2,
+                        help="Cross-section vertices (2=flat ribbon, 7=curved)")
+    parser.add_argument("--save-displacements", action="store_true",
+                        help="Save per_vertex_displacements as NPZ for lofter replay")
     parser.add_argument("--verbose", "-v", action="store_true")
     args = parser.parse_args()
 
@@ -266,7 +315,8 @@ def main():
             if g1.length < 3:
                 continue
 
-            result = process_leaf(verts, leaf_faces, comp, g1)
+            result = process_leaf(verts, leaf_faces, comp, g1,
+                                  n_cross=args.n_cross)
             if result is None:
                 continue
 
@@ -282,6 +332,28 @@ def main():
                        [f for f in leaf_faces if all(v in comp for v in f)],
                        f"OBJ reference - leaf {pos} stage {stage_num}")
 
+            # Save per-vertex displacements + OBJ reference faces for replay
+            if args.save_displacements:
+                # Remap OBJ faces to local 0-based vertex indices
+                comp_ids_sorted = sorted(comp)
+                id_map = {old: new for new, old in enumerate(comp_ids_sorted)}
+                ref_faces_local = []
+                for face in leaf_faces:
+                    if all(v in comp for v in face):
+                        ref_faces_local.append([id_map[v] for v in face])
+
+                np.savez_compressed(
+                    stage_dir / f"leaf{pos:02d}_displacements.npz",
+                    per_vertex_displacements=result["per_vertex_displacements"],
+                    skeleton=np.array(g1.skeleton),
+                    widths=np.array(g1.widths),
+                    n_cross=result["n_cross"],
+                    n_skel=result["n_skel"],
+                    position=pos,
+                    stage=stage_num,
+                    reference_faces=np.array(ref_faces_local, dtype=object),
+                )
+
             # Displacement analysis
             decomp = decompose_displacement_field(
                 result["displacements"], result["base_verts"],
@@ -290,10 +362,14 @@ def main():
             mean_match_dist = float(result["match_dists"].mean())
             max_match_dist = float(result["match_dists"].max())
 
+            vtx_match = result.get("vertex_count_match", False)
             leaf_result = {
                 "position": pos,
                 "n_lofter_verts": len(result["base_verts"]),
                 "n_obj_verts": len(result["obj_leaf_verts"]),
+                "vertex_count_match": vtx_match,
+                "n_cross": result.get("n_cross", 2),
+                "n_skel": result.get("n_skel", 0),
                 "mean_nn_dist": mean_match_dist,
                 "max_nn_dist": max_match_dist,
                 **decomp,
@@ -301,8 +377,9 @@ def main():
             stage_results["leaves"].append(leaf_result)
 
             if args.verbose:
+                match_tag = "1:1" if vtx_match else "NN"
                 print(f"  Leaf {pos:>2}: {len(result['base_verts']):>4} lofter → "
-                      f"{len(result['obj_leaf_verts']):>4} OBJ verts | "
+                      f"{len(result['obj_leaf_verts']):>4} OBJ [{match_tag}] | "
                       f"disp={decomp['total_displacement_rms']:.2f}cm "
                       f"(T:{decomp['tangent_pct']:.0f}% "
                       f"N:{decomp['normal_pct']:.0f}% "
@@ -342,7 +419,10 @@ def main():
         mean_norm = np.mean([d["normal_pct"] for d in all_decomps])
         mean_bin = np.mean([d["binormal_pct"] for d in all_decomps])
 
+        n_matched = sum(1 for d in all_decomps if d.get("vertex_count_match"))
+        n_total = len(all_decomps)
         print(f"\n  Mean displacement: {mean_disp:.2f}cm")
+        print(f"  Vertex count 1:1 match: {n_matched}/{n_total} leaves")
         print(f"  Energy split: tangent={mean_tang:.0f}% normal={mean_norm:.0f}% binormal={mean_bin:.0f}%")
         print(f"  → Tangent = skeleton error (CPlantBox)")
         print(f"  → Normal = gutter/wave/fold (lofter out-of-plane)")
@@ -350,6 +430,8 @@ def main():
 
     print(f"\n  Output: {output_dir}/")
     print(f"  Per-stage OBJs: stage_XX/leaf??_base.obj, leaf??_corrected.obj, leaf??_reference.obj")
+    if args.save_displacements:
+        print(f"  Displacements: stage_XX/leaf??_displacements.npz")
 
 
 if __name__ == "__main__":

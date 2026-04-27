@@ -27,6 +27,9 @@ from ..growth import grow_plant, extract_g3_mesh
 from ..geometry import convert_obj_to_dart, convert_mapping_json_groups
 from ..prospect_params import (get_prospect_params, get_prospect_params_per_position,
                                get_stem_prospect_params,
+                               get_tassel_prospect_params,
+                               get_midrib_prospect_params,
+                               get_senescent_leaf_prospect_params,
                                log_consistency, log_lops_consistency)
 from .parsers import (parse_radiative_budget_txt, parse_maket_scn,
                       compute_plant_positions,
@@ -266,7 +269,10 @@ def step3_create_dart_simulation():
     file_src_fullpath = simu.get_input_file_path(str(dart_obj))
     obj_info = ptd.OBJtools.objreader(file_src_fullpath)
     gnames = ptd.OBJtools.gnames_dart_order(obj_info.names)
-    n_leaf_groups = sum(1 for g in gnames if not g.endswith('_00'))
+    n_leaf_groups = sum(1 for g in gnames
+                        if not g.endswith('_00')
+                        and not g.endswith('_midrib')
+                        and not g.startswith(('tassel_spike_', 'tassel_branch_')))
 
     per_pos_params = get_prospect_params_per_position(SIMULATION_DAYS, n_leaf_groups)
     leaf_idx = 0
@@ -289,24 +295,80 @@ def step3_create_dart_simulation():
     print(f"  Stem OP: maize_stem (PROSPECT Cab={stem_prospect['Cab']:.0f},"
           f" N={stem_prospect['N']:.1f}, CBrown={stem_prospect['CBrown']:.3f})")
 
+    tassel_prospect = get_tassel_prospect_params(SIMULATION_DAYS)
+    simu.add.optical_property(
+        type='Lambertian', ident='maize_tassel',
+        prospect=tassel_prospect,
+        useMultiplicativeFactorForLUT=0,
+    )
+    print(f"  Tassel OP: maize_tassel (PROSPECT Cab={tassel_prospect['Cab']:.0f},"
+          f" N={tassel_prospect['N']:.1f}, CBrown={tassel_prospect['CBrown']:.3f})")
+
+    # Midrib OP — only registered when the OBJ contains ``*_midrib``
+    # sub-groups (lofter emits these when ``midrib_amps_cm > 0``). Default
+    # PROSPECT lowers Cab to ~30 % of blade and bumps N + Cw + Cm to
+    # reflect the dense vascular tissue.
+    _has_midrib = any(g.endswith('_midrib') for g in gnames)
+    if _has_midrib:
+        midrib_prospect = get_midrib_prospect_params(SIMULATION_DAYS)
+        simu.add.optical_property(
+            type='Lambertian', ident='maize_leaf_midrib',
+            prospect=midrib_prospect,
+            useMultiplicativeFactorForLUT=0,
+        )
+        print(f"  Midrib OP: maize_leaf_midrib "
+              f"(PROSPECT Cab={midrib_prospect['Cab']:.0f}, "
+              f"N={midrib_prospect['N']:.1f}, "
+              f"CBrown={midrib_prospect['CBrown']:.3f})")
+
+    # Senescent-leaf OP is only registered when the OBJ actually contains
+    # ``senescent_leaf_*`` groups (learnings §3.2). When the adapter is
+    # run with enable_senescent_split=False the prefix never appears and
+    # this block is skipped, keeping the DART scene bit-identical to the
+    # pre-feature baseline.
+    _has_senescent = any(g.startswith('senescent_leaf_') for g in gnames)
+    if _has_senescent:
+        senescent_prospect = get_senescent_leaf_prospect_params(SIMULATION_DAYS)
+        simu.add.optical_property(
+            type='Lambertian', ident='maize_leaf_senescent',
+            prospect=senescent_prospect,
+            useMultiplicativeFactorForLUT=0,
+        )
+        print(f"  Senescent-leaf OP: maize_leaf_senescent "
+              f"(PROSPECT Cab={senescent_prospect['Cab']:.0f}, "
+              f"N={senescent_prospect['N']:.1f}, "
+              f"CBrown={senescent_prospect['CBrown']:.3f})")
+
     # --- 3D Object via ObjectFields (plant grid) ---
     xdim, ydim, zdim = obj_info.dims
     xc, yc, zc = obj_info.center
     print(f"  OBJ: {dart_obj.name} ({len(gnames)} groups, "
           f"dims={xdim:.2f}x{ydim:.2f}x{zdim:.2f}m)")
 
-    # Create group list with per-position optical properties + doubleFace
+    # Create group list with per-position optical properties + doubleFace.
+    # Routing precedence: midrib suffix (catches both blade- and senescent-
+    # leaf midribs) > tassel prefix > senescent prefix > stem (organ_00)
+    # > per-position leaf.
     groups_list = []
     leaf_idx = 0
     for gi, gname in enumerate(gnames):
         g = ptd.object_3d.create_Group(num=gi + 1, name=gname)
-        is_stem = gname.endswith('_00')
-        if is_stem:
+        if gname.endswith('_midrib'):
+            op_ident = 'maize_leaf_midrib'
+            df = 1
+        elif gname.startswith(('tassel_spike_', 'tassel_branch_')):
+            op_ident = 'maize_tassel'
+            df = 1
+        elif gname.startswith('senescent_leaf_'):
+            op_ident = 'maize_leaf_senescent'
+            df = 1
+        elif gname.endswith('_00'):
             op_ident = 'maize_stem'
+            df = 0
         else:
             op_ident = f'maize_leaf_pos{leaf_idx}'
             leaf_idx += 1
-        df = 0 if is_stem else 1
+            df = 1
         g.set_nodes(ident=op_ident)
         gop = g.GroupOpticalProperties
         gop.SurfaceOpticalProperties.doubleFace = df
@@ -1204,6 +1266,12 @@ def create_dart_simulation(obj_path, mapping_json_path, simu_name,
         prospect=stem_prospect,
         useMultiplicativeFactorForLUT=0,
     )
+    tassel_prospect = get_tassel_prospect_params(SIMULATION_DAYS)
+    simu.add.optical_property(
+        type='Lambertian', ident='maize_tassel',
+        prospect=tassel_prospect,
+        useMultiplicativeFactorForLUT=0,
+    )
 
     # 3D Object via ObjectFields
     file_src_fullpath = simu.get_input_file_path(str(obj_path))
@@ -1212,12 +1280,39 @@ def create_dart_simulation(obj_path, mapping_json_path, simu_name,
     xdim, ydim, zdim = obj_info.dims
     xc, yc, zc = obj_info.center
 
+    # Midrib OP — registered on demand, mirrors site-1 dispatch.
+    _has_midrib = any(g.endswith('_midrib') for g in gnames)
+    if _has_midrib:
+        midrib_prospect = get_midrib_prospect_params(SIMULATION_DAYS)
+        simu.add.optical_property(
+            type='Lambertian', ident='maize_leaf_midrib',
+            prospect=midrib_prospect,
+            useMultiplicativeFactorForLUT=0,
+        )
+
+    # Senescent-leaf OP — registered on demand, see site 1 note.
+    _has_senescent = any(g.startswith('senescent_leaf_') for g in gnames)
+    if _has_senescent:
+        senescent_prospect = get_senescent_leaf_prospect_params(SIMULATION_DAYS)
+        simu.add.optical_property(
+            type='Lambertian', ident='maize_leaf_senescent',
+            prospect=senescent_prospect,
+            useMultiplicativeFactorForLUT=0,
+        )
+
     groups_list = []
     for gi, gname in enumerate(gnames):
         g = ptd.object_3d.create_Group(num=gi + 1, name=gname)
-        is_stem = gname.endswith('_00')
-        op_ident = 'maize_stem' if is_stem else 'maize_leaf'
-        df = 0 if is_stem else 1
+        if gname.endswith('_midrib'):
+            op_ident, df = 'maize_leaf_midrib', 1
+        elif gname.startswith(('tassel_spike_', 'tassel_branch_')):
+            op_ident, df = 'maize_tassel', 1
+        elif gname.startswith('senescent_leaf_'):
+            op_ident, df = 'maize_leaf_senescent', 1
+        elif gname.endswith('_00'):
+            op_ident, df = 'maize_stem', 0
+        else:
+            op_ident, df = 'maize_leaf', 1
         g.set_nodes(ident=op_ident)
         gop = g.GroupOpticalProperties
         gop.SurfaceOpticalProperties.doubleFace = df
@@ -1679,8 +1774,32 @@ def create_dart_simulation_multi(obj_paths, mapping_json_paths, simu_name,
         prospect=stem_prospect,
         useMultiplicativeFactorForLUT=0,
     )
+    tassel_prospect = get_tassel_prospect_params(SIMULATION_DAYS)
+    simu.add.optical_property(
+        type='Lambertian', ident='maize_tassel',
+        prospect=tassel_prospect,
+        useMultiplicativeFactorForLUT=0,
+    )
 
-    # Build multi-model ObjectFields (one model per plant)
+    # Build multi-model ObjectFields (one model per plant).
+    # Scan the plant meshes first so the senescent OP is registered once
+    # per simulation (not per plant) if any of them carry senescent groups.
+    _has_senescent = False
+    for dart_obj in obj_paths:
+        _fs = simu.get_input_file_path(str(dart_obj))
+        _info = ptd.OBJtools.objreader(_fs)
+        if any(g.startswith('senescent_leaf_')
+               for g in ptd.OBJtools.gnames_dart_order(_info.names)):
+            _has_senescent = True
+            break
+    if _has_senescent:
+        senescent_prospect = get_senescent_leaf_prospect_params(SIMULATION_DAYS)
+        simu.add.optical_property(
+            type='Lambertian', ident='maize_leaf_senescent',
+            prospect=senescent_prospect,
+            useMultiplicativeFactorForLUT=0,
+        )
+
     model_list = ptd.object_3d.create_ModelList()
 
     for i, dart_obj in enumerate(obj_paths):
@@ -1693,9 +1812,14 @@ def create_dart_simulation_multi(obj_paths, mapping_json_paths, simu_name,
         groups_list = []
         for gi, gname in enumerate(gnames):
             g = ptd.object_3d.create_Group(num=gi + 1, name=gname)
-            is_stem = gname.endswith('_00')
-            op_ident = 'maize_stem' if is_stem else 'maize_leaf'
-            df = 0 if is_stem else 1
+            if gname.startswith(('tassel_spike_', 'tassel_branch_')):
+                op_ident, df = 'maize_tassel', 1
+            elif gname.startswith('senescent_leaf_'):
+                op_ident, df = 'maize_leaf_senescent', 1
+            elif gname.endswith('_00'):
+                op_ident, df = 'maize_stem', 0
+            else:
+                op_ident, df = 'maize_leaf', 1
             g.set_nodes(ident=op_ident)
             gop = g.GroupOpticalProperties
             gop.SurfaceOpticalProperties.doubleFace = df

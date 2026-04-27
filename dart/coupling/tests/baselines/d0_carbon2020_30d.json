@@ -1,0 +1,16 @@
+{
+  "n_leaf_nodes": 36,
+  "n_leaves": 4,
+  "n_mainstem_nodes": 17,
+  "n_organs": 128,
+  "n_root_nodes": 2019,
+  "n_roots": 123,
+  "n_segments_total": 1944,
+  "n_stems": 1,
+  "seed": 7,
+  "sha256": "c3a63f98ba7e70a9f79dc28ff466a546c854ab11980510b62ab40c88dd8cb7aa",
+  "sim_days": 30,
+  "slug": "carbon2020_30d",
+  "use_daily_met": false,
+  "xml": "modelparameter/structural/plant/carbon2020.xml"
+}

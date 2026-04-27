@@ -77,11 +77,44 @@ public:
 
   std::string toString() const override;
 
-  std::vector<int> leafphytomerID = { 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0 };
+  std::vector<int> leafphytomerID = { 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0 };
   void abs2rel();
   void rel2abs();
 
+  /* Air temperature for thermal-time elongation (Step 2B) */
+  void setAirTemperature(double T) { airTemperature_ = T; }
+  double getAirTemperature() const { return airTemperature_; }
+
+  /* Plant-level thermal-time accumulator (real degCd, T_base-clamped) */
+  double getAccumulatedTT() const { return accumulatedTT_; }
+  void setAccumulatedTT(double tt) { accumulatedTT_ = tt; }
+  void setCardinalTemperatures(double T_base, double T_opt, double T_max) {
+      tt_T_base_ = T_base; tt_T_opt_ = T_opt; tt_T_max_ = T_max;
+  }
+  double getCardinalTBase() const { return tt_T_base_; }
+
+  /* Dual-axis Andrieu TT accumulator (Tb=9.8 °C) for Fournier-Andrieu internode
+   * kinetics. Runs alongside accumulatedTT_ (Tb=8.0). See
+   * PLAN_FOURNIER_ANDRIEU_INTERNODE_KINETICS_2026-04-23.md §B.2. */
+  double getAccumulatedAndrieuTT() const { return andrieu_tt_; }
+  void setAccumulatedAndrieuTT(double tt) { andrieu_tt_ = tt; }
+  void setAndrieuTBase(double T_base) { tt_T_base_andrieu_ = T_base; }
+  double getAndrieuTBase() const { return tt_T_base_andrieu_; }
+
 protected:
+
+  double airTemperature_ = 25.0;  ///< current air temperature [deg C]
+  double accumulatedTT_ = 0.0;    ///< plant thermal time [deg Cd], real units
+  double tt_T_base_ = 8.0;        ///< maize default
+  double tt_T_opt_  = 30.0;
+  double tt_T_max_  = 41.0;
+
+  /* Andrieu-axis TT accumulator (F-A 2000 + Birch 2002 kinetic Tb). Only
+   * consumed by FA-path consumers (Stem::simulate when
+   * use_fournier_andrieu_kinetics=true). Unused by any existing code path —
+   * always-on accumulation is harmless bit-for-bit (no one reads it yet). */
+  double andrieu_tt_ = 0.0;           ///< plant thermal time on Andrieu axis [deg Cd]
+  double tt_T_base_andrieu_ = 9.8;    ///< Andrieu axis base temperature [deg C]
 
   std::shared_ptr<SoilLookUp> soil; ///< callback for hydro, or chemo tropism (needs to set before initialize()) TODO should be a part of tf, or rtparam
 

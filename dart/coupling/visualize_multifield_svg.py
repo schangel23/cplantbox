@@ -851,6 +851,9 @@ def main():
             import plantbox as pb  # noqa: F401
             from dart.coupling.growth import grow_plant
             from dart.coupling.geometry import extract_organs_for_lofter
+            from dart.coupling.geometry.cplantbox_adapter import (
+                get_plantsim_feature_kwargs_from_env,
+            )
             from dart.coupling.config import DEFAULT_XML
         except ImportError as e:
             print(f"  Import error: {e}")
@@ -859,6 +862,7 @@ def main():
         else:
             xml_path = str(DEFAULT_XML)
             all_organ_dicts = []
+            feature_kwargs = get_plantsim_feature_kwargs_from_env()
             for i in range(N_PLANTS):
                 seed = FIELD_SEED + i
                 print(f"  Plant {i} (seed={seed})...", flush=True)
@@ -868,6 +872,7 @@ def main():
                     min_stem_nodes=50,
                     min_leaf_nodes=20,
                     name_prefix=f'p{i}_',
+                    **feature_kwargs,
                 )
                 all_organ_dicts.append(organs)
 

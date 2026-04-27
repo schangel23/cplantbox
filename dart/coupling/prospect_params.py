@@ -204,6 +204,85 @@ def get_stem_prospect_params(day: float) -> dict:
     return {**base, "Cab": base["Cab"] * 0.5, "N": base["N"] + 0.3}
 
 
+def get_senescent_leaf_prospect_params(day: float) -> dict:
+    """Return PROSPECT parameter dict for senescent/withered leaves.
+
+    Mirrors the DART PlantSimulation healthy-vs-withered split (learnings
+    §3.2). Senescing maize leaves lose ~70 % Cab and ~40 % Car and gain
+    brown pigment (CBrown), so running them under the healthy stage OP
+    overestimates chlorophyll uptake past mid-grain-fill. Only the
+    pigment/brown channels change relative to :func:`get_prospect_params`;
+    Cw/Cm/N track the healthy leaf so the mesophyll structure is shared.
+    """
+    base = get_prospect_params(day)
+    return {
+        "Cab": max(4.0, base["Cab"] * 0.30),
+        "Car": base["Car"] * 0.60,
+        "Cw": base["Cw"] * 0.70,
+        "Cm": base["Cm"] * 1.10,
+        "N": base["N"],
+        "CBrown": max(0.25, base["CBrown"] + 0.20),
+        "anthocyanin": base["anthocyanin"],
+    }
+
+
+def get_midrib_prospect_params(day: float) -> dict:
+    """Return PROSPECT parameter dict for the midrib (central vein) tissue.
+
+    Used in DART group routing for ``*_midrib`` OBJ sub-groups (one per
+    leaf, emitted by the lofter when ``midrib_amps_cm > 0``).
+
+    Anatomy / spec rationale (no published PROSPECT inversion specifically
+    for the maize midrib, so values are reasoned from tissue morphology):
+
+    - **Cab ~30 % of blade.** The midrib is dense parenchyma + vascular
+      bundles with far less mesophyll than the lamina; pigmentation is
+      typically pale-green to whitish-green in real plants. Higher
+      Cab→reflectance and Cab→absorption sensitivities place the midrib
+      visibly brighter than the blade in the green/red channels.
+    - **N (mesophyll layers) +0.4.** Thicker, more compacted vascular
+      tissue scatters more — pushes NIR reflectance up.
+    - **Cw / Cm slightly elevated.** Vascular bundles are richer in
+      water + dry matter than the lamina mesophyll.
+    - **CBrown 0.** Midribs do not brown ahead of the blade.
+
+    The Cab cut alone is the dominant visible signal; the other deltas
+    are conservative second-order adjustments. If you have lab-measured
+    midrib reflectance later, override via ``set_overrides``.
+    """
+    base = get_prospect_params(day)
+    return {
+        "Cab": max(8.0, base["Cab"] * 0.30),
+        "Car": base["Car"] * 0.50,
+        "Cw": base["Cw"] * 1.20,
+        "Cm": base["Cm"] * 1.30,
+        "N": base["N"] + 0.4,
+        "CBrown": base["CBrown"],
+        "anthocyanin": base["anthocyanin"],
+    }
+
+
+def get_tassel_prospect_params(day: float) -> dict:
+    """Return PROSPECT parameter dict for maize tassel optical properties.
+
+    Derived from the current maize stage: low Cab (tassels have limited
+    chlorophyll; pale-green at emergence → tan at anthesis → brown at
+    senescence), higher N (dense non-mesophyll spikelet/rachis tissue),
+    elevated CBrown. Used in DART group routing for ``tassel_spike_*`` and
+    ``tassel_branch_*`` OBJ groups.
+    """
+    base = get_prospect_params(day)
+    return {
+        "Cab": max(8.0, base["Cab"] * 0.3),
+        "Car": base["Car"] * 0.7,
+        "Cw": base["Cw"] * 0.6,
+        "Cm": base["Cm"] * 1.1,
+        "N": base["N"] + 0.5,
+        "CBrown": max(0.2, base["CBrown"] + 0.2),
+        "anthocyanin": base["anthocyanin"],
+    }
+
+
 def get_chl_for_photosynthesis(day: float) -> float:
     """Return Cab in CPlantBox internal units (ug/cm2) for a given simulation day.
 

@@ -28,7 +28,10 @@ from .. import config as _cfg
 from ..config import (DART_HOME, DART_EB_DIR, DARTRC, BALENO_PYTHON,
                       get_species)
 from ..prospect_params import (get_prospect_params, get_prospect_params_per_position,
-                               get_stem_prospect_params, vcmax25_from_cab)
+                               get_stem_prospect_params,
+                               get_tassel_prospect_params,
+                               get_midrib_prospect_params,
+                               vcmax25_from_cab)
 from ..dart.simulation import configure_atmosphere_midlatsum
 from .parsers import detect_delimiter, write_json5
 
@@ -356,6 +359,12 @@ def setup_baleno_full(obj_path, mapping_json, reindex_json, grid_info_path,
         prospect=stem_prospect,
         useMultiplicativeFactorForLUT=0,
     )
+    tassel_prospect = get_tassel_prospect_params(55)
+    simu_I.add.optical_property(
+        type='Lambertian', ident='maize_tassel',
+        prospect=tassel_prospect,
+        useMultiplicativeFactorForLUT=0,
+    )
 
     # 3D Object
     file_src_fullpath = simu_I.get_input_file_path(str(obj_path))
@@ -364,12 +373,27 @@ def setup_baleno_full(obj_path, mapping_json, reindex_json, grid_info_path,
     xdim, ydim, zdim = obj_info.dims
     xc, yc, zc = obj_info.center
 
+    # Midrib OP — registered on demand.
+    _has_midrib = any(g.endswith('_midrib') for g in gnames)
+    if _has_midrib:
+        midrib_prospect = get_midrib_prospect_params(55)
+        simu_I.add.optical_property(
+            type='Lambertian', ident='maize_leaf_midrib',
+            prospect=midrib_prospect,
+            useMultiplicativeFactorForLUT=0,
+        )
+
     groups_list = []
     for gi, gname in enumerate(gnames):
         g = ptd.object_3d.create_Group(num=gi + 1, name=gname)
-        is_stem = gname.endswith('_00')
-        op_ident = 'maize_stem' if is_stem else 'maize_leaf'
-        df = 0 if is_stem else 1
+        if gname.endswith('_midrib'):
+            op_ident, df = 'maize_leaf_midrib', 1
+        elif gname.startswith(('tassel_spike_', 'tassel_branch_')):
+            op_ident, df = 'maize_tassel', 1
+        elif gname.endswith('_00'):
+            op_ident, df = 'maize_stem', 0
+        else:
+            op_ident, df = 'maize_leaf', 1
         g.set_nodes(ident=op_ident)
         gop = g.GroupOpticalProperties
         gop.SurfaceOpticalProperties.doubleFace = df
@@ -531,6 +555,30 @@ def setup_baleno_full_multi(obj_paths, mapping_json_paths, reindex_json_paths,
         prospect=stem_prospect,
         useMultiplicativeFactorForLUT=0,
     )
+    tassel_prospect = get_tassel_prospect_params(55)
+    simu_I.add.optical_property(
+        type='Lambertian', ident='maize_tassel',
+        prospect=tassel_prospect,
+        useMultiplicativeFactorForLUT=0,
+    )
+    # Midrib OP is registered once at simulation level — gated by whether
+    # any of the multi-plant OBJs contain ``*_midrib`` sub-groups.
+    _has_midrib_any = False
+    for _p in obj_paths:
+        try:
+            _info = ptd.OBJtools.objreader(simu_I.get_input_file_path(str(_p)))
+            if any(g.endswith('_midrib') for g in _info.names):
+                _has_midrib_any = True
+                break
+        except Exception:
+            continue
+    if _has_midrib_any:
+        midrib_prospect = get_midrib_prospect_params(55)
+        simu_I.add.optical_property(
+            type='Lambertian', ident='maize_leaf_midrib',
+            prospect=midrib_prospect,
+            useMultiplicativeFactorForLUT=0,
+        )
 
     # Build multi-model ObjectFields (one model per plant)
     model_list = ptd.object_3d.create_ModelList()
@@ -545,9 +593,14 @@ def setup_baleno_full_multi(obj_paths, mapping_json_paths, reindex_json_paths,
         groups_list = []
         for gi, gname in enumerate(gnames):
             g = ptd.object_3d.create_Group(num=gi + 1, name=gname)
-            is_stem = gname.endswith('_00')
-            op_ident = 'maize_stem' if is_stem else 'maize_leaf'
-            df = 0 if is_stem else 1
+            if gname.endswith('_midrib'):
+                op_ident, df = 'maize_leaf_midrib', 1
+            elif gname.startswith(('tassel_spike_', 'tassel_branch_')):
+                op_ident, df = 'maize_tassel', 1
+            elif gname.endswith('_00'):
+                op_ident, df = 'maize_stem', 0
+            else:
+                op_ident, df = 'maize_leaf', 1
             g.set_nodes(ident=op_ident)
             gop = g.GroupOpticalProperties
             gop.SurfaceOpticalProperties.doubleFace = df

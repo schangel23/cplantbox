@@ -1,5 +1,6 @@
 #include "Plant.h"
 #include "RootDelay.h"
+#include "Leaf.h"
 
 #include <memory>
 #include <iostream>
@@ -9,6 +10,7 @@
 #endif
 #include <string>
 #include <fstream>
+#include <algorithm>
 
 namespace CPlantBox {
 
@@ -241,9 +243,30 @@ void Plant::setTropism(std::shared_ptr<Tropism> tf, int organType, int subType) 
  */
 void Plant::simulate(double dt, bool verbose)
 {
+	// accumulate plant-level thermal time (real degCd, base-clamped to T_base, ceiling at T_max)
+	double T_eff = std::max(0.0, std::min(airTemperature_, tt_T_max_) - tt_T_base_);
+	accumulatedTT_ += T_eff * dt;
+	// Dual-axis Andrieu TT (Tb=9.8 for Fournier-Andrieu internode kinetics; shares
+	// the same T_max ceiling). Accumulates unconditionally — nothing reads it
+	// unless a stem has use_fournier_andrieu_kinetics=true, so this is bit-for-bit
+	// neutral for all existing XMLs (Hard Invariant #5).
+	double T_eff_andrieu = std::max(0.0, std::min(airTemperature_, tt_T_max_) - tt_T_base_andrieu_);
+	andrieu_tt_ += T_eff_andrieu * dt;
 	abs2rel();
     Organism::simulate(dt, verbose);
 	rel2abs();
+	// Phase D: Re-project internal midrib nodes of leaves carrying a populated
+	// 2D surface-CP grid onto the library-derived midrib. Must run AFTER
+	// rel2abs() so nodes[0] is the world collar and getiHeading0() returns
+	// a valid absolute tangent (both rely on parent stem being absolute).
+	auto all = getOrgans(Organism::ot_leaf);
+	for (auto& o : all) {
+		auto lf = std::static_pointer_cast<Leaf>(o);
+		if (lf->isAlive() && lf->getAge() > 0 && lf->hasSurfaceCPs()
+		    && lf->getNumberOfNodes() > 1) {
+			lf->updateNodesFromSurfaceCPs();
+		}
+	}
 }
 
 /**

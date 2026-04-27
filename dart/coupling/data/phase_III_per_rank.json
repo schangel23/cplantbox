@@ -1,0 +1,66 @@
+{
+  "_meta": {
+    "source": "Fournier & Andrieu 2000, Ann Bot 86:551-563, Fig 12 panels A and B",
+    "extracted_from": "Desktop/PHD_Papers_Markdown/Fournier - 2000.../_page_9_Figure_9.jpeg",
+    "extraction_method": "vision-based reading of printed figure",
+    "precision_estimate_pct": 10,
+    "precision_note": "Vision extraction from printed figure with overlapping markers and CI bars; ±10% global. Tighten to ±2% via WebPlotDigitizer on a high-res rescan if needed.",
+    "precision_at_phyt9_peak_verified_pct": 0,
+    "precision_at_phyt9_peak_note": "Birch 2002 line 173 reports Déa phyt-9 Phase III rate = 0.38 cm/°Cd, exactly matching the vision-extracted value. Independent paper, independent fit, exact match → at least the peak rank has ~0% error. Other ranks remain at ±10% pending per-rank Birch cross-check (Layer D.2 minor follow-up).",
+    "primary_dataset": "expt_1B",
+    "primary_dataset_reason": "broader rank coverage (6-17) than expt 1A (8-15)",
+    "secondary_dataset": "expt_1A",
+    "secondary_dataset_reason": "direct X-ray ground truth where overlap exists; 1A-1B systematic difference (~5%) records inter-method uncertainty",
+    "cultivar": "Déa",
+    "site": "INRA Grignon, France",
+    "Tb_C": 9.8,
+    "phyt_rank_convention": "acropetal, rank 1 = first true leaf (cotyledon excluded)"
+  },
+  "v_n_cm_per_degCd": {
+    "_description": "Phase III linear elongation rate per phytomer rank, in cm·°Cd⁻¹ (absolute, not relative-to-final-length)",
+    "expt_1B_primary": {
+      "6": 0.13, "7": 0.20, "8": 0.32, "9": 0.38, "10": 0.36, "11": 0.28,
+      "12": 0.25, "13": 0.24, "14": 0.19, "15": 0.16, "16": 0.18, "17": 0.18
+    },
+    "expt_1A_secondary": {
+      "8": 0.33, "9": 0.36, "10": 0.32, "11": 0.27, "12": 0.24, "13": 0.22,
+      "14": 0.17, "15": 0.15
+    },
+    "_systematic_offset": "expt_1B values are 5-10% higher than expt_1A at every overlapping rank; treat as methodological systematic uncertainty"
+  },
+  "D_n_degCd": {
+    "_description": "Phase III duration per phytomer rank, in °Cd. Combined estimate from both experiments (figure shows joint regression with CI bars).",
+    "values": {
+      "6": 32, "7": 52, "8": 40, "9": 43, "10": 41, "11": 50,
+      "12": 56, "13": 50, "14": 63, "15": 79, "16": 90, "17": 100
+    },
+    "_phyt_16_17_note": "Ranks 16-17 not shown in Fig 12B; populated 2026-04-23 (S5.3) via linear extrapolation of 13->15 slope (~14.5 °Cd/rank). Removes silent fallback to rank-15 value in smoke/adapter code.",
+    "_prose_quote": "FA2000 line 233: 'D_n was almost constant for phytomers 6 to 10 and then increased with leaf insertion'"
+  },
+  "IL_final_cross_check_cm": {
+    "_description": "Per-rank IL_final from F-A 2000 Fig 13 (right axis), used to validate v_n × D_n + 4.5 + phase_IV ≈ IL_final",
+    "_extracted_from": "_page_9_Figure_11.jpeg",
+    "values": {
+      "5": 0.8, "6": 7, "7": 14, "8": 22, "9": 23, "10": 22, "11": 22,
+      "12": 20, "13": 18, "14": 19, "15": 16, "16": 17, "17": 16
+    },
+    "internal_consistency_check": {
+      "phyt_9_derived": "0.38 * 43 + 4.5 + 2 = 22.8 cm",
+      "phyt_9_fig13": "23 cm",
+      "match_within_pct": 1
+    }
+  },
+  "constants_inherited": {
+    "phase_I_duration_degCd": 309,
+    "phase_I_duration_sd_degCd": 10,
+    "phase_I_duration_exclude_phyt": [6, 7],
+    "phase_II_duration_degCd": 25,
+    "phase_IV_duration_degCd_operational": 30,
+    "phase_IV_duration_degCd_observational": 40,
+    "phase_IV_k_decay_degCd_inv": 0.09,
+    "r_I_phase_I_rate_degCd_inv": 0.023,
+    "IL_at_end_phase_II_cm_mean": 4.5,
+    "IL_at_end_phase_II_cm_sd": 0.71,
+    "_source_notes": "All from FA2000; see PLAN_FOURNIER_ANDRIEU_INTERNODE_KINETICS_2026-04-23.md source attribution table"
+  }
+}

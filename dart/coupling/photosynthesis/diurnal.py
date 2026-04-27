@@ -46,6 +46,7 @@ from ..geometry import (
     convert_obj_to_dart, convert_mapping_json_groups,
     loft_organs, extract_organs_for_lofter,
 )
+from ..geometry.cplantbox_adapter import get_plantsim_feature_kwargs_from_env
 from ..prospect_params import get_prospect_params, log_consistency
 
 from ..utils.solar_position import get_solar_positions, sim_day_to_date, get_clearsky_par
@@ -165,6 +166,7 @@ def setup_plants_and_meshes(sim_day, output_subdir, plants=None):
         organ_dicts = extract_organs_for_lofter(
             plant, min_stem_nodes=50, min_leaf_nodes=20,
             name_prefix=prefix,
+            **get_plantsim_feature_kwargs_from_env(),
         )
         for od in organ_dicts:
             od['plant_id'] = i

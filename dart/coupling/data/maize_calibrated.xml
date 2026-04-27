@@ -16,10 +16,10 @@
         <parameter name="firstTil" value="1e+09" />
         <parameter name="ldelay" value="-1" />
         <parameter name="maxB" value="7" />
-        <parameter name="nC" value="2" />
+        <parameter name="nC" value="0" />
         <parameter name="nz" value="0" />
-        <parameter name="seedPos.x" value="0" />
-        <parameter name="seedPos.y" value="0" />
+        <parameter name="seedPos.x" value="200" />
+        <parameter name="seedPos.y" value="200" />
         <parameter name="seedPos.z" value="-3" />
         <parameter name="simulationTime" value="56" />
     </seed>
@@ -40,9 +40,9 @@
         <parameter name="lnk" value="0" />
         <parameter name="r" value="4.5" dev="0.44999999" />
         <parameter name="rlt" value="1e+09" />
-        <parameter name="theta" value="1.67" dev="0.40000001" />
-        <parameter name="tropismN" value="1" />
-        <parameter name="tropismS" value="0.26179901" />
+        <parameter name="theta" value="1.3" dev="0.40000001" />
+        <parameter name="tropismN" value="1.5" />
+        <parameter name="tropismS" value="0.13" />
         <parameter name="successor" ruleId="0" numLat="1" Where="" subType="2" organType="2" percentage="0.5" />
         <parameter name="successor" ruleId="1" numLat="1" Where="" subType="3" organType="2" percentage="0.5" />
     </root>
@@ -128,7 +128,7 @@
         <parameter name="lnk" value="0" />
         <parameter name="r" value="4.5" dev="0.44999999" />
         <parameter name="rlt" value="1e+09" />
-        <parameter name="theta" value="1.11404" dev="0.109956" />
+        <parameter name="theta" value="1.3" dev="0.109956" />
         <parameter name="tropismN" value="1" />
         <parameter name="tropismS" value="0.050000001" />
         <parameter name="successor" ruleId="0" numLat="1" Where="" subType="2" organType="2" percentage="0.5" />
@@ -139,25 +139,28 @@
         <parameter name="lnf" value="0" />
         <parameter name="nodalGrowth" value="1" />
         <parameter name="tropismT" value="1" />
-        <parameter name="BetaDev" value="0.22" />
+        <parameter name="BetaDev" value="0.02" />
         <parameter name="InitBeta" value="0" />
-        <parameter name="RotBeta" value="3.141592653589793" />
+        <parameter name="RotBeta" value="1.0" />
         <parameter name="a" value="0.2" dev="0.02" />
         <parameter name="delayNGEnd" value="0" />
         <parameter name="delayNGStart" value="0" />
         <parameter name="dx" value="0.1" />
         <parameter name="dxMin" value="1e-06" />
-        <parameter name="la" value="30.9" />
-        <parameter name="lb" value="4.0" />
+        <parameter name="la" value="22.0" />
+        <parameter name="lb" value="2.0" />
         <parameter name="ldelay" value="-1" />
-        <parameter name="lmax" value="180.0" dev="18.0" />
-        <parameter name="ln" value="14.5" dev="0.7250000000000001" />
-        <parameter name="r" value="2.5" dev="0.25" />
+        <parameter name="lmax" value="210.0" dev="20.0" />
+        <parameter name="ln" value="10.0" dev="0.5" />
+        <parameter name="r" value="3.5" dev="0.35" />
         <parameter name="rlt" value="1e+09" />
         <parameter name="theta" value="0" />
         <parameter name="tropismAge" value="0" />
         <parameter name="tropismN" value="1" />
         <parameter name="tropismS" value="0" />
+        <parameter name="use_thermal_cessation" value="1" />
+        <parameter name="tt_cessation" value="1500" />
+        <parameter name="basal_internode_cm" value="1.0" />
         <parameter name="successor" ruleId="0" numLat="1" Where="" subType="2" organType="4" percentage="1" />
     </stem>
     <leaf name="maize_leaf_L0" subType="2">
@@ -168,9 +171,9 @@
         <parameter name="parametrisationType" value="1" />
         <parameter name="shapeType" value="2" />
         <parameter name="tropismT" value="1" />
-        <parameter name="BetaDev" value="0.22" />
-        <parameter name="InitBeta" value="6.230632795053003" />
-        <parameter name="RotBeta" value="1.5707963267948966" />
+        <parameter name="BetaDev" value="0.02" />
+        <parameter name="InitBeta" value="1.994424005282105" />
+        <parameter name="RotBeta" value="0" />
         <parameter name="a" value="0.04" />
         <parameter name="dx" value="0.1" />
         <parameter name="dxMin" value="1e-06" />
@@ -179,22 +182,87 @@
         <parameter name="ln" value="1" />
         <parameter name="rlt" value="1e+09" />
         <parameter name="tropismN" value="3" />
-        <parameter name="ldelay" value="0.0" />
-        <parameter name="lmax" value="28.284271247461902" />
-        <parameter name="r" value="4.0" />
-        <parameter name="Width_blade" value="4.0" />
-        <parameter name="Width_petiole" value="1.2" />
-        <parameter name="areaMax" value="162.01236615514773" />
-        <parameter name="theta" value="0.7853981633974483" dev="0.11780972450961724" />
-        <parameter name="tropismS" value="0.00565685424949238" dev="0.001697056274847714" />
+        <parameter name="use_thermal_emergence" value="1" />
+        <parameter name="tt_emergence" value="0.0" />
+        <parameter name="ldelay" value="0" />
+        <parameter name="lmax" value="23.94" />
+        <parameter name="r" value="2.0" />
+        <parameter name="Width_blade" value="2.4" />
+        <parameter name="Width_petiole" value="0.72" />
+        <parameter name="areaMax" value="91.52166240000001" />
+        <parameter name="theta" value="0.6192055129122495" dev="0.09288082693683741" />
+        <parameter name="tropismS" value="0.020050125313283207" dev="0.006015037593984962" />
         <parameter name="tropismAge" value="12.0" />
-        <parameter name="leafGeometry" phi="-4.0" x="0.08" />
-        <parameter name="leafGeometry" phi="-2.7" x="0.40" />
-        <parameter name="leafGeometry" phi="-1.3" x="0.75" />
-        <parameter name="leafGeometry" phi="0.0" x="0.77" />
-        <parameter name="leafGeometry" phi="1.3" x="0.78" />
-        <parameter name="leafGeometry" phi="2.7" x="0.78" />
+        <parameter name="leafGeometry" phi="-4.0" x="0.84" />
+        <parameter name="leafGeometry" phi="-3.2" x="0.83" />
+        <parameter name="leafGeometry" phi="-2.4" x="0.85" />
+        <parameter name="leafGeometry" phi="-1.6" x="0.91" />
+        <parameter name="leafGeometry" phi="-0.8" x="1.00" />
+        <parameter name="leafGeometry" phi="0.0" x="0.99" />
+        <parameter name="leafGeometry" phi="0.8" x="0.89" />
+        <parameter name="leafGeometry" phi="1.6" x="0.78" />
+        <parameter name="leafGeometry" phi="2.4" x="0.69" />
+        <parameter name="leafGeometry" phi="3.2" x="0.58" />
         <parameter name="leafGeometry" phi="4.0" x="0.05" />
+        <parameter name="surface_n_u" value="11" />
+        <parameter name="surface_n_v" value="5" />
+        <parameter name="surface_deg_u" value="3" />
+        <parameter name="surface_deg_v" value="2" />
+        <parameter name="surface_cp" u="0.0000" v="0.0000" x="0.115816" y="0.055517" z="-0.183190" />
+        <parameter name="surface_cp" u="0.0000" v="0.2500" x="0.071030" y="0.036757" z="-0.130195" />
+        <parameter name="surface_cp" u="0.0000" v="0.5000" x="-0.003573" y="-0.003872" z="0.014930" />
+        <parameter name="surface_cp" u="0.0000" v="0.7500" x="-0.075672" y="-0.036583" z="0.124307" />
+        <parameter name="surface_cp" u="0.0000" v="1.0000" x="-0.101063" y="-0.056188" z="0.200510" />
+        <parameter name="surface_cp" u="0.1000" v="0.0000" x="0.415806" y="-0.035149" z="1.004160" />
+        <parameter name="surface_cp" u="0.1000" v="0.2500" x="0.272084" y="-0.028777" z="1.341973" />
+        <parameter name="surface_cp" u="0.1000" v="0.5000" x="-0.007644" y="-0.008092" z="1.879624" />
+        <parameter name="surface_cp" u="0.1000" v="0.7500" x="-0.274545" y="0.024540" z="2.309887" />
+        <parameter name="surface_cp" u="0.1000" v="1.0000" x="-0.395276" y="0.031276" z="2.461145" />
+        <parameter name="surface_cp" u="0.2000" v="0.0000" x="0.725582" y="0.047074" z="3.569024" />
+        <parameter name="surface_cp" u="0.2000" v="0.2500" x="0.495315" y="0.124527" z="4.146415" />
+        <parameter name="surface_cp" u="0.2000" v="0.5000" x="-0.007341" y="0.189853" z="4.973289" />
+        <parameter name="surface_cp" u="0.2000" v="0.7500" x="-0.471041" y="0.262121" z="5.805384" />
+        <parameter name="surface_cp" u="0.2000" v="1.0000" x="-0.718659" y="0.221902" z="6.138586" />
+        <parameter name="surface_cp" u="0.3000" v="0.0000" x="0.736811" y="0.502398" z="7.006994" />
+        <parameter name="surface_cp" u="0.3000" v="0.2500" x="0.417478" y="0.662737" z="7.359230" />
+        <parameter name="surface_cp" u="0.3000" v="0.5000" x="0.056797" y="0.933593" z="7.975524" />
+        <parameter name="surface_cp" u="0.3000" v="0.7500" x="-0.410995" y="1.136288" z="8.566400" />
+        <parameter name="surface_cp" u="0.3000" v="1.0000" x="-0.672472" y="1.095409" z="8.904159" />
+        <parameter name="surface_cp" u="0.4000" v="0.0000" x="0.613530" y="1.390206" z="9.414326" />
+        <parameter name="surface_cp" u="0.4000" v="0.2500" x="0.518484" y="1.543696" z="9.536945" />
+        <parameter name="surface_cp" u="0.4000" v="0.5000" x="0.145918" y="1.985464" z="10.061126" />
+        <parameter name="surface_cp" u="0.4000" v="0.7500" x="-0.464169" y="2.225527" z="10.565125" />
+        <parameter name="surface_cp" u="0.4000" v="1.0000" x="-0.789787" y="2.382969" z="10.737966" />
+        <parameter name="surface_cp" u="0.5000" v="0.0000" x="0.809845" y="2.584722" z="10.762920" />
+        <parameter name="surface_cp" u="0.5000" v="0.2500" x="0.579246" y="2.756272" z="10.905519" />
+        <parameter name="surface_cp" u="0.5000" v="0.5000" x="0.161374" y="3.270747" z="11.347184" />
+        <parameter name="surface_cp" u="0.5000" v="0.7500" x="-0.449552" y="3.682801" z="11.967679" />
+        <parameter name="surface_cp" u="0.5000" v="1.0000" x="-0.835475" y="3.886304" z="12.328637" />
+        <parameter name="surface_cp" u="0.6000" v="0.0000" x="0.806326" y="4.199190" z="12.089077" />
+        <parameter name="surface_cp" u="0.6000" v="0.2500" x="0.670363" y="4.443638" z="12.178575" />
+        <parameter name="surface_cp" u="0.6000" v="0.5000" x="0.210571" y="5.011162" z="12.534640" />
+        <parameter name="surface_cp" u="0.6000" v="0.7500" x="-0.437450" y="5.632350" z="12.710274" />
+        <parameter name="surface_cp" u="0.6000" v="1.0000" x="-0.748385" y="5.816494" z="12.990673" />
+        <parameter name="surface_cp" u="0.7000" v="0.0000" x="1.067383" y="6.571280" z="13.244771" />
+        <parameter name="surface_cp" u="0.7000" v="0.2500" x="0.783185" y="6.988634" z="13.189943" />
+        <parameter name="surface_cp" u="0.7000" v="0.5000" x="0.147726" y="7.536245" z="12.998366" />
+        <parameter name="surface_cp" u="0.7000" v="0.7500" x="-0.462855" y="8.111276" z="13.041406" />
+        <parameter name="surface_cp" u="0.7000" v="1.0000" x="-0.799772" y="8.349389" z="13.106170" />
+        <parameter name="surface_cp" u="0.8000" v="0.0000" x="0.912745" y="9.605322" z="13.238478" />
+        <parameter name="surface_cp" u="0.8000" v="0.2500" x="0.730746" y="10.067702" z="13.162212" />
+        <parameter name="surface_cp" u="0.8000" v="0.5000" x="0.041536" y="10.540781" z="13.088632" />
+        <parameter name="surface_cp" u="0.8000" v="0.7500" x="-0.318980" y="10.944710" z="12.525241" />
+        <parameter name="surface_cp" u="0.8000" v="1.0000" x="-0.520072" y="11.279351" z="12.562042" />
+        <parameter name="surface_cp" u="0.9000" v="0.0000" x="0.512242" y="12.125267" z="12.217799" />
+        <parameter name="surface_cp" u="0.9000" v="0.2500" x="0.361120" y="12.308601" z="11.963200" />
+        <parameter name="surface_cp" u="0.9000" v="0.5000" x="0.033968" y="12.675472" z="11.754963" />
+        <parameter name="surface_cp" u="0.9000" v="0.7500" x="-0.173361" y="12.919937" z="11.597721" />
+        <parameter name="surface_cp" u="0.9000" v="1.0000" x="-0.276430" y="13.067269" z="11.527022" />
+        <parameter name="surface_cp" u="1.0000" v="0.0000" x="0.244014" y="13.873620" z="10.906177" />
+        <parameter name="surface_cp" u="1.0000" v="0.2500" x="0.211106" y="13.916010" z="10.943128" />
+        <parameter name="surface_cp" u="1.0000" v="0.5000" x="0.051159" y="13.847817" z="10.779137" />
+        <parameter name="surface_cp" u="1.0000" v="0.7500" x="-0.054552" y="13.686233" z="10.581812" />
+        <parameter name="surface_cp" u="1.0000" v="1.0000" x="-0.087647" y="13.756954" z="10.539192" />
     </leaf>
     <leaf name="maize_leaf_L1" subType="3">
         <parameter name="geometryN" value="100" />
@@ -204,9 +272,9 @@
         <parameter name="parametrisationType" value="1" />
         <parameter name="shapeType" value="2" />
         <parameter name="tropismT" value="1" />
-        <parameter name="BetaDev" value="0.22" />
-        <parameter name="InitBeta" value="3.330387420774488" />
-        <parameter name="RotBeta" value="1.5707963267948966" />
+        <parameter name="BetaDev" value="0.02" />
+        <parameter name="InitBeta" value="1.0200317469515519" />
+        <parameter name="RotBeta" value="0" />
         <parameter name="a" value="0.04" />
         <parameter name="dx" value="0.1" />
         <parameter name="dxMin" value="1e-06" />
@@ -215,22 +283,87 @@
         <parameter name="ln" value="1" />
         <parameter name="rlt" value="1e+09" />
         <parameter name="tropismN" value="3" />
-        <parameter name="ldelay" value="3.0" />
-        <parameter name="lmax" value="64.8" />
-        <parameter name="r" value="4.0" />
-        <parameter name="Width_blade" value="4.9" />
-        <parameter name="Width_petiole" value="1.47" />
-        <parameter name="areaMax" value="458.3080810175271" />
-        <parameter name="theta" value="0.7504915783575618" dev="0.11257373675363426" />
-        <parameter name="tropismS" value="0.011419753086419753" dev="0.0034259259259259256" />
-        <parameter name="tropismAge" value="13.9" />
-        <parameter name="leafGeometry" phi="-4.0" x="0.08" />
-        <parameter name="leafGeometry" phi="-2.7" x="0.40" />
-        <parameter name="leafGeometry" phi="-1.3" x="0.75" />
-        <parameter name="leafGeometry" phi="0.0" x="0.78" />
-        <parameter name="leafGeometry" phi="1.3" x="0.80" />
-        <parameter name="leafGeometry" phi="2.7" x="0.81" />
+        <parameter name="use_thermal_emergence" value="1" />
+        <parameter name="tt_emergence" value="57.9" />
+        <parameter name="ldelay" value="0" />
+        <parameter name="lmax" value="34.58" />
+        <parameter name="r" value="2.0" />
+        <parameter name="Width_blade" value="3.2" />
+        <parameter name="Width_petiole" value="0.96" />
+        <parameter name="areaMax" value="176.26394240000002" />
+        <parameter name="theta" value="0.6506214394481474" dev="0.09759321591722211" />
+        <parameter name="tropismS" value="0.025448235974551765" dev="0.007634470792365529" />
+        <parameter name="tropismAge" value="14.8" />
+        <parameter name="leafGeometry" phi="-4.0" x="0.84" />
+        <parameter name="leafGeometry" phi="-3.2" x="0.83" />
+        <parameter name="leafGeometry" phi="-2.4" x="0.85" />
+        <parameter name="leafGeometry" phi="-1.6" x="0.91" />
+        <parameter name="leafGeometry" phi="-0.8" x="1.00" />
+        <parameter name="leafGeometry" phi="0.0" x="0.99" />
+        <parameter name="leafGeometry" phi="0.8" x="0.89" />
+        <parameter name="leafGeometry" phi="1.6" x="0.78" />
+        <parameter name="leafGeometry" phi="2.4" x="0.69" />
+        <parameter name="leafGeometry" phi="3.2" x="0.58" />
         <parameter name="leafGeometry" phi="4.0" x="0.05" />
+        <parameter name="surface_n_u" value="11" />
+        <parameter name="surface_n_v" value="5" />
+        <parameter name="surface_deg_u" value="3" />
+        <parameter name="surface_deg_v" value="2" />
+        <parameter name="surface_cp" u="0.0000" v="0.0000" x="0.167290" y="0.080192" z="-0.264608" />
+        <parameter name="surface_cp" u="0.0000" v="0.2500" x="0.102600" y="0.053094" z="-0.188059" />
+        <parameter name="surface_cp" u="0.0000" v="0.5000" x="-0.005161" y="-0.005592" z="0.021566" />
+        <parameter name="surface_cp" u="0.0000" v="0.7500" x="-0.109305" y="-0.052842" z="0.179554" />
+        <parameter name="surface_cp" u="0.0000" v="1.0000" x="-0.145980" y="-0.081160" z="0.289625" />
+        <parameter name="surface_cp" u="0.1000" v="0.0000" x="0.600609" y="-0.050771" z="1.450454" />
+        <parameter name="surface_cp" u="0.1000" v="0.2500" x="0.393010" y="-0.041566" z="1.938405" />
+        <parameter name="surface_cp" u="0.1000" v="0.5000" x="-0.011042" y="-0.011689" z="2.715012" />
+        <parameter name="surface_cp" u="0.1000" v="0.7500" x="-0.396565" y="0.035447" z="3.336504" />
+        <parameter name="surface_cp" u="0.1000" v="1.0000" x="-0.570954" y="0.045176" z="3.554987" />
+        <parameter name="surface_cp" u="0.2000" v="0.0000" x="1.048063" y="0.067995" z="5.155257" />
+        <parameter name="surface_cp" u="0.2000" v="0.2500" x="0.715455" y="0.179872" z="5.989266" />
+        <parameter name="surface_cp" u="0.2000" v="0.5000" x="-0.010604" y="0.274232" z="7.183640" />
+        <parameter name="surface_cp" u="0.2000" v="0.7500" x="-0.680392" y="0.378619" z="8.385554" />
+        <parameter name="surface_cp" u="0.2000" v="1.0000" x="-1.038063" y="0.320525" z="8.866846" />
+        <parameter name="surface_cp" u="0.3000" v="0.0000" x="1.064283" y="0.725686" z="10.121214" />
+        <parameter name="surface_cp" u="0.3000" v="0.2500" x="0.603024" y="0.957286" z="10.629999" />
+        <parameter name="surface_cp" u="0.3000" v="0.5000" x="0.082040" y="1.348523" z="11.520201" />
+        <parameter name="surface_cp" u="0.3000" v="0.7500" x="-0.593660" y="1.641305" z="12.373689" />
+        <parameter name="surface_cp" u="0.3000" v="1.0000" x="-0.971349" y="1.582258" z="12.861563" />
+        <parameter name="surface_cp" u="0.4000" v="0.0000" x="0.886210" y="2.008075" z="13.598471" />
+        <parameter name="surface_cp" u="0.4000" v="0.2500" x="0.748922" y="2.229784" z="13.775587" />
+        <parameter name="surface_cp" u="0.4000" v="0.5000" x="0.210770" y="2.867893" z="14.532737" />
+        <parameter name="surface_cp" u="0.4000" v="0.7500" x="-0.670467" y="3.214651" z="15.260736" />
+        <parameter name="surface_cp" u="0.4000" v="1.0000" x="-1.140803" y="3.442067" z="15.510395" />
+        <parameter name="surface_cp" u="0.5000" v="0.0000" x="1.169776" y="3.733488" z="15.546440" />
+        <parameter name="surface_cp" u="0.5000" v="0.2500" x="0.836689" y="3.981282" z="15.752416" />
+        <parameter name="surface_cp" u="0.5000" v="0.5000" x="0.233096" y="4.724412" z="16.390377" />
+        <parameter name="surface_cp" u="0.5000" v="0.7500" x="-0.649352" y="5.319602" z="17.286647" />
+        <parameter name="surface_cp" u="0.5000" v="1.0000" x="-1.206797" y="5.613550" z="17.808031" />
+        <parameter name="surface_cp" u="0.6000" v="0.0000" x="1.164693" y="6.065496" z="17.462000" />
+        <parameter name="surface_cp" u="0.6000" v="0.2500" x="0.968302" y="6.418588" z="17.591275" />
+        <parameter name="surface_cp" u="0.6000" v="0.5000" x="0.304158" y="7.238346" z="18.105591" />
+        <parameter name="surface_cp" u="0.6000" v="0.7500" x="-0.631872" y="8.135617" z="18.359285" />
+        <parameter name="surface_cp" u="0.6000" v="1.0000" x="-1.081001" y="8.401602" z="18.764305" />
+        <parameter name="surface_cp" u="0.7000" v="0.0000" x="1.541775" y="9.491849" z="19.131336" />
+        <parameter name="surface_cp" u="0.7000" v="0.2500" x="1.131267" y="10.094694" z="19.052139" />
+        <parameter name="surface_cp" u="0.7000" v="0.5000" x="0.213382" y="10.885688" z="18.775417" />
+        <parameter name="surface_cp" u="0.7000" v="0.7500" x="-0.668569" y="11.716288" z="18.837587" />
+        <parameter name="surface_cp" u="0.7000" v="1.0000" x="-1.155226" y="12.060228" z="18.931135" />
+        <parameter name="surface_cp" u="0.8000" v="0.0000" x="1.318409" y="13.874353" z="19.122246" />
+        <parameter name="surface_cp" u="0.8000" v="0.2500" x="1.055522" y="14.542236" z="19.012084" />
+        <parameter name="surface_cp" u="0.8000" v="0.5000" x="0.059997" y="15.225572" z="18.905802" />
+        <parameter name="surface_cp" u="0.8000" v="0.7500" x="-0.460749" y="15.809026" z="18.092015" />
+        <parameter name="surface_cp" u="0.8000" v="1.0000" x="-0.751215" y="16.292396" z="18.145172" />
+        <parameter name="surface_cp" u="0.9000" v="0.0000" x="0.739905" y="17.514274" z="17.647931" />
+        <parameter name="surface_cp" u="0.9000" v="0.2500" x="0.521618" y="17.779091" z="17.280177" />
+        <parameter name="surface_cp" u="0.9000" v="0.5000" x="0.049065" y="18.309015" z="16.979391" />
+        <parameter name="surface_cp" u="0.9000" v="0.7500" x="-0.250410" y="18.662131" z="16.752264" />
+        <parameter name="surface_cp" u="0.9000" v="1.0000" x="-0.399287" y="18.874944" z="16.650143" />
+        <parameter name="surface_cp" u="1.0000" v="0.0000" x="0.352465" y="20.039673" z="15.753367" />
+        <parameter name="surface_cp" u="1.0000" v="0.2500" x="0.304931" y="20.100903" z="15.806741" />
+        <parameter name="surface_cp" u="1.0000" v="0.5000" x="0.073897" y="20.002403" z="15.569865" />
+        <parameter name="surface_cp" u="1.0000" v="0.7500" x="-0.078798" y="19.769004" z="15.284839" />
+        <parameter name="surface_cp" u="1.0000" v="1.0000" x="-0.126602" y="19.871156" z="15.223277" />
     </leaf>
     <leaf name="maize_leaf_L2" subType="4">
         <parameter name="geometryN" value="100" />
@@ -240,9 +373,9 @@
         <parameter name="parametrisationType" value="1" />
         <parameter name="shapeType" value="2" />
         <parameter name="tropismT" value="1" />
-        <parameter name="BetaDev" value="0.22" />
-        <parameter name="InitBeta" value="0.16699056518271327" />
-        <parameter name="RotBeta" value="1.5707963267948966" />
+        <parameter name="BetaDev" value="0.02" />
+        <parameter name="InitBeta" value="0.026977508524951337" />
+        <parameter name="RotBeta" value="0" />
         <parameter name="a" value="0.04" />
         <parameter name="dx" value="0.1" />
         <parameter name="dxMin" value="1e-06" />
@@ -251,22 +384,87 @@
         <parameter name="ln" value="1" />
         <parameter name="rlt" value="1e+09" />
         <parameter name="tropismN" value="3" />
-        <parameter name="ldelay" value="6.0" />
-        <parameter name="lmax" value="73.8" />
-        <parameter name="r" value="4.0" />
-        <parameter name="Width_blade" value="5.6" />
-        <parameter name="Width_petiole" value="1.68" />
-        <parameter name="areaMax" value="596.7945272315983" />
-        <parameter name="theta" value="0.7155849933176751" dev="0.10733774899765126" />
-        <parameter name="tropismS" value="0.01788617886178862" dev="0.005365853658536586" />
-        <parameter name="tropismAge" value="16.1" />
-        <parameter name="leafGeometry" phi="-4.0" x="0.08" />
-        <parameter name="leafGeometry" phi="-2.7" x="0.40" />
-        <parameter name="leafGeometry" phi="-1.3" x="0.74" />
-        <parameter name="leafGeometry" phi="0.0" x="0.76" />
-        <parameter name="leafGeometry" phi="1.3" x="0.79" />
-        <parameter name="leafGeometry" phi="2.7" x="0.82" />
+        <parameter name="use_thermal_emergence" value="1" />
+        <parameter name="tt_emergence" value="115.8" />
+        <parameter name="ldelay" value="0" />
+        <parameter name="lmax" value="45.22" />
+        <parameter name="r" value="2.397" />
+        <parameter name="Width_blade" value="4.0" />
+        <parameter name="Width_petiole" value="1.2" />
+        <parameter name="areaMax" value="288.1237520000001" />
+        <parameter name="theta" value="0.7169439510239319" dev="0.10754159265358978" />
+        <parameter name="tropismS" value="0.02733333333333333" dev="0.008199999999999999" />
+        <parameter name="tropismAge" value="16.3" />
+        <parameter name="leafGeometry" phi="-4.0" x="0.84" />
+        <parameter name="leafGeometry" phi="-3.2" x="0.83" />
+        <parameter name="leafGeometry" phi="-2.4" x="0.85" />
+        <parameter name="leafGeometry" phi="-1.6" x="0.91" />
+        <parameter name="leafGeometry" phi="-0.8" x="1.00" />
+        <parameter name="leafGeometry" phi="0.0" x="0.99" />
+        <parameter name="leafGeometry" phi="0.8" x="0.89" />
+        <parameter name="leafGeometry" phi="1.6" x="0.78" />
+        <parameter name="leafGeometry" phi="2.4" x="0.69" />
+        <parameter name="leafGeometry" phi="3.2" x="0.58" />
         <parameter name="leafGeometry" phi="4.0" x="0.05" />
+        <parameter name="surface_n_u" value="11" />
+        <parameter name="surface_n_v" value="5" />
+        <parameter name="surface_deg_u" value="3" />
+        <parameter name="surface_deg_v" value="2" />
+        <parameter name="surface_cp" u="0.0000" v="0.0000" x="0.218764" y="0.104866" z="-0.346026" />
+        <parameter name="surface_cp" u="0.0000" v="0.2500" x="0.134169" y="0.069431" z="-0.245924" />
+        <parameter name="surface_cp" u="0.0000" v="0.5000" x="-0.006749" y="-0.007313" z="0.028202" />
+        <parameter name="surface_cp" u="0.0000" v="0.7500" x="-0.142937" y="-0.069101" z="0.234802" />
+        <parameter name="surface_cp" u="0.0000" v="1.0000" x="-0.190897" y="-0.106133" z="0.378741" />
+        <parameter name="surface_cp" u="0.1000" v="0.0000" x="0.785412" y="-0.066393" z="1.896748" />
+        <parameter name="surface_cp" u="0.1000" v="0.2500" x="0.513936" y="-0.054356" z="2.534838" />
+        <parameter name="surface_cp" u="0.1000" v="0.5000" x="-0.014439" y="-0.015285" z="3.550401" />
+        <parameter name="surface_cp" u="0.1000" v="0.7500" x="-0.518584" y="0.046353" z="4.363121" />
+        <parameter name="surface_cp" u="0.1000" v="1.0000" x="-0.746632" y="0.059077" z="4.648829" />
+        <parameter name="surface_cp" u="0.2000" v="0.0000" x="1.370544" y="0.088917" z="6.741490" />
+        <parameter name="surface_cp" u="0.2000" v="0.2500" x="0.935595" y="0.235218" z="7.832117" />
+        <parameter name="surface_cp" u="0.2000" v="0.5000" x="-0.013866" y="0.358611" z="9.393990" />
+        <parameter name="surface_cp" u="0.2000" v="0.7500" x="-0.889744" y="0.495117" z="10.965725" />
+        <parameter name="surface_cp" u="0.2000" v="1.0000" x="-1.357467" y="0.419148" z="11.595107" />
+        <parameter name="surface_cp" u="0.3000" v="0.0000" x="1.391754" y="0.948974" z="13.235433" />
+        <parameter name="surface_cp" u="0.3000" v="0.2500" x="0.788569" y="1.251836" z="13.900768" />
+        <parameter name="surface_cp" u="0.3000" v="0.5000" x="0.107283" y="1.763453" z="15.064878" />
+        <parameter name="surface_cp" u="0.3000" v="0.7500" x="-0.776325" y="2.146322" z="16.180978" />
+        <parameter name="surface_cp" u="0.3000" v="1.0000" x="-1.270226" y="2.069106" z="16.818967" />
+        <parameter name="surface_cp" u="0.4000" v="0.0000" x="1.158890" y="2.625944" z="17.782616" />
+        <parameter name="surface_cp" u="0.4000" v="0.2500" x="0.979360" y="2.915871" z="18.014229" />
+        <parameter name="surface_cp" u="0.4000" v="0.5000" x="0.275622" y="3.750321" z="19.004349" />
+        <parameter name="surface_cp" u="0.4000" v="0.7500" x="-0.876765" y="4.203774" z="19.956347" />
+        <parameter name="surface_cp" u="0.4000" v="1.0000" x="-1.491819" y="4.501164" z="20.282824" />
+        <parameter name="surface_cp" u="0.5000" v="0.0000" x="1.529707" y="4.882254" z="20.329961" />
+        <parameter name="surface_cp" u="0.5000" v="0.2500" x="1.094132" y="5.206292" z="20.599313" />
+        <parameter name="surface_cp" u="0.5000" v="0.5000" x="0.304818" y="6.178078" z="21.433570" />
+        <parameter name="surface_cp" u="0.5000" v="0.7500" x="-0.849153" y="6.956403" z="22.605615" />
+        <parameter name="surface_cp" u="0.5000" v="1.0000" x="-1.578119" y="7.340797" z="23.287425" />
+        <parameter name="surface_cp" u="0.6000" v="0.0000" x="1.523060" y="7.931803" z="22.834923" />
+        <parameter name="surface_cp" u="0.6000" v="0.2500" x="1.266242" y="8.393538" z="23.003975" />
+        <parameter name="surface_cp" u="0.6000" v="0.5000" x="0.397746" y="9.465529" z="23.676542" />
+        <parameter name="surface_cp" u="0.6000" v="0.7500" x="-0.826294" y="10.638883" z="24.008295" />
+        <parameter name="surface_cp" u="0.6000" v="1.0000" x="-1.413616" y="10.986710" z="24.537937" />
+        <parameter name="surface_cp" u="0.7000" v="0.0000" x="2.016168" y="12.412417" z="25.017900" />
+        <parameter name="surface_cp" u="0.7000" v="0.2500" x="1.479349" y="13.200754" z="24.914336" />
+        <parameter name="surface_cp" u="0.7000" v="0.5000" x="0.279037" y="14.235130" z="24.552468" />
+        <parameter name="surface_cp" u="0.7000" v="0.7500" x="-0.874282" y="15.321300" z="24.633768" />
+        <parameter name="surface_cp" u="0.7000" v="1.0000" x="-1.510680" y="15.771068" z="24.756099" />
+        <parameter name="surface_cp" u="0.8000" v="0.0000" x="1.724073" y="18.143385" z="25.006014" />
+        <parameter name="surface_cp" u="0.8000" v="0.2500" x="1.380298" y="19.016770" z="24.861956" />
+        <parameter name="surface_cp" u="0.8000" v="0.5000" x="0.078458" y="19.910364" z="24.722972" />
+        <parameter name="surface_cp" u="0.8000" v="0.7500" x="-0.602518" y="20.673342" z="23.658788" />
+        <parameter name="surface_cp" u="0.8000" v="1.0000" x="-0.982358" y="21.305441" z="23.728302" />
+        <parameter name="surface_cp" u="0.9000" v="0.0000" x="0.967568" y="22.903282" z="23.078064" />
+        <parameter name="surface_cp" u="0.9000" v="0.2500" x="0.682116" y="23.249580" z="22.597155" />
+        <parameter name="surface_cp" u="0.9000" v="0.5000" x="0.064162" y="23.942558" z="22.203819" />
+        <parameter name="surface_cp" u="0.9000" v="0.7500" x="-0.327459" y="24.404326" z="21.906807" />
+        <parameter name="surface_cp" u="0.9000" v="1.0000" x="-0.522145" y="24.682619" z="21.773264" />
+        <parameter name="surface_cp" u="1.0000" v="0.0000" x="0.460916" y="26.205726" z="20.600556" />
+        <parameter name="surface_cp" u="1.0000" v="0.2500" x="0.398756" y="26.285796" z="20.670353" />
+        <parameter name="surface_cp" u="1.0000" v="0.5000" x="0.096634" y="26.156988" z="20.360592" />
+        <parameter name="surface_cp" u="1.0000" v="0.7500" x="-0.103043" y="25.851774" z="19.987866" />
+        <parameter name="surface_cp" u="1.0000" v="1.0000" x="-0.165556" y="25.985357" z="19.907363" />
     </leaf>
     <leaf name="maize_leaf_L3" subType="5">
         <parameter name="geometryN" value="100" />
@@ -276,9 +474,9 @@
         <parameter name="parametrisationType" value="1" />
         <parameter name="shapeType" value="2" />
         <parameter name="tropismT" value="1" />
-        <parameter name="BetaDev" value="0.22" />
-        <parameter name="InitBeta" value="3.252731792891927" />
-        <parameter name="RotBeta" value="1.5707963267948966" />
+        <parameter name="BetaDev" value="0.02" />
+        <parameter name="InitBeta" value="1.021051488186535" />
+        <parameter name="RotBeta" value="0" />
         <parameter name="a" value="0.04" />
         <parameter name="dx" value="0.1" />
         <parameter name="dxMin" value="1e-06" />
@@ -287,22 +485,87 @@
         <parameter name="ln" value="1" />
         <parameter name="rlt" value="1e+09" />
         <parameter name="tropismN" value="3" />
-        <parameter name="ldelay" value="9.0" />
-        <parameter name="lmax" value="77.4" />
-        <parameter name="r" value="4.0" />
-        <parameter name="Width_blade" value="5.9" />
-        <parameter name="Width_petiole" value="1.77" />
-        <parameter name="areaMax" value="656.1268379860154" />
-        <parameter name="theta" value="0.6806784082777885" dev="0.10210176124166827" />
-        <parameter name="tropismS" value="0.024" dev="0.0072" />
-        <parameter name="tropismAge" value="17.0" />
-        <parameter name="leafGeometry" phi="-4.0" x="0.08" />
-        <parameter name="leafGeometry" phi="-2.7" x="0.41" />
-        <parameter name="leafGeometry" phi="-1.3" x="0.76" />
-        <parameter name="leafGeometry" phi="0.0" x="0.77" />
-        <parameter name="leafGeometry" phi="1.3" x="0.78" />
-        <parameter name="leafGeometry" phi="2.7" x="0.79" />
+        <parameter name="use_thermal_emergence" value="1" />
+        <parameter name="tt_emergence" value="173.7" />
+        <parameter name="ldelay" value="0" />
+        <parameter name="lmax" value="50.0" />
+        <parameter name="r" value="2.813" />
+        <parameter name="Width_blade" value="4.9" />
+        <parameter name="Width_petiole" value="1.47" />
+        <parameter name="areaMax" value="391.58349999999996" />
+        <parameter name="theta" value="0.5951868299202269" dev="0.08927802448803403" />
+        <parameter name="tropismS" value="0.026" dev="0.0078" />
+        <parameter name="tropismAge" value="15.5" />
+        <parameter name="leafGeometry" phi="-4.0" x="0.84" />
+        <parameter name="leafGeometry" phi="-3.2" x="0.83" />
+        <parameter name="leafGeometry" phi="-2.4" x="0.85" />
+        <parameter name="leafGeometry" phi="-1.6" x="0.90" />
+        <parameter name="leafGeometry" phi="-0.8" x="1.00" />
+        <parameter name="leafGeometry" phi="0.0" x="0.99" />
+        <parameter name="leafGeometry" phi="0.8" x="0.88" />
+        <parameter name="leafGeometry" phi="1.6" x="0.79" />
+        <parameter name="leafGeometry" phi="2.4" x="0.71" />
+        <parameter name="leafGeometry" phi="3.2" x="0.59" />
         <parameter name="leafGeometry" phi="4.0" x="0.05" />
+        <parameter name="surface_n_u" value="11" />
+        <parameter name="surface_n_v" value="5" />
+        <parameter name="surface_deg_u" value="3" />
+        <parameter name="surface_deg_v" value="2" />
+        <parameter name="surface_cp" u="0.0000" v="0.0000" x="0.175788" y="0.094445" z="-0.385862" />
+        <parameter name="surface_cp" u="0.0000" v="0.2500" x="0.129307" y="0.054574" z="-0.274294" />
+        <parameter name="surface_cp" u="0.0000" v="0.5000" x="-0.000268" y="-0.012419" z="0.042014" />
+        <parameter name="surface_cp" u="0.0000" v="0.7500" x="-0.115443" y="-0.060875" z="0.260778" />
+        <parameter name="surface_cp" u="0.0000" v="1.0000" x="-0.178014" y="-0.068302" z="0.410432" />
+        <parameter name="surface_cp" u="0.1000" v="0.0000" x="0.683955" y="-0.072589" z="2.347630" />
+        <parameter name="surface_cp" u="0.1000" v="0.2500" x="0.466662" y="-0.006428" z="3.120807" />
+        <parameter name="surface_cp" u="0.1000" v="0.5000" x="-0.002478" y="-0.007223" z="4.058180" />
+        <parameter name="surface_cp" u="0.1000" v="0.7500" x="-0.455182" y="0.033527" z="4.942216" />
+        <parameter name="surface_cp" u="0.1000" v="1.0000" x="-0.710396" y="-0.010238" z="5.380709" />
+        <parameter name="surface_cp" u="0.2000" v="0.0000" x="1.389899" y="-0.000508" z="7.757281" />
+        <parameter name="surface_cp" u="0.2000" v="0.2500" x="1.034953" y="0.237127" z="8.847373" />
+        <parameter name="surface_cp" u="0.2000" v="0.5000" x="0.090823" y="0.492357" z="10.475169" />
+        <parameter name="surface_cp" u="0.2000" v="0.7500" x="-0.868290" y="0.567573" z="12.129076" />
+        <parameter name="surface_cp" u="0.2000" v="1.0000" x="-1.362615" y="0.509749" z="12.669882" />
+        <parameter name="surface_cp" u="0.3000" v="0.0000" x="1.770164" y="1.239749" z="14.668819" />
+        <parameter name="surface_cp" u="0.3000" v="0.2500" x="1.323425" y="1.539214" z="15.364647" />
+        <parameter name="surface_cp" u="0.3000" v="0.5000" x="0.377408" y="2.110502" z="16.431978" />
+        <parameter name="surface_cp" u="0.3000" v="0.7500" x="-0.707131" y="2.437959" z="17.638175" />
+        <parameter name="surface_cp" u="0.3000" v="1.0000" x="-1.313851" y="2.610235" z="18.257062" />
+        <parameter name="surface_cp" u="0.4000" v="0.0000" x="2.004762" y="3.152265" z="19.584146" />
+        <parameter name="surface_cp" u="0.4000" v="0.2500" x="1.530824" y="3.507599" z="19.821450" />
+        <parameter name="surface_cp" u="0.4000" v="0.5000" x="0.687360" y="4.446992" z="20.316694" />
+        <parameter name="surface_cp" u="0.4000" v="0.7500" x="-0.377791" y="5.129500" z="21.112586" />
+        <parameter name="surface_cp" u="0.4000" v="1.0000" x="-0.847261" y="5.267955" z="21.303748" />
+        <parameter name="surface_cp" u="0.5000" v="0.0000" x="2.381628" y="5.353190" z="22.158368" />
+        <parameter name="surface_cp" u="0.5000" v="0.2500" x="1.742129" y="6.002535" z="22.696361" />
+        <parameter name="surface_cp" u="0.5000" v="0.5000" x="0.726162" y="7.148311" z="23.423827" />
+        <parameter name="surface_cp" u="0.5000" v="0.7500" x="-0.167010" y="7.822193" z="24.363169" />
+        <parameter name="surface_cp" u="0.5000" v="1.0000" x="-0.820936" y="8.079610" z="24.648475" />
+        <parameter name="surface_cp" u="0.6000" v="0.0000" x="2.450361" y="8.671194" z="24.845547" />
+        <parameter name="surface_cp" u="0.6000" v="0.2500" x="1.974295" y="9.331371" z="25.186569" />
+        <parameter name="surface_cp" u="0.6000" v="0.5000" x="0.763812" y="10.473567" z="26.239618" />
+        <parameter name="surface_cp" u="0.6000" v="0.7500" x="-0.484613" y="11.305335" z="27.077446" />
+        <parameter name="surface_cp" u="0.6000" v="1.0000" x="-1.038087" y="11.898678" z="27.469861" />
+        <parameter name="surface_cp" u="0.7000" v="0.0000" x="2.511690" y="12.814150" z="27.468883" />
+        <parameter name="surface_cp" u="0.7000" v="0.2500" x="1.832882" y="13.712369" z="27.750344" />
+        <parameter name="surface_cp" u="0.7000" v="0.5000" x="1.052463" y="15.394796" z="28.302730" />
+        <parameter name="surface_cp" u="0.7000" v="0.7500" x="-0.053596" y="16.624910" z="28.646083" />
+        <parameter name="surface_cp" u="0.7000" v="1.0000" x="-0.770407" y="16.971740" z="28.869113" />
+        <parameter name="surface_cp" u="0.8000" v="0.0000" x="2.008229" y="19.111556" z="28.473331" />
+        <parameter name="surface_cp" u="0.8000" v="0.2500" x="1.649737" y="20.126273" z="28.218629" />
+        <parameter name="surface_cp" u="0.8000" v="0.5000" x="1.239867" y="21.850934" z="27.760040" />
+        <parameter name="surface_cp" u="0.8000" v="0.7500" x="0.521158" y="22.578751" z="27.251032" />
+        <parameter name="surface_cp" u="0.8000" v="1.0000" x="-0.101568" y="23.404424" z="27.533903" />
+        <parameter name="surface_cp" u="0.9000" v="0.0000" x="2.027895" y="25.217047" z="26.227460" />
+        <parameter name="surface_cp" u="0.9000" v="0.2500" x="1.910222" y="25.952360" z="25.967508" />
+        <parameter name="surface_cp" u="0.9000" v="0.5000" x="1.658723" y="26.704712" z="25.511964" />
+        <parameter name="surface_cp" u="0.9000" v="0.7500" x="0.911159" y="27.070910" z="25.042165" />
+        <parameter name="surface_cp" u="0.9000" v="1.0000" x="0.509214" y="27.447620" z="25.045044" />
+        <parameter name="surface_cp" u="1.0000" v="0.0000" x="1.275541" y="29.424433" z="24.110530" />
+        <parameter name="surface_cp" u="1.0000" v="0.2500" x="1.420631" y="29.383794" z="23.874782" />
+        <parameter name="surface_cp" u="1.0000" v="0.5000" x="0.963841" y="29.213376" z="23.724629" />
+        <parameter name="surface_cp" u="1.0000" v="0.7500" x="0.972050" y="29.338349" z="23.570668" />
+        <parameter name="surface_cp" u="1.0000" v="1.0000" x="1.077439" y="29.605119" z="22.964292" />
     </leaf>
     <leaf name="maize_leaf_L4" subType="6">
         <parameter name="geometryN" value="100" />
@@ -312,9 +575,9 @@
         <parameter name="parametrisationType" value="1" />
         <parameter name="shapeType" value="2" />
         <parameter name="tropismT" value="1" />
-        <parameter name="BetaDev" value="0.22" />
-        <parameter name="InitBeta" value="6.27872507238475" />
-        <parameter name="RotBeta" value="1.5707963267948966" />
+        <parameter name="BetaDev" value="0.02" />
+        <parameter name="InitBeta" value="0.018045272908552734" />
+        <parameter name="RotBeta" value="0" />
         <parameter name="a" value="0.04" />
         <parameter name="dx" value="0.1" />
         <parameter name="dxMin" value="1e-06" />
@@ -323,22 +586,87 @@
         <parameter name="ln" value="1" />
         <parameter name="rlt" value="1e+09" />
         <parameter name="tropismN" value="3" />
-        <parameter name="ldelay" value="12.0" />
-        <parameter name="lmax" value="78.9" />
-        <parameter name="r" value="4.0" />
-        <parameter name="Width_blade" value="6.1" />
-        <parameter name="Width_petiole" value="1.8299999999999998" />
-        <parameter name="areaMax" value="706.5746384086455" />
-        <parameter name="theta" value="0.6457718232379019" dev="0.09686577348568529" />
-        <parameter name="tropismS" value="0.022" dev="0.006599999999999999" />
-        <parameter name="tropismAge" value="17.6" />
-        <parameter name="leafGeometry" phi="-4.0" x="0.08" />
-        <parameter name="leafGeometry" phi="-2.7" x="0.41" />
-        <parameter name="leafGeometry" phi="-1.3" x="0.78" />
-        <parameter name="leafGeometry" phi="0.0" x="0.80" />
-        <parameter name="leafGeometry" phi="1.3" x="0.81" />
-        <parameter name="leafGeometry" phi="2.7" x="0.79" />
+        <parameter name="use_thermal_emergence" value="1" />
+        <parameter name="tt_emergence" value="231.6" />
+        <parameter name="ldelay" value="0" />
+        <parameter name="lmax" value="73.8" />
+        <parameter name="r" value="4.447" />
+        <parameter name="Width_blade" value="5.6" />
+        <parameter name="Width_petiole" value="1.68" />
+        <parameter name="areaMax" value="645.295392" />
+        <parameter name="theta" value="0.49170306255655005" dev="0.0737554593834825" />
+        <parameter name="tropismS" value="0.024666666666666667" dev="0.0073999999999999995" />
+        <parameter name="tropismAge" value="14.5" />
+        <parameter name="leafGeometry" phi="-4.0" x="0.81" />
+        <parameter name="leafGeometry" phi="-3.2" x="0.80" />
+        <parameter name="leafGeometry" phi="-2.4" x="0.81" />
+        <parameter name="leafGeometry" phi="-1.6" x="0.85" />
+        <parameter name="leafGeometry" phi="-0.8" x="0.93" />
+        <parameter name="leafGeometry" phi="0.0" x="1.00" />
+        <parameter name="leafGeometry" phi="0.8" x="0.90" />
+        <parameter name="leafGeometry" phi="1.6" x="0.79" />
+        <parameter name="leafGeometry" phi="2.4" x="0.70" />
+        <parameter name="leafGeometry" phi="3.2" x="0.59" />
         <parameter name="leafGeometry" phi="4.0" x="0.05" />
+        <parameter name="surface_n_u" value="11" />
+        <parameter name="surface_n_v" value="5" />
+        <parameter name="surface_deg_u" value="3" />
+        <parameter name="surface_deg_v" value="2" />
+        <parameter name="surface_cp" u="0.0000" v="0.0000" x="0.235303" y="0.111868" z="-0.643160" />
+        <parameter name="surface_cp" u="0.0000" v="0.2500" x="0.155585" y="0.073273" z="-0.443925" />
+        <parameter name="surface_cp" u="0.0000" v="0.5000" x="-0.007887" y="-0.014389" z="0.073344" />
+        <parameter name="surface_cp" u="0.0000" v="0.7500" x="-0.155789" y="-0.078294" z="0.435655" />
+        <parameter name="surface_cp" u="0.0000" v="1.0000" x="-0.226095" y="-0.091584" z="0.673166" />
+        <parameter name="surface_cp" u="0.1000" v="0.0000" x="0.987778" y="0.029156" z="4.038024" />
+        <parameter name="surface_cp" u="0.1000" v="0.2500" x="0.631921" y="-0.022920" z="5.204091" />
+        <parameter name="surface_cp" u="0.1000" v="0.5000" x="-0.037513" y="-0.030112" z="6.387728" />
+        <parameter name="surface_cp" u="0.1000" v="0.7500" x="-0.636187" y="-0.018041" z="7.634501" />
+        <parameter name="surface_cp" u="0.1000" v="1.0000" x="-0.936901" y="0.013080" z="8.303809" />
+        <parameter name="surface_cp" u="0.2000" v="0.0000" x="1.991762" y="-0.080957" z="12.997743" />
+        <parameter name="surface_cp" u="0.2000" v="0.2500" x="1.350733" y="0.184748" z="14.009416" />
+        <parameter name="surface_cp" u="0.2000" v="0.5000" x="0.071204" y="0.648579" z="16.356648" />
+        <parameter name="surface_cp" u="0.2000" v="0.7500" x="-1.396205" y="0.769007" z="18.574974" />
+        <parameter name="surface_cp" u="0.2000" v="1.0000" x="-1.939988" y="0.733998" z="19.581974" />
+        <parameter name="surface_cp" u="0.3000" v="0.0000" x="2.974283" y="1.856099" z="21.910913" />
+        <parameter name="surface_cp" u="0.3000" v="0.2500" x="2.069447" y="2.209409" z="22.705728" />
+        <parameter name="surface_cp" u="0.3000" v="0.5000" x="0.516506" y="2.688615" z="24.581089" />
+        <parameter name="surface_cp" u="0.3000" v="0.7500" x="-1.204622" y="3.010048" z="26.573039" />
+        <parameter name="surface_cp" u="0.3000" v="1.0000" x="-2.031780" y="3.420803" z="27.168669" />
+        <parameter name="surface_cp" u="0.4000" v="0.0000" x="2.958717" y="4.300893" z="28.083036" />
+        <parameter name="surface_cp" u="0.4000" v="0.2500" x="2.214794" y="4.799833" z="28.518722" />
+        <parameter name="surface_cp" u="0.4000" v="0.5000" x="0.795868" y="5.522116" z="29.867015" />
+        <parameter name="surface_cp" u="0.4000" v="0.7500" x="-0.967123" y="6.433746" z="30.953415" />
+        <parameter name="surface_cp" u="0.4000" v="1.0000" x="-1.593649" y="6.776870" z="31.855839" />
+        <parameter name="surface_cp" u="0.5000" v="0.0000" x="3.224995" y="7.254648" z="32.327749" />
+        <parameter name="surface_cp" u="0.5000" v="0.2500" x="2.428049" y="7.465002" z="33.078888" />
+        <parameter name="surface_cp" u="0.5000" v="0.5000" x="1.225649" y="9.133911" z="34.138270" />
+        <parameter name="surface_cp" u="0.5000" v="0.7500" x="-0.356887" y="10.163853" z="35.226137" />
+        <parameter name="surface_cp" u="0.5000" v="1.0000" x="-1.185786" y="10.868079" z="36.450324" />
+        <parameter name="surface_cp" u="0.6000" v="0.0000" x="3.623830" y="12.053659" z="36.004081" />
+        <parameter name="surface_cp" u="0.6000" v="0.2500" x="2.707368" y="13.233087" z="36.316232" />
+        <parameter name="surface_cp" u="0.6000" v="0.5000" x="1.455580" y="14.872166" z="37.417093" />
+        <parameter name="surface_cp" u="0.6000" v="0.7500" x="0.108492" y="16.741848" z="38.714826" />
+        <parameter name="surface_cp" u="0.6000" v="1.0000" x="-0.649087" y="17.511159" z="39.429202" />
+        <parameter name="surface_cp" u="0.7000" v="0.0000" x="3.738620" y="19.188411" z="39.270728" />
+        <parameter name="surface_cp" u="0.7000" v="0.2500" x="2.947371" y="20.138936" z="39.524379" />
+        <parameter name="surface_cp" u="0.7000" v="0.5000" x="1.647293" y="22.612184" z="39.837038" />
+        <parameter name="surface_cp" u="0.7000" v="0.7500" x="0.067618" y="24.674925" z="40.602558" />
+        <parameter name="surface_cp" u="0.7000" v="1.0000" x="-0.618656" y="25.582837" z="40.857340" />
+        <parameter name="surface_cp" u="0.8000" v="0.0000" x="4.011915" y="28.292549" z="40.592245" />
+        <parameter name="surface_cp" u="0.8000" v="0.2500" x="3.574070" y="29.972410" z="40.932284" />
+        <parameter name="surface_cp" u="0.8000" v="0.5000" x="2.376469" y="32.081314" z="39.878400" />
+        <parameter name="surface_cp" u="0.8000" v="0.7500" x="0.681976" y="34.463348" z="38.838478" />
+        <parameter name="surface_cp" u="0.8000" v="1.0000" x="-0.358369" y="35.398331" z="39.027677" />
+        <parameter name="surface_cp" u="0.9000" v="0.0000" x="3.052324" y="36.845247" z="37.566368" />
+        <parameter name="surface_cp" u="0.9000" v="0.2500" x="2.768732" y="37.810974" z="37.426507" />
+        <parameter name="surface_cp" u="0.9000" v="0.5000" x="2.062110" y="39.461976" z="36.954534" />
+        <parameter name="surface_cp" u="0.9000" v="0.7500" x="1.095855" y="40.844229" z="36.842869" />
+        <parameter name="surface_cp" u="0.9000" v="1.0000" x="0.615621" y="41.774951" z="36.595463" />
+        <parameter name="surface_cp" u="1.0000" v="0.0000" x="2.025829" y="43.113274" z="34.567642" />
+        <parameter name="surface_cp" u="1.0000" v="0.2500" x="2.101653" y="43.284226" z="34.228551" />
+        <parameter name="surface_cp" u="1.0000" v="0.5000" x="1.996807" y="43.686407" z="33.877696" />
+        <parameter name="surface_cp" u="1.0000" v="0.7500" x="1.630668" y="44.059295" z="33.823630" />
+        <parameter name="surface_cp" u="1.0000" v="1.0000" x="1.271448" y="44.307543" z="33.425668" />
     </leaf>
     <leaf name="maize_leaf_L5" subType="7">
         <parameter name="geometryN" value="100" />
@@ -348,9 +676,9 @@
         <parameter name="parametrisationType" value="1" />
         <parameter name="shapeType" value="2" />
         <parameter name="tropismT" value="1" />
-        <parameter name="BetaDev" value="0.22" />
-        <parameter name="InitBeta" value="3.137122315388483" />
-        <parameter name="RotBeta" value="1.5707963267948966" />
+        <parameter name="BetaDev" value="0.02" />
+        <parameter name="InitBeta" value="1.0180442009038313" />
+        <parameter name="RotBeta" value="0" />
         <parameter name="a" value="0.04" />
         <parameter name="dx" value="0.1" />
         <parameter name="dxMin" value="1e-06" />
@@ -359,22 +687,87 @@
         <parameter name="ln" value="1" />
         <parameter name="rlt" value="1e+09" />
         <parameter name="tropismN" value="3" />
-        <parameter name="ldelay" value="15.0" />
-        <parameter name="lmax" value="75.7" />
-        <parameter name="r" value="4.0" />
-        <parameter name="Width_blade" value="5.95" />
-        <parameter name="Width_petiole" value="1.785" />
-        <parameter name="areaMax" value="655.6023650676726" />
-        <parameter name="theta" value="0.6108652381980153" dev="0.09162978572970229" />
-        <parameter name="tropismS" value="0.019999999999999997" dev="0.005999999999999999" />
-        <parameter name="tropismAge" value="17.0" />
-        <parameter name="leafGeometry" phi="-4.0" x="0.08" />
-        <parameter name="leafGeometry" phi="-2.7" x="0.42" />
-        <parameter name="leafGeometry" phi="-1.3" x="0.78" />
-        <parameter name="leafGeometry" phi="0.0" x="0.78" />
-        <parameter name="leafGeometry" phi="1.3" x="0.79" />
-        <parameter name="leafGeometry" phi="2.7" x="0.77" />
+        <parameter name="use_thermal_emergence" value="1" />
+        <parameter name="tt_emergence" value="289.5" />
+        <parameter name="ldelay" value="0" />
+        <parameter name="lmax" value="77.4" />
+        <parameter name="r" value="4.992" />
+        <parameter name="Width_blade" value="5.9" />
+        <parameter name="Width_petiole" value="1.77" />
+        <parameter name="areaMax" value="724.9934160000001" />
+        <parameter name="theta" value="0.6122546707480055" dev="0.09183820061220083" />
+        <parameter name="tropismS" value="0.02333333333333333" dev="0.006999999999999999" />
+        <parameter name="tropismAge" value="13.7" />
+        <parameter name="leafGeometry" phi="-4.0" x="0.82" />
+        <parameter name="leafGeometry" phi="-3.2" x="0.82" />
+        <parameter name="leafGeometry" phi="-2.4" x="0.85" />
+        <parameter name="leafGeometry" phi="-1.6" x="0.90" />
+        <parameter name="leafGeometry" phi="-0.8" x="1.00" />
+        <parameter name="leafGeometry" phi="0.0" x="0.99" />
+        <parameter name="leafGeometry" phi="0.8" x="0.88" />
+        <parameter name="leafGeometry" phi="1.6" x="0.78" />
+        <parameter name="leafGeometry" phi="2.4" x="0.69" />
+        <parameter name="leafGeometry" phi="3.2" x="0.58" />
         <parameter name="leafGeometry" phi="4.0" x="0.05" />
+        <parameter name="surface_n_u" value="11" />
+        <parameter name="surface_n_v" value="5" />
+        <parameter name="surface_deg_u" value="3" />
+        <parameter name="surface_deg_v" value="2" />
+        <parameter name="surface_cp" u="0.0000" v="0.0000" x="0.334693" y="0.071973" z="-0.509910" />
+        <parameter name="surface_cp" u="0.0000" v="0.2500" x="0.184234" y="0.036470" z="-0.382400" />
+        <parameter name="surface_cp" u="0.0000" v="0.5000" x="-0.001126" y="-0.026250" z="0.062352" />
+        <parameter name="surface_cp" u="0.0000" v="0.7500" x="-0.212742" y="-0.050430" z="0.347221" />
+        <parameter name="surface_cp" u="0.0000" v="1.0000" x="-0.281674" y="-0.038353" z="0.595933" />
+        <parameter name="surface_cp" u="0.1000" v="0.0000" x="1.260743" y="-0.155640" z="4.370571" />
+        <parameter name="surface_cp" u="0.1000" v="0.2500" x="0.772911" y="-0.111425" z="5.274587" />
+        <parameter name="surface_cp" u="0.1000" v="0.5000" x="0.008170" y="-0.030860" z="6.052449" />
+        <parameter name="surface_cp" u="0.1000" v="0.7500" x="-0.815167" y="0.084336" z="6.954498" />
+        <parameter name="surface_cp" u="0.1000" v="1.0000" x="-1.103471" y="0.164958" z="7.288066" />
+        <parameter name="surface_cp" u="0.2000" v="0.0000" x="2.374477" y="-0.226103" z="12.921854" />
+        <parameter name="surface_cp" u="0.2000" v="0.2500" x="1.627704" y="0.034162" z="14.068247" />
+        <parameter name="surface_cp" u="0.2000" v="0.5000" x="0.010383" y="0.379842" z="15.869078" />
+        <parameter name="surface_cp" u="0.2000" v="0.7500" x="-1.703821" y="0.458596" z="17.450415" />
+        <parameter name="surface_cp" u="0.2000" v="1.0000" x="-2.416922" y="0.396587" z="18.140524" />
+        <parameter name="surface_cp" u="0.3000" v="0.0000" x="2.973846" y="0.666626" z="22.168274" />
+        <parameter name="surface_cp" u="0.3000" v="0.2500" x="2.121892" y="0.998435" z="23.472642" />
+        <parameter name="surface_cp" u="0.3000" v="0.5000" x="0.318137" y="1.678052" z="24.999604" />
+        <parameter name="surface_cp" u="0.3000" v="0.7500" x="-1.694472" y="1.717126" z="26.035783" />
+        <parameter name="surface_cp" u="0.3000" v="1.0000" x="-2.353811" y="1.656304" z="26.602060" />
+        <parameter name="surface_cp" u="0.4000" v="0.0000" x="3.041809" y="2.522287" z="28.804014" />
+        <parameter name="surface_cp" u="0.4000" v="0.2500" x="2.224689" y="2.915979" z="29.624729" />
+        <parameter name="surface_cp" u="0.4000" v="0.5000" x="0.636737" y="3.401447" z="31.065281" />
+        <parameter name="surface_cp" u="0.4000" v="0.7500" x="-0.953203" y="3.911635" z="32.427358" />
+        <parameter name="surface_cp" u="0.4000" v="1.0000" x="-1.758687" y="4.199367" z="33.085333" />
+        <parameter name="surface_cp" u="0.5000" v="0.0000" x="3.866368" y="4.870905" z="34.808212" />
+        <parameter name="surface_cp" u="0.5000" v="0.2500" x="2.721162" y="5.147065" z="35.217305" />
+        <parameter name="surface_cp" u="0.5000" v="0.5000" x="1.232804" y="5.739364" z="36.576853" />
+        <parameter name="surface_cp" u="0.5000" v="0.7500" x="-0.656033" y="6.951880" z="38.141151" />
+        <parameter name="surface_cp" u="0.5000" v="1.0000" x="-1.444583" y="7.404784" z="38.969408" />
+        <parameter name="surface_cp" u="0.6000" v="0.0000" x="3.932970" y="8.230969" z="39.060146" />
+        <parameter name="surface_cp" u="0.6000" v="0.2500" x="3.055518" y="9.270718" z="39.877838" />
+        <parameter name="surface_cp" u="0.6000" v="0.5000" x="1.617767" y="10.749654" z="41.208015" />
+        <parameter name="surface_cp" u="0.6000" v="0.7500" x="-0.224305" y="12.159014" z="42.553879" />
+        <parameter name="surface_cp" u="0.6000" v="1.0000" x="-0.671851" y="13.016520" z="43.539430" />
+        <parameter name="surface_cp" u="0.7000" v="0.0000" x="4.988044" y="14.360963" z="43.754391" />
+        <parameter name="surface_cp" u="0.7000" v="0.2500" x="4.390320" y="15.913989" z="44.106823" />
+        <parameter name="surface_cp" u="0.7000" v="0.5000" x="2.417225" y="18.322930" z="46.231284" />
+        <parameter name="surface_cp" u="0.7000" v="0.7500" x="0.237618" y="20.790944" z="46.891216" />
+        <parameter name="surface_cp" u="0.7000" v="1.0000" x="-0.242536" y="20.924319" z="47.376895" />
+        <parameter name="surface_cp" u="0.8000" v="0.0000" x="5.315881" y="24.589871" z="46.545785" />
+        <parameter name="surface_cp" u="0.8000" v="0.2500" x="4.481549" y="26.359913" z="46.671933" />
+        <parameter name="surface_cp" u="0.8000" v="0.5000" x="2.791784" y="28.835573" z="46.838825" />
+        <parameter name="surface_cp" u="0.8000" v="0.7500" x="1.097110" y="30.636842" z="46.226759" />
+        <parameter name="surface_cp" u="0.8000" v="1.0000" x="0.413251" y="30.544196" z="45.859201" />
+        <parameter name="surface_cp" u="0.9000" v="0.0000" x="4.627837" y="34.642062" z="44.017841" />
+        <parameter name="surface_cp" u="0.9000" v="0.2500" x="4.179154" y="35.268483" z="43.909220" />
+        <parameter name="surface_cp" u="0.9000" v="0.5000" x="2.813416" y="36.530190" z="44.421404" />
+        <parameter name="surface_cp" u="0.9000" v="0.7500" x="2.646410" y="37.018322" z="43.412147" />
+        <parameter name="surface_cp" u="0.9000" v="1.0000" x="2.088530" y="37.110239" z="42.661474" />
+        <parameter name="surface_cp" u="1.0000" v="0.0000" x="3.905596" y="39.762690" z="40.867236" />
+        <parameter name="surface_cp" u="1.0000" v="0.2500" x="3.819049" y="39.708694" z="40.708272" />
+        <parameter name="surface_cp" u="1.0000" v="0.5000" x="3.636624" y="40.128917" z="40.387682" />
+        <parameter name="surface_cp" u="1.0000" v="0.7500" x="3.320249" y="40.616417" z="39.727988" />
+        <parameter name="surface_cp" u="1.0000" v="1.0000" x="3.142757" y="40.819071" z="39.680020" />
     </leaf>
     <leaf name="maize_leaf_L6" subType="8">
         <parameter name="geometryN" value="100" />
@@ -384,9 +777,9 @@
         <parameter name="parametrisationType" value="1" />
         <parameter name="shapeType" value="2" />
         <parameter name="tropismT" value="1" />
-        <parameter name="BetaDev" value="0.22" />
-        <parameter name="InitBeta" value="0.024330006570878027" />
-        <parameter name="RotBeta" value="1.5707963267948966" />
+        <parameter name="BetaDev" value="0.02" />
+        <parameter name="InitBeta" value="0.030359271651919977" />
+        <parameter name="RotBeta" value="0" />
         <parameter name="a" value="0.04" />
         <parameter name="dx" value="0.1" />
         <parameter name="dxMin" value="1e-06" />
@@ -395,22 +788,87 @@
         <parameter name="ln" value="1" />
         <parameter name="rlt" value="1e+09" />
         <parameter name="tropismN" value="3" />
-        <parameter name="ldelay" value="18.0" />
-        <parameter name="lmax" value="70.4" />
-        <parameter name="r" value="4.0" />
-        <parameter name="Width_blade" value="5.8" />
-        <parameter name="Width_petiole" value="1.74" />
-        <parameter name="areaMax" value="595.2135570319882" />
-        <parameter name="theta" value="0.5759586531581288" dev="0.08639379797371931" />
-        <parameter name="tropismS" value="0.018" dev="0.005399999999999999" />
-        <parameter name="tropismAge" value="16.0" />
-        <parameter name="leafGeometry" phi="-4.0" x="0.08" />
-        <parameter name="leafGeometry" phi="-2.7" x="0.41" />
-        <parameter name="leafGeometry" phi="-1.3" x="0.78" />
-        <parameter name="leafGeometry" phi="0.0" x="0.79" />
-        <parameter name="leafGeometry" phi="1.3" x="0.80" />
-        <parameter name="leafGeometry" phi="2.7" x="0.78" />
+        <parameter name="use_thermal_emergence" value="1" />
+        <parameter name="tt_emergence" value="347.4" />
+        <parameter name="ldelay" value="0" />
+        <parameter name="lmax" value="78.9" />
+        <parameter name="r" value="5.546" />
+        <parameter name="Width_blade" value="6.1" />
+        <parameter name="Width_petiole" value="1.8299999999999998" />
+        <parameter name="areaMax" value="752.8338180000001" />
+        <parameter name="theta" value="0.46757917275270316" dev="0.07013687591290547" />
+        <parameter name="tropismS" value="0.022" dev="0.006599999999999999" />
+        <parameter name="tropismAge" value="12.7" />
+        <parameter name="leafGeometry" phi="-4.0" x="0.79" />
+        <parameter name="leafGeometry" phi="-3.2" x="0.80" />
+        <parameter name="leafGeometry" phi="-2.4" x="0.82" />
+        <parameter name="leafGeometry" phi="-1.6" x="0.86" />
+        <parameter name="leafGeometry" phi="-0.8" x="0.93" />
+        <parameter name="leafGeometry" phi="0.0" x="1.00" />
+        <parameter name="leafGeometry" phi="0.8" x="0.91" />
+        <parameter name="leafGeometry" phi="1.6" x="0.81" />
+        <parameter name="leafGeometry" phi="2.4" x="0.71" />
+        <parameter name="leafGeometry" phi="3.2" x="0.57" />
         <parameter name="leafGeometry" phi="4.0" x="0.05" />
+        <parameter name="surface_n_u" value="11" />
+        <parameter name="surface_n_v" value="5" />
+        <parameter name="surface_deg_u" value="3" />
+        <parameter name="surface_deg_v" value="2" />
+        <parameter name="surface_cp" u="0.0000" v="0.0000" x="0.296963" y="0.082440" z="-0.613606" />
+        <parameter name="surface_cp" u="0.0000" v="0.2500" x="0.199130" y="0.054512" z="-0.424816" />
+        <parameter name="surface_cp" u="0.0000" v="0.5000" x="-0.000284" y="-0.009496" z="0.066626" />
+        <parameter name="surface_cp" u="0.0000" v="0.7500" x="-0.200189" y="-0.056654" z="0.403368" />
+        <parameter name="surface_cp" u="0.0000" v="1.0000" x="-0.307804" y="-0.084231" z="0.625188" />
+        <parameter name="surface_cp" u="0.1000" v="0.0000" x="1.167153" y="0.029629" z="4.494164" />
+        <parameter name="surface_cp" u="0.1000" v="0.2500" x="0.788274" y="-0.000988" z="5.267650" />
+        <parameter name="surface_cp" u="0.1000" v="0.5000" x="-0.023308" y="-0.070675" z="6.565678" />
+        <parameter name="surface_cp" u="0.1000" v="0.7500" x="-0.799217" y="-0.014076" z="7.720966" />
+        <parameter name="surface_cp" u="0.1000" v="1.0000" x="-1.159514" y="0.009433" z="8.133173" />
+        <parameter name="surface_cp" u="0.2000" v="0.0000" x="2.526373" y="-0.186953" z="13.169743" />
+        <parameter name="surface_cp" u="0.2000" v="0.2500" x="1.740232" y="-0.066900" z="14.502426" />
+        <parameter name="surface_cp" u="0.2000" v="0.5000" x="0.085972" y="-0.006084" z="16.442829" />
+        <parameter name="surface_cp" u="0.2000" v="0.7500" x="-1.626775" y="0.095723" z="19.061466" />
+        <parameter name="surface_cp" u="0.2000" v="1.0000" x="-2.395291" y="0.262878" z="19.960674" />
+        <parameter name="surface_cp" u="0.3000" v="0.0000" x="3.281265" y="0.280617" z="22.508564" />
+        <parameter name="surface_cp" u="0.3000" v="0.2500" x="2.269791" y="0.486284" z="23.422199" />
+        <parameter name="surface_cp" u="0.3000" v="0.5000" x="0.439388" y="0.453635" z="25.050154" />
+        <parameter name="surface_cp" u="0.3000" v="0.7500" x="-1.399041" y="0.291506" z="27.156608" />
+        <parameter name="surface_cp" u="0.3000" v="1.0000" x="-2.552472" y="0.472817" z="28.078617" />
+        <parameter name="surface_cp" u="0.4000" v="0.0000" x="3.253335" y="1.211237" z="29.176647" />
+        <parameter name="surface_cp" u="0.4000" v="0.2500" x="2.219465" y="1.211687" z="30.004649" />
+        <parameter name="surface_cp" u="0.4000" v="0.5000" x="0.671676" y="1.682988" z="31.162602" />
+        <parameter name="surface_cp" u="0.4000" v="0.7500" x="-1.245641" y="1.706318" z="33.180016" />
+        <parameter name="surface_cp" u="0.4000" v="1.0000" x="-1.905152" y="2.012953" z="33.514739" />
+        <parameter name="surface_cp" u="0.5000" v="0.0000" x="3.762535" y="3.091565" z="34.736382" />
+        <parameter name="surface_cp" u="0.5000" v="0.2500" x="2.874211" y="3.130660" z="35.840278" />
+        <parameter name="surface_cp" u="0.5000" v="0.5000" x="0.461607" y="4.103318" z="37.433935" />
+        <parameter name="surface_cp" u="0.5000" v="0.7500" x="-1.280317" y="5.726419" z="38.621547" />
+        <parameter name="surface_cp" u="0.5000" v="1.0000" x="-1.779943" y="5.684036" z="39.019051" />
+        <parameter name="surface_cp" u="0.6000" v="0.0000" x="4.392894" y="6.281948" z="40.304226" />
+        <parameter name="surface_cp" u="0.6000" v="0.2500" x="3.193194" y="6.533311" z="41.079214" />
+        <parameter name="surface_cp" u="0.6000" v="0.5000" x="0.519290" y="8.310463" z="42.733810" />
+        <parameter name="surface_cp" u="0.6000" v="0.7500" x="-0.695544" y="9.694237" z="43.448732" />
+        <parameter name="surface_cp" u="0.6000" v="1.0000" x="-1.351321" y="10.016615" z="44.287823" />
+        <parameter name="surface_cp" u="0.7000" v="0.0000" x="4.427699" y="11.786069" z="45.695157" />
+        <parameter name="surface_cp" u="0.7000" v="0.2500" x="3.097106" y="13.021006" z="46.646597" />
+        <parameter name="surface_cp" u="0.7000" v="0.5000" x="1.204729" y="14.635679" z="47.274725" />
+        <parameter name="surface_cp" u="0.7000" v="0.7500" x="-0.170607" y="15.550559" z="47.968474" />
+        <parameter name="surface_cp" u="0.7000" v="1.0000" x="-1.122170" y="17.193313" z="48.245042" />
+        <parameter name="surface_cp" u="0.8000" v="0.0000" x="4.210912" y="21.911705" z="49.519110" />
+        <parameter name="surface_cp" u="0.8000" v="0.2500" x="3.147209" y="22.660808" z="50.736309" />
+        <parameter name="surface_cp" u="0.8000" v="0.5000" x="1.250431" y="23.434982" z="52.183532" />
+        <parameter name="surface_cp" u="0.8000" v="0.7500" x="0.221050" y="24.772470" z="50.579330" />
+        <parameter name="surface_cp" u="0.8000" v="1.0000" x="-0.549230" y="25.504578" z="48.726679" />
+        <parameter name="surface_cp" u="0.9000" v="0.0000" x="2.601019" y="30.774404" z="47.820015" />
+        <parameter name="surface_cp" u="0.9000" v="0.2500" x="1.914043" y="31.518419" z="47.588200" />
+        <parameter name="surface_cp" u="0.9000" v="0.5000" x="1.205547" y="32.162966" z="46.978593" />
+        <parameter name="surface_cp" u="0.9000" v="0.7500" x="0.920656" y="33.147290" z="46.277380" />
+        <parameter name="surface_cp" u="0.9000" v="1.0000" x="0.241367" y="33.262098" z="45.714788" />
+        <parameter name="surface_cp" u="1.0000" v="0.0000" x="2.243669" y="36.749320" z="43.768380" />
+        <parameter name="surface_cp" u="1.0000" v="0.2500" x="2.365774" y="36.792722" z="43.556159" />
+        <parameter name="surface_cp" u="1.0000" v="0.5000" x="1.781392" y="36.720338" z="42.950723" />
+        <parameter name="surface_cp" u="1.0000" v="0.7500" x="1.956856" y="37.304344" z="43.211841" />
+        <parameter name="surface_cp" u="1.0000" v="1.0000" x="1.772534" y="37.432887" z="43.324340" />
     </leaf>
     <leaf name="maize_leaf_L7" subType="9">
         <parameter name="geometryN" value="100" />
@@ -420,9 +878,9 @@
         <parameter name="parametrisationType" value="1" />
         <parameter name="shapeType" value="2" />
         <parameter name="tropismT" value="1" />
-        <parameter name="BetaDev" value="0.22" />
-        <parameter name="InitBeta" value="3.5044156690939623" />
-        <parameter name="RotBeta" value="1.5707963267948966" />
+        <parameter name="BetaDev" value="0.02" />
+        <parameter name="InitBeta" value="1.066274495367775" />
+        <parameter name="RotBeta" value="0" />
         <parameter name="a" value="0.04" />
         <parameter name="dx" value="0.1" />
         <parameter name="dxMin" value="1e-06" />
@@ -431,22 +889,87 @@
         <parameter name="ln" value="1" />
         <parameter name="rlt" value="1e+09" />
         <parameter name="tropismN" value="3" />
-        <parameter name="ldelay" value="21.0" />
-        <parameter name="lmax" value="63.6" />
-        <parameter name="r" value="4.0" />
-        <parameter name="Width_blade" value="5.6" />
-        <parameter name="Width_petiole" value="1.68" />
-        <parameter name="areaMax" value="515.7317166394477" />
-        <parameter name="theta" value="0.5410520681182421" dev="0.08115781021773631" />
-        <parameter name="tropismS" value="0.016" dev="0.0048" />
-        <parameter name="tropismAge" value="14.6" />
-        <parameter name="leafGeometry" phi="-4.0" x="0.08" />
-        <parameter name="leafGeometry" phi="-2.7" x="0.41" />
-        <parameter name="leafGeometry" phi="-1.3" x="0.77" />
-        <parameter name="leafGeometry" phi="0.0" x="0.78" />
-        <parameter name="leafGeometry" phi="1.3" x="0.78" />
-        <parameter name="leafGeometry" phi="2.7" x="0.78" />
+        <parameter name="use_thermal_emergence" value="1" />
+        <parameter name="tt_emergence" value="405.3" />
+        <parameter name="ldelay" value="0" />
+        <parameter name="lmax" value="75.7" />
+        <parameter name="r" value="5.76" />
+        <parameter name="Width_blade" value="5.95" />
+        <parameter name="Width_petiole" value="1.785" />
+        <parameter name="areaMax" value="696.8370465" />
+        <parameter name="theta" value="0.6308200612200852" dev="0.09462300918301277" />
+        <parameter name="tropismS" value="0.020666666666666667" dev="0.0062" />
+        <parameter name="tropismAge" value="12.0" />
+        <parameter name="leafGeometry" phi="-4.0" x="0.81" />
+        <parameter name="leafGeometry" phi="-3.2" x="0.83" />
+        <parameter name="leafGeometry" phi="-2.4" x="0.85" />
+        <parameter name="leafGeometry" phi="-1.6" x="0.91" />
+        <parameter name="leafGeometry" phi="-0.8" x="1.00" />
+        <parameter name="leafGeometry" phi="0.0" x="0.92" />
+        <parameter name="leafGeometry" phi="0.8" x="0.82" />
+        <parameter name="leafGeometry" phi="1.6" x="0.74" />
+        <parameter name="leafGeometry" phi="2.4" x="0.67" />
+        <parameter name="leafGeometry" phi="3.2" x="0.55" />
         <parameter name="leafGeometry" phi="4.0" x="0.05" />
+        <parameter name="surface_n_u" value="11" />
+        <parameter name="surface_n_v" value="5" />
+        <parameter name="surface_deg_u" value="3" />
+        <parameter name="surface_deg_v" value="2" />
+        <parameter name="surface_cp" u="0.0000" v="0.0000" x="0.210630" y="0.043387" z="-0.594960" />
+        <parameter name="surface_cp" u="0.0000" v="0.2500" x="0.151089" y="0.007216" z="-0.401173" />
+        <parameter name="surface_cp" u="0.0000" v="0.5000" x="0.001044" y="-0.029452" z="0.091464" />
+        <parameter name="surface_cp" u="0.0000" v="0.7500" x="-0.139955" y="-0.024212" z="0.391825" />
+        <parameter name="surface_cp" u="0.0000" v="1.0000" x="-0.212039" y="-0.004114" z="0.620936" />
+        <parameter name="surface_cp" u="0.1000" v="0.0000" x="1.195567" y="0.075046" z="5.388286" />
+        <parameter name="surface_cp" u="0.1000" v="0.2500" x="0.772902" y="-0.023460" z="6.204833" />
+        <parameter name="surface_cp" u="0.1000" v="0.5000" x="-0.037071" y="-0.075652" z="7.522620" />
+        <parameter name="surface_cp" u="0.1000" v="0.7500" x="-0.779573" y="-0.024852" z="8.287025" />
+        <parameter name="surface_cp" u="0.1000" v="1.0000" x="-1.129353" y="-0.043474" z="8.745084" />
+        <parameter name="surface_cp" u="0.2000" v="0.0000" x="2.541236" y="-0.074907" z="15.051744" />
+        <parameter name="surface_cp" u="0.2000" v="0.2500" x="1.866293" y="0.156473" z="16.382011" />
+        <parameter name="surface_cp" u="0.2000" v="0.5000" x="0.023479" y="0.220453" z="18.759658" />
+        <parameter name="surface_cp" u="0.2000" v="0.7500" x="-1.701209" y="0.212624" z="20.154526" />
+        <parameter name="surface_cp" u="0.2000" v="1.0000" x="-2.494207" y="0.251925" z="20.912779" />
+        <parameter name="surface_cp" u="0.3000" v="0.0000" x="3.463992" y="0.505312" z="23.685609" />
+        <parameter name="surface_cp" u="0.3000" v="0.2500" x="2.557899" y="1.007824" z="24.596795" />
+        <parameter name="surface_cp" u="0.3000" v="0.5000" x="0.338240" y="1.355502" z="26.306352" />
+        <parameter name="surface_cp" u="0.3000" v="0.7500" x="-1.507638" y="1.823176" z="28.287346" />
+        <parameter name="surface_cp" u="0.3000" v="1.0000" x="-2.488336" y="1.961857" z="29.305837" />
+        <parameter name="surface_cp" u="0.4000" v="0.0000" x="3.774401" y="2.167692" z="30.387174" />
+        <parameter name="surface_cp" u="0.4000" v="0.2500" x="2.740705" y="2.541682" z="30.735534" />
+        <parameter name="surface_cp" u="0.4000" v="0.5000" x="0.553249" y="3.638756" z="31.800143" />
+        <parameter name="surface_cp" u="0.4000" v="0.7500" x="-1.358051" y="4.505746" z="33.397928" />
+        <parameter name="surface_cp" u="0.4000" v="1.0000" x="-2.435473" y="4.481102" z="33.975370" />
+        <parameter name="surface_cp" u="0.5000" v="0.0000" x="4.138331" y="4.812944" z="36.402827" />
+        <parameter name="surface_cp" u="0.5000" v="0.2500" x="2.904428" y="5.092118" z="37.033202" />
+        <parameter name="surface_cp" u="0.5000" v="0.5000" x="0.828576" y="6.139297" z="38.033168" />
+        <parameter name="surface_cp" u="0.5000" v="0.7500" x="-1.111747" y="7.595248" z="39.148891" />
+        <parameter name="surface_cp" u="0.5000" v="1.0000" x="-2.048500" y="8.215284" z="39.754725" />
+        <parameter name="surface_cp" u="0.6000" v="0.0000" x="4.585610" y="8.165433" z="40.477002" />
+        <parameter name="surface_cp" u="0.6000" v="0.2500" x="3.352779" y="9.239433" z="41.038760" />
+        <parameter name="surface_cp" u="0.6000" v="0.5000" x="0.867276" y="10.345723" z="42.585057" />
+        <parameter name="surface_cp" u="0.6000" v="0.7500" x="-0.748536" y="11.870916" z="43.429652" />
+        <parameter name="surface_cp" u="0.6000" v="1.0000" x="-1.804243" y="12.853548" z="44.035026" />
+        <parameter name="surface_cp" u="0.7000" v="0.0000" x="3.920513" y="13.623005" z="45.329815" />
+        <parameter name="surface_cp" u="0.7000" v="0.2500" x="2.809923" y="13.824460" z="44.937044" />
+        <parameter name="surface_cp" u="0.7000" v="0.5000" x="1.175449" y="15.437297" z="45.530330" />
+        <parameter name="surface_cp" u="0.7000" v="0.7500" x="-1.204921" y="18.464684" z="46.326716" />
+        <parameter name="surface_cp" u="0.7000" v="1.0000" x="-1.451681" y="20.120902" z="45.775215" />
+        <parameter name="surface_cp" u="0.8000" v="0.0000" x="3.921868" y="20.752169" z="45.232737" />
+        <parameter name="surface_cp" u="0.8000" v="0.2500" x="3.049355" y="22.495689" z="44.813667" />
+        <parameter name="surface_cp" u="0.8000" v="0.5000" x="0.912370" y="25.162177" z="43.723145" />
+        <parameter name="surface_cp" u="0.8000" v="0.7500" x="-0.692908" y="28.226276" z="42.729761" />
+        <parameter name="surface_cp" u="0.8000" v="1.0000" x="-1.405106" y="29.533621" z="42.245774" />
+        <parameter name="surface_cp" u="0.9000" v="0.0000" x="2.905538" y="31.468575" z="41.490555" />
+        <parameter name="surface_cp" u="0.9000" v="0.2500" x="2.243503" y="31.842825" z="41.558104" />
+        <parameter name="surface_cp" u="0.9000" v="0.5000" x="1.235712" y="32.844300" z="39.895733" />
+        <parameter name="surface_cp" u="0.9000" v="0.7500" x="0.762093" y="34.611195" z="39.836626" />
+        <parameter name="surface_cp" u="0.9000" v="1.0000" x="0.382552" y="35.535280" z="39.310375" />
+        <parameter name="surface_cp" u="1.0000" v="0.0000" x="2.383001" y="37.773872" z="37.211394" />
+        <parameter name="surface_cp" u="1.0000" v="0.2500" x="2.230764" y="38.177942" z="37.108011" />
+        <parameter name="surface_cp" u="1.0000" v="0.5000" x="1.928895" y="38.551257" z="37.731533" />
+        <parameter name="surface_cp" u="1.0000" v="0.7500" x="1.858427" y="39.120800" z="37.550073" />
+        <parameter name="surface_cp" u="1.0000" v="1.0000" x="1.629689" y="39.370591" z="37.755998" />
     </leaf>
     <leaf name="maize_leaf_L8" subType="10">
         <parameter name="geometryN" value="100" />
@@ -456,9 +979,9 @@
         <parameter name="parametrisationType" value="1" />
         <parameter name="shapeType" value="2" />
         <parameter name="tropismT" value="1" />
-        <parameter name="BetaDev" value="0.22" />
-        <parameter name="InitBeta" value="0.3216076373937753" />
-        <parameter name="RotBeta" value="1.5707963267948966" />
+        <parameter name="BetaDev" value="0.02" />
+        <parameter name="InitBeta" value="0.07116066718858706" />
+        <parameter name="RotBeta" value="0" />
         <parameter name="a" value="0.04" />
         <parameter name="dx" value="0.1" />
         <parameter name="dxMin" value="1e-06" />
@@ -467,22 +990,87 @@
         <parameter name="ln" value="1" />
         <parameter name="rlt" value="1e+09" />
         <parameter name="tropismN" value="3" />
-        <parameter name="ldelay" value="24.0" />
-        <parameter name="lmax" value="59.2" />
-        <parameter name="r" value="4.0" />
-        <parameter name="Width_blade" value="5.15" />
-        <parameter name="Width_petiole" value="1.5450000000000002" />
-        <parameter name="areaMax" value="434.7262936264999" />
-        <parameter name="theta" value="0.5061454830783556" dev="0.07592182246175334" />
-        <parameter name="tropismS" value="0.013999999999999999" dev="0.0042" />
-        <parameter name="tropismAge" value="13.8" />
-        <parameter name="leafGeometry" phi="-4.0" x="0.08" />
-        <parameter name="leafGeometry" phi="-2.7" x="0.40" />
-        <parameter name="leafGeometry" phi="-1.3" x="0.76" />
-        <parameter name="leafGeometry" phi="0.0" x="0.76" />
-        <parameter name="leafGeometry" phi="1.3" x="0.78" />
-        <parameter name="leafGeometry" phi="2.7" x="0.77" />
+        <parameter name="use_thermal_emergence" value="1" />
+        <parameter name="tt_emergence" value="463.2" />
+        <parameter name="ldelay" value="0" />
+        <parameter name="lmax" value="70.4" />
+        <parameter name="r" value="5.881" />
+        <parameter name="Width_blade" value="5.8" />
+        <parameter name="Width_petiole" value="1.74" />
+        <parameter name="areaMax" value="652.6586879999999" />
+        <parameter name="theta" value="0.8625702911834783" dev="0.12938554367752172" />
+        <parameter name="tropismS" value="0.019333333333333334" dev="0.0058000000000000005" />
+        <parameter name="tropismAge" value="12.0" />
+        <parameter name="leafGeometry" phi="-4.0" x="0.82" />
+        <parameter name="leafGeometry" phi="-3.2" x="0.83" />
+        <parameter name="leafGeometry" phi="-2.4" x="0.86" />
+        <parameter name="leafGeometry" phi="-1.6" x="0.91" />
+        <parameter name="leafGeometry" phi="-0.8" x="1.00" />
+        <parameter name="leafGeometry" phi="0.0" x="0.99" />
+        <parameter name="leafGeometry" phi="0.8" x="0.89" />
+        <parameter name="leafGeometry" phi="1.6" x="0.79" />
+        <parameter name="leafGeometry" phi="2.4" x="0.70" />
+        <parameter name="leafGeometry" phi="3.2" x="0.58" />
         <parameter name="leafGeometry" phi="4.0" x="0.05" />
+        <parameter name="surface_n_u" value="11" />
+        <parameter name="surface_n_v" value="5" />
+        <parameter name="surface_deg_u" value="3" />
+        <parameter name="surface_deg_v" value="2" />
+        <parameter name="surface_cp" u="0.0000" v="0.0000" x="0.292874" y="0.085219" z="-0.514129" />
+        <parameter name="surface_cp" u="0.0000" v="0.2500" x="0.184164" y="0.052582" z="-0.381732" />
+        <parameter name="surface_cp" u="0.0000" v="0.5000" x="0.006348" y="-0.019307" z="0.059152" />
+        <parameter name="surface_cp" u="0.0000" v="0.7500" x="-0.192837" y="-0.057293" z="0.364131" />
+        <parameter name="surface_cp" u="0.0000" v="1.0000" x="-0.272702" y="-0.080255" z="0.595085" />
+        <parameter name="surface_cp" u="0.1000" v="0.0000" x="1.362056" y="0.257579" z="3.982242" />
+        <parameter name="surface_cp" u="0.1000" v="0.2500" x="0.948020" y="0.091330" z="5.068513" />
+        <parameter name="surface_cp" u="0.1000" v="0.5000" x="-0.027656" y="-0.060802" z="6.113383" />
+        <parameter name="surface_cp" u="0.1000" v="0.7500" x="-0.919848" y="-0.180432" z="7.308654" />
+        <parameter name="surface_cp" u="0.1000" v="1.0000" x="-1.381536" y="-0.079691" z="7.853680" />
+        <parameter name="surface_cp" u="0.2000" v="0.0000" x="2.774263" y="0.362798" z="11.976958" />
+        <parameter name="surface_cp" u="0.2000" v="0.2500" x="1.899376" y="0.301985" z="13.265982" />
+        <parameter name="surface_cp" u="0.2000" v="0.5000" x="0.068932" y="-0.041608" z="15.527760" />
+        <parameter name="surface_cp" u="0.2000" v="0.7500" x="-1.821708" y="-0.158915" z="18.166118" />
+        <parameter name="surface_cp" u="0.2000" v="1.0000" x="-2.625825" y="-0.050953" z="18.546411" />
+        <parameter name="surface_cp" u="0.3000" v="0.0000" x="3.754715" y="-0.041940" z="20.020939" />
+        <parameter name="surface_cp" u="0.3000" v="0.2500" x="2.512696" y="-0.064680" z="21.309048" />
+        <parameter name="surface_cp" u="0.3000" v="0.5000" x="0.225939" y="0.065441" z="23.478042" />
+        <parameter name="surface_cp" u="0.3000" v="0.7500" x="-1.744135" y="0.504315" z="26.083233" />
+        <parameter name="surface_cp" u="0.3000" v="1.0000" x="-2.790390" y="0.571792" z="26.972465" />
+        <parameter name="surface_cp" u="0.4000" v="0.0000" x="3.628699" y="0.393588" z="26.760986" />
+        <parameter name="surface_cp" u="0.4000" v="0.2500" x="2.462413" y="0.577708" z="27.885318" />
+        <parameter name="surface_cp" u="0.4000" v="0.5000" x="0.368896" y="0.735775" z="29.859814" />
+        <parameter name="surface_cp" u="0.4000" v="0.7500" x="-1.673038" y="2.012839" z="31.551528" />
+        <parameter name="surface_cp" u="0.4000" v="1.0000" x="-2.586125" y="2.228908" z="32.609393" />
+        <parameter name="surface_cp" u="0.5000" v="0.0000" x="3.369389" y="2.203742" z="33.299916" />
+        <parameter name="surface_cp" u="0.5000" v="0.2500" x="2.445280" y="2.408977" z="34.077313" />
+        <parameter name="surface_cp" u="0.5000" v="0.5000" x="0.722218" y="3.344376" z="36.305011" />
+        <parameter name="surface_cp" u="0.5000" v="0.7500" x="-1.547694" y="4.277061" z="38.456758" />
+        <parameter name="surface_cp" u="0.5000" v="1.0000" x="-2.624223" y="4.580755" z="39.387868" />
+        <parameter name="surface_cp" u="0.6000" v="0.0000" x="3.357114" y="5.117271" z="39.319431" />
+        <parameter name="surface_cp" u="0.6000" v="0.2500" x="2.424525" y="5.686081" z="40.015068" />
+        <parameter name="surface_cp" u="0.6000" v="0.5000" x="0.486921" y="6.012362" z="42.475333" />
+        <parameter name="surface_cp" u="0.6000" v="0.7500" x="-1.081721" y="6.772325" z="43.768888" />
+        <parameter name="surface_cp" u="0.6000" v="1.0000" x="-2.397246" y="7.847193" z="44.332344" />
+        <parameter name="surface_cp" u="0.7000" v="0.0000" x="3.976734" y="9.173772" z="46.106320" />
+        <parameter name="surface_cp" u="0.7000" v="0.2500" x="2.570533" y="9.714520" z="46.609017" />
+        <parameter name="surface_cp" u="0.7000" v="0.5000" x="0.780797" y="10.968378" z="47.131891" />
+        <parameter name="surface_cp" u="0.7000" v="0.7500" x="-0.969430" y="11.488120" z="46.963740" />
+        <parameter name="surface_cp" u="0.7000" v="1.0000" x="-2.323182" y="12.343170" z="47.743727" />
+        <parameter name="surface_cp" u="0.8000" v="0.0000" x="3.624022" y="14.668812" z="48.324740" />
+        <parameter name="surface_cp" u="0.8000" v="0.2500" x="2.731495" y="15.797787" z="48.331230" />
+        <parameter name="surface_cp" u="0.8000" v="0.5000" x="1.544328" y="17.256128" z="49.692685" />
+        <parameter name="surface_cp" u="0.8000" v="0.7500" x="-0.451176" y="18.658309" z="49.356033" />
+        <parameter name="surface_cp" u="0.8000" v="1.0000" x="-1.448439" y="19.550521" z="48.783860" />
+        <parameter name="surface_cp" u="0.9000" v="0.0000" x="2.686162" y="23.323197" z="47.299712" />
+        <parameter name="surface_cp" u="0.9000" v="0.2500" x="2.368125" y="23.549545" z="47.684422" />
+        <parameter name="surface_cp" u="0.9000" v="0.5000" x="1.337566" y="24.021616" z="47.174603" />
+        <parameter name="surface_cp" u="0.9000" v="0.7500" x="0.532977" y="24.838376" z="46.454302" />
+        <parameter name="surface_cp" u="0.9000" v="1.0000" x="-0.277969" y="25.572808" z="46.477414" />
+        <parameter name="surface_cp" u="1.0000" v="0.0000" x="1.353565" y="29.261019" z="43.606684" />
+        <parameter name="surface_cp" u="1.0000" v="0.2500" x="1.396845" y="28.751388" z="43.862764" />
+        <parameter name="surface_cp" u="1.0000" v="0.5000" x="1.445981" y="28.733679" z="43.445082" />
+        <parameter name="surface_cp" u="1.0000" v="0.7500" x="1.487407" y="28.722257" z="43.037211" />
+        <parameter name="surface_cp" u="1.0000" v="1.0000" x="1.492223" y="28.958869" z="42.931822" />
     </leaf>
     <leaf name="maize_leaf_L9" subType="11">
         <parameter name="geometryN" value="100" />
@@ -492,9 +1080,9 @@
         <parameter name="parametrisationType" value="1" />
         <parameter name="shapeType" value="2" />
         <parameter name="tropismT" value="1" />
-        <parameter name="BetaDev" value="0.22" />
-        <parameter name="InitBeta" value="3.5080025714845604" />
-        <parameter name="RotBeta" value="1.5707963267948966" />
+        <parameter name="BetaDev" value="0.02" />
+        <parameter name="InitBeta" value="1.0759143367909354" />
+        <parameter name="RotBeta" value="0" />
         <parameter name="a" value="0.04" />
         <parameter name="dx" value="0.1" />
         <parameter name="dxMin" value="1e-06" />
@@ -503,22 +1091,87 @@
         <parameter name="ln" value="1" />
         <parameter name="rlt" value="1e+09" />
         <parameter name="tropismN" value="3" />
-        <parameter name="ldelay" value="27.0" />
-        <parameter name="lmax" value="54.1" />
-        <parameter name="r" value="4.0" />
-        <parameter name="Width_blade" value="4.95" />
-        <parameter name="Width_petiole" value="1.485" />
-        <parameter name="areaMax" value="386.50434508826635" />
-        <parameter name="theta" value="0.47123889803846897" dev="0.07068583470577035" />
-        <parameter name="tropismS" value="0.011999999999999997" dev="0.003599999999999999" />
-        <parameter name="tropismAge" value="12.7" />
-        <parameter name="leafGeometry" phi="-4.0" x="0.08" />
-        <parameter name="leafGeometry" phi="-2.7" x="0.40" />
-        <parameter name="leafGeometry" phi="-1.3" x="0.76" />
-        <parameter name="leafGeometry" phi="0.0" x="0.78" />
-        <parameter name="leafGeometry" phi="1.3" x="0.80" />
-        <parameter name="leafGeometry" phi="2.7" x="0.79" />
+        <parameter name="use_thermal_emergence" value="1" />
+        <parameter name="tt_emergence" value="521.1" />
+        <parameter name="ldelay" value="0" />
+        <parameter name="lmax" value="63.6" />
+        <parameter name="r" value="5.875" />
+        <parameter name="Width_blade" value="5.6" />
+        <parameter name="Width_petiole" value="1.68" />
+        <parameter name="areaMax" value="555.0041279999999" />
+        <parameter name="theta" value="0.5860747319680907" dev="0.0879112097952136" />
+        <parameter name="tropismS" value="0.018" dev="0.005399999999999999" />
+        <parameter name="tropismAge" value="12.0" />
+        <parameter name="leafGeometry" phi="-4.0" x="0.81" />
+        <parameter name="leafGeometry" phi="-3.2" x="0.80" />
+        <parameter name="leafGeometry" phi="-2.4" x="0.82" />
+        <parameter name="leafGeometry" phi="-1.6" x="0.86" />
+        <parameter name="leafGeometry" phi="-0.8" x="0.93" />
+        <parameter name="leafGeometry" phi="0.0" x="1.00" />
+        <parameter name="leafGeometry" phi="0.8" x="0.91" />
+        <parameter name="leafGeometry" phi="1.6" x="0.80" />
+        <parameter name="leafGeometry" phi="2.4" x="0.69" />
+        <parameter name="leafGeometry" phi="3.2" x="0.56" />
         <parameter name="leafGeometry" phi="4.0" x="0.05" />
+        <parameter name="surface_n_u" value="11" />
+        <parameter name="surface_n_v" value="5" />
+        <parameter name="surface_deg_u" value="3" />
+        <parameter name="surface_deg_v" value="2" />
+        <parameter name="surface_cp" u="0.0000" v="0.0000" x="0.307755" y="0.065375" z="-0.348615" />
+        <parameter name="surface_cp" u="0.0000" v="0.2500" x="0.181209" y="0.031212" z="-0.262975" />
+        <parameter name="surface_cp" u="0.0000" v="0.5000" x="-0.002404" y="-0.033374" z="0.047571" />
+        <parameter name="surface_cp" u="0.0000" v="0.7500" x="-0.190146" y="-0.039771" z="0.243655" />
+        <parameter name="surface_cp" u="0.0000" v="1.0000" x="-0.263283" y="-0.039480" z="0.393746" />
+        <parameter name="surface_cp" u="0.1000" v="0.0000" x="1.333527" y="0.339861" z="3.586317" />
+        <parameter name="surface_cp" u="0.1000" v="0.2500" x="0.882219" y="0.180059" z="4.171237" />
+        <parameter name="surface_cp" u="0.1000" v="0.5000" x="0.002423" y="-0.034182" z="5.604037" />
+        <parameter name="surface_cp" u="0.1000" v="0.7500" x="-0.901489" y="-0.200850" z="6.586157" />
+        <parameter name="surface_cp" u="0.1000" v="1.0000" x="-1.316543" y="-0.229663" z="7.184828" />
+        <parameter name="surface_cp" u="0.2000" v="0.0000" x="2.622751" y="0.545782" z="10.623738" />
+        <parameter name="surface_cp" u="0.2000" v="0.2500" x="1.847383" y="0.316642" z="11.668439" />
+        <parameter name="surface_cp" u="0.2000" v="0.5000" x="0.031722" y="-0.040268" z="14.080602" />
+        <parameter name="surface_cp" u="0.2000" v="0.7500" x="-1.623995" y="-0.297494" z="16.462348" />
+        <parameter name="surface_cp" u="0.2000" v="1.0000" x="-2.458200" y="-0.429580" z="17.023633" />
+        <parameter name="surface_cp" u="0.3000" v="0.0000" x="2.909640" y="-0.276103" z="19.113092" />
+        <parameter name="surface_cp" u="0.3000" v="0.2500" x="1.846133" y="-0.050087" z="20.001129" />
+        <parameter name="surface_cp" u="0.3000" v="0.5000" x="-0.048756" y="-0.252050" z="21.870159" />
+        <parameter name="surface_cp" u="0.3000" v="0.7500" x="-1.783765" y="-0.592641" z="24.547192" />
+        <parameter name="surface_cp" u="0.3000" v="1.0000" x="-2.463535" y="-0.533053" z="25.522125" />
+        <parameter name="surface_cp" u="0.4000" v="0.0000" x="3.043760" y="-0.172761" z="25.323071" />
+        <parameter name="surface_cp" u="0.4000" v="0.2500" x="1.824342" y="-0.193844" z="26.556600" />
+        <parameter name="surface_cp" u="0.4000" v="0.5000" x="0.213177" y="-0.229837" z="28.570346" />
+        <parameter name="surface_cp" u="0.4000" v="0.7500" x="-1.459711" y="-0.297835" z="30.113303" />
+        <parameter name="surface_cp" u="0.4000" v="1.0000" x="-2.596685" y="-0.335222" z="30.602058" />
+        <parameter name="surface_cp" u="0.5000" v="0.0000" x="2.412803" y="0.891970" z="32.066128" />
+        <parameter name="surface_cp" u="0.5000" v="0.2500" x="1.566284" y="0.744055" z="32.871931" />
+        <parameter name="surface_cp" u="0.5000" v="0.5000" x="-0.129653" y="0.811065" z="34.505443" />
+        <parameter name="surface_cp" u="0.5000" v="0.7500" x="-1.707900" y="0.851956" z="36.159871" />
+        <parameter name="surface_cp" u="0.5000" v="1.0000" x="-2.515601" y="0.998355" z="37.076329" />
+        <parameter name="surface_cp" u="0.6000" v="0.0000" x="1.394425" y="2.709196" z="37.281669" />
+        <parameter name="surface_cp" u="0.6000" v="0.2500" x="0.843198" y="2.825233" z="38.842697" />
+        <parameter name="surface_cp" u="0.6000" v="0.5000" x="-0.287950" y="2.534403" z="41.197756" />
+        <parameter name="surface_cp" u="0.6000" v="0.7500" x="-1.959578" y="2.743087" z="42.464073" />
+        <parameter name="surface_cp" u="0.6000" v="1.0000" x="-2.829439" y="2.868546" z="43.313824" />
+        <parameter name="surface_cp" u="0.7000" v="0.0000" x="1.140724" y="5.195913" z="44.532473" />
+        <parameter name="surface_cp" u="0.7000" v="0.2500" x="0.410091" y="4.949236" z="44.865482" />
+        <parameter name="surface_cp" u="0.7000" v="0.5000" x="-0.549547" y="5.930848" z="45.885863" />
+        <parameter name="surface_cp" u="0.7000" v="0.7500" x="-2.346052" y="6.484808" z="46.435299" />
+        <parameter name="surface_cp" u="0.7000" v="1.0000" x="-2.904970" y="7.189943" z="46.599650" />
+        <parameter name="surface_cp" u="0.8000" v="0.0000" x="0.703938" y="9.192371" z="47.743696" />
+        <parameter name="surface_cp" u="0.8000" v="0.2500" x="-0.322848" y="8.961110" z="48.038597" />
+        <parameter name="surface_cp" u="0.8000" v="0.5000" x="-0.928270" y="11.409600" z="47.833590" />
+        <parameter name="surface_cp" u="0.8000" v="0.7500" x="-2.600883" y="12.303438" z="47.666388" />
+        <parameter name="surface_cp" u="0.8000" v="1.0000" x="-3.468283" y="13.218992" z="46.815331" />
+        <parameter name="surface_cp" u="0.9000" v="0.0000" x="-0.979875" y="16.180016" z="46.826720" />
+        <parameter name="surface_cp" u="0.9000" v="0.2500" x="-0.975498" y="15.928351" z="46.866884" />
+        <parameter name="surface_cp" u="0.9000" v="0.5000" x="-1.457794" y="17.028884" z="46.309577" />
+        <parameter name="surface_cp" u="0.9000" v="0.7500" x="-2.241196" y="17.896469" z="45.962235" />
+        <parameter name="surface_cp" u="0.9000" v="1.0000" x="-2.221365" y="17.902195" z="45.751098" />
+        <parameter name="surface_cp" u="1.0000" v="0.0000" x="-1.764660" y="21.012689" z="42.658738" />
+        <parameter name="surface_cp" u="1.0000" v="0.2500" x="-1.631097" y="20.878607" z="42.634168" />
+        <parameter name="surface_cp" u="1.0000" v="0.5000" x="-1.558728" y="20.172604" z="42.881386" />
+        <parameter name="surface_cp" u="1.0000" v="0.7500" x="-1.617817" y="19.348691" z="42.505685" />
+        <parameter name="surface_cp" u="1.0000" v="1.0000" x="-1.705980" y="19.733333" z="42.067730" />
     </leaf>
     <leaf name="maize_leaf_L10" subType="12">
         <parameter name="geometryN" value="100" />
@@ -528,9 +1181,9 @@
         <parameter name="parametrisationType" value="1" />
         <parameter name="shapeType" value="2" />
         <parameter name="tropismT" value="1" />
-        <parameter name="BetaDev" value="0.22" />
-        <parameter name="InitBeta" value="0.14824875296721984" />
-        <parameter name="RotBeta" value="1.5707963267948966" />
+        <parameter name="BetaDev" value="0.02" />
+        <parameter name="InitBeta" value="0.06202597752425788" />
+        <parameter name="RotBeta" value="0" />
         <parameter name="a" value="0.04" />
         <parameter name="dx" value="0.1" />
         <parameter name="dxMin" value="1e-06" />
@@ -539,21 +1192,645 @@
         <parameter name="ln" value="1" />
         <parameter name="rlt" value="1e+09" />
         <parameter name="tropismN" value="3" />
-        <parameter name="ldelay" value="30.0" />
+        <parameter name="use_thermal_emergence" value="1" />
+        <parameter name="tt_emergence" value="579.0" />
+        <parameter name="ldelay" value="0" />
+        <parameter name="lmax" value="59.2" />
+        <parameter name="r" value="6.0" />
+        <parameter name="Width_blade" value="5.15" />
+        <parameter name="Width_petiole" value="1.5450000000000002" />
+        <parameter name="areaMax" value="473.4176640000001" />
+        <parameter name="theta" value="0.769696171416238" dev="0.1154544257124357" />
+        <parameter name="tropismS" value="0.016666666666666666" dev="0.005" />
+        <parameter name="tropismAge" value="12.0" />
+        <parameter name="leafGeometry" phi="-4.0" x="0.82" />
+        <parameter name="leafGeometry" phi="-3.2" x="0.83" />
+        <parameter name="leafGeometry" phi="-2.4" x="0.88" />
+        <parameter name="leafGeometry" phi="-1.6" x="0.97" />
+        <parameter name="leafGeometry" phi="-0.8" x="1.00" />
+        <parameter name="leafGeometry" phi="0.0" x="0.91" />
+        <parameter name="leafGeometry" phi="0.8" x="0.81" />
+        <parameter name="leafGeometry" phi="1.6" x="0.74" />
+        <parameter name="leafGeometry" phi="2.4" x="0.66" />
+        <parameter name="leafGeometry" phi="3.2" x="0.52" />
+        <parameter name="leafGeometry" phi="4.0" x="0.05" />
+        <parameter name="surface_n_u" value="11" />
+        <parameter name="surface_n_v" value="5" />
+        <parameter name="surface_deg_u" value="3" />
+        <parameter name="surface_deg_v" value="2" />
+        <parameter name="surface_cp" u="0.0000" v="0.0000" x="0.066483" y="0.064347" z="-0.420220" />
+        <parameter name="surface_cp" u="0.0000" v="0.2500" x="0.030832" y="0.041351" z="-0.273693" />
+        <parameter name="surface_cp" u="0.0000" v="0.5000" x="-0.025654" y="-0.034731" z="0.065206" />
+        <parameter name="surface_cp" u="0.0000" v="0.7500" x="-0.035432" y="-0.036346" z="0.287573" />
+        <parameter name="surface_cp" u="0.0000" v="1.0000" x="-0.061482" y="-0.055515" z="0.414233" />
+        <parameter name="surface_cp" u="0.1000" v="0.0000" x="0.788117" y="-0.033554" z="4.700295" />
+        <parameter name="surface_cp" u="0.1000" v="0.2500" x="0.519185" y="-0.040692" z="5.396765" />
+        <parameter name="surface_cp" u="0.1000" v="0.5000" x="-0.022753" y="-0.027803" z="6.805434" />
+        <parameter name="surface_cp" u="0.1000" v="0.7500" x="-0.523324" y="0.014897" z="7.704407" />
+        <parameter name="surface_cp" u="0.1000" v="1.0000" x="-0.743032" y="0.045134" z="8.506173" />
+        <parameter name="surface_cp" u="0.2000" v="0.0000" x="1.907589" y="0.098504" z="13.578127" />
+        <parameter name="surface_cp" u="0.2000" v="0.2500" x="1.381018" y="0.365340" z="14.394515" />
+        <parameter name="surface_cp" u="0.2000" v="0.5000" x="0.116781" y="0.240696" z="16.935188" />
+        <parameter name="surface_cp" u="0.2000" v="0.7500" x="-1.023886" y="0.428290" z="18.878545" />
+        <parameter name="surface_cp" u="0.2000" v="1.0000" x="-1.645308" y="0.613663" z="19.772461" />
+        <parameter name="surface_cp" u="0.3000" v="0.0000" x="2.761731" y="0.610845" z="21.316304" />
+        <parameter name="surface_cp" u="0.3000" v="0.2500" x="2.195109" y="0.696333" z="22.734497" />
+        <parameter name="surface_cp" u="0.3000" v="0.5000" x="0.410099" y="0.909228" z="24.064585" />
+        <parameter name="surface_cp" u="0.3000" v="0.7500" x="-1.087545" y="1.248656" z="26.900219" />
+        <parameter name="surface_cp" u="0.3000" v="1.0000" x="-1.878985" y="1.410707" z="27.240426" />
+        <parameter name="surface_cp" u="0.4000" v="0.0000" x="3.341128" y="1.077580" z="27.475536" />
+        <parameter name="surface_cp" u="0.4000" v="0.2500" x="2.583072" y="1.349497" z="28.182357" />
+        <parameter name="surface_cp" u="0.4000" v="0.5000" x="0.896787" y="1.982775" z="30.077554" />
+        <parameter name="surface_cp" u="0.4000" v="0.7500" x="-0.929248" y="2.853483" z="31.292532" />
+        <parameter name="surface_cp" u="0.4000" v="1.0000" x="-1.944449" y="2.913145" z="31.362900" />
+        <parameter name="surface_cp" u="0.5000" v="0.0000" x="3.807494" y="3.026696" z="32.414896" />
+        <parameter name="surface_cp" u="0.5000" v="0.2500" x="3.011472" y="2.884665" z="33.096609" />
+        <parameter name="surface_cp" u="0.5000" v="0.5000" x="1.359225" y="3.551638" z="35.285016" />
+        <parameter name="surface_cp" u="0.5000" v="0.7500" x="-0.691763" y="5.061403" z="35.402657" />
+        <parameter name="surface_cp" u="0.5000" v="1.0000" x="-1.830130" y="5.450560" z="35.390427" />
+        <parameter name="surface_cp" u="0.6000" v="0.0000" x="3.943527" y="5.275977" z="34.959646" />
+        <parameter name="surface_cp" u="0.6000" v="0.2500" x="3.411172" y="6.014033" z="35.917149" />
+        <parameter name="surface_cp" u="0.6000" v="0.5000" x="1.301978" y="7.103131" z="36.669881" />
+        <parameter name="surface_cp" u="0.6000" v="0.7500" x="-0.508026" y="8.640160" z="36.859167" />
+        <parameter name="surface_cp" u="0.6000" v="1.0000" x="-1.802274" y="8.974928" z="37.586120" />
+        <parameter name="surface_cp" u="0.7000" v="0.0000" x="4.530215" y="10.222711" z="38.211663" />
+        <parameter name="surface_cp" u="0.7000" v="0.2500" x="3.574798" y="11.043456" z="38.484256" />
+        <parameter name="surface_cp" u="0.7000" v="0.5000" x="1.430784" y="11.720841" z="38.822993" />
+        <parameter name="surface_cp" u="0.7000" v="0.7500" x="-0.593365" y="13.758093" z="39.360669" />
+        <parameter name="surface_cp" u="0.7000" v="1.0000" x="-1.796446" y="14.139247" z="38.919486" />
+        <parameter name="surface_cp" u="0.8000" v="0.0000" x="3.671158" y="15.376354" z="37.281238" />
+        <parameter name="surface_cp" u="0.8000" v="0.2500" x="3.049211" y="15.972159" z="37.019665" />
+        <parameter name="surface_cp" u="0.8000" v="0.5000" x="1.346593" y="17.876552" z="37.580149" />
+        <parameter name="surface_cp" u="0.8000" v="0.7500" x="-0.559837" y="19.734439" z="37.757147" />
+        <parameter name="surface_cp" u="0.8000" v="1.0000" x="-1.758268" y="20.148169" z="36.789487" />
+        <parameter name="surface_cp" u="0.9000" v="0.0000" x="3.054353" y="21.049988" z="35.332991" />
+        <parameter name="surface_cp" u="0.9000" v="0.2500" x="2.025686" y="21.945865" z="35.771703" />
+        <parameter name="surface_cp" u="0.9000" v="0.5000" x="1.715856" y="22.965965" z="35.678911" />
+        <parameter name="surface_cp" u="0.9000" v="0.7500" x="0.792505" y="24.105828" z="35.801013" />
+        <parameter name="surface_cp" u="0.9000" v="1.0000" x="0.138267" y="24.425005" z="35.704180" />
+        <parameter name="surface_cp" u="1.0000" v="0.0000" x="2.126960" y="24.840357" z="33.638835" />
+        <parameter name="surface_cp" u="1.0000" v="0.2500" x="2.148148" y="24.776893" z="34.277990" />
+        <parameter name="surface_cp" u="1.0000" v="0.5000" x="2.066902" y="24.661941" z="33.305489" />
+        <parameter name="surface_cp" u="1.0000" v="0.7500" x="1.452934" y="24.732449" z="34.196138" />
+        <parameter name="surface_cp" u="1.0000" v="1.0000" x="1.545601" y="24.824382" z="34.065120" />
+    </leaf>
+    <leaf name="maize_leaf_L11" subType="13">
+        <parameter name="geometryN" value="100" />
+        <parameter name="gf" value="3" />
+        <parameter name="isPseudostem" value="0" />
+        <parameter name="lnf" value="0" />
+        <parameter name="parametrisationType" value="1" />
+        <parameter name="shapeType" value="2" />
+        <parameter name="tropismT" value="1" />
+        <parameter name="BetaDev" value="0.02" />
+        <parameter name="InitBeta" value="1.104218215651644" />
+        <parameter name="RotBeta" value="0" />
+        <parameter name="a" value="0.04" />
+        <parameter name="dx" value="0.1" />
+        <parameter name="dxMin" value="1e-06" />
+        <parameter name="la" value="0" />
+        <parameter name="lb" value="0" />
+        <parameter name="ln" value="1" />
+        <parameter name="rlt" value="1e+09" />
+        <parameter name="tropismN" value="3" />
+        <parameter name="use_thermal_emergence" value="1" />
+        <parameter name="tt_emergence" value="636.9" />
+        <parameter name="ldelay" value="0" />
+        <parameter name="lmax" value="54.1" />
+        <parameter name="r" value="6.0" />
+        <parameter name="Width_blade" value="4.95" />
+        <parameter name="Width_petiole" value="1.485" />
+        <parameter name="areaMax" value="425.07100350000013" />
+        <parameter name="theta" value="0.723" dev="0.10844999999999999" />
+        <parameter name="tropismS" value="0.015333333333333332" dev="0.0046" />
+        <parameter name="tropismAge" value="12.0" />
+        <parameter name="leafGeometry" phi="-4.0" x="0.82" />
+        <parameter name="leafGeometry" phi="-3.2" x="0.82" />
+        <parameter name="leafGeometry" phi="-2.4" x="0.85" />
+        <parameter name="leafGeometry" phi="-1.6" x="0.90" />
+        <parameter name="leafGeometry" phi="-0.8" x="1.00" />
+        <parameter name="leafGeometry" phi="0.0" x="0.99" />
+        <parameter name="leafGeometry" phi="0.8" x="0.88" />
+        <parameter name="leafGeometry" phi="1.6" x="0.79" />
+        <parameter name="leafGeometry" phi="2.4" x="0.70" />
+        <parameter name="leafGeometry" phi="3.2" x="0.57" />
+        <parameter name="leafGeometry" phi="4.0" x="0.05" />
+        <parameter name="surface_n_u" value="11" />
+        <parameter name="surface_n_v" value="5" />
+        <parameter name="surface_deg_u" value="3" />
+        <parameter name="surface_deg_v" value="2" />
+        <parameter name="surface_cp" u="0.0000" v="0.0000" x="0.113342" y="0.011562" z="-0.368649" />
+        <parameter name="surface_cp" u="0.0000" v="0.2500" x="0.079427" y="0.015866" z="-0.232489" />
+        <parameter name="surface_cp" u="0.0000" v="0.5000" x="-0.000722" y="-0.008293" z="0.053685" />
+        <parameter name="surface_cp" u="0.0000" v="0.7500" x="-0.081384" y="-0.018942" z="0.239723" />
+        <parameter name="surface_cp" u="0.0000" v="1.0000" x="-0.121862" y="-0.051174" z="0.361206" />
+        <parameter name="surface_cp" u="0.1000" v="0.0000" x="0.863315" y="-0.060447" z="4.229108" />
+        <parameter name="surface_cp" u="0.1000" v="0.2500" x="0.545721" y="-0.052092" z="5.263827" />
+        <parameter name="surface_cp" u="0.1000" v="0.5000" x="0.003384" y="-0.010972" z="6.300872" />
+        <parameter name="surface_cp" u="0.1000" v="0.7500" x="-0.574548" y="0.057193" z="7.027876" />
+        <parameter name="surface_cp" u="0.1000" v="1.0000" x="-0.827193" y="0.091758" z="7.329992" />
+        <parameter name="surface_cp" u="0.2000" v="0.0000" x="1.978508" y="-0.280168" z="13.166934" />
+        <parameter name="surface_cp" u="0.2000" v="0.2500" x="1.368010" y="-0.164807" z="13.756120" />
+        <parameter name="surface_cp" u="0.2000" v="0.5000" x="-0.019472" y="-0.128039" z="16.352206" />
+        <parameter name="surface_cp" u="0.2000" v="0.7500" x="-1.352378" y="0.105849" z="17.841254" />
+        <parameter name="surface_cp" u="0.2000" v="1.0000" x="-2.043188" y="0.266637" z="18.282179" />
+        <parameter name="surface_cp" u="0.3000" v="0.0000" x="2.552631" y="-0.660828" z="22.327047" />
+        <parameter name="surface_cp" u="0.3000" v="0.2500" x="1.695312" y="-0.347576" z="23.135782" />
+        <parameter name="surface_cp" u="0.3000" v="0.5000" x="0.021128" y="-0.522603" z="24.654818" />
+        <parameter name="surface_cp" u="0.3000" v="0.7500" x="-1.503234" y="0.253390" z="27.101152" />
+        <parameter name="surface_cp" u="0.3000" v="1.0000" x="-2.399633" y="0.174138" z="27.523543" />
+        <parameter name="surface_cp" u="0.4000" v="0.0000" x="2.495905" y="-0.670731" z="28.814436" />
+        <parameter name="surface_cp" u="0.4000" v="0.2500" x="1.822369" y="-0.239874" z="29.084690" />
+        <parameter name="surface_cp" u="0.4000" v="0.5000" x="0.006446" y="0.340676" z="30.355826" />
+        <parameter name="surface_cp" u="0.4000" v="0.7500" x="-1.571773" y="0.354531" z="31.677247" />
+        <parameter name="surface_cp" u="0.4000" v="1.0000" x="-2.628122" y="0.868057" z="31.502433" />
+        <parameter name="surface_cp" u="0.5000" v="0.0000" x="2.544866" y="0.553119" z="33.769441" />
+        <parameter name="surface_cp" u="0.5000" v="0.2500" x="1.718218" y="0.703757" z="34.191973" />
+        <parameter name="surface_cp" u="0.5000" v="0.5000" x="-0.046925" y="1.459239" z="34.690611" />
+        <parameter name="surface_cp" u="0.5000" v="0.7500" x="-1.866999" y="1.608766" z="35.902460" />
+        <parameter name="surface_cp" u="0.5000" v="1.0000" x="-2.877824" y="1.855361" z="36.240428" />
+        <parameter name="surface_cp" u="0.6000" v="0.0000" x="2.579593" y="2.567898" z="37.213675" />
+        <parameter name="surface_cp" u="0.6000" v="0.2500" x="1.537239" y="2.522367" z="37.884544" />
+        <parameter name="surface_cp" u="0.6000" v="0.5000" x="-0.350212" y="2.987680" z="37.756885" />
+        <parameter name="surface_cp" u="0.6000" v="0.7500" x="-2.100559" y="3.826831" z="37.261003" />
+        <parameter name="surface_cp" u="0.6000" v="1.0000" x="-2.906350" y="4.839276" z="37.738905" />
+        <parameter name="surface_cp" u="0.7000" v="0.0000" x="2.085945" y="5.302367" z="37.733508" />
+        <parameter name="surface_cp" u="0.7000" v="0.2500" x="1.557689" y="6.411864" z="37.972733" />
+        <parameter name="surface_cp" u="0.7000" v="0.5000" x="-0.364181" y="6.950540" z="38.719869" />
+        <parameter name="surface_cp" u="0.7000" v="0.7500" x="-2.163974" y="7.660392" z="38.245277" />
+        <parameter name="surface_cp" u="0.7000" v="1.0000" x="-2.535313" y="7.786297" z="38.578726" />
+        <parameter name="surface_cp" u="0.8000" v="0.0000" x="2.665408" y="10.267176" z="38.796538" />
+        <parameter name="surface_cp" u="0.8000" v="0.2500" x="1.334911" y="10.537555" z="38.677486" />
+        <parameter name="surface_cp" u="0.8000" v="0.5000" x="-0.364912" y="12.130029" z="39.100390" />
+        <parameter name="surface_cp" u="0.8000" v="0.7500" x="-1.196331" y="12.582079" z="39.050144" />
+        <parameter name="surface_cp" u="0.8000" v="1.0000" x="-2.362268" y="12.521580" z="37.378568" />
+        <parameter name="surface_cp" u="0.9000" v="0.0000" x="1.365249" y="15.352662" z="37.768536" />
+        <parameter name="surface_cp" u="0.9000" v="0.2500" x="0.764430" y="15.714136" z="37.414384" />
+        <parameter name="surface_cp" u="0.9000" v="0.5000" x="-0.325799" y="15.850657" z="37.544258" />
+        <parameter name="surface_cp" u="0.9000" v="0.7500" x="-0.964948" y="16.023825" z="37.737978" />
+        <parameter name="surface_cp" u="0.9000" v="1.0000" x="-1.414424" y="16.096496" z="37.485694" />
+        <parameter name="surface_cp" u="1.0000" v="0.0000" x="0.130119" y="17.625235" z="36.102032" />
+        <parameter name="surface_cp" u="1.0000" v="0.2500" x="0.139497" y="17.448755" z="36.053430" />
+        <parameter name="surface_cp" u="1.0000" v="0.5000" x="0.062654" y="18.063245" z="36.444263" />
+        <parameter name="surface_cp" u="1.0000" v="0.7500" x="-0.123131" y="18.809493" z="36.209699" />
+        <parameter name="surface_cp" u="1.0000" v="1.0000" x="0.020833" y="18.514878" z="36.443108" />
+    </leaf>
+    <leaf name="maize_leaf_L12" subType="14">
+        <parameter name="geometryN" value="100" />
+        <parameter name="gf" value="3" />
+        <parameter name="isPseudostem" value="0" />
+        <parameter name="lnf" value="0" />
+        <parameter name="parametrisationType" value="1" />
+        <parameter name="shapeType" value="2" />
+        <parameter name="tropismT" value="1" />
+        <parameter name="BetaDev" value="0.02" />
+        <parameter name="InitBeta" value="0.11477522848001875" />
+        <parameter name="RotBeta" value="0" />
+        <parameter name="a" value="0.04" />
+        <parameter name="dx" value="0.1" />
+        <parameter name="dxMin" value="1e-06" />
+        <parameter name="la" value="0" />
+        <parameter name="lb" value="0" />
+        <parameter name="ln" value="1" />
+        <parameter name="rlt" value="1e+09" />
+        <parameter name="tropismN" value="3" />
+        <parameter name="use_thermal_emergence" value="1" />
+        <parameter name="tt_emergence" value="694.8" />
+        <parameter name="ldelay" value="0" />
         <parameter name="lmax" value="51.2" />
-        <parameter name="r" value="4.0" />
+        <parameter name="r" value="6.0" />
         <parameter name="Width_blade" value="4.4" />
         <parameter name="Width_petiole" value="1.32" />
-        <parameter name="areaMax" value="319.3674615883119" />
-        <parameter name="theta" value="0.4363323129985824" dev="0.06544984694978735" />
-        <parameter name="tropismS" value="0.009999999999999998" dev="0.0029999999999999996" />
-        <parameter name="tropismAge" value="12.2" />
-        <parameter name="leafGeometry" phi="-4.0" x="0.08" />
-        <parameter name="leafGeometry" phi="-2.7" x="0.40" />
-        <parameter name="leafGeometry" phi="-1.3" x="0.73" />
-        <parameter name="leafGeometry" phi="0.0" x="0.75" />
-        <parameter name="leafGeometry" phi="1.3" x="0.79" />
-        <parameter name="leafGeometry" phi="2.7" x="0.79" />
+        <parameter name="areaMax" value="350.0851200000001" />
+        <parameter name="theta" value="0.845" dev="0.12675" />
+        <parameter name="tropismS" value="0.013999999999999999" dev="0.0042" />
+        <parameter name="tropismAge" value="12.0" />
+        <parameter name="leafGeometry" phi="-4.0" x="0.82" />
+        <parameter name="leafGeometry" phi="-3.2" x="0.82" />
+        <parameter name="leafGeometry" phi="-2.4" x="0.86" />
+        <parameter name="leafGeometry" phi="-1.6" x="0.97" />
+        <parameter name="leafGeometry" phi="-0.8" x="1.00" />
+        <parameter name="leafGeometry" phi="0.0" x="0.91" />
+        <parameter name="leafGeometry" phi="0.8" x="0.82" />
+        <parameter name="leafGeometry" phi="1.6" x="0.75" />
+        <parameter name="leafGeometry" phi="2.4" x="0.68" />
+        <parameter name="leafGeometry" phi="3.2" x="0.54" />
         <parameter name="leafGeometry" phi="4.0" x="0.05" />
+        <parameter name="surface_n_u" value="11" />
+        <parameter name="surface_n_v" value="5" />
+        <parameter name="surface_deg_u" value="3" />
+        <parameter name="surface_deg_v" value="2" />
+        <parameter name="surface_cp" u="0.0000" v="0.0000" x="0.074374" y="0.046298" z="-0.377099" />
+        <parameter name="surface_cp" u="0.0000" v="0.2500" x="0.029316" y="0.012613" z="-0.274814" />
+        <parameter name="surface_cp" u="0.0000" v="0.5000" x="-0.004798" y="-0.012700" z="0.044458" />
+        <parameter name="surface_cp" u="0.0000" v="0.7500" x="-0.042991" y="-0.024979" z="0.258436" />
+        <parameter name="surface_cp" u="0.0000" v="1.0000" x="-0.032275" y="-0.023826" z="0.410360" />
+        <parameter name="surface_cp" u="0.1000" v="0.0000" x="0.712435" y="0.035200" z="3.301051" />
+        <parameter name="surface_cp" u="0.1000" v="0.2500" x="0.543657" y="0.043390" z="4.427257" />
+        <parameter name="surface_cp" u="0.1000" v="0.5000" x="-0.000739" y="0.008872" z="5.481125" />
+        <parameter name="surface_cp" u="0.1000" v="0.7500" x="-0.501338" y="-0.024808" z="6.150039" />
+        <parameter name="surface_cp" u="0.1000" v="1.0000" x="-0.810999" y="-0.077330" z="6.481142" />
+        <parameter name="surface_cp" u="0.2000" v="0.0000" x="1.805896" y="0.024246" z="11.210741" />
+        <parameter name="surface_cp" u="0.2000" v="0.2500" x="1.315645" y="0.128753" z="12.409217" />
+        <parameter name="surface_cp" u="0.2000" v="0.5000" x="0.010630" y="0.033999" z="14.314508" />
+        <parameter name="surface_cp" u="0.2000" v="0.7500" x="-1.044094" y="-0.017901" z="15.802293" />
+        <parameter name="surface_cp" u="0.2000" v="1.0000" x="-1.706776" y="-0.200471" z="16.272044" />
+        <parameter name="surface_cp" u="0.3000" v="0.0000" x="2.032728" y="-0.344756" z="18.911739" />
+        <parameter name="surface_cp" u="0.3000" v="0.2500" x="1.470307" y="-0.113131" z="20.230789" />
+        <parameter name="surface_cp" u="0.3000" v="0.5000" x="0.147576" y="0.058700" z="22.242716" />
+        <parameter name="surface_cp" u="0.3000" v="0.7500" x="-1.289828" y="0.185547" z="24.206023" />
+        <parameter name="surface_cp" u="0.3000" v="1.0000" x="-2.086276" y="-0.150898" z="25.433795" />
+        <parameter name="surface_cp" u="0.4000" v="0.0000" x="2.163906" y="0.002390" z="26.410063" />
+        <parameter name="surface_cp" u="0.4000" v="0.2500" x="1.487191" y="0.322375" z="27.161886" />
+        <parameter name="surface_cp" u="0.4000" v="0.5000" x="0.115983" y="0.402873" z="28.701891" />
+        <parameter name="surface_cp" u="0.4000" v="0.7500" x="-1.139603" y="0.630461" z="30.174339" />
+        <parameter name="surface_cp" u="0.4000" v="1.0000" x="-1.765439" y="0.514965" z="30.771100" />
+        <parameter name="surface_cp" u="0.5000" v="0.0000" x="2.540895" y="1.199120" z="31.737664" />
+        <parameter name="surface_cp" u="0.5000" v="0.2500" x="1.721974" y="0.979593" z="32.852589" />
+        <parameter name="surface_cp" u="0.5000" v="0.5000" x="0.137500" y="1.481918" z="34.352337" />
+        <parameter name="surface_cp" u="0.5000" v="0.7500" x="-1.007123" y="1.396982" z="35.742412" />
+        <parameter name="surface_cp" u="0.5000" v="1.0000" x="-1.577632" y="1.515175" z="36.487876" />
+        <parameter name="surface_cp" u="0.6000" v="0.0000" x="2.648911" y="2.388199" z="36.607596" />
+        <parameter name="surface_cp" u="0.6000" v="0.2500" x="1.843491" y="2.484151" z="37.772804" />
+        <parameter name="surface_cp" u="0.6000" v="0.5000" x="0.078987" y="2.790630" z="38.791868" />
+        <parameter name="surface_cp" u="0.6000" v="0.7500" x="-0.906902" y="3.037499" z="39.944585" />
+        <parameter name="surface_cp" u="0.6000" v="1.0000" x="-1.636149" y="3.352430" z="40.162837" />
+        <parameter name="surface_cp" u="0.7000" v="0.0000" x="2.720884" y="3.786888" z="39.790598" />
+        <parameter name="surface_cp" u="0.7000" v="0.2500" x="1.828886" y="4.474932" z="39.952277" />
+        <parameter name="surface_cp" u="0.7000" v="0.5000" x="0.492930" y="5.355459" z="41.099029" />
+        <parameter name="surface_cp" u="0.7000" v="0.7500" x="-0.762334" y="5.565745" z="41.633167" />
+        <parameter name="surface_cp" u="0.7000" v="1.0000" x="-1.518514" y="5.937279" z="42.221947" />
+        <parameter name="surface_cp" u="0.8000" v="0.0000" x="2.140660" y="6.641156" z="40.577356" />
+        <parameter name="surface_cp" u="0.8000" v="0.2500" x="1.464870" y="6.286115" z="41.010221" />
+        <parameter name="surface_cp" u="0.8000" v="0.5000" x="0.575784" y="8.220479" z="42.271915" />
+        <parameter name="surface_cp" u="0.8000" v="0.7500" x="-0.564945" y="8.693402" z="44.033965" />
+        <parameter name="surface_cp" u="0.8000" v="1.0000" x="-1.050412" y="9.546407" z="44.002386" />
+        <parameter name="surface_cp" u="0.9000" v="0.0000" x="1.376832" y="9.897024" z="40.970237" />
+        <parameter name="surface_cp" u="0.9000" v="0.2500" x="1.212562" y="10.246621" z="41.300501" />
+        <parameter name="surface_cp" u="0.9000" v="0.5000" x="0.568833" y="11.226235" z="42.436667" />
+        <parameter name="surface_cp" u="0.9000" v="0.7500" x="-0.180250" y="12.605900" z="43.353043" />
+        <parameter name="surface_cp" u="0.9000" v="1.0000" x="-0.547087" y="12.462415" z="43.662547" />
+        <parameter name="surface_cp" u="1.0000" v="0.0000" x="0.880727" y="13.718082" z="42.393846" />
+        <parameter name="surface_cp" u="1.0000" v="0.2500" x="0.721780" y="13.820755" z="42.304141" />
+        <parameter name="surface_cp" u="1.0000" v="0.5000" x="0.368795" y="13.730180" z="41.898715" />
+        <parameter name="surface_cp" u="1.0000" v="0.7500" x="0.328388" y="13.108248" z="41.626159" />
+        <parameter name="surface_cp" u="1.0000" v="1.0000" x="0.301651" y="13.087359" z="41.404670" />
     </leaf>
+    <leaf name="maize_leaf_L13" subType="15">
+        <parameter name="geometryN" value="100" />
+        <parameter name="gf" value="3" />
+        <parameter name="isPseudostem" value="0" />
+        <parameter name="lnf" value="0" />
+        <parameter name="parametrisationType" value="1" />
+        <parameter name="shapeType" value="2" />
+        <parameter name="tropismT" value="1" />
+        <parameter name="BetaDev" value="0.02" />
+        <parameter name="InitBeta" value="1.0872150715857012" />
+        <parameter name="RotBeta" value="0" />
+        <parameter name="a" value="0.04" />
+        <parameter name="dx" value="0.1" />
+        <parameter name="dxMin" value="1e-06" />
+        <parameter name="la" value="0" />
+        <parameter name="lb" value="0" />
+        <parameter name="ln" value="1" />
+        <parameter name="rlt" value="1e+09" />
+        <parameter name="tropismN" value="3" />
+        <parameter name="use_thermal_emergence" value="1" />
+        <parameter name="tt_emergence" value="752.6999999999999" />
+        <parameter name="ldelay" value="0" />
+        <parameter name="lmax" value="50.1" />
+        <parameter name="r" value="6.0" />
+        <parameter name="Width_blade" value="4.75" />
+        <parameter name="Width_petiole" value="1.425" />
+        <parameter name="areaMax" value="373.04961000000003" />
+        <parameter name="theta" value="0.767" dev="0.11505" />
+        <parameter name="tropismS" value="0.012666666666666663" dev="0.0037999999999999987" />
+        <parameter name="tropismAge" value="12.0" />
+        <parameter name="leafGeometry" phi="-4.0" x="0.80" />
+        <parameter name="leafGeometry" phi="-3.2" x="0.81" />
+        <parameter name="leafGeometry" phi="-2.4" x="0.84" />
+        <parameter name="leafGeometry" phi="-1.6" x="0.90" />
+        <parameter name="leafGeometry" phi="-0.8" x="1.00" />
+        <parameter name="leafGeometry" phi="0.0" x="1.00" />
+        <parameter name="leafGeometry" phi="0.8" x="0.88" />
+        <parameter name="leafGeometry" phi="1.6" x="0.77" />
+        <parameter name="leafGeometry" phi="2.4" x="0.68" />
+        <parameter name="leafGeometry" phi="3.2" x="0.55" />
+        <parameter name="leafGeometry" phi="4.0" x="0.05" />
+        <parameter name="surface_n_u" value="11" />
+        <parameter name="surface_n_v" value="5" />
+        <parameter name="surface_deg_u" value="3" />
+        <parameter name="surface_deg_v" value="2" />
+        <parameter name="surface_cp" u="0.0000" v="0.0000" x="0.090915" y="0.065715" z="-0.370824" />
+        <parameter name="surface_cp" u="0.0000" v="0.2500" x="0.063267" y="0.029831" z="-0.244544" />
+        <parameter name="surface_cp" u="0.0000" v="0.5000" x="0.011959" y="-0.007865" z="0.042590" />
+        <parameter name="surface_cp" u="0.0000" v="0.7500" x="-0.069695" y="-0.048374" z="0.241493" />
+        <parameter name="surface_cp" u="0.0000" v="1.0000" x="-0.103387" y="-0.042893" z="0.355518" />
+        <parameter name="surface_cp" u="0.1000" v="0.0000" x="0.723446" y="0.025781" z="3.164331" />
+        <parameter name="surface_cp" u="0.1000" v="0.2500" x="0.449083" y="0.008882" z="4.095652" />
+        <parameter name="surface_cp" u="0.1000" v="0.5000" x="-0.012294" y="-0.014812" z="4.981900" />
+        <parameter name="surface_cp" u="0.1000" v="0.7500" x="-0.482244" y="-0.017453" z="5.807378" />
+        <parameter name="surface_cp" u="0.1000" v="1.0000" x="-0.648256" y="0.065114" z="6.615051" />
+        <parameter name="surface_cp" u="0.2000" v="0.0000" x="1.812117" y="0.472806" z="10.335306" />
+        <parameter name="surface_cp" u="0.2000" v="0.2500" x="1.114308" y="0.216547" z="11.491520" />
+        <parameter name="surface_cp" u="0.2000" v="0.5000" x="0.040384" y="-0.100707" z="12.868041" />
+        <parameter name="surface_cp" u="0.2000" v="0.7500" x="-0.991439" y="-0.005392" z="14.917483" />
+        <parameter name="surface_cp" u="0.2000" v="1.0000" x="-1.362448" y="0.036280" z="16.109775" />
+        <parameter name="surface_cp" u="0.3000" v="0.0000" x="2.515479" y="-0.239767" z="18.760852" />
+        <parameter name="surface_cp" u="0.3000" v="0.2500" x="1.463450" y="-0.299847" z="19.806776" />
+        <parameter name="surface_cp" u="0.3000" v="0.5000" x="0.177466" y="-0.309946" z="20.700888" />
+        <parameter name="surface_cp" u="0.3000" v="0.7500" x="-0.912894" y="-0.300661" z="21.894575" />
+        <parameter name="surface_cp" u="0.3000" v="1.0000" x="-1.470571" y="-0.357402" z="23.141973" />
+        <parameter name="surface_cp" u="0.4000" v="0.0000" x="2.461238" y="-0.810368" z="23.684921" />
+        <parameter name="surface_cp" u="0.4000" v="0.2500" x="1.887110" y="-0.397080" z="24.937712" />
+        <parameter name="surface_cp" u="0.4000" v="0.5000" x="0.335913" y="-0.308722" z="26.505724" />
+        <parameter name="surface_cp" u="0.4000" v="0.7500" x="-1.182398" y="0.235549" z="28.129252" />
+        <parameter name="surface_cp" u="0.4000" v="1.0000" x="-1.802617" y="0.588915" z="28.666849" />
+        <parameter name="surface_cp" u="0.5000" v="0.0000" x="2.142697" y="-0.050845" z="27.746769" />
+        <parameter name="surface_cp" u="0.5000" v="0.2500" x="1.161696" y="0.616927" z="28.884984" />
+        <parameter name="surface_cp" u="0.5000" v="0.5000" x="-0.115703" y="0.744462" z="30.620549" />
+        <parameter name="surface_cp" u="0.5000" v="0.7500" x="-1.406330" y="1.814803" z="32.186209" />
+        <parameter name="surface_cp" u="0.5000" v="1.0000" x="-2.153378" y="2.263365" z="33.283355" />
+        <parameter name="surface_cp" u="0.6000" v="0.0000" x="2.026849" y="1.248134" z="32.944237" />
+        <parameter name="surface_cp" u="0.6000" v="0.2500" x="1.118647" y="1.140840" z="33.992030" />
+        <parameter name="surface_cp" u="0.6000" v="0.5000" x="-0.783397" y="2.188918" z="34.895595" />
+        <parameter name="surface_cp" u="0.6000" v="0.7500" x="-1.839843" y="3.409239" z="35.453358" />
+        <parameter name="surface_cp" u="0.6000" v="1.0000" x="-2.758956" y="3.571491" z="36.896884" />
+        <parameter name="surface_cp" u="0.7000" v="0.0000" x="1.634035" y="2.022266" z="37.665124" />
+        <parameter name="surface_cp" u="0.7000" v="0.2500" x="0.777704" y="3.360889" z="38.459893" />
+        <parameter name="surface_cp" u="0.7000" v="0.5000" x="-0.331714" y="4.064702" z="39.299820" />
+        <parameter name="surface_cp" u="0.7000" v="0.7500" x="-2.708503" y="4.857760" z="40.052003" />
+        <parameter name="surface_cp" u="0.7000" v="1.0000" x="-3.447765" y="5.833719" z="40.021029" />
+        <parameter name="surface_cp" u="0.8000" v="0.0000" x="0.464449" y="5.843990" z="41.010392" />
+        <parameter name="surface_cp" u="0.8000" v="0.2500" x="-0.268674" y="6.410791" z="40.958296" />
+        <parameter name="surface_cp" u="0.8000" v="0.5000" x="-1.257048" y="7.428875" z="40.105995" />
+        <parameter name="surface_cp" u="0.8000" v="0.7500" x="-2.629173" y="8.736112" z="38.637402" />
+        <parameter name="surface_cp" u="0.8000" v="1.0000" x="-2.857496" y="9.231859" z="38.379442" />
+        <parameter name="surface_cp" u="0.9000" v="0.0000" x="-0.280004" y="8.556730" z="38.378981" />
+        <parameter name="surface_cp" u="0.9000" v="0.2500" x="-1.127478" y="8.721282" z="38.426978" />
+        <parameter name="surface_cp" u="0.9000" v="0.5000" x="-1.490103" y="9.709725" z="38.388054" />
+        <parameter name="surface_cp" u="0.9000" v="0.7500" x="-1.807383" y="10.656750" z="37.316211" />
+        <parameter name="surface_cp" u="0.9000" v="1.0000" x="-2.006979" y="11.592046" z="36.813892" />
+        <parameter name="surface_cp" u="1.0000" v="0.0000" x="-0.955754" y="12.348400" z="37.779669" />
+        <parameter name="surface_cp" u="1.0000" v="0.2500" x="-1.051370" y="12.380600" z="37.585517" />
+        <parameter name="surface_cp" u="1.0000" v="0.5000" x="-1.201668" y="12.902734" z="36.880670" />
+        <parameter name="surface_cp" u="1.0000" v="0.7500" x="-1.453024" y="13.100180" z="36.698968" />
+        <parameter name="surface_cp" u="1.0000" v="1.0000" x="-1.629232" y="13.036559" z="36.459095" />
+    </leaf>
+    <leaf name="maize_leaf_L14" subType="16">
+        <parameter name="geometryN" value="100" />
+        <parameter name="gf" value="3" />
+        <parameter name="isPseudostem" value="0" />
+        <parameter name="lnf" value="0" />
+        <parameter name="parametrisationType" value="1" />
+        <parameter name="shapeType" value="2" />
+        <parameter name="tropismT" value="1" />
+        <parameter name="BetaDev" value="0.02" />
+        <parameter name="InitBeta" value="0.10252555409809336" />
+        <parameter name="RotBeta" value="0" />
+        <parameter name="a" value="0.04" />
+        <parameter name="dx" value="0.1" />
+        <parameter name="dxMin" value="1e-06" />
+        <parameter name="la" value="0" />
+        <parameter name="lb" value="0" />
+        <parameter name="ln" value="1" />
+        <parameter name="rlt" value="1e+09" />
+        <parameter name="tropismN" value="3" />
+        <parameter name="use_thermal_emergence" value="1" />
+        <parameter name="tt_emergence" value="810.6" />
+        <parameter name="ldelay" value="0" />
+        <parameter name="lmax" value="50.0" />
+        <parameter name="r" value="6.0" />
+        <parameter name="Width_blade" value="4.85" />
+        <parameter name="Width_petiole" value="1.4549999999999998" />
+        <parameter name="areaMax" value="371.75249999999994" />
+        <parameter name="theta" value="0.624" dev="0.0936" />
+        <parameter name="tropismS" value="0.01133333333333333" dev="0.003399999999999999" />
+        <parameter name="tropismAge" value="12.0" />
+        <parameter name="leafGeometry" phi="-4.0" x="0.75" />
+        <parameter name="leafGeometry" phi="-3.2" x="0.77" />
+        <parameter name="leafGeometry" phi="-2.4" x="0.80" />
+        <parameter name="leafGeometry" phi="-1.6" x="0.83" />
+        <parameter name="leafGeometry" phi="-0.8" x="0.90" />
+        <parameter name="leafGeometry" phi="0.0" x="1.00" />
+        <parameter name="leafGeometry" phi="0.8" x="0.94" />
+        <parameter name="leafGeometry" phi="1.6" x="0.81" />
+        <parameter name="leafGeometry" phi="2.4" x="0.69" />
+        <parameter name="leafGeometry" phi="3.2" x="0.53" />
+        <parameter name="leafGeometry" phi="4.0" x="0.05" />
+        <parameter name="surface_n_u" value="11" />
+        <parameter name="surface_n_v" value="5" />
+        <parameter name="surface_deg_u" value="3" />
+        <parameter name="surface_deg_v" value="2" />
+        <parameter name="surface_cp" u="0.0000" v="0.0000" x="0.046514" y="0.025687" z="-0.261676" />
+        <parameter name="surface_cp" u="0.0000" v="0.2500" x="0.060555" y="0.016723" z="-0.173643" />
+        <parameter name="surface_cp" u="0.0000" v="0.5000" x="0.007854" y="-0.012974" z="0.029675" />
+        <parameter name="surface_cp" u="0.0000" v="0.7500" x="-0.055657" y="-0.009551" z="0.157301" />
+        <parameter name="surface_cp" u="0.0000" v="1.0000" x="-0.111582" y="-0.033552" z="0.248072" />
+        <parameter name="surface_cp" u="0.1000" v="0.0000" x="0.826925" y="-0.059545" z="4.569872" />
+        <parameter name="surface_cp" u="0.1000" v="0.2500" x="0.613474" y="0.017379" z="4.970652" />
+        <parameter name="surface_cp" u="0.1000" v="0.5000" x="-0.000125" y="0.035324" z="5.066425" />
+        <parameter name="surface_cp" u="0.1000" v="0.7500" x="-0.511230" y="0.037400" z="5.854448" />
+        <parameter name="surface_cp" u="0.1000" v="1.0000" x="-0.889074" y="-0.021306" z="6.353968" />
+        <parameter name="surface_cp" u="0.2000" v="0.0000" x="2.217954" y="-0.131640" z="12.167722" />
+        <parameter name="surface_cp" u="0.2000" v="0.2500" x="1.322540" y="0.005620" z="12.836650" />
+        <parameter name="surface_cp" u="0.2000" v="0.5000" x="0.117823" y="0.015921" z="12.447239" />
+        <parameter name="surface_cp" u="0.2000" v="0.7500" x="-1.154773" y="0.285267" z="15.809662" />
+        <parameter name="surface_cp" u="0.2000" v="1.0000" x="-2.113085" y="0.288836" z="16.529132" />
+        <parameter name="surface_cp" u="0.3000" v="0.0000" x="1.806572" y="-0.465194" z="18.444167" />
+        <parameter name="surface_cp" u="0.3000" v="0.2500" x="1.602747" y="-0.299463" z="18.043808" />
+        <parameter name="surface_cp" u="0.3000" v="0.5000" x="-0.006078" y="0.293471" z="22.027355" />
+        <parameter name="surface_cp" u="0.3000" v="0.7500" x="-1.128347" y="1.211061" z="23.756388" />
+        <parameter name="surface_cp" u="0.3000" v="1.0000" x="-1.753949" y="1.314799" z="23.852367" />
+        <parameter name="surface_cp" u="0.4000" v="0.0000" x="1.635285" y="-0.656310" z="24.211468" />
+        <parameter name="surface_cp" u="0.4000" v="0.2500" x="1.185597" y="-0.268578" z="25.001689" />
+        <parameter name="surface_cp" u="0.4000" v="0.5000" x="-0.141751" y="0.989387" z="28.982239" />
+        <parameter name="surface_cp" u="0.4000" v="0.7500" x="-1.418306" y="1.437431" z="30.265370" />
+        <parameter name="surface_cp" u="0.4000" v="1.0000" x="-2.122673" y="1.732258" z="31.304907" />
+        <parameter name="surface_cp" u="0.5000" v="0.0000" x="2.136106" y="-0.097621" z="29.759231" />
+        <parameter name="surface_cp" u="0.5000" v="0.2500" x="1.200661" y="1.107677" z="31.238592" />
+        <parameter name="surface_cp" u="0.5000" v="0.5000" x="-0.384206" y="1.367886" z="32.599105" />
+        <parameter name="surface_cp" u="0.5000" v="0.7500" x="-1.771267" y="1.475890" z="34.491130" />
+        <parameter name="surface_cp" u="0.5000" v="1.0000" x="-2.234928" y="1.877346" z="34.626334" />
+        <parameter name="surface_cp" u="0.6000" v="0.0000" x="2.185649" y="2.549726" z="33.960666" />
+        <parameter name="surface_cp" u="0.6000" v="0.2500" x="1.084507" y="2.710271" z="34.270505" />
+        <parameter name="surface_cp" u="0.6000" v="0.5000" x="-0.587959" y="3.096518" z="34.503219" />
+        <parameter name="surface_cp" u="0.6000" v="0.7500" x="-1.708320" y="3.671022" z="32.913251" />
+        <parameter name="surface_cp" u="0.6000" v="1.0000" x="-2.041282" y="3.687963" z="32.458366" />
+        <parameter name="surface_cp" u="0.7000" v="0.0000" x="2.374477" y="6.412202" z="38.219282" />
+        <parameter name="surface_cp" u="0.7000" v="0.2500" x="1.723411" y="6.050322" z="37.423664" />
+        <parameter name="surface_cp" u="0.7000" v="0.5000" x="0.078749" y="6.792635" z="37.493447" />
+        <parameter name="surface_cp" u="0.7000" v="0.7500" x="-0.669110" y="5.498424" z="37.245307" />
+        <parameter name="surface_cp" u="0.7000" v="1.0000" x="-1.222338" y="5.263645" z="36.464669" />
+        <parameter name="surface_cp" u="0.8000" v="0.0000" x="2.611128" y="8.296388" z="40.651302" />
+        <parameter name="surface_cp" u="0.8000" v="0.2500" x="1.879902" y="9.737944" z="40.881017" />
+        <parameter name="surface_cp" u="0.8000" v="0.5000" x="0.815615" y="10.656209" z="38.578531" />
+        <parameter name="surface_cp" u="0.8000" v="0.7500" x="-0.764445" y="10.911109" z="37.089243" />
+        <parameter name="surface_cp" u="0.8000" v="1.0000" x="-1.164485" y="11.130978" z="35.577360" />
+        <parameter name="surface_cp" u="0.9000" v="0.0000" x="0.367094" y="10.299091" z="38.773130" />
+        <parameter name="surface_cp" u="0.9000" v="0.2500" x="0.243662" y="11.049534" z="39.164729" />
+        <parameter name="surface_cp" u="0.9000" v="0.5000" x="0.396936" y="12.842665" z="39.416539" />
+        <parameter name="surface_cp" u="0.9000" v="0.7500" x="-0.059638" y="15.028545" z="37.272336" />
+        <parameter name="surface_cp" u="0.9000" v="1.0000" x="-0.177662" y="15.472372" z="35.929092" />
+        <parameter name="surface_cp" u="1.0000" v="0.0000" x="-0.579062" y="11.574799" z="36.417402" />
+        <parameter name="surface_cp" u="1.0000" v="0.2500" x="-0.456094" y="11.860012" z="36.410762" />
+        <parameter name="surface_cp" u="1.0000" v="0.5000" x="-0.223877" y="12.392809" z="35.979719" />
+        <parameter name="surface_cp" u="1.0000" v="0.7500" x="-0.158468" y="13.132037" z="35.591602" />
+        <parameter name="surface_cp" u="1.0000" v="1.0000" x="-0.186990" y="13.631239" z="35.392153" />
+    </leaf>
+    <leaf name="maize_leaf_L15" subType="17">
+        <parameter name="geometryN" value="100" />
+        <parameter name="gf" value="3" />
+        <parameter name="isPseudostem" value="0" />
+        <parameter name="lnf" value="0" />
+        <parameter name="parametrisationType" value="1" />
+        <parameter name="shapeType" value="2" />
+        <parameter name="tropismT" value="1" />
+        <parameter name="BetaDev" value="0.02" />
+        <parameter name="InitBeta" value="1.102595755993486" />
+        <parameter name="RotBeta" value="0" />
+        <parameter name="a" value="0.04" />
+        <parameter name="dx" value="0.1" />
+        <parameter name="dxMin" value="1e-06" />
+        <parameter name="la" value="0" />
+        <parameter name="lb" value="0" />
+        <parameter name="ln" value="1" />
+        <parameter name="rlt" value="1e+09" />
+        <parameter name="tropismN" value="3" />
+        <parameter name="use_thermal_emergence" value="1" />
+        <parameter name="tt_emergence" value="868.5" />
+        <parameter name="ldelay" value="0" />
+        <parameter name="lmax" value="44.4" />
+        <parameter name="r" value="6.0" />
+        <parameter name="Width_blade" value="4.7" />
+        <parameter name="Width_petiole" value="1.41" />
+        <parameter name="areaMax" value="316.65103200000004" />
+        <parameter name="theta" value="0.911" dev="0.13665" />
+        <parameter name="tropismS" value="0.009999999999999998" dev="0.0029999999999999996" />
+        <parameter name="tropismAge" value="12.0" />
+        <parameter name="leafGeometry" phi="-4.0" x="0.86" />
+        <parameter name="leafGeometry" phi="-3.2" x="0.89" />
+        <parameter name="leafGeometry" phi="-2.4" x="1.00" />
+        <parameter name="leafGeometry" phi="-1.6" x="0.97" />
+        <parameter name="leafGeometry" phi="-0.8" x="0.90" />
+        <parameter name="leafGeometry" phi="0.0" x="0.83" />
+        <parameter name="leafGeometry" phi="0.8" x="0.77" />
+        <parameter name="leafGeometry" phi="1.6" x="0.70" />
+        <parameter name="leafGeometry" phi="2.4" x="0.62" />
+        <parameter name="leafGeometry" phi="3.2" x="0.46" />
+        <parameter name="leafGeometry" phi="4.0" x="0.05" />
+        <parameter name="surface_n_u" value="11" />
+        <parameter name="surface_n_v" value="5" />
+        <parameter name="surface_deg_u" value="3" />
+        <parameter name="surface_deg_v" value="2" />
+        <parameter name="surface_cp" u="0.0000" v="0.0000" x="-0.033062" y="-0.037547" z="-0.414938" />
+        <parameter name="surface_cp" u="0.0000" v="0.2500" x="-0.075501" y="-0.014934" z="-0.292681" />
+        <parameter name="surface_cp" u="0.0000" v="0.5000" x="0.015603" y="0.008683" z="0.045805" />
+        <parameter name="surface_cp" u="0.0000" v="0.7500" x="0.028439" y="0.027855" z="0.281348" />
+        <parameter name="surface_cp" u="0.0000" v="1.0000" x="0.132465" y="0.002436" z="0.428385" />
+        <parameter name="surface_cp" u="0.1000" v="0.0000" x="0.570192" y="0.502406" z="3.014168" />
+        <parameter name="surface_cp" u="0.1000" v="0.2500" x="0.361182" y="0.305826" z="3.538202" />
+        <parameter name="surface_cp" u="0.1000" v="0.5000" x="0.013985" y="0.063939" z="4.331274" />
+        <parameter name="surface_cp" u="0.1000" v="0.7500" x="-0.383266" y="-0.357690" z="5.726115" />
+        <parameter name="surface_cp" u="0.1000" v="1.0000" x="-0.495800" y="-0.513048" z="5.299413" />
+        <parameter name="surface_cp" u="0.2000" v="0.0000" x="1.207569" y="0.500440" z="8.009287" />
+        <parameter name="surface_cp" u="0.2000" v="0.2500" x="0.747717" y="0.426326" z="8.803926" />
+        <parameter name="surface_cp" u="0.2000" v="0.5000" x="0.487766" y="-0.150558" z="10.992558" />
+        <parameter name="surface_cp" u="0.2000" v="0.7500" x="-0.203423" y="-0.262728" z="14.019280" />
+        <parameter name="surface_cp" u="0.2000" v="1.0000" x="-0.721916" y="-1.076252" z="15.281891" />
+        <parameter name="surface_cp" u="0.3000" v="0.0000" x="1.065118" y="-0.108062" z="13.657415" />
+        <parameter name="surface_cp" u="0.3000" v="0.2500" x="1.913197" y="-0.591460" z="16.119696" />
+        <parameter name="surface_cp" u="0.3000" v="0.5000" x="1.289920" y="-0.421833" z="15.882638" />
+        <parameter name="surface_cp" u="0.3000" v="0.7500" x="0.670895" y="-0.444873" z="16.798412" />
+        <parameter name="surface_cp" u="0.3000" v="1.0000" x="0.153401" y="-1.325630" z="17.455633" />
+        <parameter name="surface_cp" u="0.4000" v="0.0000" x="1.144435" y="-0.409611" z="19.014786" />
+        <parameter name="surface_cp" u="0.4000" v="0.2500" x="2.988758" y="-1.189714" z="20.918118" />
+        <parameter name="surface_cp" u="0.4000" v="0.5000" x="1.607714" y="-1.204644" z="20.929629" />
+        <parameter name="surface_cp" u="0.4000" v="0.7500" x="0.502343" y="-0.086082" z="19.284411" />
+        <parameter name="surface_cp" u="0.4000" v="1.0000" x="-0.239799" y="0.196313" z="20.707836" />
+        <parameter name="surface_cp" u="0.5000" v="0.0000" x="1.086711" y="0.418344" z="25.018080" />
+        <parameter name="surface_cp" u="0.5000" v="0.2500" x="2.499066" y="1.202443" z="26.432680" />
+        <parameter name="surface_cp" u="0.5000" v="0.5000" x="1.433624" y="1.105170" z="25.718353" />
+        <parameter name="surface_cp" u="0.5000" v="0.7500" x="-0.045887" y="0.388166" z="25.223103" />
+        <parameter name="surface_cp" u="0.5000" v="1.0000" x="0.003103" y="2.071151" z="26.096920" />
+        <parameter name="surface_cp" u="0.6000" v="0.0000" x="1.584226" y="1.187087" z="25.142477" />
+        <parameter name="surface_cp" u="0.6000" v="0.2500" x="1.750173" y="1.634321" z="25.601729" />
+        <parameter name="surface_cp" u="0.6000" v="0.5000" x="1.636761" y="2.456430" z="25.907359" />
+        <parameter name="surface_cp" u="0.6000" v="0.7500" x="-0.266124" y="4.073082" z="26.502737" />
+        <parameter name="surface_cp" u="0.6000" v="1.0000" x="-0.191521" y="4.243810" z="29.220591" />
+        <parameter name="surface_cp" u="0.7000" v="0.0000" x="2.385714" y="5.743032" z="26.927993" />
+        <parameter name="surface_cp" u="0.7000" v="0.2500" x="2.215281" y="5.051799" z="27.966003" />
+        <parameter name="surface_cp" u="0.7000" v="0.5000" x="2.470265" y="4.181528" z="30.334448" />
+        <parameter name="surface_cp" u="0.7000" v="0.7500" x="1.479659" y="5.075778" z="32.188113" />
+        <parameter name="surface_cp" u="0.7000" v="1.0000" x="1.081141" y="4.562573" z="31.677466" />
+        <parameter name="surface_cp" u="0.8000" v="0.0000" x="4.643897" y="8.278645" z="30.945804" />
+        <parameter name="surface_cp" u="0.8000" v="0.2500" x="4.012318" y="7.975306" z="33.942642" />
+        <parameter name="surface_cp" u="0.8000" v="0.5000" x="3.110360" y="7.509931" z="35.247930" />
+        <parameter name="surface_cp" u="0.8000" v="0.7500" x="2.264301" y="6.324516" z="36.034108" />
+        <parameter name="surface_cp" u="0.8000" v="1.0000" x="2.057662" y="6.774692" z="34.483876" />
+        <parameter name="surface_cp" u="0.9000" v="0.0000" x="3.340106" y="9.110420" z="35.955971" />
+        <parameter name="surface_cp" u="0.9000" v="0.2500" x="3.099559" y="8.862474" z="34.455896" />
+        <parameter name="surface_cp" u="0.9000" v="0.5000" x="2.673787" y="9.659846" z="36.201833" />
+        <parameter name="surface_cp" u="0.9000" v="0.7500" x="2.303335" y="9.444708" z="39.364273" />
+        <parameter name="surface_cp" u="0.9000" v="1.0000" x="2.293647" y="9.933634" z="39.767116" />
+        <parameter name="surface_cp" u="1.0000" v="0.0000" x="2.055083" y="10.985825" z="39.684155" />
+        <parameter name="surface_cp" u="1.0000" v="0.2500" x="2.058712" y="10.946695" z="39.603662" />
+        <parameter name="surface_cp" u="1.0000" v="0.5000" x="2.079095" y="10.820043" z="39.415838" />
+        <parameter name="surface_cp" u="1.0000" v="0.7500" x="2.230477" y="10.645000" z="39.201178" />
+        <parameter name="surface_cp" u="1.0000" v="1.0000" x="2.355304" y="10.533282" z="39.080430" />
+    </leaf>
+    <stem name="tassel_spike" subType="20">
+        <parameter name="gf" value="1" />
+        <parameter name="lnf" value="0" />
+        <parameter name="nodalGrowth" value="1" />
+        <parameter name="tropismT" value="1" />
+        <parameter name="BetaDev" value="0.07" />
+        <parameter name="InitBeta" value="0" />
+        <parameter name="RotBeta" value="1.0" />
+        <parameter name="a" value="0.25" dev="0.025" />
+        <parameter name="delayNGEnd" value="0" />
+        <parameter name="delayNGStart" value="0" />
+        <parameter name="dx" value="0.1" />
+        <parameter name="dxMin" value="1e-06" />
+        <parameter name="la" value="18.0" />
+        <parameter name="lb" value="14.0" />
+        <parameter name="ldelay" value="-1" />
+        <parameter name="lmax" value="40.0" dev="2.0" />
+        <parameter name="ln" value="0.7" dev="0.08" />
+        <parameter name="r" value="5.0" dev="0.5" />
+        <parameter name="rlt" value="1e+09" />
+        <parameter name="theta" value="0" />
+        <parameter name="tropismAge" value="0" />
+        <parameter name="tropismN" value="1.5" />
+        <parameter name="tropismS" value="0.02" />
+        <parameter name="use_thermal_emergence" value="1" />
+        <parameter name="tt_emergence" value="1200" />
+        <parameter name="successor" ruleId="0" numLat="1" Where="" subType="21" organType="3" percentage="1" />
+    </stem>
+    <stem name="tassel_branch" subType="21">
+        <parameter name="gf" value="1" />
+        <parameter name="lnf" value="0" />
+        <parameter name="nodalGrowth" value="1" />
+        <parameter name="tropismT" value="1" />
+        <parameter name="BetaDev" value="0.18" />
+        <parameter name="InitBeta" value="0" />
+        <parameter name="RotBeta" value="0.764" />
+        <parameter name="a" value="0.11" dev="0.015" />
+        <parameter name="delayNGEnd" value="0" />
+        <parameter name="delayNGStart" value="0" />
+        <parameter name="dx" value="0.1" />
+        <parameter name="dxMin" value="1e-06" />
+        <parameter name="la" value="1.0" />
+        <parameter name="lb" value="0.5" />
+        <parameter name="ldelay" value="-1" />
+        <parameter name="lmax" value="15.0" dev="1.5" />
+        <parameter name="ln" value="1.0" />
+        <parameter name="r" value="2.5" dev="0.25" />
+        <parameter name="rlt" value="1e+09" />
+        <parameter name="theta" value="0.72" dev="0.12" />
+        <parameter name="tropismAge" value="0" />
+        <parameter name="tropismN" value="2" />
+        <parameter name="tropismS" value="0.1" />
+    </stem>
+
 </plant>

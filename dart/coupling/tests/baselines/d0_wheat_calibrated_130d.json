@@ -1,0 +1,16 @@
+{
+  "n_leaf_nodes": 3764,
+  "n_leaves": 40,
+  "n_mainstem_nodes": 101,
+  "n_organs": 518,
+  "n_root_nodes": 2986,
+  "n_roots": 473,
+  "n_segments_total": 6737,
+  "n_stems": 5,
+  "seed": 7,
+  "sha256": "c42aa7bffcdf3ed5891a9391fff5c83805b02dd7f103873050e857eebcd4ee70",
+  "sim_days": 130,
+  "slug": "wheat_calibrated_130d",
+  "use_daily_met": true,
+  "xml": "dart/coupling/data/wheat_calibrated.xml"
+}

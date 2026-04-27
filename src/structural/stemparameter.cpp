@@ -256,7 +256,16 @@ default:
 
 
 
-    return std::make_shared<StemSpecificParameter>(subType,lb_,la_,ln_,r_,a_,theta_,rlt_,hasLaterals, this->nodalGrowth, delayNGStart_, delayNGEnd_, ldelay_);
+    auto sp = std::make_shared<StemSpecificParameter>(subType,lb_,la_,ln_,r_,a_,theta_,rlt_,hasLaterals, this->nodalGrowth, delayNGStart_, delayNGEnd_, ldelay_);
+
+    // Fournier-Andrieu kinetics pass-through (no RNG pulls — Hard Invariant #5
+    // preserved: flag and vectors copy as literals; when flag=false the
+    // downstream Stem::simulate path never consults these fields).
+    sp->use_fournier_andrieu_kinetics = this->use_fournier_andrieu_kinetics;
+    sp->internode_v_n = this->internode_v_n;
+    sp->internode_D_n = this->internode_D_n;
+    sp->internode_IL_final = this->internode_IL_final;
+    return sp;
 }
 
 
@@ -312,6 +321,12 @@ void StemRandomParameter::bindParameters()
     bindParameter("delayNGStart", &delayNGStart, "delay between stem creation and start of nodal growth", &delayNGStarts);
     bindParameter("delayNGEnd", &delayNGEnd, "delay between stem creation and start of nodal growth", &delayNGEnds);
     bindParameter("ldelay", &ldelay, "delay between latteral creation and start of nodal growth", &ldelays);
+    bindParameter("use_thermal_emergence", &use_thermal_emergence, "Use thermal-time gated emergence [0/1]");
+    bindParameter("tt_emergence", &tt_emergence, "Thermal-time emergence threshold [degCd], <0 disables");
+    bindParameter("use_thermal_cessation", &use_thermal_cessation, "Use thermal-time cessation (freezes nodal growth at VT) [0/1]");
+    bindParameter("tt_cessation", &tt_cessation, "Thermal-time cessation threshold [degCd], <0 disables");
+    bindParameter("plastochron_andrieu", &plastochron_andrieu, "Plastochron on Andrieu Tb=9.8 axis [degCd/rank] (FA 2000 Déa ~23)");
+    bindParameter("basal_internode_cm", &basal_internode_cm, "Fixed internode spacing for basal_zero_ranks [cm]");
 }
 
 } // end namespace CPlantBox

@@ -59,11 +59,57 @@ public:
 	std::shared_ptr<LeafRandomParameter> getLeafRandomParameter() const;  ///< root type parameter of this root
 	std::shared_ptr<const LeafSpecificParameter> param() const; ///< root parameter
 
+	/* Fournier coordination state (Step 2B) */
+	bool emerged = false;            ///< tip exceeded pseudostem height
+	bool ligulated = false;          ///< lamina reached lamina_Lmax
+	double emergence_tt = -1.0;      ///< thermal time at emergence [deg Cd]
+	double ligulation_tt = -1.0;     ///< thermal time at ligulation [deg Cd]
+	double accumulated_tt = 0.0;     ///< accumulated thermal time [deg Cd]
+	double coordinated_lmax = -1.0;  ///< Lmax from coordination (-1 = use XML default)
+	bool lmax_set = false;           ///< Lmax has been set by coordination
+
+	/* Fournier-Andrieu plumbing (plan §B.4). Plant's Andrieu-axis (Tb=9.8)
+	 * thermal time sampled at the first simulate() step where this leaf's
+	 * age becomes positive (= leaf emergence = internode-n primordium init).
+	 * Used by Stem::calcLengthPerPhytomerSum to anchor per-rank FA kinetics.
+	 * -1.0 = not emerged yet. Always set when a leaf emerges, regardless of
+	 * whether FA kinetics are enabled (cheap bookkeeping, no scalar impact). */
+	double emergence_andrieu_tt_ = -1.0;
+	double getEmergenceAndrieuTT() const { return emergence_andrieu_tt_; }
+
+	bool hasEmerged() const { return emerged; }
+	bool hasLigulated() const { return ligulated; }
+	double computePseudostemHeight() const;
+
 	/* useful */
     bool hasMoved() const override { return true; }; ///< always need to update the coordinates of the nodes for the MappedPlant
 	double orgVolume(double length_ = -1.,  bool realized = false) const override;
-	double orgVolume2Length(double volume_) override;	
+	double orgVolume2Length(double volume_) override;
 	bool nodeLeafVis(double l); ///<  leaf base (false), branched leaf (false), or leaf surface area (true)
+
+	/* Native 2D surface CP driver (Phase D). When the LRP carries a
+	 * populated surface_cps grid, after createSegments has grown the midrib
+	 * we re-project each internal node onto the midrib derived from the
+	 * v=0.5 u-line of the length-scaled library CPs. Segment topology is
+	 * preserved; only node positions change. Node 0 (collar) stays fixed. */
+	bool hasSurfaceCPs() const;
+	void updateNodesFromSurfaceCPs();
+
+	/* Young-stage shape blend. Returns the LRP's mature CP grid blended
+	 * toward a flat template based on this leaf's maturity (length / lmax).
+	 *   alpha = max(0, 1 - (m / kYoungFadeEnd)^kYoungExp),   m in [0, 1]
+	 *   cps_eff = (1 - alpha) * mature_cps + alpha * flat_template
+	 * The flat template is a zero-y version of mature_cps with midrib z
+	 * stretched to the mature arc-length (removes droop without losing
+	 * blade length). Mature leaves (alpha≈0) return lrp->surface_cps
+	 * bit-for-bit via early-out. */
+	std::vector<Vector3d> getEffectiveSurfaceCPs() const;
+
+	/* Tunable knobs for the maturity blend. Set above the mature
+	 * threshold you want untouched. kYoungFadeEnd < 1 guarantees no
+	 * effect on leaves past that maturity. */
+	static constexpr double kYoungFadeEnd = 0.7;
+	static constexpr double kYoungExp = 2.0;
 
 protected:
 

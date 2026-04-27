@@ -145,6 +145,38 @@ public:
 	int parametrisationType = 0; // 2D shape type : 0 .. radial, 1..along main axis
 	int shapeType = 2;  // Shape of the leaf: 0: cylinder (a = radius), 1: cuboid (a = thickness, Width_blade, Width_petiole), 2: 2D (leafGeometryPhi, leafGeometryX, areaMax)
 
+	/* Native 2D leaf-surface NURBS control-point grid (Phase A).
+	 * Flat storage: size = surface_n_u * surface_n_v, index = i_u * surface_n_v + i_v.
+	 * Coordinates are LEAF-LOCAL (collar at origin, +z along midrib tangent, +x leaf-local
+	 * lateral axis = tangent x UP). Empty vector disables the native-surface path and
+	 * callers fall back to the 1D leafGeometry/skeleton representation. */
+	std::vector<Vector3d> surface_cps = {};
+	int surface_n_u = 11;                  ///< number of CPs along the midrib (u-axis)
+	int surface_n_v = 5;                   ///< number of CPs across the width (v-axis)
+	int surface_deg_u = 3;                 ///< u-direction NURBS degree
+	int surface_deg_v = 2;                 ///< v-direction NURBS degree
+
+	/* Fournier coordination / thermal-time elongation (Step 2B) */
+	double sl_ratio = 0.4;              ///< sheath:lamina ratio [-] (maize placeholder)
+	int use_thermal_elongation = 0;      ///< 0 = backward compat (calendar days), 1 = thermal time
+	double T_base = 8.0;                ///< base temperature [deg C]
+	double T_opt = 30.0;                ///< optimal temperature [deg C]
+	double T_max = 41.0;                ///< ceiling temperature [deg C]
+	double LER_max = 1.5;               ///< max leaf elongation rate [mm/degCd]
+	double phyllochron_tt = 57.9;        ///< phyllochron in thermal time [deg Cd]
+	int use_thermal_emergence = 0;       ///< 0 = use ldelay (calendar days), 1 = gate emergence on plant TT
+	double tt_emergence = -1.0;          ///< thermal-time threshold for this leaf to emerge [deg Cd], <0 disables
+
+	/* Leaf-side Fournier-Andrieu logistic length kinetics (PLAN_YOUNG_LEAF_PHYSICS_2026-04-25 §Gap 1)
+	 * When use_fa_kinetics=1, leaf length follows
+	 *     length(t) = lmax / (1 + exp(-(TT - tau)/sigma))
+	 * driven by the plant's accumulated TT (Tb=8 axis, same accumulator as tt_emergence).
+	 * Saturates to lmax at large TT → mature renders are bit-identical to the scalar path.
+	 * Default off so non-maize XMLs and FA-off regression captures stay untouched. */
+	int use_fa_kinetics = 0;             ///< 0 = scalar r*dt elongation, 1 = TT-driven logistic
+	double tau_extension_n = -1.0;       ///< TT half-max for length kinetics [degCd], <0 disables (acts as "off" sentinel)
+	double sigma_extension_n = 60.0;     ///< TT spread (logistic scale) [degCd]
+
 	/* call back functions */
     std::shared_ptr<SoilLookUp> f_se = std::make_shared<SoilLookUp>(); ///< scale elongation function
     std::shared_ptr<SoilLookUp> f_sa = std::make_shared<SoilLookUp>(); ///< scale angle function

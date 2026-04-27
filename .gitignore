@@ -1,11 +1,20 @@
 # build system clutter
 build-*
+build/
 Testing
 *.so
 src/CMakeFiles/
 src/Makefile
 src/cmake_install.cmake
 test/__pycache__/
+install_manifest.txt
+
+# rollback / snapshot files
+*.bak
+*.pre_*
+*_backup*/
+_backups_plantsim_*/
+_young_blend_backup_*/
 
 # auto-saved files
 *~

@@ -130,6 +130,7 @@ void SeedRandomParameter::bindParameters()
     bindParameter("simulationTime", &simtime, "Recommended final simulation time  [day]", &simtimes );
 	bindParameter("delayDefinition", &delayDefinition, "method implemented to evaluate root lateral growth delay (0: distance based, 1: delay based defined by parent organ)");
 	bindParameter("delayDefinitionShoot", &delayDefinitionShoot, "method implemented to evaluate shoot lateral growth delay (0: distance based, 1: delay based defined by parent organ)");
+	bindParameter("decompose_phytomer", &decompose_phytomer, "Phytomer decomposition mode (0=off, 1=sheath+blade)");
 }
 
 } // namespace

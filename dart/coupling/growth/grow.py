@@ -18,6 +18,8 @@ Usage:
       --resolution fine
 """
 
+import json
+import os
 import numpy as np
 from pathlib import Path
 import argparse
@@ -26,7 +28,167 @@ import plantbox as pb
 
 from ..config import HYDRAULICS_PATH, DEFAULT_XML, get_hydraulics_json, get_photosynthesis_json, get_phloem_json
 from ..geometry import loft_organs, G3Mesh, extract_organs_for_lofter
+from ..geometry.cplantbox_adapter import get_plantsim_feature_kwargs_from_env
 from ..prospect_params import get_chl_per_segment, vcmax25_from_cab
+from .cp_swap import apply_donor_cps
+
+
+FA_KINETICS_PATH = Path(__file__).resolve().parent.parent / "data" / "phase_III_per_rank.json"
+FA_DEFAULT_MAX_RANK = 16
+
+
+def enable_fa_on_mainstem(plant, kinetics_path=None, max_rank=FA_DEFAULT_MAX_RANK,
+                          verbose=False):
+    """Enable Fournier-Andrieu per-phytomer internode kinetics on mainstem.
+
+    Flips the C++ `use_fournier_andrieu_kinetics` flag on the mainstem's
+    StemRandomParameter (subType=1) and populates the three per-rank kinetic
+    tables (`internode_v_n`, `internode_D_n`, `internode_IL_final`) from
+    ``data/phase_III_per_rank.json``.
+
+    Must be called BEFORE ``plant.initialize()``. Combines with:
+      * S3b.7 plastochron-driven rank initiation (gated by
+        `use_fournier_andrieu_kinetics`), and
+      * S3b.8 ``Stem::internodalGrowth`` basal_zero_ranks gate (same flag),
+    to deliver anatomically correct V-stage geometry directly from the C++
+    model. XML-level changes (``lb``, ``basal_internode_cm``,
+    ``plastochron_andrieu``) apply unconditionally; the behavioural gates
+    only fire when this flag is True.
+
+    Silent no-op on non-maize plants (no mainstem subType=1 with FA attrs)
+    and on older ``.so`` builds that pre-date the FA branch. Safe to call
+    on any plant.
+
+    Args:
+        plant: pb.MappedPlant (or equivalent) **before** ``initialize()``.
+        kinetics_path: Path to phase_III_per_rank.json. Defaults to the
+            vault copy at ``data/phase_III_per_rank.json``.
+        max_rank: Number of mainstem phytomers to configure (default 16,
+            matching maize_calibrated.xml).
+        verbose: Print a one-line confirmation on success.
+
+    Returns:
+        bool — True if FA was enabled, False if skipped (non-maize, no
+        kinetics JSON, or old .so).
+    """
+    try:
+        srp = plant.getOrganRandomParameter(pb.OrganTypes.stem, 1)
+    except Exception:
+        if verbose:
+            print("  FA: no mainstem subType=1 — skipping.")
+        return False
+    if not hasattr(srp, "use_fournier_andrieu_kinetics"):
+        if verbose:
+            print("  FA: .so predates FA support — skipping.")
+        return False
+
+    path = Path(kinetics_path) if kinetics_path else FA_KINETICS_PATH
+    if not path.exists():
+        if verbose:
+            print(f"  FA: kinetics JSON missing at {path} — skipping.")
+        return False
+
+    with path.open() as f:
+        data = json.load(f)
+    v_table = data["v_n_cm_per_degCd"]["expt_1B_primary"]
+    d_table = data["D_n_degCd"]["values"]
+    il_table = data["IL_final_cross_check_cm"]["values"]
+
+    def _fill(table, fallback_key, fallback_value):
+        return [float(table.get(str(n), table.get(fallback_key, fallback_value)))
+                for n in range(1, max_rank + 1)]
+
+    srp.use_fournier_andrieu_kinetics = True
+    srp.internode_v_n = _fill(v_table, "15", 0.18)
+    srp.internode_D_n = _fill(d_table, "15", 79.0)
+    srp.internode_IL_final = _fill(il_table, "15", 16.0)
+    if verbose:
+        print(f"  FA kinetics: enabled on mainstem subType=1 (max_rank={max_rank})")
+    return True
+
+
+def enable_fa_on_leaves(plant, verbose=False):
+    """Enable Fournier-Andrieu logistic length kinetics on every leaf.
+
+    PLAN_YOUNG_LEAF_PHYSICS_2026-04-25 §Gap 1. Per-leaf logistic
+        length(TT) = lmax / (1 + exp(-(TT - tau_n) / sigma_n))
+    keyed off each leaf's existing ``tt_emergence`` and ``phyllochron_tt``:
+        tau_n   = tt_emergence + 2 * phyllochron_tt   (m=0.5 two phyllochrons after emergence)
+        sigma_n = phyllochron_tt                       (4σ ≈ 4 phyllochrons full rise)
+
+    The 2-phyllochron offset is the empirical finding from the day-33 V3
+    sanity sweep (2026-04-25): smaller offsets (½..1 phyllochron) grow leaves
+    *faster* than the linear ``r*dt`` baseline because the logistic's middle
+    rises quickly; biologists' intuition is that a young leaf takes ~3-4
+    phyllochrons from emergence to full size, so τ at the midpoint (2
+    phyllochrons after emergence) and σ = 1 phyllochron (4σ = 4 phyllochrons
+    full rise) reproduces that picture. At V3 (TT≈232) lower ranks form a
+    decreasing size cascade (~21, 25, 19, 12, 6 cm) instead of all-at-lmax.
+
+    Saturates to lmax at large TT (m → 1 within ~6% for the flag leaf at
+    day 130; bit-identical for ranks 1-13). Lower ranks at V3 stay visibly
+    small.
+
+    Silent no-op on LRPs without the FA fields (older .so) or with
+    ``tt_emergence < 0`` (FA-emergence disabled). Must run BEFORE
+    ``plant.initialize()``.
+
+    Args:
+        plant: pb.MappedPlant pre-initialize().
+        verbose: print one summary line per affected LRP.
+
+    Returns:
+        int — count of LRPs configured.
+    """
+    n_done = 0
+    try:
+        leaf_lrps = plant.getOrganRandomParameter(pb.OrganTypes.leaf)
+    except Exception:
+        if verbose:
+            print("  FA leaves: no LRPs — skipping.")
+        return 0
+    for lrp in leaf_lrps:
+        if not hasattr(lrp, "use_fa_kinetics"):
+            if verbose and n_done == 0:
+                print("  FA leaves: .so predates leaf-side FA — skipping.")
+            return 0
+        # Skip blade-less rolls: subType < 2 is a placeholder/sheath in this
+        # XML convention; FA-on with lmax=0 still saturates safely but pollutes
+        # the verbose output, so just skip them.
+        if float(getattr(lrp, "lmax", 0.0)) <= 1e-6:
+            continue
+        tt_em = float(getattr(lrp, "tt_emergence", -1.0))
+        if tt_em < 0.0:
+            # Leaf emerges by ldelay, not TT — FA's TT clock is not meaningful
+            # for it. Leave scalar.
+            continue
+        phyll = float(getattr(lrp, "phyllochron_tt", 57.9))
+        if phyll <= 0.0:
+            phyll = 57.9
+        lrp.use_fa_kinetics = 1
+        lrp.tau_extension_n = tt_em + 2.0 * phyll
+        lrp.sigma_extension_n = phyll
+        n_done += 1
+        if verbose:
+            print(f"    leaf subType={lrp.subType}: tau={lrp.tau_extension_n:.1f} "
+                  f"sigma={lrp.sigma_extension_n:.1f} (tt_em={tt_em:.1f}, "
+                  f"phyll={phyll:.1f})")
+    if verbose and n_done > 0:
+        print(f"  FA kinetics: enabled on {n_done} leaf LRPs")
+    return n_done
+
+
+def _fa_requested(use_fa_kwarg):
+    """Resolve FA-on intent from kwarg + env var. Env overrides kwarg only
+    in the 'disable' direction: COUPLING_NO_FA=1 turns FA off even if the
+    caller passes use_fa=True, because the env-var path is how __main__.py
+    exposes ``--no-fa``. Caller-side ``use_fa=False`` wins unconditionally.
+    """
+    if not use_fa_kwarg:
+        return False
+    if os.environ.get("COUPLING_NO_FA", "").strip().lower() in ("1", "true", "yes"):
+        return False
+    return True
 
 
 def setup_successor_where(plant):
@@ -36,38 +198,134 @@ def setup_successor_where(plant):
     placeholder successor rule.  This function replaces it with per-position
     rules via the Python API so that linking node 0 gets subType 2,
     linking node 1 gets subType 3, etc.
+
+    In phytomer decomposition mode (decompose_phytomer=1), only sheath
+    subtypes (even) are stem successors — blades are created by sheath
+    successor rules in the XML.
+
+    If a tassel spike subType (20) is present in the XML, an extra successor
+    rule is appended at the final linking node (one past the flag leaf)
+    pointing at it. The spike's own successor → branch (subType 21) is kept
+    in the XML and must not be overwritten here — only mainstem subType 1 is
+    modified.
     """
-    # Discover which leaf subtypes exist (subType >= 2 with Width_blade > 0)
-    leaf_subtypes = []
-    for p in plant.getOrganRandomParameter(pb.leaf):
-        if p.subType >= 2 and p.Width_blade > 0.01:
-            leaf_subtypes.append(p.subType)
-    leaf_subtypes.sort()
+    TASSEL_SPIKE_SUBTYPE = 20
+    has_tassel = any(p.subType == TASSEL_SPIKE_SUBTYPE
+                     for p in plant.getOrganRandomParameter(pb.stem))
 
-    if not leaf_subtypes:
-        print("  No calibrated leaf subtypes found, skipping successorWhere")
-        return
+    # Check if phytomer decomposition is active
+    seed_params = plant.getOrganRandomParameter(pb.seed)
+    decompose = False
+    if seed_params:
+        decompose = getattr(seed_params[0], 'decompose_phytomer', 0) == 1
 
-    # Set successorWhere on all stems (mainstem + tillers) and enforce phyllotaxy
-    import math
-    for p in plant.getOrganRandomParameter(pb.stem):
-        if p.subType >= 1:
-            p.successorST = [[st] for st in leaf_subtypes]
-            p.successorOT = [[4] for _ in leaf_subtypes]  # organType=4 (leaf)
-            p.successorP = [[1.0] for _ in leaf_subtypes]
-            p.successorNo = [1] * len(leaf_subtypes)
-            p.successorWhere = [[float(i)] for i in range(len(leaf_subtypes))]
-            # Distichous phyllotaxy (180° alternating, two-ranked) — correct for
-            # maize and wheat.  BetaDev=0.22 (~12.6°) adds natural scatter.
-            p.RotBeta = math.pi  # 180°
-            p.BetaDev = 0.22
-            plant.setOrganRandomParameter(p)
-            print(f"  successorWhere: stem subType={p.subType}, {len(leaf_subtypes)} rules "
-                  f"(node 0->subType {leaf_subtypes[0]}, ..., "
-                  f"node {len(leaf_subtypes)-1}->subType {leaf_subtypes[-1]})")
+    if decompose:
+        # Phytomer mode: stem creates both sheath + blade at each position.
+        # Uses two separate successor rules per position (both fire at same
+        # linking node). CPlantBox's getLateralType() is probabilistic, so
+        # successorNo=2 with [sheath, blade] would pick the same type twice.
+        # Instead: rule 2*i → sheath, rule 2*i+1 → blade.
+        sheath_subtypes = []
+        blade_subtypes = []
+        for p in plant.getOrganRandomParameter(pb.leaf):
+            if p.getParameter('isPseudostem') == 1:
+                sheath_subtypes.append(p.subType)
+            else:
+                blade_subtypes.append(p.subType)
+        sheath_subtypes.sort()
+        blade_subtypes.sort()
+
+        if not sheath_subtypes or not blade_subtypes:
+            print("  No sheath/blade subtypes found, skipping successorWhere")
+            return
+
+        n_phytomers = min(len(sheath_subtypes), len(blade_subtypes))
+        import math
+        for p in plant.getOrganRandomParameter(pb.stem):
+            if p.subType == 1:
+                # Two rules per position: one for sheath, one for blade
+                successor_st = []
+                successor_ot = []
+                successor_p = []
+                successor_no = []
+                successor_where = []
+                for i in range(n_phytomers):
+                    # Rule 2*i: sheath at position i
+                    successor_st.append([sheath_subtypes[i]])
+                    successor_ot.append([4])
+                    successor_p.append([1.0])
+                    successor_no.append(1)
+                    successor_where.append([float(i)])
+                    # Rule 2*i+1: blade at position i
+                    successor_st.append([blade_subtypes[i]])
+                    successor_ot.append([4])
+                    successor_p.append([1.0])
+                    successor_no.append(1)
+                    successor_where.append([float(i)])
+                # Extra rule: tassel spike at node n_phytomers (past flag leaf)
+                if has_tassel:
+                    successor_st.append([TASSEL_SPIKE_SUBTYPE])
+                    successor_ot.append([3])  # organType 3 = stem
+                    successor_p.append([1.0])
+                    successor_no.append(1)
+                    successor_where.append([float(n_phytomers)])
+                p.successorST = successor_st
+                p.successorOT = successor_ot
+                p.successorP = successor_p
+                p.successorNo = successor_no
+                p.successorWhere = successor_where
+                p.RotBeta = math.pi
+                p.BetaDev = 0.22
+                plant.setOrganRandomParameter(p)
+                tassel_note = f" +1 tassel rule at node {n_phytomers}" if has_tassel else ""
+                print(f"  successorWhere (phytomer): stem subType={p.subType}, "
+                      f"{n_phytomers} positions, 2 rules each{tassel_note} "
+                      f"(sheath {sheath_subtypes[0]}+blade {blade_subtypes[0]} ... "
+                      f"sheath {sheath_subtypes[-1]}+blade {blade_subtypes[-1]})")
+    else:
+        # Monolithic mode: stem → leaf subtypes with Width_blade > 0
+        leaf_subtypes = []
+        for p in plant.getOrganRandomParameter(pb.leaf):
+            if p.subType >= 2 and p.Width_blade > 0.01:
+                leaf_subtypes.append(p.subType)
+        leaf_subtypes.sort()
+
+        if not leaf_subtypes:
+            print("  No calibrated leaf subtypes found, skipping successorWhere")
+            return
+
+        import math
+        n_leaves = len(leaf_subtypes)
+        for p in plant.getOrganRandomParameter(pb.stem):
+            if p.subType == 1:
+                succ_st = [[st] for st in leaf_subtypes]
+                succ_ot = [[4] for _ in leaf_subtypes]
+                succ_p = [[1.0] for _ in leaf_subtypes]
+                succ_no = [1] * n_leaves
+                succ_where = [[float(i)] for i in range(n_leaves)]
+                if has_tassel:
+                    succ_st.append([TASSEL_SPIKE_SUBTYPE])
+                    succ_ot.append([3])  # organType 3 = stem
+                    succ_p.append([1.0])
+                    succ_no.append(1)
+                    succ_where.append([float(n_leaves)])
+                p.successorST = succ_st
+                p.successorOT = succ_ot
+                p.successorP = succ_p
+                p.successorNo = succ_no
+                p.successorWhere = succ_where
+                p.RotBeta = math.pi
+                p.BetaDev = 0.22
+                plant.setOrganRandomParameter(p)
+                tassel_note = f" +1 tassel rule at node {n_leaves}" if has_tassel else ""
+                print(f"  successorWhere: stem subType={p.subType}, {n_leaves} leaf rules{tassel_note} "
+                      f"(node 0->subType {leaf_subtypes[0]}, ..., "
+                      f"node {n_leaves-1}->subType {leaf_subtypes[-1]})")
 
 
-def init_plant(xml_path=None, seed=None, enable_photosynthesis=True):
+def init_plant(xml_path=None, seed=None, enable_photosynthesis=True,
+               cp_donor_seed=None, cp_donor_mode="draw_coherent",
+               use_fa=True):
     """Create and initialize a plant without growing. For carbon-limited mode.
 
     Same setup as grow_plant() but stops after initialize().
@@ -77,6 +335,13 @@ def init_plant(xml_path=None, seed=None, enable_photosynthesis=True):
         xml_path: Path to calibrated XML. Defaults to DEFAULT_XML.
         seed: Optional random seed for reproducibility.
         enable_photosynthesis: Enable soil grid for photosynthesis (default True).
+        cp_donor_seed: If set, swap leaf surface_cps (and lmax/Width_blade/
+            areaMax) for a donor drawn from the MF3D canonical library.
+            Lets a canopy render N plants with per-plant leaf-shape variation
+            without regenerating the XML. None → use whatever CPs are in XML.
+        cp_donor_mode: Reducer for the donor draw. ``"draw_coherent"`` (default)
+            picks a single MF3D plant covering all positions; ``"draw"`` draws
+            independently per position; ``"median"`` uses the pool median.
 
     Returns:
         pb.MappedPlant at day 0, initialized and ready for simulate().
@@ -90,7 +355,19 @@ def init_plant(xml_path=None, seed=None, enable_photosynthesis=True):
     if seed is not None:
         plant.setSeed(seed)
 
+    if cp_donor_seed is not None:
+        apply_donor_cps(plant, donor_seed=cp_donor_seed, mode=cp_donor_mode,
+                        verbose=False)
+
     setup_successor_where(plant)
+
+    # S3b.8: FA-on by default for maize (no-op on non-maize XMLs). Must fire
+    # before plant.initialize() so the C++ plastochron + basal_zero gates see
+    # the flag at seed-init time. Opt-out via use_fa=False (caller) or
+    # COUPLING_NO_FA=1 env var (CLI --no-fa).
+    if _fa_requested(use_fa):
+        enable_fa_on_mainstem(plant, verbose=False)
+        enable_fa_on_leaves(plant, verbose=False)
 
     if enable_photosynthesis:
         depth = 100
@@ -106,13 +383,37 @@ def init_plant(xml_path=None, seed=None, enable_photosynthesis=True):
 
 
 def grow_plant(xml_path, simulation_time, min_stem_nodes=50, min_leaf_nodes=20,
-               enable_photosynthesis=False, seed=None):
-    """Grow a CPlantBox plant from calibrated XML."""
+               enable_photosynthesis=False, seed=None,
+               cp_donor_seed=None, cp_donor_mode="draw_coherent",
+               daily_met=None, T_air_default=25.0,
+               use_fa=True):
+    """Grow a CPlantBox plant from calibrated XML.
+
+    Args:
+        cp_donor_seed: Optional seed selecting an MF3D donor plant whose
+            per-position leaf surface_cps (plus lmax / Width_blade / areaMax)
+            are swapped into this plant before ``initialize()``. Leaves the
+            XML on disk untouched. None → use the XML's baked-in CPs.
+        cp_donor_mode: Donor reducer mode (``"draw_coherent"``, ``"draw"``,
+            or ``"median"``).
+        daily_met: Optional pre-loaded daily-met dict (``sim_day -> {T_mean_C,
+            T_min_C, T_max_C, ...}``) from ``load_daily_met()``. When None,
+            ``get_daily_met()`` auto-loads the default daily-met CSV
+            (``juelich_2024_daily_met.csv``). Each 1-day ``simulate()`` step
+            reads ``T_mean_C`` for the current day and calls
+            ``plant.setAirTemperature`` so CPlantBox's thermal-time accumulator
+            reflects the real weather. Falls back to ``T_air_default`` on any
+            day that has no met entry.
+        T_air_default: Fallback air temperature (°C) for days with no met
+            data. Also used when no met source is available at all.
+    """
     print(f"=== Growing Plant ===")
     print(f"  XML: {xml_path}")
     print(f"  Simulation time: {simulation_time} days")
     if seed is not None:
         print(f"  Seed: {seed}")
+    if cp_donor_seed is not None:
+        print(f"  CP donor: mode={cp_donor_mode}, seed={cp_donor_seed}")
     if enable_photosynthesis:
         print(f"  Photosynthesis: ENABLED (soil grid active)")
 
@@ -122,8 +423,20 @@ def grow_plant(xml_path, simulation_time, min_stem_nodes=50, min_leaf_nodes=20,
     if seed is not None:
         plant.setSeed(seed)
 
+    if cp_donor_seed is not None:
+        apply_donor_cps(plant, donor_seed=cp_donor_seed, mode=cp_donor_mode,
+                        verbose=True)
+
     # Set per-position successor rules via Python API
     setup_successor_where(plant)
+
+    # S3b.8: FA-on by default for maize (no-op on non-maize XMLs). Must fire
+    # before plant.initialize() so the C++ plastochron + basal_zero gates see
+    # the flag at seed-init time. Opt-out via use_fa=False (caller) or
+    # COUPLING_NO_FA=1 env var (CLI --no-fa).
+    if _fa_requested(use_fa):
+        enable_fa_on_mainstem(plant, verbose=True)
+        enable_fa_on_leaves(plant, verbose=True)
 
     # Soil geometry — must be set BEFORE plant.initialize() when using photosynthesis.
     # Roots are excluded from the G3 mesh (skip_roots=True in adapter) but kept in
@@ -141,6 +454,16 @@ def grow_plant(xml_path, simulation_time, min_stem_nodes=50, min_leaf_nodes=20,
 
     plant.initialize()
 
+    # Resolve daily-met source. None → auto-load default CSV (may return None
+    # when no CSV is configured); falls through to T_air_default in that case.
+    from ..carbon.dvs_partitioning import get_daily_met
+    met_lookup = get_daily_met(daily_met=daily_met) if daily_met is None else daily_met
+    if met_lookup is not None:
+        n_met_days = len(met_lookup)
+        print(f"  Met forcing: {n_met_days} days of daily T_mean available for TT accumulator")
+    else:
+        print(f"  Met forcing: none found — using constant T_air={T_air_default} C")
+
     # Use incremental simulation with error recovery.
     # CPlantBox has a vector bounds bug with >8 leaf subtypes during initial
     # lateral creation. Incremental steps + catch allow partial growth.
@@ -148,6 +471,17 @@ def grow_plant(xml_path, simulation_time, min_stem_nodes=50, min_leaf_nodes=20,
     total_simulated = 0.0
     while total_simulated < simulation_time:
         step = min(dt, simulation_time - total_simulated)
+        # Feed today's T_mean to the CPlantBox TT accumulator.
+        # Sim-day convention: 1-based (day 1 = first 24h of growth).
+        sim_day_1b = int(total_simulated) + 1
+        if met_lookup is not None:
+            day_met = met_lookup.get(sim_day_1b)
+            T_air = float(day_met['T_mean_C']) if day_met else T_air_default
+        else:
+            # Honor a legacy per-plant override if something set it upstream.
+            T_air = getattr(plant, '_current_T_air', T_air_default)
+        if hasattr(plant, 'setAirTemperature'):
+            plant.setAirTemperature(T_air)
         try:
             plant.simulate(step, verbose=(total_simulated == 0))
             total_simulated += step
@@ -184,12 +518,17 @@ def grow_plant(xml_path, simulation_time, min_stem_nodes=50, min_leaf_nodes=20,
 
 
 def extract_g3_mesh(plant, min_stem_nodes=50, min_leaf_nodes=20, stem_res=16,
-                    include_roots=False):
+                    include_roots=False, use_nurbs_leaf_backend=False,
+                    nurbs_leaf_n_u_eval=30, nurbs_leaf_n_v_eval=7):
     """Extract G1 skeleton from CPlantBox and loft to G3 mesh.
 
     Args:
         include_roots: If True, include root geometry in the mesh.
                        Default False (shoot only, roots excluded for DART).
+        use_nurbs_leaf_backend: If True, loft leaves via the canonical 11×5
+            PlantGL NurbsPatch backend (experimental — off by default).
+        nurbs_leaf_n_u_eval, nurbs_leaf_n_v_eval: Tessellation resolution
+            for the NURBS backend.
     """
     print(f"\n=== Extracting G3 Mesh ===")
 
@@ -198,12 +537,19 @@ def extract_g3_mesh(plant, min_stem_nodes=50, min_leaf_nodes=20, stem_res=16,
         min_stem_nodes=min_stem_nodes,
         min_leaf_nodes=min_leaf_nodes,
         skip_roots=not include_roots,
+        **get_plantsim_feature_kwargs_from_env(),
     )
 
     label = "shoot + root" if include_roots else "shoot only"
     print(f"  Extracted {len(organ_dicts)} organs ({label})")
 
-    mesh = loft_organs(organ_dicts, stem_sides=stem_res)
+    mesh = loft_organs(
+        organ_dicts,
+        stem_sides=stem_res,
+        use_nurbs_backend=use_nurbs_leaf_backend,
+        nurbs_n_u_eval=nurbs_leaf_n_u_eval,
+        nurbs_n_v_eval=nurbs_leaf_n_v_eval,
+    )
 
     print(f"  Vertices: {mesh.n_vertices}, Triangles: {mesh.n_triangles}")
 
@@ -490,6 +836,17 @@ def main():
                        help='(deprecated — PhloemFluxPython is now the default solver)')
     parser.add_argument('--include-roots-in-mesh', action='store_true',
                        help='Include root geometry in G3 mesh export (default: shoot only)')
+    parser.add_argument('--cp-donor-seed', type=int, default=None,
+                       help='Seed selecting an MF3D donor plant whose leaf CPs '
+                            'overwrite the XML defaults at runtime. None → no swap.')
+    parser.add_argument('--cp-donor-mode', type=str, default='draw_coherent',
+                       choices=['draw_coherent', 'draw', 'median'],
+                       help='Donor reducer mode (default: draw_coherent — one '
+                            'MF3D plant covers all positions).')
+    parser.add_argument('--no-auto-stage', action='store_true',
+                       help='Disable automatic V-stage label appending to '
+                            'output prefix (default: append _V<n> or '
+                            '_VT_emerging|_VT_mature|_VT_senescent).')
     args = parser.parse_args()
 
     resolution_presets = {
@@ -512,7 +869,19 @@ def main():
         min_stem_nodes=preset['min_stem_nodes'],
         min_leaf_nodes=preset['min_leaf_nodes'],
         enable_photosynthesis=args.photosynthesis,
+        cp_donor_seed=args.cp_donor_seed,
+        cp_donor_mode=args.cp_donor_mode,
     )
+
+    # Auto-stage label: append phenology stage to output prefix so output
+    # filenames carry both day and V-stage. Driven by the same collar-count
+    # the lofter uses for material assignment.
+    if not args.no_auto_stage:
+        from .phenology import detect_v_stage
+        stage_label = detect_v_stage(plant)
+        args.output = f"{args.output}_{stage_label}"
+        print(f"  Phenology stage: {stage_label}")
+        print(f"  Output prefix:   {args.output}")
 
     # Extract G3 mesh (also returns organ_dicts for rendering)
     mesh, organ_dicts = extract_g3_mesh(

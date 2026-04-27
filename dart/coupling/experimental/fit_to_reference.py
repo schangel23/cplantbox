@@ -44,8 +44,12 @@ sys.path.insert(0, str(_COUPLING_DIR.parent))
 
 import plantbox as pb
 from dart.coupling.geometry.g1_to_g3 import loft_organs
+from dart.coupling.geometry.canonical_cp_grid import N_U, N_V
 from dart.coupling.geometry.cplantbox_adapter import extract_organs_for_lofter
 from dart.coupling.growth.grow import setup_successor_where
+from dart.coupling.experimental.losses.cp_distance import (
+    cp_l2_loss, hungarian_leaf_match,
+)
 
 # Import skeleton extraction from reverse_engineer_maize
 from dart.coupling.experimental.reverse_engineer_maize import (
@@ -640,8 +644,14 @@ def grow_and_extract(xml_path, day, leaf_params_by_position, stem_params):
         return None
 
 
-def grow_and_loft(xml_path, day, leaf_params_by_position, stem_params):
-    """Grow + loft → per-leaf mesh points for mesh-level comparison."""
+def grow_and_loft(xml_path, day, leaf_params_by_position, stem_params,
+                  use_nurbs_backend=False):
+    """Grow + loft → per-leaf mesh points for mesh-level comparison.
+
+    When ``use_nurbs_backend=True`` the returned mesh carries a populated
+    ``organ_cps`` dict (``{organ_id: (N_U, N_V, 3) array}``) so the caller
+    can compute CP-space losses instead of Chamfer on tessellated points.
+    """
     try:
         plant = pb.Plant()
         plant.readParameters(str(xml_path))
@@ -683,7 +693,13 @@ def grow_and_loft(xml_path, day, leaf_params_by_position, stem_params):
         plant.simulate(day)
 
         organs = extract_organs_for_lofter(plant)
-        mesh = loft_organs(organs, subdivide=True, smooth=True)
+        if use_nurbs_backend:
+            # Smoothing + subdivision destroys the 1:1 CP→tessellation mapping
+            # NurbsPatch relies on; keep them off for CP-mode.
+            mesh = loft_organs(organs, use_nurbs_backend=True,
+                               subdivide=False, smooth=False)
+        else:
+            mesh = loft_organs(organs, subdivide=True, smooth=True)
 
         return mesh
 
@@ -1158,17 +1174,80 @@ def _grow_for_deformations(xml_path, day, leaf_params_by_position, stem_params):
 
 
 # ---------------------------------------------------------------------------
+# Pheno4D CP-target loading (for --cp-mode)
+# ---------------------------------------------------------------------------
+
+def load_pheno4d_cps_for_plant(json_path, plant_id):
+    """Load canonical 11x5x3 CPs for one Pheno4D plant across all scan dates.
+
+    Args:
+        json_path: path to ``pheno4d_canonical_cps.json``.
+        plant_id: e.g. ``"M01"``.
+
+    Returns:
+        ``{date_str: {label_int: (N_U, N_V, 3) np.float64}}`` — sorted by
+        ``date_str`` order when iterated. Empty dict if no scans found for
+        this plant.
+    """
+    data = json.loads(Path(json_path).read_text())
+    out = {}
+    for scan in data.get("scans", []):
+        if scan.get("plant_id") != plant_id:
+            continue
+        date = str(scan["date"])
+        leaves = {}
+        for leaf in scan.get("leaves", []):
+            label = int(leaf["label"])
+            cps = np.asarray(leaf["cps_cm"], dtype=np.float64)
+            if cps.shape == (N_U, N_V, 3) and np.all(np.isfinite(cps)):
+                leaves[label] = cps
+        if leaves:
+            out[date] = leaves
+    return dict(sorted(out.items()))
+
+
+def match_stages_to_pheno4d_dates(ref_stages, pheno_dates, override=None):
+    """Pair each ref_stage with a Pheno4D scan date.
+
+    Strategy:
+      1. If ``override`` is provided (``{stage_num: date_str}``), use it.
+      2. Else, sort both by their natural order (stage number / date string)
+         and zip; excess on either side is dropped.
+
+    Args:
+        ref_stages: the ``stages`` list from ``load_reference``.
+        pheno_dates: ordered list of date strings present in the JSON.
+        override: optional explicit mapping.
+
+    Returns:
+        ``{stage_num: date_str}`` for the matched stages only.
+    """
+    if override:
+        return {int(k): str(v) for k, v in override.items()}
+
+    ordered_stages = sorted(s["stage"] for s in ref_stages)
+    ordered_dates = sorted(pheno_dates)
+    n = min(len(ordered_stages), len(ordered_dates))
+    return {int(ordered_stages[i]): str(ordered_dates[i]) for i in range(n)}
+
+
+# ---------------------------------------------------------------------------
 # Post-fit analysis
 # ---------------------------------------------------------------------------
 
 def analyze_fit(ref_stages, xml_path, stem_params, leaf_params_by_position,
-                export_dir, verbose=False):
+                export_dir, verbose=False, cp_target_by_stage=None):
     """Run final analysis: per-leaf skeleton + mesh Chamfer at each stage.
 
     Exports grown OBJs for visual comparison.
     """
+    cp_mode = cp_target_by_stage is not None
     results = {"stages": [], "per_leaf_skeleton_chamfer": {}, "per_leaf_mesh_chamfer": {},
                "model_limitations": []}
+    if cp_mode:
+        results["per_leaf_cp_l2"] = {}
+        results["cp_mode"] = True
+        results["cp_total_loss"] = 0.0
 
     positions = sorted(leaf_params_by_position.keys())
 
@@ -1180,7 +1259,8 @@ def analyze_fit(ref_stages, xml_path, stem_params, leaf_params_by_position,
         # Grow with fitted params
         skeletons = grow_and_extract(xml_path, day, leaf_params_by_position,
                                      stem_params)
-        mesh = grow_and_loft(xml_path, day, leaf_params_by_position, stem_params)
+        mesh = grow_and_loft(xml_path, day, leaf_params_by_position, stem_params,
+                             use_nurbs_backend=cp_mode)
 
         stage_result = {"stage": stage["stage"], "day": day,
                         "skeleton_chamfer": {}, "mesh_chamfer": {}}
@@ -1200,8 +1280,10 @@ def analyze_fit(ref_stages, xml_path, stem_params, leaf_params_by_position,
                     results["per_leaf_skeleton_chamfer"][pos] = []
                 results["per_leaf_skeleton_chamfer"][pos].append(sc)
 
-            # Mesh Chamfer (CPlantBox + lofter blame)
-            if mesh and pos in stage.get("leaf_mesh_points", {}):
+            # Mesh Chamfer (CPlantBox + lofter blame) — legacy path.
+            # Skipped when cp_mode is active; CP-L2 replaces it below.
+            if (not cp_mode and mesh
+                    and pos in stage.get("leaf_mesh_points", {})):
                 ref_pts = stage["leaf_mesh_points"][pos]
                 grown_pts = mesh.vertices  # whole mesh — approximate
                 mc = _chamfer_distance(grown_pts, ref_pts)
@@ -1209,6 +1291,46 @@ def analyze_fit(ref_stages, xml_path, stem_params, leaf_params_by_position,
                 if pos not in results["per_leaf_mesh_chamfer"]:
                     results["per_leaf_mesh_chamfer"][pos] = []
                 results["per_leaf_mesh_chamfer"][pos].append(mc)
+
+        # CP-mode: Hungarian match + cp_l2_loss per stage.
+        if cp_mode and mesh and getattr(mesh, "organ_cps", None):
+            stage_num = stage["stage"]
+            target_cps_for_stage = cp_target_by_stage.get(stage_num, {})
+            pred_cps = {int(oid): np.asarray(cps, dtype=np.float64)
+                        for oid, cps in mesh.organ_cps.items()
+                        if np.asarray(cps).shape == (N_U, N_V, 3)}
+
+            if pred_cps and target_cps_for_stage:
+                # CPlantBox emits leaves in phytomer order → sorted organ_id
+                # is the natural emergence rank.
+                pred_keys_sorted = sorted(pred_cps.keys())
+                pred_ranks = {oid: r for r, oid in enumerate(pred_keys_sorted)}
+                # Pheno4D labels ARE the emergence ranks (collar-based).
+                target_ranks = {lab: int(lab) for lab in target_cps_for_stage}
+
+                match = hungarian_leaf_match(
+                    pred_cps, target_cps_for_stage,
+                    weight_xyz=1.0, weight_arc=0.5, weight_rank=0.5,
+                    pred_ranks=pred_ranks, target_ranks=target_ranks,
+                )
+                stage_loss = cp_l2_loss(pred_cps, target_cps_for_stage,
+                                         match, reduction="mean")
+                stage_result["cp_l2_loss"] = stage_loss
+                # Hungarian returns Hashable keys (invariant typing). Our
+                # dicts are keyed by int at runtime, so the values round-trip.
+                stage_result["cp_match"] = [(p, t) for p, t in match]
+                results["cp_total_loss"] += stage_loss
+
+                # Record per-matched-pair residual, keyed by pred rank (same
+                # space as ``positions`` minus the 1-offset).
+                for p_oid, t_label in match:
+                    pc = pred_cps[p_oid]  # type: ignore[index]
+                    tc = target_cps_for_stage[t_label]  # type: ignore[index]
+                    diff = pc - tc
+                    leaf_ssd = float(np.sum(diff * diff))
+                    rank_slot = pred_ranks[p_oid] + 1  # type: ignore[index]
+                    bucket = results["per_leaf_cp_l2"].setdefault(rank_slot, [])
+                    bucket.append(leaf_ssd)
 
         results["stages"].append(stage_result)
 
@@ -1284,8 +1406,27 @@ def main():
                              "after CMA-ES structural fitting")
     parser.add_argument("--deform-steps", type=int, default=200,
                         help="Adam steps per stage for deformation optimization (default: 200)")
+    parser.add_argument("--cp-mode", action="store_true",
+                        help="Replace post-fit mesh Chamfer with CP-space L2 "
+                             "loss against a Pheno4D canonical CP grid "
+                             "(requires --target-cps + --plant-id).")
+    parser.add_argument("--target-cps", default=None,
+                        help="Path to pheno4d_canonical_cps.json (CP-mode only).")
+    parser.add_argument("--plant-id", default=None,
+                        help="Pheno4D plant identifier, e.g. 'M01' (CP-mode only).")
+    parser.add_argument("--stage-dates", default=None,
+                        help="Optional explicit stage→date mapping, "
+                             "'stage:date,stage:date,...' "
+                             "(CP-mode only; default: zip by sorted order).")
     parser.add_argument("--verbose", "-v", action="store_true")
     args = parser.parse_args()
+
+    # Validate CP-mode flags early.
+    if args.cp_mode:
+        if not args.target_cps:
+            parser.error("--cp-mode requires --target-cps")
+        if not args.plant_id:
+            parser.error("--cp-mode requires --plant-id")
 
     # Resolve Gompertz positions
     if args.gompertz is not None:
@@ -1425,11 +1566,39 @@ def main():
     (output_dir / "fitted_params.json").write_text(
         json.dumps(params_json, indent=2))
 
+    # CP-mode: load Pheno4D canonical CPs and build per-stage targets.
+    cp_target_by_stage = None
+    if args.cp_mode:
+        print(f"\n  CP-mode: loading Pheno4D CPs for plant {args.plant_id}...")
+        pheno_cps = load_pheno4d_cps_for_plant(args.target_cps, args.plant_id)
+        if not pheno_cps:
+            print(f"  WARNING: no Pheno4D scans found for plant "
+                  f"{args.plant_id!r} in {args.target_cps}. "
+                  f"Falling back to legacy mesh-Chamfer analysis.")
+        else:
+            stage_override = None
+            if args.stage_dates:
+                stage_override = {}
+                for item in args.stage_dates.split(","):
+                    s, d = item.split(":")
+                    stage_override[int(s.strip())] = d.strip()
+            stage_to_date = match_stages_to_pheno4d_dates(
+                ref_stages, list(pheno_cps.keys()), stage_override)
+            cp_target_by_stage = {
+                stage_num: pheno_cps[date]
+                for stage_num, date in stage_to_date.items()
+                if date in pheno_cps
+            }
+            print(f"  Matched {len(cp_target_by_stage)} stages to Pheno4D "
+                  f"dates: "
+                  f"{sorted((s, stage_to_date[s]) for s in cp_target_by_stage)}")
+
     # Run analysis + export OBJs
     objs_dir = output_dir / "fitted_objs"
     objs_dir.mkdir(exist_ok=True)
     results = analyze_fit(ref_stages, str(fitted_xml), stem_params,
-                          fitted_leaf_params, str(objs_dir), args.verbose)
+                          fitted_leaf_params, str(objs_dir), args.verbose,
+                          cp_target_by_stage=cp_target_by_stage)
 
     (output_dir / "fit_results.json").write_text(
         json.dumps(results, indent=2, default=str))
@@ -1492,6 +1661,26 @@ def main():
         print(f"\n  Mean skeleton Chamfer: {np.mean(skel_errors):.2f}cm")
         print(f"  Best leaf: {np.min(skel_errors):.2f}cm")
         print(f"  Worst leaf: {np.max(skel_errors):.2f}cm")
+
+    if results.get("cp_mode"):
+        cp_per_leaf = results.get("per_leaf_cp_l2", {})
+        n_stages_matched = sum(
+            1 for sr in results["stages"] if "cp_l2_loss" in sr
+        )
+        stage_losses = [sr["cp_l2_loss"] for sr in results["stages"]
+                         if "cp_l2_loss" in sr]
+        print(f"\n  CP-L2 (Phase 4 target metric):")
+        print(f"    Stages matched: {n_stages_matched}")
+        if stage_losses:
+            print(f"    Per-stage mean CP-L2: "
+                  f"min={np.min(stage_losses):.2f}, "
+                  f"mean={np.mean(stage_losses):.2f}, "
+                  f"max={np.max(stage_losses):.2f}")
+        for pos in sorted(cp_per_leaf.keys()):
+            vals = cp_per_leaf[pos]
+            if vals:
+                print(f"    Leaf {pos:>2}: mean SSD={np.mean(vals):.2f} "
+                      f"(n={len(vals)})")
 
     if results["model_limitations"]:
         print(f"\n  MODEL LIMITATIONS ({len(results['model_limitations'])}):")

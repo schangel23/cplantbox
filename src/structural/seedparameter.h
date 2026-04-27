@@ -116,6 +116,9 @@ public:
     double simtime = 300.;  ///< Mean recommended final simulation time
     double simtimes = 0.;  ///< Standard deviation of recommended final simulation time
 
+    // Phytomer decomposition
+    int decompose_phytomer = 0;  ///< 0=monolithic leaves, 1=sheath+blade sub-organs
+
 protected:
 
     void bindParameters() override;   ///< sets up class introspection
