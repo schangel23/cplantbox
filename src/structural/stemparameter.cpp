@@ -5,6 +5,7 @@
 #include "Seed.h"
 #include "tropism.h"
 
+#include <algorithm>
 #include <cmath>
 #include <iostream>
 #include <chrono>
@@ -252,8 +253,63 @@ default:
 	}
 	double ldelay_ = std::max(ldelay + p->randn()*ldelays, 0.);
 
-
-
+    // ---------------------------------------------------------------
+    // Fournier-Andrieu (FA) override of the realised inter-lateral
+    // distance vector ``ln_``.  Plan B.2 (peduncle exuberance fix,
+    // 2026-04-27).  When the FA flag is on we replace the
+    // ``lmax/ln_mean``-derived sizing+filling above with an
+    // ``successorST.size()``-derived sizing and a per-rank
+    // ``internode_IL_final`` filling.  This:
+    //   (a) eliminates the size-19 phantom that overshoots the 17
+    //       phytomer slots ``successorWhere`` defines (16 leaves +
+    //       1 tassel for maize_calibrated.xml), and
+    //   (b) replaces the uniform ~10 cm scalar sampling by the
+    //       per-rank Déa profile from ``phase_III_per_rank.json``.
+    // FA-off path is bit-identical: this block is gated on the flag
+    // and only fires for stems that explicitly opt in.  The basal
+    // ``basal_zero_ranks`` set keeps ranks 1..4 at 0 so the basal
+    // stub seeded by Stem::simulate's plastochron loop is the only
+    // length contribution there.  No RNG pulls in this branch.
+    if (this->use_fournier_andrieu_kinetics
+        && hasLaterals
+        && this->successorST.size() > 0
+        && this->internode_IL_final.size() > 0) {
+        const std::size_t n_phytomers = this->successorST.size();
+        std::vector<double> ln_fa(n_phytomers, 0.0);
+        const std::size_t il_n = this->internode_IL_final.size();
+        const auto& bz = this->basal_zero_ranks;
+        auto is_basal_zero = [&](int rank_one_indexed) -> bool {
+            return std::find(bz.begin(), bz.end(), rank_one_indexed) != bz.end();
+        };
+        for (std::size_t i = 0; i < n_phytomers; ++i) {
+            const int rank = static_cast<int>(i) + 1; // 1-indexed
+            if (is_basal_zero(rank)) {
+                ln_fa[i] = 0.0;
+                continue;
+            }
+            // Tassel/non-leaf successor rule: peduncle elongation belongs
+            // to the tassel subType, not the mainstem; this slot stays 0.
+            bool is_leaf_successor = false;
+            if (i < this->successorOT.size()) {
+                for (int ot : this->successorOT.at(i)) {
+                    if (ot == Organism::ot_leaf) { is_leaf_successor = true; break; }
+                }
+            } else {
+                is_leaf_successor = true; // defensive
+            }
+            if (!is_leaf_successor) {
+                ln_fa[i] = 0.0;
+                continue;
+            }
+            const std::size_t il_idx = static_cast<std::size_t>(rank - 1);
+            if (il_idx < il_n) {
+                ln_fa[i] = this->internode_IL_final.at(il_idx);
+            } else {
+                ln_fa[i] = 0.0;
+            }
+        }
+        ln_ = std::move(ln_fa);
+    }
 
 
     auto sp = std::make_shared<StemSpecificParameter>(subType,lb_,la_,ln_,r_,a_,theta_,rlt_,hasLaterals, this->nodalGrowth, delayNGStart_, delayNGEnd_, ldelay_);
