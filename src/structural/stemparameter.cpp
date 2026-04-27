@@ -281,32 +281,62 @@ default:
         auto is_basal_zero = [&](int rank_one_indexed) -> bool {
             return std::find(bz.begin(), bz.end(), rank_one_indexed) != bz.end();
         };
+        // Match Stem::simulate's fa_sum semantics exactly: each rank's
+        // length_per_n[n] is seeded to basal_internode_cm by the S3b.7
+        // plastochron loop, then driven by FA kinetics toward IL_final.
+        // fa_sum[n] = max(target_n, length_per_n[n]) ≥ basal_internode_cm
+        // for every initiated rank.  Aligning ln[i] with the same floor
+        // keeps the branching-zone cap (sum(ln)) equal to fa_sum at
+        // maturity, so targetlength never exceeds the realisable
+        // branching length and the apical-zone block stops absorbing
+        // residual dl.  Plan B.3 D.5 (mainstem-top bound) closes here.
+        const double basal_floor = std::max(0.0, this->basal_internode_cm);
+        auto is_leaf_at = [&](std::size_t idx) -> bool {
+            if (idx >= this->successorOT.size()) return false;
+            for (int ot : this->successorOT.at(idx)) {
+                if (ot == Organism::ot_leaf) return true;
+            }
+            return false;
+        };
         for (std::size_t i = 0; i < n_phytomers; ++i) {
             const int rank = static_cast<int>(i) + 1; // 1-indexed
-            if (is_basal_zero(rank)) {
-                ln_fa[i] = 0.0;
-                continue;
-            }
             // Tassel/non-leaf successor rule: peduncle elongation belongs
             // to the tassel subType, not the mainstem; this slot stays 0.
-            bool is_leaf_successor = false;
-            if (i < this->successorOT.size()) {
-                for (int ot : this->successorOT.at(i)) {
-                    if (ot == Organism::ot_leaf) { is_leaf_successor = true; break; }
-                }
-            } else {
-                is_leaf_successor = true; // defensive
-            }
+            const bool is_leaf_successor = is_leaf_at(i);
             if (!is_leaf_successor) {
                 ln_fa[i] = 0.0;
                 continue;
             }
-            const std::size_t il_idx = static_cast<std::size_t>(rank - 1);
-            if (il_idx < il_n) {
-                ln_fa[i] = this->internode_IL_final.at(il_idx);
-            } else {
-                ln_fa[i] = 0.0;
+            // Plan B.3 (peduncle exuberance, 2026-04-27) HI#4 gate: if the
+            // NEXT successor slot is non-leaf (tassel), ln[i] is the
+            // mainstem internode immediately below the tassel attachment
+            // — i.e., the peduncle.  Hand the peduncle to the tassel
+            // subType (whose own lb/internode handles it) by collapsing
+            // this mainstem entry to basal_floor.  Without this gate, the
+            // mainstem skeleton extends ~17 cm above the topmost leaf
+            // (matching IL_final[16] for Déa) and HI#4 (mainstem top ≤
+            // topmost-leaf insertion + 5 cm) cannot close.  The lofter
+            // cosmetic-trim removal in S4 depends on this collapse.
+            const bool next_is_tassel = (i + 1 < n_phytomers) && !is_leaf_at(i + 1);
+            if (next_is_tassel) {
+                ln_fa[i] = basal_floor;
+                continue;
             }
+            // Basal_zero ranks: only the basal_step seed contributes (no
+            // FA elongation).  Setting ln to the basal floor keeps
+            // internodalGrowth's per-phytomer cap consistent with the
+            // seeded geometry, while basal_zero_ranks gate at line ~822
+            // still pins growth to 0.
+            if (is_basal_zero(rank)) {
+                ln_fa[i] = basal_floor;
+                continue;
+            }
+            const std::size_t il_idx = static_cast<std::size_t>(rank - 1);
+            const double il = (il_idx < il_n) ? this->internode_IL_final.at(il_idx) : 0.0;
+            // Floor to basal_internode_cm so the branching-zone cap covers
+            // the seeded basal_step on every rank (rank 5 has IL_final=0.8
+            // for Déa, basal_step=1.0 for maize_calibrated → floor=1.0).
+            ln_fa[i] = std::max(il, basal_floor);
         }
         ln_ = std::move(ln_fa);
     }

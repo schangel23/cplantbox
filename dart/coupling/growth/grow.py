@@ -101,7 +101,22 @@ def enable_fa_on_mainstem(plant, kinetics_path=None, max_rank=FA_DEFAULT_MAX_RAN
     srp.use_fournier_andrieu_kinetics = True
     srp.internode_v_n = _fill(v_table, "15", 0.18)
     srp.internode_D_n = _fill(d_table, "15", 79.0)
-    srp.internode_IL_final = _fill(il_table, "15", 16.0)
+    il_final = _fill(il_table, "15", 16.0)
+    # Plan B.3 (peduncle exuberance, 2026-04-27): basal_zero_ranks get
+    # IL_final=0 so Stem::simulate's fa_sum doesn't pick up the phantom
+    # 16 cm fallback for ranks the JSON doesn't cover (1..4 for Déa).
+    # Without this gate fa_sum ≈ 4*16 + Σ IL_final[5..16] = 64 + 200 = 264 cm,
+    # which keeps targetlength chasing the apex 60 cm above the
+    # branching-zone cap and fuels the apical-zone bleed observed at
+    # 207 cm day-130. Pinning these to 0 makes calcLengthPerPhytomer return
+    # 0 for those ranks; the basal_step seed (basal_internode_cm) still
+    # appears in length_per_n via the plastochron loop, so geometry is
+    # unchanged — only the targetlength forecast contracts.
+    basal_zero = list(getattr(srp, "basal_zero_ranks", [1, 2, 3, 4]))
+    for r in basal_zero:
+        if 1 <= r <= len(il_final):
+            il_final[r - 1] = 0.0
+    srp.internode_IL_final = il_final
     if verbose:
         print(f"  FA kinetics: enabled on mainstem subType=1 (max_rank={max_rank})")
     return True
