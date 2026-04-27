@@ -170,14 +170,30 @@ void Stem::simulate(double dt, bool verbose)
 		{
 			const auto& srp_fa_outer = *getStemRandomParameter();
 			if (srp_fa_outer.use_fournier_andrieu_kinetics
-			    && srp_fa_outer.use_thermal_cessation
-			    && srp_fa_outer.tt_cessation > 0.0) {
+			    && srp_fa_outer.use_thermal_cessation) {
 				const int n_ranks_outer = static_cast<int>(srp_fa_outer.internode_v_n.size());
 				if (n_ranks_outer > 0) {
 					if (static_cast<int>(cessation_andrieu_tt_per_n.size()) < n_ranks_outer + 1) {
 						cessation_andrieu_tt_per_n.resize(n_ranks_outer + 1, -1.0);
 						cessation_age_per_n.resize(n_ranks_outer + 1, -1.0);
 					}
+					// Plan B.3 (peduncle exuberance, 2026-04-27): per-rank
+					// threshold dispatch.
+					//   tt_cessation > 0  → legacy global plant-TT crossing
+					//                        (every rank latches at the same
+					//                        tau_n, preserves S3b.3 behaviour
+					//                        for the synthetic tt_cessation=800
+					//                        regression test).
+					//   tt_cessation <= 0 → per-rank Phase IV operational
+					//                        completion: rank n latches once
+					//                        tau_n >= phase_I + phase_II
+					//                                 + D_n[n] + phase_IV_op.
+					//                        This is the preferred maize-FA path
+					//                        because the literature anchor (FA
+					//                        2000 + Birch 2002) is per-rank
+					//                        Phase IV duration, not a single
+					//                        plant-TT gate.
+					const bool legacy_threshold = srp_fa_outer.tt_cessation > 0.0;
 					auto plant_cess_outer = getPlant();
 					if (plant_cess_outer) {
 						double plant_andrieu_tt_outer = plant_cess_outer->getAccumulatedAndrieuTT();
@@ -200,9 +216,42 @@ void Stem::simulate(double dt, bool verbose)
 								init_tt_outer = leaf_tt_outer + 9.6;   // HALF_PLASTOCHRON_LAG_DEGCD
 							}
 							double tau_n_outer = plant_andrieu_tt_outer - init_tt_outer;
-							if (tau_n_outer >= srp_fa_outer.tt_cessation) {
+							double threshold_outer;
+							if (legacy_threshold) {
+								threshold_outer = srp_fa_outer.tt_cessation;
+							} else {
+								// Per-rank Phase IV completion (Plan B.3).
+								const std::size_t d_idx = static_cast<std::size_t>(leaf_ordinal_outer - 1);
+								const double D_n = (d_idx < srp_fa_outer.internode_D_n.size())
+									? srp_fa_outer.internode_D_n[d_idx]
+									: 0.0;
+								threshold_outer = srp_fa_outer.phase_I_duration
+									+ srp_fa_outer.phase_II_duration
+									+ D_n
+									+ srp_fa_outer.phase_IV_duration;
+							}
+							if (tau_n_outer >= threshold_outer) {
 								cessation_andrieu_tt_per_n[leaf_ordinal_outer] = plant_andrieu_tt_outer;
 								cessation_age_per_n[leaf_ordinal_outer] = age;
+							}
+						}
+					}
+					// Plan B.3: when ALL per-rank latches are set (every leaf
+					// rank has finished its Phase IV elongation), trigger the
+					// global cessation_age_ latch so the existing age__ clamp
+					// at line ~250 freezes calcLength() and the FA targetlength
+					// stops growing.  Replaces the unreachable plant-TT global
+					// latch (Bug 3 in the diagnostic).  Idempotent: only fires
+					// once cessation_age_ < 0.
+					if (!legacy_threshold && cessation_age_ < 0.0) {
+						bool all_latched = true;
+						for (int n = 1; n <= n_ranks_outer; ++n) {
+							if (cessation_age_per_n[n] < 0.0) { all_latched = false; break; }
+						}
+						if (all_latched) {
+							cessation_age_ = age;
+							if (plant_cess_outer) {
+								cessation_andrieu_tt_ = plant_cess_outer->getAccumulatedAndrieuTT();
 							}
 						}
 					}
@@ -313,7 +362,11 @@ void Stem::simulate(double dt, bool verbose)
 					// path.
 					{
 						const auto& srp_fa = *getStemRandomParameter();
-						if (srp_fa.use_thermal_cessation && srp_fa.tt_cessation > 0.0) {
+						if (srp_fa.use_thermal_cessation) {
+							// Plan B.3 dispatch (mirrors outer latch):
+							//   tt_cessation > 0  → legacy global plant-TT
+							//   tt_cessation <= 0 → per-rank Phase IV operational
+							const bool legacy_threshold_inner = srp_fa.tt_cessation > 0.0;
 							auto plant_cess = getPlant();
 							if (plant_cess) {
 								double plant_andrieu_tt = plant_cess->getAccumulatedAndrieuTT();
@@ -328,7 +381,20 @@ void Stem::simulate(double dt, bool verbose)
 									if (leaf_tt < 0.0) continue;
 									double init_tt_n = leaf_tt + 9.6;   // HALF_PLASTOCHRON_LAG_DEGCD
 									double tau_n = plant_andrieu_tt - init_tt_n;
-									if (tau_n >= srp_fa.tt_cessation) {
+									double threshold_inner;
+									if (legacy_threshold_inner) {
+										threshold_inner = srp_fa.tt_cessation;
+									} else {
+										const std::size_t d_idx = static_cast<std::size_t>(leaf_ordinal_cess - 1);
+										const double D_n = (d_idx < srp_fa.internode_D_n.size())
+											? srp_fa.internode_D_n[d_idx]
+											: 0.0;
+										threshold_inner = srp_fa.phase_I_duration
+											+ srp_fa.phase_II_duration
+											+ D_n
+											+ srp_fa.phase_IV_duration;
+									}
+									if (tau_n >= threshold_inner) {
 										cessation_andrieu_tt_per_n[leaf_ordinal_cess] = plant_andrieu_tt;
 										cessation_age_per_n[leaf_ordinal_cess] = age;
 									}
@@ -404,7 +470,18 @@ void Stem::simulate(double dt, bool verbose)
 					// scalar path). Including those ranks in fa_sum would
 					// cause targetlength to over-count (~43 cm for a 130-day
 					// maize run = tassel internode + apical peduncle).
+					// Plan B.2 floor fix aligns sum(ln) with fa_sum at maturity.
+					// Cap targetlength to lb + sum(ln) so transient overshoots
+					// during early Phase III (where length_per_n[n] is bumped
+					// to basal_step before FA target catches up) cannot push
+					// dl past the branching-zone capacity into the apical
+					// zone.  Without this cap a 1–4 cm apex bleed occurs in
+					// the days before the all-latched gate fires.
+					double ln_sum = 0.0;
+					for (double v : p.ln) ln_sum += v;
+					const double branching_cap = p.lb + ln_sum + this->epsilonDx;
 					targetlength = p.lb + fa_sum + this->epsilonDx;
+					if (targetlength > branching_cap) targetlength = branching_cap;
 				} else {
 					targetlength = calcLength(age__) + this->epsilonDx;
 				}
@@ -413,6 +490,20 @@ void Stem::simulate(double dt, bool verbose)
 				double dl = e;//length increment = calculated length + increment from last time step too small to be added
 				length = getLength(true);
 				this->epsilonDx = 0.; // now it is "spent" on targetlength (no need for -this->epsilonDx in the following)
+				// Plan B.3 (peduncle exuberance, 2026-04-27): once the global
+				// cessation_age_ latch has fired (under FA-on this fires when
+				// every per-rank cessation_age_per_n[1..n_ranks] is set, see
+				// outer-latch all-latched check above), zero dl so the
+				// FA-leftover internodalGrowth route + apical-zone block
+				// stop bleeding length into the apex.  HI#4 (mainstem top
+				// ≤ topmost-leaf insertion + 5 cm) only closes when this gate
+				// fires; without it the apical-zone block (length >
+				// maxInternodeDistance + p.lb) keeps absorbing residual dl.
+				// FA-off path keeps the existing age__ clamp at calcLength;
+				// this extra hard zero is FA-on only.
+				if (p.use_fournier_andrieu_kinetics && cessation_age_ >= 0.0) {
+					dl = 0.0;
+				}
 				// create geometry
 				if (p.laterals) { // stem has laterals
 					/* basal zone */

@@ -159,7 +159,7 @@
         <parameter name="tropismN" value="1" />
         <parameter name="tropismS" value="0" />
         <parameter name="use_thermal_cessation" value="1" />
-        <parameter name="tt_cessation" value="1500" />
+        <parameter name="tt_cessation" value="0" />
         <parameter name="basal_internode_cm" value="1.0" />
         <parameter name="successor" ruleId="0" numLat="1" Where="" subType="2" organType="4" percentage="1" />
     </stem>
