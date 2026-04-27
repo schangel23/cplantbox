@@ -9,7 +9,7 @@ labels the production grow CLI auto-appends.
 Run:
     cd /home/lukas/PHD/CPlantBox
     source cpbenv/bin/activate
-    PYTHONPATH=. python dart/coupling/output/blender_preview/_gen_vr_stages.py
+    PYTHONPATH=. python dart/tools/blender_preview/_gen_vr_stages.py
 """
 from __future__ import annotations
 
@@ -26,8 +26,10 @@ from dart.coupling.growth.phenology import (
     detect_v_stage,
 )
 
-# Output folder — single directory the user asked for.
-OUT_DIR = Path(__file__).resolve().parents[1] / "vr_stages"
+# Output: canonical pipeline location (resolves regardless of CWD).
+# Script lives at dart/tools/blender_preview/<name>.py → parents[3] = project root.
+PROJECT_ROOT = Path(__file__).resolve().parents[3]
+OUT_DIR = PROJECT_ROOT / "dart" / "coupling" / "output" / "vr_stages"
 
 SEED = 42
 

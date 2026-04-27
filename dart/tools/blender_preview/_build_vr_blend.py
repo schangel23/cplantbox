@@ -3,10 +3,10 @@ arranged in a row along +X. Each plant's origin sits at its stem base
 (world z=0 in CPlantBox coords, preserved through scaling).
 
 Usage:
-    blender --background --python dart/coupling/output/blender_preview/_build_vr_blend.py
+    blender --background --python dart/tools/blender_preview/_build_vr_blend.py
 
-Reads OBJs from ``output/vr_stages/*.obj`` (paired with sidecar .mtl), saves
-``output/vr_stages/vr_stages_row.blend``.
+Reads OBJs from ``dart/coupling/output/vr_stages/*.obj`` (paired with sidecar
+.mtl), saves ``dart/coupling/output/vr_stages/vr_stages_row.blend``.
 """
 from __future__ import annotations
 
@@ -15,9 +15,11 @@ from pathlib import Path
 
 import bpy
 
-# Path math relative to this file: parents[1] = dart/coupling/output
+# Output: canonical pipeline location (resolves regardless of CWD).
+# Script lives at dart/tools/blender_preview/<name>.py → parents[3] = project root.
 HERE = Path(__file__).resolve()
-OUT_DIR = HERE.parents[1] / "vr_stages"
+PROJECT_ROOT = HERE.parents[3]
+OUT_DIR = PROJECT_ROOT / "dart" / "coupling" / "output" / "vr_stages"
 BLEND_PATH = OUT_DIR / "vr_stages_row.blend"
 
 # Row spacing (Blender meters). Mature maize ≈ 1.5 m wide leaf spread, so
