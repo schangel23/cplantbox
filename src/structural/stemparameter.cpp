@@ -274,7 +274,19 @@ default:
         && hasLaterals
         && this->successorST.size() > 0
         && this->internode_IL_final.size() > 0) {
-        const std::size_t n_phytomers = this->successorST.size();
+        // CPlantBox convention (Stem.cpp:508 + plastochron loop): the
+        // expression ``p.ln.size() + 1`` is treated as the maximum number
+        // of laterals.  With N successor rules (= N attachable laterals),
+        // ln must have exactly N - 1 inter-lateral entries; otherwise the
+        // S3b.7 plastochron loop iterates past the last actual successor
+        // (n = N + 1) and the topmost-lateral basal_step gate
+        // ``if (n < n_laterals_max)`` fires once spuriously on the tassel
+        // attach, producing the 1 cm phantom advance reported in the
+        // codex-rescue Finding 1 (2026-04-27).  Sizing ``ln_fa`` to
+        // ``successorST.size() - 1`` aligns the FA path with the
+        // existing convention.
+        const std::size_t n_lats = this->successorST.size();
+        const std::size_t n_phytomers = (n_lats > 0) ? (n_lats - 1) : 0;
         std::vector<double> ln_fa(n_phytomers, 0.0);
         const std::size_t il_n = this->internode_IL_final.size();
         const auto& bz = this->basal_zero_ranks;
@@ -300,24 +312,33 @@ default:
         };
         for (std::size_t i = 0; i < n_phytomers; ++i) {
             const int rank = static_cast<int>(i) + 1; // 1-indexed
-            // Tassel/non-leaf successor rule: peduncle elongation belongs
-            // to the tassel subType, not the mainstem; this slot stays 0.
+            // Defensive: under the new sizing ``i`` should always index a
+            // leaf successor (the tassel lives at position n_lats - 1 and
+            // is handled implicitly via the next_is_tassel gate below).
+            // Keep this branch as a safety net for unusual successor
+            // patterns (e.g. interior non-leaf successor) so we don't
+            // emit IL_final into a non-leaf slot.
             const bool is_leaf_successor = is_leaf_at(i);
             if (!is_leaf_successor) {
                 ln_fa[i] = 0.0;
                 continue;
             }
             // Plan B.3 (peduncle exuberance, 2026-04-27) HI#4 gate: if the
-            // NEXT successor slot is non-leaf (tassel), ln[i] is the
-            // mainstem internode immediately below the tassel attachment
-            // — i.e., the peduncle.  Hand the peduncle to the tassel
-            // subType (whose own lb/internode handles it) by collapsing
+            // NEXT successor slot (at position i+1 in the *full*
+            // successor table — note we check against ``n_lats`` not
+            // ``n_phytomers``) is non-leaf (tassel), ln[i] is the
+            // mainstem internode immediately below the tassel
+            // attachment — i.e., the peduncle.  Hand the peduncle to the
+            // tassel subType (whose own lb handles it) by collapsing
             // this mainstem entry to basal_floor.  Without this gate, the
             // mainstem skeleton extends ~17 cm above the topmost leaf
             // (matching IL_final[16] for Déa) and HI#4 (mainstem top ≤
-            // topmost-leaf insertion + 5 cm) cannot close.  The lofter
-            // cosmetic-trim removal in S4 depends on this collapse.
-            const bool next_is_tassel = (i + 1 < n_phytomers) && !is_leaf_at(i + 1);
+            // topmost-leaf insertion + 5 cm) cannot close.
+            // TODO (codex-rescue Finding 3): for non-maize FA expansion,
+            // gate this on the explicit tassel subType (20/21) rather
+            // than ``!is_leaf_at`` so a branched-stem successor doesn't
+            // accidentally collapse its preceding internode.
+            const bool next_is_tassel = (i + 1 < n_lats) && !is_leaf_at(i + 1);
             if (next_is_tassel) {
                 ln_fa[i] = basal_floor;
                 continue;
