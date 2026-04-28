@@ -66,12 +66,26 @@ def test_peduncle_is_in_mainstem_subtype1(snapshot):
     """Failure mode 3: confirm peduncle (apical zone above topmost leaf node)
     is structurally tracked on mainstem subType=1 (not migrated to subType=20).
 
-    Post-S1-S4 (peduncle-exuberance fix):
-      - FA-off keeps the legacy ~40 cm apical zone (XML la=22 + scalar burst).
-      - FA-on collapses the peduncle to <5 cm via Phase IV cessation: the
-        topmost leaf rides up to the apex and the apical-zone block stops
-        bleeding length.
+    Two facts asserted independently — they used to be conflated under one
+    misleading flag:
+
+      * Ownership (B.6 precondition, must always hold): the peduncle is
+        topologically owned by mainstem subType=1, i.e. we can measure
+        peduncle_length_cm from a subType=1 mainstem. If this flips to
+        False, the peduncle has migrated off subType=1 (e.g. into a
+        subType=20 tassel internode) and the rest of B.6 is moot.
+      * Exuberance (regression marker, the S1-S4 fix's success criterion):
+        FA-off keeps the legacy ~40 cm apical zone (XML la=22 + scalar
+        burst); FA-on collapses to <5 cm via Phase IV cessation.
     """
+    discovery = snapshot["discovery"]
+    assert discovery["peduncle_in_mainstem_subtype1"] is True, (
+        "B.6 precondition broken: peduncle is no longer owned by mainstem "
+        "subType=1. Either the mainstem has no subType=1 stems, or the "
+        "topmost leaf insertion can no longer be located on it. The whole "
+        "peduncle-scope discussion is moot until this is restored."
+    )
+
     fa_on_pedun = snapshot["fa_on"]["peduncle_length_cm"]
     fa_off_pedun = snapshot["fa_off"]["peduncle_length_cm"]
     assert fa_on_pedun is not None and fa_off_pedun is not None
@@ -83,6 +97,10 @@ def test_peduncle_is_in_mainstem_subtype1(snapshot):
         f"FA-on peduncle = {fa_on_pedun:.2f} cm; expected <5 cm post-S1-S4 "
         "peduncle-exuberance fix (Phase IV cessation should drop the apical "
         "zone). Did B.3 per-rank cessation regress?"
+    )
+    assert discovery["peduncle_exuberant_in_mainstem"] is False, (
+        "Peduncle exuberance (>5 cm FA-on apical zone) is back. "
+        "S1-S4 Phase IV cessation has regressed."
     )
 
 

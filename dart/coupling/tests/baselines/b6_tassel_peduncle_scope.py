@@ -237,9 +237,18 @@ def report_discovery(fa_snap: dict, scalar_snap: dict) -> dict:
     # Plan §B.6: "If [mainstem_node_count] is exactly 16: peduncle is subType=20.
     # If it's 17+: peduncle in subType=1, FA runs on it."
     # Note: at thin B.3.5, mainstems carry hundreds of nodes (dx=0.1 resampling).
-    # The discriminator in our build is whether tassel_spike first-node-z ≤
-    # mainstem_top_z (peduncle in subType=1) or > (peduncle in subType=20).
-    peduncle_in_mainstem = (fa_snap["peduncle_length_cm"] or 0.0) > 5.0  # apical zone present
+    #
+    # Two independent facts captured separately so a downstream test can't
+    # silently confuse them:
+    #   * peduncle_in_mainstem_subtype1 — true topological ownership: did we
+    #     successfully measure peduncle_length_cm from a subType=1 mainstem?
+    #     This is the always-True B.6 precondition (failure = the peduncle
+    #     migrated off subType=1, e.g. into subType=20 tassel internodes).
+    #   * peduncle_exuberant_in_mainstem — the regression marker: is the
+    #     apical leafless zone large enough (>5 cm) to constitute "peduncle
+    #     exuberance"? True pre-S1-S4 (~42 cm), False post-S1-S4 (~1 cm).
+    peduncle_in_mainstem = fa_snap["peduncle_length_cm"] is not None
+    peduncle_exuberant = (fa_snap["peduncle_length_cm"] or 0.0) > 5.0
     tassel_above_mainstem = False
     if fa_snap["tassel_spikes"]:
         ts_first_z = fa_snap["tassel_spikes"][0]["first_node_z_cm"]
@@ -254,6 +263,7 @@ def report_discovery(fa_snap: dict, scalar_snap: dict) -> dict:
         "fa_n_mainstem_attached_leaves": fa_n_attached,
         "fa_mainstem_node_count": fa_mainstem_nodes,
         "peduncle_in_mainstem_subtype1": bool(peduncle_in_mainstem),
+        "peduncle_exuberant_in_mainstem": bool(peduncle_exuberant),
         "tassel_first_node_at_or_above_mainstem_top": bool(tassel_above_mainstem),
         "peduncle_length_fa_cm": pedun_fa,
         "peduncle_length_scalar_cm": pedun_scalar,
@@ -284,7 +294,8 @@ def main():
     print(f"  vegetative leaf count (calibrated):                 {discovery['n_vegetative_leaves']}")
     print(f"  FA mainstem attached-leaf count:                    {discovery['fa_n_mainstem_attached_leaves']}")
     print(f"  FA mainstem node count (resampled @ dx):            {discovery['fa_mainstem_node_count']}")
-    print(f"  peduncle present in mainstem subType=1?             {discovery['peduncle_in_mainstem_subtype1']}")
+    print(f"  peduncle owned by mainstem subType=1?               {discovery['peduncle_in_mainstem_subtype1']}  (B.6 precondition)")
+    print(f"  peduncle exuberant (>5 cm apical zone, FA-on)?      {discovery['peduncle_exuberant_in_mainstem']}  (regression marker)")
     print(f"  tassel spike first-node at/above mainstem top?      {discovery['tassel_first_node_at_or_above_mainstem_top']}")
     print(f"  peduncle length FA / scalar / |diff| (cm):          {discovery['peduncle_length_fa_cm']:.2f}  {discovery['peduncle_length_scalar_cm']:.2f}  {discovery['peduncle_kinetic_error_cm']:.2f}")
     print(f"  mainstem top z FA / scalar / |diff| (cm):           {discovery['mainstem_top_z_fa_cm']:.2f}  {discovery['mainstem_top_z_scalar_cm']:.2f}  {discovery['mainstem_top_diff_cm']:.2f}")
