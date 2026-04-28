@@ -517,23 +517,6 @@ void Stem::simulate(double dt, bool verbose)
 				// this extra hard zero is FA-on only.
 				if (p.use_fournier_andrieu_kinetics && cessation_age_ >= 0.0) {
 					dl = 0.0;
-					// codex-rescue follow-up (2026-04-28): also clear the
-					// lifecycle active flag here.  The FA target cap above
-					// clamps targetlength to (lb + Σln), excluding the
-					// apical la that StemSpecificParameter::getK() still
-					// includes; with dl forced to 0 the line-750 trigger
-					// (active = getLength < getK*(1-1e-11)) can never fire,
-					// so the mainstem stays permanently isActive() = true.
-					// Downstream consumers gate growth on isActive():
-					//   src/external/PiafMunch/runPM.cpp:697  (carbon-water
-					//     growth update under isActive() && useCWGr)
-					//   src/external/PiafMunch/runPM.cpp:847  (whether to
-					//     step the organ at all in the phloem solve)
-					// Without this explicit clear, a mature mainstem keeps
-					// being treated as a live sink/source after structural
-					// growth has stopped.  See test_fa_hard_invariants.py
-					// post-cessation regression for the assertion.
-					active = false;
 				}
 				// create geometry
 				if (p.laterals) { // stem has laterals
@@ -764,7 +747,23 @@ void Stem::simulate(double dt, bool verbose)
 			//set limit below 1e-10, as the test files see if correct length
 			//once rounded at the 10th decimal
 			//@see test/test_stem_ng.py
-			active = getLength(false)<=(p.getK()*(1 - 1e-11)); // become inactive, if final length is nearly reached
+			//
+			// codex-rescue follow-up (2026-04-28): under FA-on, once the
+			// Phase IV cessation_age_ latch has fired the FA target cap
+			// (above) clamps targetlength to (lb + Σln), excluding the
+			// apical la that getK() still includes — so length will never
+			// reach getK()*(1-1e-11) and active would stay permanently
+			// true. Downstream consumers gate on isActive():
+			//   src/external/PiafMunch/runPM.cpp:697  (carbon-water
+			//     growth update under isActive() && useCWGr)
+			//   src/external/PiafMunch/runPM.cpp:847  (whether to step
+			//     the organ at all in the phloem solve)
+			// Short-circuit to false in the FA-cessation branch.
+			if (p.use_fournier_andrieu_kinetics && cessation_age_ >= 0.0) {
+				active = false;
+			} else {
+				active = getLength(false)<=(p.getK()*(1 - 1e-11)); // become inactive, if final length is nearly reached
+			}
 		}
 	} // if alive
 }
