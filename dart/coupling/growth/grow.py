@@ -401,7 +401,7 @@ def grow_plant(xml_path, simulation_time, min_stem_nodes=50, min_leaf_nodes=20,
                enable_photosynthesis=False, seed=None,
                cp_donor_seed=None, cp_donor_mode="draw_coherent",
                daily_met=None, T_air_default=25.0,
-               use_fa=True):
+               use_fa=True, mutate_lrp_pre_init=None):
     """Grow a CPlantBox plant from calibrated XML.
 
     Args:
@@ -452,6 +452,14 @@ def grow_plant(xml_path, simulation_time, min_stem_nodes=50, min_leaf_nodes=20,
     if _fa_requested(use_fa):
         enable_fa_on_mainstem(plant, verbose=True)
         enable_fa_on_leaves(plant, verbose=True)
+
+    # Final pre-initialize hook for tests / harnesses that need to flip
+    # LRP fields after FA setup but before f_gf is minted in
+    # plant.initialize() → Plant::initCallbacks. Used by the S0.3 dispatch
+    # parity harness (ADR_LEAF_KINEMATICS_2026-04-28); leave None for
+    # production runs.
+    if mutate_lrp_pre_init is not None:
+        mutate_lrp_pre_init(plant)
 
     # Soil geometry — must be set BEFORE plant.initialize() when using photosynthesis.
     # Roots are excluded from the G3 mesh (skip_roots=True in adapter) but kept in

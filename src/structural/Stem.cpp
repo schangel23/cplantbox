@@ -329,7 +329,85 @@ void Stem::simulate(double dt, bool verbose)
 				// state monotone, which is the load-bearing property for
 				// S3b.5 per-rank τ_n validation against Fournier 2000 Déa.
 				double targetlength;
-				if (p.use_fournier_andrieu_kinetics) {
+				// S0.3 dispatch (ADR_LEAF_KINEMATICS_2026-04-28):
+				// stem_growth_dispatch == 1 routes the FA targetlength
+				// computation through MultiPhaseStemGrowth::getLength
+				// (Lock #4 pure-scalar contract); the geometry side
+				// effects below (branching block, internodalGrowth,
+				// span walk, active gate) keep reading the Stem
+				// fields, which we mirror to/from the GF instance
+				// state around the call.
+				const auto& srp_disp = *getStemRandomParameter();
+				const bool dispatch_gf =
+					p.use_fournier_andrieu_kinetics
+					&& srp_disp.stem_growth_dispatch == 1;
+				if (dispatch_gf) {
+					// Hoisted lazy resize sized to per_n_end so the
+					// downstream geometry block reads valid
+					// lateral_spawned_per_n / initiation_andrieu_tt_per_n
+					// without depending on the (skipped) shadow inner
+					// resize blocks.
+					const int n_ranks_gf = static_cast<int>(p.internode_v_n.size());
+					const int n_laterals_max_gf = static_cast<int>(p.ln.size()) + 1;
+					const int per_n_end_gf = std::max(n_ranks_gf + 1,
+					                                   n_laterals_max_gf + 1);
+					if (static_cast<int>(length_per_n.size()) < per_n_end_gf) {
+						length_per_n.resize(per_n_end_gf, 0.0);
+						epsilonDx_per_n.resize(per_n_end_gf, 0.0);
+						cessation_age_per_n.resize(per_n_end_gf, -1.0);
+						cessation_andrieu_tt_per_n.resize(per_n_end_gf, -1.0);
+						lateral_spawned_per_n.resize(per_n_end_gf, 0);
+					}
+					if (static_cast<int>(initiation_andrieu_tt_per_n.size()) < per_n_end_gf) {
+						initiation_andrieu_tt_per_n.resize(per_n_end_gf, -1.0);
+					}
+
+					auto gf_mps = std::dynamic_pointer_cast<MultiPhaseStemGrowth>(
+						srp_disp.f_gf);
+					if (!gf_mps) {
+						throw std::runtime_error(
+							"Stem::simulate: stem_growth_dispatch=1 requires "
+							"f_gf to be MultiPhaseStemGrowth (set in "
+							"Plant::initCallbacks); dynamic_cast failed.");
+					}
+					// Mirror Stem fields → GF instance state. Outer
+					// cessation block (above) writes directly to Stem
+					// fields and runs unconditionally on every step,
+					// so this push gives getLength a consistent view.
+					auto& gf_state = gf_mps->per_organ_state[getId()];
+					gf_state.cessation_age              = cessation_age_;
+					gf_state.cessation_andrieu_tt       = cessation_andrieu_tt_;
+					gf_state.length_per_n               = length_per_n;
+					gf_state.epsilonDx_per_n            = epsilonDx_per_n;
+					gf_state.cessation_age_per_n        = cessation_age_per_n;
+					gf_state.cessation_andrieu_tt_per_n = cessation_andrieu_tt_per_n;
+					gf_state.lateral_spawned_per_n      = lateral_spawned_per_n;
+					gf_state.initiation_andrieu_tt_per_n = initiation_andrieu_tt_per_n;
+					gf_state.basal_length               = basal_length_;
+
+					// Single dispatch through f_gf->getLength. Pass
+					// `age` (calendar) — getLength uses it only for
+					// update_cessation_latches' age-stamp, which the
+					// shadow path samples against `age` (not age__).
+					targetlength = srp_disp.f_gf->getLength(
+						age, p.r, p.getK(), shared_from_this())
+					             + this->epsilonDx;
+
+					// Mirror GF state → Stem fields. Captures any new
+					// per-rank latches and the plastochron forecast
+					// seeds (length_per_n[n] = basal_internode_cm for
+					// freshly-crossed ranks). Geometry side effects
+					// below read these as before.
+					cessation_age_                = gf_state.cessation_age;
+					cessation_andrieu_tt_         = gf_state.cessation_andrieu_tt;
+					length_per_n                  = gf_state.length_per_n;
+					epsilonDx_per_n               = gf_state.epsilonDx_per_n;
+					cessation_age_per_n           = gf_state.cessation_age_per_n;
+					cessation_andrieu_tt_per_n    = gf_state.cessation_andrieu_tt_per_n;
+					lateral_spawned_per_n         = gf_state.lateral_spawned_per_n;
+					initiation_andrieu_tt_per_n   = gf_state.initiation_andrieu_tt_per_n;
+					basal_length_                 = gf_state.basal_length;
+				} else if (p.use_fournier_andrieu_kinetics) {
 					const int n_ranks = static_cast<int>(p.internode_v_n.size());
 					// Lazy init of per-phytomer bookkeeping vectors (first FA-on
 					// step). Index 0 is unused; ranks are indexed 1..n_ranks.

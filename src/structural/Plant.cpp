@@ -185,7 +185,14 @@ void Plant::initCallbacks()
         auto tropism = this->createTropismFunction(rp->tropismT, rp->tropismN, rp->tropismS, Tage);
         tropism->setGeometry(geometry);
         rp->f_tf = tropism; // set new one
-        auto gf_ = this->createGrowthFunction(rp->gf);
+        // S0.3 dispatch (ADR_LEAF_KINEMATICS_2026-04-28). When the LRP opts
+        // into MultiPhaseStemGrowth, mint that GF regardless of the XML `gf`
+        // field. Stays orthogonal to gf so non-FA stems keep their
+        // ExponentialGrowth/Linear/etc. dispatch when dispatch=0.
+        const int gft_eff = (rp->stem_growth_dispatch == 1)
+                          ? gft_multi_phase_stem
+                          : rp->gf;
+        auto gf_ = this->createGrowthFunction(gft_eff);
         gf_->getAge(1,1,1,nullptr);  // check if getAge is implemented (otherwise an exception is thrown)
         rp->f_gf  = gf_;
     }

@@ -832,7 +832,8 @@ PYBIND11_MODULE(plantbox, m) {
             .def_readwrite("internode_D_n", &StemRandomParameter::internode_D_n)
             .def_readwrite("internode_IL_final", &StemRandomParameter::internode_IL_final)
             .def_readwrite("plastochron_andrieu", &StemRandomParameter::plastochron_andrieu)
-            .def_readwrite("basal_internode_cm", &StemRandomParameter::basal_internode_cm);
+            .def_readwrite("basal_internode_cm", &StemRandomParameter::basal_internode_cm)
+            .def_readwrite("stem_growth_dispatch", &StemRandomParameter::stem_growth_dispatch);
     py::class_<StemSpecificParameter, OrganSpecificParameter, std::shared_ptr<StemSpecificParameter>>(m, "StemSpecificParameter")
             .def(py::init<>())
             .def(py::init<int , double, double, const std::vector<double>&, double, double, double, double, double>())
