@@ -1,0 +1,16 @@
+diff --git a/src/wrapper/algo/CMakeLists.txt b/src/wrapper/algo/CMakeLists.txt
+index 01f57c1..d0409b0 100644
+--- a/src/wrapper/algo/CMakeLists.txt
++++ b/src/wrapper/algo/CMakeLists.txt
+@@ -4,6 +4,11 @@ file(GLOB_RECURSE SRC_FILES "${CMAKE_CURRENT_SOURCE_DIR}/*.cpp")
+ 
+ add_library(_pglalgo SHARED ${SRC_FILES})
+ 
++# Python 3.14: PyType_Spec.slots field collides with Qt `slots` macro
++# pulled transitively from algo/projection headers. Disable the macro
++# (Q_SLOTS still works for any future Qt code in wrappers).
++target_compile_definitions(_pglalgo PRIVATE QT_NO_KEYWORDS)
++
+ # --- Linked Libraries
+ 
+ target_link_libraries(_pglalgo pglmath pgltool pglsg pglalgo)

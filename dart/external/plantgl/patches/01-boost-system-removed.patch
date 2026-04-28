@@ -1,0 +1,52 @@
+diff --git a/CMakeLists.txt b/CMakeLists.txt
+index ffb9f71..3d1722d 100644
+--- a/CMakeLists.txt
++++ b/CMakeLists.txt
+@@ -123,7 +123,7 @@ find_library(QHULL_LIBRARY NAMES "libqhullstatic.a" PATHS $ENV{CONDA_PREFIX}/lib
+ find_package(Qhull)
+ 
+ 
+-find_package(Boost COMPONENTS thread system chrono ${boost_python} ${boost_numpy})
++find_package(Boost COMPONENTS thread chrono ${boost_python} ${boost_numpy})
+ find_package(CGAL)
+ 
+ if (Boost_FOUND)
+diff --git a/cmake/PglWrapper.cmake b/cmake/PglWrapper.cmake
+index 461ccaa..561b9e6 100644
+--- a/cmake/PglWrapper.cmake
++++ b/cmake/PglWrapper.cmake
+@@ -12,7 +12,7 @@ function(pglwrapper_link_boost libwrapname)
+     # Disable Boost Auto-Link
+     target_compile_definitions(${libwrapname} PRIVATE BOOST_ALL_NO_LIB)
+ 
+-    target_link_libraries(${libwrapname} Boost::system Boost::thread Boost::${boost_python} Boost::dynamic_linking Boost::disable_autolinking)
++    target_link_libraries(${libwrapname} Boost::thread Boost::${boost_python} Boost::dynamic_linking Boost::disable_autolinking)
+ 
+ endfunction()
+ 
+diff --git a/src/cpp/plantgl/algo/CMakeLists.txt b/src/cpp/plantgl/algo/CMakeLists.txt
+index 02e0992..feaea72 100644
+--- a/src/cpp/plantgl/algo/CMakeLists.txt
++++ b/src/cpp/plantgl/algo/CMakeLists.txt
+@@ -89,7 +89,7 @@ else(APPLE)
+ 
+ endif(APPLE)
+ 
+-target_link_libraries(pglalgo Boost::system Boost::thread)
++target_link_libraries(pglalgo Boost::thread)
+ 
+ # --- Dependencies
+ 
+diff --git a/src/cpp/plantgl/tool/CMakeLists.txt b/src/cpp/plantgl/tool/CMakeLists.txt
+index c45c6fb..f5ce70b 100644
+--- a/src/cpp/plantgl/tool/CMakeLists.txt
++++ b/src/cpp/plantgl/tool/CMakeLists.txt
+@@ -11,7 +11,7 @@ add_library(pgltool SHARED ${SRC_FILES})
+ #endif()
+ 
+ if (NOT MSVC)
+-    target_link_libraries(pgltool Boost::system Boost::thread Boost::chrono)
++    target_link_libraries(pgltool Boost::thread Boost::chrono)
+ endif()
+ 
+ 

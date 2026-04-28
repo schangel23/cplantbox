@@ -1,0 +1,32 @@
+diff --git a/src/cpp/plantgl/python/boost_python.h b/src/cpp/plantgl/python/boost_python.h
+index 77d467b..65ecab9 100644
+--- a/src/cpp/plantgl/python/boost_python.h
++++ b/src/cpp/plantgl/python/boost_python.h
+@@ -41,6 +41,12 @@
+ #ifndef __pgl_boost_h__
+ #define __pgl_boost_h__
+ 
++// Python 3.14 PyType_Spec member is named `slots`; collides with Qt `slots` macro
++// pulled in transitively via algo headers. Drop the macro before Python headers.
++#ifdef slots
++#undef slots
++#endif
++
+ #include <boost/python.hpp>
+ #define bp boost::python
+ #include <boost/version.hpp>
+diff --git a/src/cpp/plantgl/python/export_refcountptr.h b/src/cpp/plantgl/python/export_refcountptr.h
+index cf8e4a8..5666cf6 100644
+--- a/src/cpp/plantgl/python/export_refcountptr.h
++++ b/src/cpp/plantgl/python/export_refcountptr.h
+@@ -43,6 +43,10 @@
+ #define __export_refcountptr__
+ 
+ #include "intrusive_ptr_python_helper.h"
++// Python 3.14 PyType_Spec member named `slots` collides with Qt `slots` macro.
++#ifdef slots
++#undef slots
++#endif
+ #include <boost/python.hpp>
+ // #include <boost/pointee.hpp>
+ 
