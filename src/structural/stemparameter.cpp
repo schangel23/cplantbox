@@ -323,23 +323,25 @@ default:
                 ln_fa[i] = 0.0;
                 continue;
             }
-            // Plan B.3 (peduncle exuberance, 2026-04-27) HI#4 gate: if the
-            // NEXT successor slot (at position i+1 in the *full*
-            // successor table — note we check against ``n_lats`` not
-            // ``n_phytomers``) is non-leaf (tassel), ln[i] is the
-            // mainstem internode immediately below the tassel
-            // attachment — i.e., the peduncle.  Hand the peduncle to the
-            // tassel subType (whose own lb handles it) by collapsing
-            // this mainstem entry to basal_floor.  Without this gate, the
-            // mainstem skeleton extends ~17 cm above the topmost leaf
-            // (matching IL_final[16] for Déa) and HI#4 (mainstem top ≤
-            // topmost-leaf insertion + 5 cm) cannot close.
-            // TODO (codex-rescue Finding 3): for non-maize FA expansion,
-            // gate this on the explicit tassel subType (20/21) rather
-            // than ``!is_leaf_at`` so a branched-stem successor doesn't
-            // accidentally collapse its preceding internode.
-            const bool next_is_tassel = (i + 1 < n_lats) && !is_leaf_at(i + 1);
-            if (next_is_tassel) {
+            // Plan B.3 (peduncle exuberance, 2026-04-27) HI#4 gate +
+            // codex-rescue Finding 3 (2026-04-27): collapse this mainstem
+            // entry to basal_floor only when ALL of:
+            //   (a) the topmost (last) successor in the full table is
+            //       non-leaf — i.e., the plant ends in a tassel/spike,
+            //       not a leaf;
+            //   (b) we are the slot immediately below it (i + 1 ==
+            //       n_lats - 1).
+            // This restricts the peduncle collapse to the maize tassel
+            // pattern (and equivalents).  An interior non-leaf successor
+            // (e.g., a branched stem inserted between leaves on a
+            // hypothetical FA-on wheat) is left on the standard
+            // IL_final / basal_floor path, so its preceding internode
+            // is not silently truncated.
+            const bool topmost_is_non_leaf =
+                (n_lats > 0) && !is_leaf_at(n_lats - 1);
+            const bool is_peduncle_slot =
+                topmost_is_non_leaf && (i + 1 == n_lats - 1);
+            if (is_peduncle_slot) {
                 ln_fa[i] = basal_floor;
                 continue;
             }

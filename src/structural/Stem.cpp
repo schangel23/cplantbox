@@ -477,6 +477,20 @@ void Stem::simulate(double dt, bool verbose)
 					// dl past the branching-zone capacity into the apical
 					// zone.  Without this cap a 1–4 cm apex bleed occurs in
 					// the days before the all-latched gate fires.
+					//
+					// codex-rescue Finding 2 (2026-04-27): we evaluated
+					// removing this cap (per the Codex recommendation that
+					// it "loses" the FA Phase III peak in the kinetic
+					// forecast).  Removing it inflates dl-routing
+					// inefficiencies inside internodalGrowth's per-phytomer
+					// loop, breaking HI#5 (T4 invariant
+					// |getLength − (basal + Σ length_per_n)| jumps from
+					// machine precision to ~0.04 cm at day 100).  Cap
+					// stays.  No user-facing data path is harmed by it:
+					// ``calcLengthPerPhytomer(n, tt)`` is FA-constants-
+					// driven (unaffected), and ``length_per_n[n]`` is
+					// recomputed via the post-step span walk so it tracks
+					// realised geometry, not the capped forecast.
 					double ln_sum = 0.0;
 					for (double v : p.ln) ln_sum += v;
 					const double branching_cap = p.lb + ln_sum + this->epsilonDx;
