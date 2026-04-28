@@ -302,9 +302,17 @@ PYBIND11_MODULE(plantbox, m) {
             .def_readwrite("successorP", &OrganRandomParameter::successorP)
             .def_readwrite("ldelay", &OrganRandomParameter::ldelay)
             .def_readwrite("ldelays", &OrganRandomParameter::ldelays)
+            .def_readwrite("delayNGEndAxis", &OrganRandomParameter::delayNGEndAxis)
             .def_readwrite("plant",&OrganRandomParameter::plant)
             .def_readwrite("f_gf", &OrganRandomParameter::f_gf)
             .def_readwrite("f_tf", &OrganRandomParameter::f_tf);
+
+    // S0.6 / Lock #1: DelayAxis enum (Calendar/TT) for time-axis parameters.
+    // Exposed at module level so Python tests / bake scripts can write
+    // `srp.delayNGEndAxis = pb.DelayAxis.TT` directly.
+    py::enum_<DelayAxis>(m, "DelayAxis")
+        .value("Calendar", DelayAxis::Calendar)
+        .value("TT", DelayAxis::TT);
 
     py::class_<GrowthFunction, std::shared_ptr<GrowthFunction>>(m, "GrowthFunction")
         .def_readwrite("CW_Gr", &GrowthFunction::CW_Gr);

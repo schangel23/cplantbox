@@ -233,6 +233,28 @@ void OrganRandomParameter::readXML(tinyxml2::XMLElement* element, bool verbose)
                 *param_sd[key] = p->DoubleAttribute("dev", *param_sd[key]); // if not found, leave default
                 i++;
             }
+            // S0.6 / Lock #1: axis flag for scalar time-axis params (delayNGEnd, ldelay, ...).
+            // When the parameter has an explicit `axis="TT"` attribute we flip the
+            // corresponding DelayAxis flag; missing attribute leaves the field at its
+            // default Calendar (bit-identical for every existing XML). Lookup is
+            // name-keyed, so registering a new axis-aware param is one
+            // bindAxisParameter() call in the subclass — no edits here.
+            if (axis_param.count(key) > 0) {
+                const char* axis_str = p->Attribute("axis");
+                if (axis_str != nullptr) {
+                    std::string axis = std::string(axis_str);
+                    if (axis == "TT" || axis == "tt") {
+                        *axis_param[key] = DelayAxis::TT;
+                    } else if (axis == "Calendar" || axis == "calendar") {
+                        *axis_param[key] = DelayAxis::Calendar;
+                    } else if (verbose) {
+                        std::cout << "OrganRandomParameter::readXML: warning! unknown axis='"
+                                  << axis << "' on parameter '" << key
+                                  << "'; defaulting to Calendar\n" << std::flush;
+                    }
+                }
+                i++;
+            }
 			if (key.compare("successor")==0) {
 				readSuccessor(p, verbose);
 				i++;
@@ -444,6 +466,12 @@ tinyxml2::XMLElement* OrganRandomParameter::writeXML(tinyxml2::XMLDocument& doc,
                     p->SetAttribute("dev", float(d));
                 }
             }
+            // S0.6 / Lock #1: emit axis flag when this scalar param has a
+            // non-default DelayAxis. Calendar (default) is omitted so existing
+            // XMLs round-trip without adding `axis="Calendar"` to every line.
+            if (axis_param.count(key) > 0 && *axis_param.at(key) == DelayAxis::TT) {
+                p->SetAttribute("axis", "TT");
+            }
             organ->InsertEndChild(p);
             if (comments && description.count(key)) { // descriptions
                 std::string str = description.at(key);
@@ -553,6 +581,24 @@ void OrganRandomParameter::bindParameter(std::string name, double* d, std::strin
     if (dev!=nullptr) {
         param_sd[name] = dev;
     }
+}
+
+/**
+ * Lock #1 / Lock #8 — bind a `DelayAxis` flag to the named scalar time-axis
+ * parameter so the base `readXML` / `writeXML` machinery can pick up the
+ * `axis="..."` XML attribute generically (no per-subclass override needed).
+ *
+ * Currently used for `delayNGEnd` (Lock #1, registered in
+ * `StemRandomParameter::bindParameters`); future use for `ldelay` (Lock #8,
+ * leaf birth gate) follows the same one-liner pattern.
+ *
+ * @param name      the parameter name (must match the corresponding
+ *                  bindParameter scalar registration)
+ * @param axis      a pointer to the DelayAxis member variable
+ */
+void OrganRandomParameter::bindAxisParameter(std::string name, DelayAxis* axis)
+{
+    axis_param[name] = axis;
 }
 
 

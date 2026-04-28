@@ -25,6 +25,27 @@ class ExponentialGrowth;
 class Tropism;
 
 /**
+ * S0.6 / Lock #1 / Lock #8 — axis flag for time-axis parameters.
+ *
+ * `delayNGEnd`, `ldelay`, and similar fields are scalar time thresholds that
+ * historically lived on a calendar-day axis only. Lock #1 generalises them
+ * by attaching an axis flag so the same field can carry a thermal-time
+ * (Andrieu Tb=9.8 °Cd) threshold for stems gated on plant TT.
+ *
+ * `Calendar` is the default and matches the existing semantics
+ * (bit-identical for every XML that does not specify `axis="..."`).
+ * `TT` switches the consumer (`MultiPhaseStemGrowth::getLength`) to compare
+ * against `Plant::getAccumulatedAndrieuTT()` instead of calendar-day age.
+ *
+ * The enum is shared between `delayNGEndAxis` (Lock #1, this ADR phase)
+ * and the future `ldelayAxis` (Lock #8, leaf-side birth gate); putting
+ * one enum on `OrganRandomParameter` keeps the upstream-PR surface coherent
+ * (one biology-neutral generalisation, two consumers) and means non-stem
+ * organ types pay zero footprint when they don't opt in.
+ */
+enum class DelayAxis { Calendar = 0, TT = 1 };
+
+/**
  * Parameters for a specific organ
  */
 class OrganSpecificParameter {
@@ -75,6 +96,7 @@ public:
 	virtual void bindParameters(); ///<sets up class introspection
     void bindParameter(std::string name, int* i, std::string descr = "", double* dev = nullptr); ///< binds integer to parameter name
     void bindParameter(std::string name, double* d, std::string descr = "", double* dev = nullptr); ///< binds double to parameter name
+    void bindAxisParameter(std::string name, DelayAxis* axis); ///< binds a DelayAxis flag to a scalar time-axis parameter (Lock #1 / Lock #8)
 
     std::string name = "organ";
     int organType = 0;
@@ -85,6 +107,15 @@ public:
 	double dxMin = 1e-6; ///< threshold value, smaller segments will be skipped (otherwise stem tip direction can become NaN)
 	double ldelay = -1.; ///< Lateral emergence delay [day], used by RootDelay, @see RootDelay, RootSystem::initializeDB or if Organism->delayDefinition != Organism::dd_distance
     double ldelays = 0.; ///< Standard deviation of lateral emergence delay [day]
+
+    /* S0.6 / Lock #1: axis flag for delayNGEnd (which lives on
+     * StemRandomParameter). When DelayAxis::TT, MultiPhaseStemGrowth
+     * interprets `delayNGEnd` as an Andrieu-TT threshold rather than a
+     * calendar-day delay. Default Calendar = bit-identical with every
+     * existing XML; opt-in via `<parameter name="delayNGEnd" value="1500"
+     * axis="TT"/>` per Lock #1 spec. The field lives on the base class so
+     * the future ldelayAxis (Lock #8) can share the enum cleanly. */
+    DelayAxis delayNGEndAxis = DelayAxis::Calendar;
     std::vector<std::vector<double> > successorWhere = std::vector<std::vector<double>>(0, std::vector<double> (0, 0));
     ///< Where should rule be implemented [1] or not [-1]; need to use double to distiguish between -0 and 0; default: vector empty == rule implemented everywhere
     std::vector<std::vector<int> > successorOT = std::vector<std::vector<int>>(0, std::vector<int> (0, 0)); ///< Lateral types [1]
@@ -104,6 +135,7 @@ protected:
     std::map<std::string, int*> iparam; ///< Parameters with type double that can be read and written
     std::map<std::string, double*> param_sd; ///< Deviations of parameters
     std::map<std::string, std::string> description; ///< Parameter descriptions
+    std::map<std::string, DelayAxis*> axis_param; ///< Lock #1 / Lock #8: axis flags attached to scalar time-axis parameters
 
     std::string vector2string(std::vector<int> vec) const;
     std::string vector2string(std::vector<double> vec) const;

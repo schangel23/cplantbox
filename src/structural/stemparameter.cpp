@@ -429,6 +429,7 @@ void StemRandomParameter::bindParameters()
 	bindParameter("nodalGrowth", &nodalGrowth, "nodal growth function (sequential = 0, equal = 0)");
     bindParameter("delayNGStart", &delayNGStart, "delay between stem creation and start of nodal growth", &delayNGStarts);
     bindParameter("delayNGEnd", &delayNGEnd, "delay between stem creation and start of nodal growth", &delayNGEnds);
+    bindAxisParameter("delayNGEnd", &delayNGEndAxis); ///< Lock #1: axis="TT" → MultiPhaseStemGrowth interprets delayNGEnd as Andrieu-TT cessation threshold
     bindParameter("ldelay", &ldelay, "delay between latteral creation and start of nodal growth", &ldelays);
     bindParameter("use_thermal_emergence", &use_thermal_emergence, "Use thermal-time gated emergence [0/1]");
     bindParameter("tt_emergence", &tt_emergence, "Thermal-time emergence threshold [degCd], <0 disables");
