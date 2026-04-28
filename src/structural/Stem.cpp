@@ -329,19 +329,20 @@ void Stem::simulate(double dt, bool verbose)
 				// state monotone, which is the load-bearing property for
 				// S3b.5 per-rank τ_n validation against Fournier 2000 Déa.
 				double targetlength;
-				// S0.3 dispatch (ADR_LEAF_KINEMATICS_2026-04-28):
-				// stem_growth_dispatch == 1 routes the FA targetlength
-				// computation through MultiPhaseStemGrowth::getLength
-				// (Lock #4 pure-scalar contract); the geometry side
-				// effects below (branching block, internodalGrowth,
-				// span walk, active gate) keep reading the Stem
-				// fields, which we mirror to/from the GF instance
-				// state around the call.
-				const auto& srp_disp = *getStemRandomParameter();
-				const bool dispatch_gf =
-					p.use_fournier_andrieu_kinetics
-					&& srp_disp.stem_growth_dispatch == 1;
-				if (dispatch_gf) {
+				// S0.5 (ADR_LEAF_KINEMATICS_2026-04-28): FA stems dispatch through
+				// MultiPhaseStemGrowth::getLength via the native f_gf chain
+				// (Lock #4 pure-scalar contract). The legacy `if (use_fournier_
+				// andrieu_kinetics)` shadow branch and the `stem_growth_dispatch`
+				// enum are retired; the FA flag alone selects the path.
+				//
+				// Geometry side effects below (branching block, internodalGrowth,
+				// span walk, active gate) still read the Stem fields, which we
+				// mirror to/from the GF instance state around the f_gf->getLength
+				// call. Full retirement of those mirror fields onto the GF is
+				// deferred to S0.5b (pytest consumers + the post-step span walk
+				// currently depend on the Stem-side accessors).
+				if (p.use_fournier_andrieu_kinetics) {
+					const auto& srp_disp = *getStemRandomParameter();
 					// Hoisted lazy resize sized to per_n_end so the
 					// downstream geometry block reads valid
 					// lateral_spawned_per_n / initiation_andrieu_tt_per_n
@@ -366,7 +367,7 @@ void Stem::simulate(double dt, bool verbose)
 						srp_disp.f_gf);
 					if (!gf_mps) {
 						throw std::runtime_error(
-							"Stem::simulate: stem_growth_dispatch=1 requires "
+							"Stem::simulate: use_fournier_andrieu_kinetics requires "
 							"f_gf to be MultiPhaseStemGrowth (set in "
 							"Plant::initCallbacks); dynamic_cast failed.");
 					}
@@ -407,173 +408,6 @@ void Stem::simulate(double dt, bool verbose)
 					lateral_spawned_per_n         = gf_state.lateral_spawned_per_n;
 					initiation_andrieu_tt_per_n   = gf_state.initiation_andrieu_tt_per_n;
 					basal_length_                 = gf_state.basal_length;
-				} else if (p.use_fournier_andrieu_kinetics) {
-					const int n_ranks = static_cast<int>(p.internode_v_n.size());
-					// Lazy init of per-phytomer bookkeeping vectors (first FA-on
-					// step). Index 0 is unused; ranks are indexed 1..n_ranks.
-					if (static_cast<int>(length_per_n.size()) < n_ranks + 1) {
-						length_per_n.resize(n_ranks + 1, 0.0);
-						epsilonDx_per_n.resize(n_ranks + 1, 0.0);
-						cessation_age_per_n.resize(n_ranks + 1, -1.0);
-						cessation_andrieu_tt_per_n.resize(n_ranks + 1, -1.0);
-						lateral_spawned_per_n.resize(n_ranks + 1, 0);
-					}
-					// Per-rank monotonic latch update (decision 2). Under S3b.3
-					// length_per_n[n] is ALLOCATED (realized) length per rank,
-					// so the "latch" is simply "don't retreat if kinetic target
-					// drops during Phase IV decay". Target advancement is
-					// committed to length_per_n[n] in the per-rank allocator
-					// loop below via dl_n = (target_n - length_per_n[n]) when
-					// dl_n >= dxMin(); in between, target advancement gets
-					// stashed in epsilonDx_per_n[n] until it crosses dxMin.
-					// S3b.3 per-rank cessation sampling (plan §B). Each rank
-					// freezes on its own tau_n = plant_andrieu_tt − init_tt_n
-					// once tau_n >= tt_cessation. Sampled BEFORE the FA latch
-					// so calcLengthPerPhytomer(n) inside the target loop sees
-					// the freshly latched value. Production XML has
-					// tt_cessation=1500 which never fires under Juelich 2024
-					// (Andrieu Tb=9.8 climbs to ~1300 by day 130, per-rank
-					// tau_n lower still) — per-rank latches stay at -1.0,
-					// global cessation (also unset) falls through unchanged,
-					// preserving Hard Invariant #4 (tassel day 125 ±3). Only
-					// the synthetic `tt_cessation=800` test exercises this
-					// path.
-					{
-						const auto& srp_fa = *getStemRandomParameter();
-						if (srp_fa.use_thermal_cessation) {
-							// Plan B.3 dispatch (mirrors outer latch):
-							//   tt_cessation > 0  → legacy global plant-TT
-							//   tt_cessation <= 0 → per-rank Phase IV operational
-							const bool legacy_threshold_inner = srp_fa.tt_cessation > 0.0;
-							auto plant_cess = getPlant();
-							if (plant_cess) {
-								double plant_andrieu_tt = plant_cess->getAccumulatedAndrieuTT();
-								int leaf_ordinal_cess = 0;
-								for (const auto& c : children) {
-									if (c->organType() != Organism::ot_leaf) continue;
-									leaf_ordinal_cess++;
-									if (leaf_ordinal_cess > n_ranks) break;
-									if (cessation_andrieu_tt_per_n[leaf_ordinal_cess] >= 0.0) continue;
-									auto lf = std::static_pointer_cast<Leaf>(c);
-									double leaf_tt = lf->getEmergenceAndrieuTT();
-									if (leaf_tt < 0.0) continue;
-									double init_tt_n = leaf_tt + 9.6;   // HALF_PLASTOCHRON_LAG_DEGCD
-									double tau_n = plant_andrieu_tt - init_tt_n;
-									double threshold_inner;
-									if (legacy_threshold_inner) {
-										threshold_inner = srp_fa.tt_cessation;
-									} else {
-										const std::size_t d_idx = static_cast<std::size_t>(leaf_ordinal_cess - 1);
-										const double D_n = (d_idx < srp_fa.internode_D_n.size())
-											? srp_fa.internode_D_n[d_idx]
-											: 0.0;
-										threshold_inner = srp_fa.phase_I_duration
-											+ srp_fa.phase_II_duration
-											+ D_n
-											+ srp_fa.phase_IV_duration;
-									}
-									if (tau_n >= threshold_inner) {
-										cessation_andrieu_tt_per_n[leaf_ordinal_cess] = plant_andrieu_tt;
-										cessation_age_per_n[leaf_ordinal_cess] = age;
-									}
-								}
-							}
-						}
-					}
-					// S3b.7 plastochron forecast (plan §E.b). For each rank
-					// whose birthday has crossed on the plant Andrieu-TT axis
-					// (init_tt_n = n * plastochron_andrieu) but which hasn't
-					// yet been spawned, seed length_per_n[n] = basal_internode_cm.
-					// This makes fa_sum below include the to-be-created
-					// segment's budget so dl covers the createSegments call
-					// in the S3b.7 branching block. Span walk at end of
-					// simulate re-syncs length_per_n from actual geometry,
-					// preserving HI#5.
-					//
-					// This block also sizes length_per_n (and siblings) up to
-					// p.ln.size()+1 when the lateral count exceeds n_ranks
-					// (e.g. maize tassel at rank 17 with FA kinetic data only
-					// for ranks 1..16). Ranks beyond n_ranks contribute their
-					// seeded/allocated length directly to fa_sum below.
-					{
-						const auto& srp_fc = *getStemRandomParameter();
-						double plastochron = srp_fc.plastochron_andrieu;
-						double basal_step = srp_fc.basal_internode_cm;
-						auto plant_fc = getPlant();
-						double plant_andrieu_tt_fc = plant_fc ? plant_fc->getAccumulatedAndrieuTT() : 0.0;
-						int n_laterals_max = static_cast<int>(p.ln.size()) + 1;
-						int per_n_end = std::max(n_ranks + 1, n_laterals_max + 1);
-						if (static_cast<int>(length_per_n.size()) < per_n_end) {
-							length_per_n.resize(per_n_end, 0.0);
-							epsilonDx_per_n.resize(per_n_end, 0.0);
-							cessation_age_per_n.resize(per_n_end, -1.0);
-							cessation_andrieu_tt_per_n.resize(per_n_end, -1.0);
-							lateral_spawned_per_n.resize(per_n_end, 0);
-						}
-						if (static_cast<int>(initiation_andrieu_tt_per_n.size()) < per_n_end) {
-							initiation_andrieu_tt_per_n.resize(per_n_end, -1.0);
-						}
-						for (int n = 1; n <= n_laterals_max; ++n) {
-							if (lateral_spawned_per_n[n]) continue;
-							double init_tt_n = static_cast<double>(n) * plastochron;
-							if (plant_andrieu_tt_fc < init_tt_n) break;  // ascending gate
-							// Topmost lateral (rank n_laterals_max = maize tassel)
-							// attaches without its own internode (matches scalar-
-							// burst structure). Skip its seed so fa_sum doesn't
-							// forecast a budget the branching block won't spend.
-							if (n >= n_laterals_max) continue;
-							if (length_per_n[n] < basal_step) {
-								length_per_n[n] = basal_step;
-							}
-						}
-					}
-					double fa_sum = 0.0;
-					for (int n = 1; n <= n_ranks; ++n) {
-						double target_n = calcLengthPerPhytomer(n);
-						// S3b.3: length_per_n is allocated; don't overwrite here.
-						// Monotonicity is enforced by clamping dl_n >= 0 in the
-						// allocator loop below. fa_sum for targetlength uses the
-						// max(target, already-allocated) so that targetlength
-						// tracks the advancing FA front even when allocator
-						// hasn't committed dxMin increments yet.
-						double driver_n = (target_n > length_per_n[n]) ? target_n : length_per_n[n];
-						fa_sum += driver_n;
-					}
-					// S3b.7 note: ranks > n_ranks (maize tassel at rank 17,
-					// apical tag at n_laterals_max) are NOT included here —
-					// their length lives in getLength(true) but is not driven
-					// by FA kinetics. Apical-zone growth is handled by the
-					// "createSegments(dl, ...)" block further down when
-					// length >= maxInternodeDistance + p.lb (unchanged from
-					// scalar path). Including those ranks in fa_sum would
-					// cause targetlength to over-count (~43 cm for a 130-day
-					// maize run = tassel internode + apical peduncle).
-					// Plan B.2 floor fix aligns sum(ln) with fa_sum at maturity.
-					// Cap targetlength to lb + sum(ln) so transient overshoots
-					// during early Phase III (where length_per_n[n] is bumped
-					// to basal_step before FA target catches up) cannot push
-					// dl past the branching-zone capacity into the apical
-					// zone.  Without this cap a 1–4 cm apex bleed occurs in
-					// the days before the all-latched gate fires.
-					//
-					// codex-rescue Finding 2 (2026-04-27): we evaluated
-					// removing this cap (per the Codex recommendation that
-					// it "loses" the FA Phase III peak in the kinetic
-					// forecast).  Removing it inflates dl-routing
-					// inefficiencies inside internodalGrowth's per-phytomer
-					// loop, breaking HI#5 (T4 invariant
-					// |getLength − (basal + Σ length_per_n)| jumps from
-					// machine precision to ~0.04 cm at day 100).  Cap
-					// stays.  No user-facing data path is harmed by it:
-					// ``calcLengthPerPhytomer(n, tt)`` is FA-constants-
-					// driven (unaffected), and ``length_per_n[n]`` is
-					// recomputed via the post-step span walk so it tracks
-					// realised geometry, not the capped forecast.
-					double ln_sum = 0.0;
-					for (double v : p.ln) ln_sum += v;
-					const double branching_cap = p.lb + ln_sum + this->epsilonDx;
-					targetlength = p.lb + fa_sum + this->epsilonDx;
-					if (targetlength > branching_cap) targetlength = branching_cap;
 				} else {
 					targetlength = calcLength(age__) + this->epsilonDx;
 				}

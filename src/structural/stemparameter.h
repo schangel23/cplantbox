@@ -158,22 +158,6 @@ public:
     double plastochron_andrieu = 23.0;                 ///< °Cd per rank on Andrieu Tb=9.8 axis (Fournier 2000 Déa)
     double basal_internode_cm = 0.4;                   ///< fixed internode spacing at rank initiation [cm] (≥0.3 cm plan acceptance floor, <0.5 so HI#2 stays within ±0.5 cm vs scalar baseline when p.ln has one zero-padded stub)
 
-    /* S0.3 — runtime dispatch selector for the FA stem path
-     * (ADR_LEAF_KINEMATICS_2026-04-28).
-     *   0 = "shadow"  → legacy `if (p.use_fournier_andrieu_kinetics)` block
-     *                   in Stem::simulate (today's code path).
-     *   1 = "gf"      → MultiPhaseStemGrowth GF dispatched via f_gf->getLength
-     *                   (S0.2 deliverable). Per-organ FA state lives on the
-     *                   GF instance; Stem fields are kept in sync as mirrors
-     *                   so existing geometry side effects + test accessors
-     *                   continue to work bit-identically (S0.3 acceptance).
-     * Default 1 (S0.4, 2026-04-28) — every FA-on stem dispatches through
-     * MultiPhaseStemGrowth. The `=0` opt-out keeps the shadow if-branch
-     * compilable for one release cycle (S0.5 deletes it). Pre-S0.4 default
-     * was 0; the flip is bit-identical because the S0.3 parity gate locked
-     * per-node FP equality across 6 D.0 maize XMLs + 55/55 FA pytest. */
-    int stem_growth_dispatch = 1;                      ///< 0=shadow, 1=MultiPhaseStemGrowth GF (default)
-
     /*
      * Callback functions for the Stem (set up by the class StemSystem)
      */

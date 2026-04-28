@@ -5,20 +5,21 @@
 // Leaf, and Plant — pulling those into growth.h would create a circular
 // include with Stem.h → Organ.h → growth.h.
 //
-// Numerical correspondence: this class is the GF-side port of the
-// `if (p.use_fournier_andrieu_kinetics)` shadow branch in Stem::simulate
-// (Stem.cpp:332-498) plus the outer cessation-latch block (Stem.cpp:158-260).
-// Per-organ kinetic state moves from Stem fields (`length_per_n`,
-// `cessation_age_`, etc.) onto this GF instance, keyed by organId.
-// Pure-scalar contract per Lock #4 of ADR_LEAF_KINEMATICS_2026-04-28:
-// no geometry side effects (createSegments / createLateral / span-walk
-// stay in Stem::simulate after the dispatch).
+// Numerical correspondence: this class is the GF-side port of the FA
+// length-calc that previously lived as an `if (p.use_fournier_andrieu_kinetics)`
+// shadow branch in Stem::simulate (deleted in S0.5, 2026-04-28). The outer
+// cessation-latch block (Stem.cpp ~158-260) still runs in Stem::simulate
+// and writes to Stem mirror fields; those are sync'd to/from this GF's
+// per_organ_state around the f_gf->getLength call. Pure-scalar contract
+// per Lock #4 of ADR_LEAF_KINEMATICS_2026-04-28: no geometry side effects
+// (createSegments / createLateral / span-walk stay in Stem::simulate
+// after the dispatch).
 //
-// S0.2 caveat: this class is not yet wired into Stem::simulate. Today's
-// shadow branch continues to drive all FA stems. S0.3 introduces a
-// runtime stem_growth_dispatch flag that selects between the shadow path
-// and this GF, and validates per-node FP equality. S0.5 deletes the
-// shadow branch.
+// S0.5 status: every FA-on stem dispatches through this class via the
+// native f_gf chain. Full retirement of Stem-side mirror fields (move
+// length_per_n / cessation_age_ / etc. fully onto per_organ_state, retire
+// Stem::syncStateFromGeometry, expose GF state via Pybind so tests stop
+// reading Stem mirrors) is deferred to S0.5b.
 
 #include "growth.h"
 
