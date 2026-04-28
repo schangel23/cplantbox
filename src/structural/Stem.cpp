@@ -161,16 +161,39 @@ void Stem::simulate(double dt, bool verbose)
 				}
 			}
 			// --- Thermal-time cessation gate (mainstem end-of-elongation at VT) ---
-			// One-shot latch: first step where plant TT >= tt_cessation records the stem's
-			// current age; subsequent length updates clamp age__ to that age (see below).
-			if (plant_tt && srp_tt.use_thermal_cessation && srp_tt.tt_cessation > 0.0
-			    && cessation_age_ < 0.0
-			    && plant_tt->getAccumulatedTT() >= srp_tt.tt_cessation) {
-				cessation_age_ = age;
-				// FA parallel: sample Andrieu-axis TT at the same instant so the
-				// FA branch can freeze per-rank kinetics (plan §B.3 cessation
-				// interaction). Harmless for scalar path — never read there.
-				cessation_andrieu_tt_ = plant_tt->getAccumulatedAndrieuTT();
+			// One-shot latch: first step where the (axis-selected) plant TT crosses
+			// the configured threshold records the stem's current age; subsequent
+			// length updates clamp age__ to that age (see below).
+			//
+			// S0.6 / Lock #1 — three-way threshold source, in priority order:
+			//   delayNGEndAxis==TT && delayNGEnd>0 → Andrieu-TT (Tb=9.8) crossing
+			//                                         (merged Lock #1 form)
+			//   tt_cessation > 0                   → legacy plant-TT (Tb=8) crossing
+			//   else                               → no global fast-latch; the
+			//                                         per-rank-all-latched gate
+			//                                         below fires the global latch.
+			// Existing XMLs default delayNGEndAxis=Calendar → axis_tt_global is
+			// false → legacy path is the only one active → bit-identical.
+			if (plant_tt && srp_tt.use_thermal_cessation && cessation_age_ < 0.0) {
+				const bool axis_tt_global = (srp_tt.delayNGEndAxis == DelayAxis::TT)
+				                            && (srp_tt.delayNGEnd > 0.0);
+				const bool legacy_global = (srp_tt.tt_cessation > 0.0);
+				const double plant_andrieu_tt_global = plant_tt->getAccumulatedAndrieuTT();
+				const double plant_tt_legacy = plant_tt->getAccumulatedTT();
+				bool fired = false;
+				if (axis_tt_global && plant_andrieu_tt_global >= srp_tt.delayNGEnd) {
+					fired = true;
+				} else if (!axis_tt_global && legacy_global
+				           && plant_tt_legacy >= srp_tt.tt_cessation) {
+					fired = true;
+				}
+				if (fired) {
+					cessation_age_ = age;
+					// FA parallel: sample Andrieu-axis TT at the same instant so the
+					// FA branch can freeze per-rank kinetics (plan §B.3 cessation
+					// interaction). Harmless for scalar path — never read there.
+					cessation_andrieu_tt_ = plant_andrieu_tt_global;
+				}
 			}
 		}
 
@@ -197,22 +220,30 @@ void Stem::simulate(double dt, bool verbose)
 						fa_gf->cessation_andrieu_tt_per_n.resize(n_ranks_outer + 1, -1.0);
 						fa_gf->cessation_age_per_n.resize(n_ranks_outer + 1, -1.0);
 					}
-					// Plan B.3 (peduncle exuberance, 2026-04-27): per-rank
-					// threshold dispatch.
-					//   tt_cessation > 0  → legacy global plant-TT crossing
-					//                        (every rank latches at the same
-					//                        tau_n, preserves S3b.3 behaviour
-					//                        for the synthetic tt_cessation=800
-					//                        regression test).
-					//   tt_cessation <= 0 → per-rank Phase IV operational
-					//                        completion: rank n latches once
-					//                        tau_n >= phase_I + phase_II
-					//                                 + D_n[n] + phase_IV_op.
-					//                        This is the preferred maize-FA path
-					//                        because the literature anchor (FA
-					//                        2000 + Birch 2002) is per-rank
-					//                        Phase IV duration, not a single
-					//                        plant-TT gate.
+					// Plan B.3 (peduncle exuberance, 2026-04-27) + S0.6 / Lock #1:
+					// per-rank threshold dispatch — three-way, in priority order.
+					//   delayNGEndAxis==TT && delayNGEnd > 0
+					//                       → merged Andrieu-TT crossing (Lock #1
+					//                          form). Every rank latches at the
+					//                          same tau_n, identical operational
+					//                          shape to the legacy tt_cessation
+					//                          path but living on the Andrieu axis
+					//                          and on the canonical native field.
+					//   tt_cessation > 0    → legacy global plant-TT crossing
+					//                          (preserves S3b.3 behaviour for the
+					//                          synthetic tt_cessation=800
+					//                          regression test). Read here on the
+					//                          Andrieu axis to match the per-rank
+					//                          tau_n basis.
+					//   else                → per-rank Phase IV operational
+					//                          completion: rank n latches once
+					//                          tau_n >= phase_I + phase_II
+					//                                   + D_n[n] + phase_IV_op.
+					//                          Preferred maize-FA path; literature
+					//                          anchor is FA 2000 + Birch 2002
+					//                          per-rank Phase IV duration.
+					const bool axis_tt_active_outer = (srp_fa_outer.delayNGEndAxis == DelayAxis::TT)
+					                                  && (srp_fa_outer.delayNGEnd > 0.0);
 					const bool legacy_threshold = srp_fa_outer.tt_cessation > 0.0;
 					auto plant_cess_outer = getPlant();
 					if (plant_cess_outer) {
@@ -239,7 +270,11 @@ void Stem::simulate(double dt, bool verbose)
 							}
 							double tau_n_outer = plant_andrieu_tt_outer - init_tt_outer;
 							double threshold_outer;
-							if (legacy_threshold) {
+							if (axis_tt_active_outer) {
+								// Lock #1 merged form: delayNGEnd carries the
+								// Andrieu-TT global cessation threshold.
+								threshold_outer = srp_fa_outer.delayNGEnd;
+							} else if (legacy_threshold) {
 								threshold_outer = srp_fa_outer.tt_cessation;
 							} else {
 								// Per-rank Phase IV completion (Plan B.3).
@@ -266,7 +301,14 @@ void Stem::simulate(double dt, bool verbose)
 					// stops growing.  Replaces the unreachable plant-TT global
 					// latch (Bug 3 in the diagnostic).  Idempotent: only fires
 					// once cessation_age_ < 0.
-					if (!legacy_threshold && cessation_age_ < 0.0) {
+					//
+					// S0.6 / Lock #1 — also skipped when the axis-TT global path
+					// is active, because that path already fires the global latch
+					// in the fast-path block at the top of simulate(). Falling
+					// through both would still latch only once (cessation_age_<0
+					// guard) but the comment-and-purpose lines up cleaner this
+					// way: one path = one fire site.
+					if (!legacy_threshold && !axis_tt_active_outer && cessation_age_ < 0.0) {
 						bool all_latched = (fa_gf != nullptr);
 						for (int n = 1; n <= n_ranks_outer && all_latched; ++n) {
 							// S0.5b.3: per-rank latches read from GF.

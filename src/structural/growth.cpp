@@ -232,10 +232,14 @@ double MultiPhaseStemGrowth::getPhytomerLength(int organId, int n) const
 // Walks leaf children, computes τ_n per rank, latches when threshold
 // crossed. Fires global cessation_age once all per-rank latches are set.
 //
-// Threshold dispatch:
-//   srp->tt_cessation > 0  → legacy global plant-TT crossing
-//   srp->tt_cessation <= 0 → per-rank Phase IV operational completion
-//                              (phase_I + phase_II + D_n[n] + phase_IV_dur)
+// Threshold dispatch (S0.6 / Lock #1 — three-way):
+//   delayNGEndAxis == TT && delayNGEnd > 0  → merged Andrieu-TT crossing
+//                                              (Lock #1 form, replaces a
+//                                              tt_cessation-shaped sibling)
+//   tt_cessation > 0                        → legacy global plant-TT crossing
+//   else                                    → per-rank Phase IV operational
+//                                              completion (phase_I + phase_II
+//                                              + D_n[n] + phase_IV_dur)
 // -------------------------------------------------------------------------
 static void update_cessation_latches(MultiPhaseStemGrowth::PerOrganFAState& st,
                                      std::shared_ptr<const Organ> o,
@@ -250,6 +254,13 @@ static void update_cessation_latches(MultiPhaseStemGrowth::PerOrganFAState& st,
     const int n_ranks = static_cast<int>(srp->internode_v_n.size());
     if (n_ranks <= 0) return;
 
+    // S0.6 / Lock #1: merged-form axis-TT path takes precedence over legacy
+    // tt_cessation; both are global plant-TT thresholds (constant per rank).
+    // When neither applies, the per-rank Phase IV operational completion path
+    // is used. Existing XMLs default delayNGEndAxis=Calendar so axis_tt_active
+    // is false for every pre-S0.6 file → bit-identical regression preserved.
+    const bool axis_tt_active = srp->delayNGEndAxis == DelayAxis::TT
+                                && srp->delayNGEnd > 0.0;
     const bool legacy_threshold = srp->tt_cessation > 0.0;
     const double plant_andrieu_tt = plant_cess->getAccumulatedAndrieuTT();
 
@@ -278,7 +289,11 @@ static void update_cessation_latches(MultiPhaseStemGrowth::PerOrganFAState& st,
         }
         const double tau_n = plant_andrieu_tt - init_tt;
         double threshold;
-        if (legacy_threshold) {
+        if (axis_tt_active) {
+            // Lock #1 merged form: delayNGEnd is the Andrieu-TT global cessation
+            // threshold (interpreted in °Cd via the axis flag).
+            threshold = srp->delayNGEnd;
+        } else if (legacy_threshold) {
             threshold = srp->tt_cessation;
         } else {
             const std::size_t d_idx = static_cast<std::size_t>(leaf_ordinal - 1);
