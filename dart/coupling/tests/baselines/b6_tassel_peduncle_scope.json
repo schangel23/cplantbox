@@ -1,16 +1,16 @@
 {
   "discovery": {
-    "fa_mainstem_node_count": 1962,
+    "fa_mainstem_node_count": 1912,
     "fa_n_mainstem_attached_leaves": 16,
-    "mainstem_top_diff_cm": 18.802910976848665,
-    "mainstem_top_z_fa_cm": 192.45286345236065,
-    "mainstem_top_z_scalar_cm": 173.64995247551198,
+    "mainstem_top_diff_cm": 7.7709899557974325,
+    "mainstem_top_z_fa_cm": 187.99999999994006,
+    "mainstem_top_z_scalar_cm": 180.22901004414263,
     "n_vegetative_leaves": 16,
-    "peduncle_in_mainstem_subtype1": true,
-    "peduncle_kinetic_error_cm": 18.802910976848665,
-    "peduncle_length_fa_cm": 42.09714281323974,
-    "peduncle_length_scalar_cm": 23.294231836391077,
-    "tassel_first_node_at_or_above_mainstem_top": false
+    "peduncle_in_mainstem_subtype1": false,
+    "peduncle_kinetic_error_cm": 38.83256840988844,
+    "peduncle_length_fa_cm": 1.0407209951332845,
+    "peduncle_length_scalar_cm": 39.87328940502172,
+    "tassel_first_node_at_or_above_mainstem_top": true
   },
   "fa_off": {
     "cessation": {
@@ -20,279 +20,279 @@
     "fa_on": false,
     "leaf_insertions": [
       {
-        "age_d": 126.46188128868928,
-        "insertion_z_cm": 8.999999999999986,
-        "leaf_id": 155,
-        "parentNI": 120,
+        "age_d": 129.42577637949216,
+        "insertion_z_cm": -0.9999999999999983,
+        "leaf_id": 37,
+        "parentNI": 20,
         "subType": 2
       },
       {
         "age_d": 120.0,
-        "insertion_z_cm": 8.999999999999986,
-        "leaf_id": 156,
-        "parentNI": 120,
+        "insertion_z_cm": -0.9999999999999983,
+        "leaf_id": 38,
+        "parentNI": 20,
         "subType": 3
       },
       {
         "age_d": 114.0,
-        "insertion_z_cm": 18.441807810106006,
-        "leaf_id": 157,
-        "parentNI": 215,
+        "insertion_z_cm": 8.441807810106084,
+        "leaf_id": 39,
+        "parentNI": 115,
         "subType": 4
       },
       {
         "age_d": 106.0,
-        "insertion_z_cm": 29.12856298988497,
-        "leaf_id": 158,
-        "parentNI": 322,
+        "insertion_z_cm": 19.128562989884994,
+        "leaf_id": 40,
+        "parentNI": 222,
         "subType": 5
       },
       {
         "age_d": 98.0,
-        "insertion_z_cm": 39.49151781443169,
-        "leaf_id": 159,
-        "parentNI": 426,
+        "insertion_z_cm": 29.49151781443171,
+        "leaf_id": 41,
+        "parentNI": 326,
         "subType": 6
       },
       {
         "age_d": 87.0,
-        "insertion_z_cm": 49.47245962453416,
-        "leaf_id": 160,
-        "parentNI": 526,
+        "insertion_z_cm": 39.472459624534174,
+        "leaf_id": 42,
+        "parentNI": 426,
         "subType": 7
       },
       {
         "age_d": 80.0,
-        "insertion_z_cm": 59.7735106012101,
-        "leaf_id": 161,
-        "parentNI": 630,
+        "insertion_z_cm": 49.77351060121011,
+        "leaf_id": 43,
+        "parentNI": 530,
         "subType": 8
       },
       {
         "age_d": 74.0,
-        "insertion_z_cm": 70.91665358285327,
-        "leaf_id": 162,
-        "parentNI": 742,
+        "insertion_z_cm": 60.91665358285307,
+        "leaf_id": 44,
+        "parentNI": 642,
         "subType": 9
       },
       {
         "age_d": 70.0,
-        "insertion_z_cm": 81.10675544050905,
-        "leaf_id": 163,
-        "parentNI": 844,
+        "insertion_z_cm": 71.10675544050902,
+        "leaf_id": 45,
+        "parentNI": 744,
         "subType": 10
       },
       {
         "age_d": 62.0,
-        "insertion_z_cm": 91.08742955006814,
-        "leaf_id": 164,
-        "parentNI": 944,
+        "insertion_z_cm": 81.08742955006811,
+        "leaf_id": 46,
+        "parentNI": 844,
         "subType": 11
       },
       {
         "age_d": 57.0,
-        "insertion_z_cm": 101.05712400234023,
-        "leaf_id": 165,
-        "parentNI": 1044,
+        "insertion_z_cm": 91.0571240023402,
+        "leaf_id": 47,
+        "parentNI": 944,
         "subType": 12
       },
       {
         "age_d": 51.0,
-        "insertion_z_cm": 111.0967616239189,
-        "leaf_id": 166,
-        "parentNI": 1145,
+        "insertion_z_cm": 101.09676162391887,
+        "leaf_id": 48,
+        "parentNI": 1045,
         "subType": 13
       },
       {
         "age_d": 47.0,
-        "insertion_z_cm": 121.33050403910119,
-        "leaf_id": 167,
-        "parentNI": 1248,
+        "insertion_z_cm": 111.33050403910116,
+        "leaf_id": 49,
+        "parentNI": 1148,
         "subType": 14
       },
       {
         "age_d": 42.0,
-        "insertion_z_cm": 131.41707234322988,
-        "leaf_id": 168,
-        "parentNI": 1349,
+        "insertion_z_cm": 121.41707234322982,
+        "leaf_id": 50,
+        "parentNI": 1249,
         "subType": 15
       },
       {
         "age_d": 37.0,
-        "insertion_z_cm": 141.57948075864016,
-        "leaf_id": 169,
-        "parentNI": 1451,
+        "insertion_z_cm": 131.57948075864007,
+        "leaf_id": 51,
+        "parentNI": 1351,
         "subType": 16
       },
       {
         "age_d": 33.0,
-        "insertion_z_cm": 150.3557206391209,
-        "leaf_id": 170,
-        "parentNI": 1539,
+        "insertion_z_cm": 140.3557206391209,
+        "leaf_id": 52,
+        "parentNI": 1439,
         "subType": 17
       }
     ],
-    "mainstem_length_cm": 176.64995247551775,
-    "mainstem_top_z_cm": 173.64995247551198,
+    "mainstem_length_cm": 183.2290100441489,
+    "mainstem_top_z_cm": 180.22901004414263,
     "n_leaves_total": 16,
     "n_mainstem_leaves": 16,
-    "n_mainstem_nodes": 1774,
+    "n_mainstem_nodes": 1841,
     "n_tassel_branches": 12,
     "n_tassel_spikes": 1,
-    "peduncle_length_cm": 23.294231836391077,
+    "peduncle_length_cm": 39.87328940502172,
     "seed": 7,
     "sim_days": 130,
     "tassel_emerge_day": 125.0,
     "tassel_spikes": [
       {
         "age_d": 6.0,
-        "first_node_z_cm": 160.75939079020281,
-        "length_cm": 21.06874957588364,
-        "n_nodes": 217,
-        "spike_id": 171,
-        "top_node_z_cm": 181.71059421892178
+        "first_node_z_cm": 150.75939079020281,
+        "length_cm": 21.086259092086475,
+        "n_nodes": 218,
+        "spike_id": 53,
+        "top_node_z_cm": 171.48929193472554
       }
     ]
   },
   "fa_on": {
     "cessation": {
-      "cessation_age_d": -1.0,
-      "cessation_andrieu_tt_degCd": -1.0
+      "cessation_age_d": 109.0,
+      "cessation_andrieu_tt_degCd": 827.0
     },
     "fa_on": true,
     "leaf_insertions": [
       {
-        "age_d": 126.46188128868928,
-        "insertion_z_cm": 8.999999999999986,
-        "leaf_id": 37,
-        "parentNI": 120,
+        "age_d": 125.0,
+        "insertion_z_cm": -0.9999999999999983,
+        "leaf_id": 202,
+        "parentNI": 20,
         "subType": 2
       },
       {
         "age_d": 120.0,
-        "insertion_z_cm": 8.999999999999986,
-        "leaf_id": 38,
-        "parentNI": 120,
+        "insertion_z_cm": 1.5265566588595902e-15,
+        "leaf_id": 371,
+        "parentNI": 30,
         "subType": 3
       },
       {
         "age_d": 114.0,
-        "insertion_z_cm": 18.441807810106006,
-        "leaf_id": 39,
-        "parentNI": 215,
+        "insertion_z_cm": 1.0000000000000016,
+        "leaf_id": 468,
+        "parentNI": 40,
         "subType": 4
       },
       {
         "age_d": 106.0,
-        "insertion_z_cm": 29.12856298988497,
-        "leaf_id": 40,
-        "parentNI": 322,
+        "insertion_z_cm": 2.000000000000002,
+        "leaf_id": 564,
+        "parentNI": 50,
         "subType": 5
       },
       {
         "age_d": 98.0,
-        "insertion_z_cm": 39.49151781443169,
-        "leaf_id": 41,
-        "parentNI": 426,
+        "insertion_z_cm": 3.000000000000003,
+        "leaf_id": 667,
+        "parentNI": 60,
         "subType": 6
       },
       {
         "age_d": 87.0,
-        "insertion_z_cm": 49.47245962453416,
-        "leaf_id": 42,
-        "parentNI": 526,
+        "insertion_z_cm": 4.0000000000000036,
+        "leaf_id": 760,
+        "parentNI": 70,
         "subType": 7
       },
       {
         "age_d": 80.0,
-        "insertion_z_cm": 59.7735106012101,
-        "leaf_id": 43,
-        "parentNI": 630,
+        "insertion_z_cm": 10.999999999999979,
+        "leaf_id": 823,
+        "parentNI": 140,
         "subType": 8
       },
       {
         "age_d": 74.0,
-        "insertion_z_cm": 70.91665358285327,
-        "leaf_id": 44,
-        "parentNI": 742,
+        "insertion_z_cm": 24.999999999999954,
+        "leaf_id": 910,
+        "parentNI": 280,
         "subType": 9
       },
       {
         "age_d": 70.0,
-        "insertion_z_cm": 81.10675544050905,
-        "leaf_id": 45,
-        "parentNI": 844,
+        "insertion_z_cm": 46.999999999999964,
+        "leaf_id": 1001,
+        "parentNI": 500,
         "subType": 10
       },
       {
         "age_d": 62.0,
-        "insertion_z_cm": 91.08742955006814,
-        "leaf_id": 46,
-        "parentNI": 944,
+        "insertion_z_cm": 69.99999999999983,
+        "leaf_id": 1059,
+        "parentNI": 730,
         "subType": 11
       },
       {
         "age_d": 57.0,
-        "insertion_z_cm": 101.05712400234023,
-        "leaf_id": 47,
-        "parentNI": 1044,
+        "insertion_z_cm": 91.99999999999861,
+        "leaf_id": 1086,
+        "parentNI": 950,
         "subType": 12
       },
       {
         "age_d": 51.0,
-        "insertion_z_cm": 111.0967616239189,
-        "leaf_id": 48,
-        "parentNI": 1145,
+        "insertion_z_cm": 113.99999999999736,
+        "leaf_id": 1120,
+        "parentNI": 1170,
         "subType": 13
       },
       {
         "age_d": 47.0,
-        "insertion_z_cm": 121.33050403910119,
-        "leaf_id": 49,
-        "parentNI": 1248,
+        "insertion_z_cm": 133.99999999999628,
+        "leaf_id": 1137,
+        "parentNI": 1370,
         "subType": 14
       },
       {
         "age_d": 42.0,
-        "insertion_z_cm": 131.41707234322988,
-        "leaf_id": 50,
-        "parentNI": 1349,
+        "insertion_z_cm": 151.99999999999525,
+        "leaf_id": 1158,
+        "parentNI": 1550,
         "subType": 15
       },
       {
         "age_d": 37.0,
-        "insertion_z_cm": 141.57948075864016,
-        "leaf_id": 51,
-        "parentNI": 1451,
+        "insertion_z_cm": 170.99999999999417,
+        "leaf_id": 1174,
+        "parentNI": 1740,
         "subType": 16
       },
       {
         "age_d": 33.0,
-        "insertion_z_cm": 150.3557206391209,
-        "leaf_id": 52,
-        "parentNI": 1539,
+        "insertion_z_cm": 186.95927900480677,
+        "leaf_id": 1204,
+        "parentNI": 1900,
         "subType": 17
       }
     ],
-    "mainstem_length_cm": 195.45286345236744,
-    "mainstem_top_z_cm": 192.45286345236065,
+    "mainstem_length_cm": 191.0,
+    "mainstem_top_z_cm": 187.99999999994006,
     "n_leaves_total": 16,
     "n_mainstem_leaves": 16,
-    "n_mainstem_nodes": 1962,
+    "n_mainstem_nodes": 1912,
     "n_tassel_branches": 12,
     "n_tassel_spikes": 1,
-    "peduncle_length_cm": 42.09714281323974,
+    "peduncle_length_cm": 1.0407209951332845,
     "seed": 7,
     "sim_days": 130,
     "tassel_emerge_day": 125.0,
     "tassel_spikes": [
       {
         "age_d": 6.0,
-        "first_node_z_cm": 160.75939079020281,
-        "length_cm": 21.086259092086475,
-        "n_nodes": 218,
-        "spike_id": 53,
-        "top_node_z_cm": 181.2592006793605
+        "first_node_z_cm": 187.99999999994006,
+        "length_cm": 20.98994131025723,
+        "n_nodes": 217,
+        "spike_id": 1228,
+        "top_node_z_cm": 208.63017838753046
       }
     ]
   },
