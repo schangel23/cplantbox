@@ -167,10 +167,12 @@ public:
      *                   GF instance; Stem fields are kept in sync as mirrors
      *                   so existing geometry side effects + test accessors
      *                   continue to work bit-identically (S0.3 acceptance).
-     * Default 0 — every existing XML and pytest sees today's behaviour.
-     * Flipped to 1 only by the S0.3 parity harness; flipped to 1 by default
-     * in S0.4 once parity is locked. */
-    int stem_growth_dispatch = 0;                      ///< 0=shadow, 1=MultiPhaseStemGrowth GF
+     * Default 1 (S0.4, 2026-04-28) — every FA-on stem dispatches through
+     * MultiPhaseStemGrowth. The `=0` opt-out keeps the shadow if-branch
+     * compilable for one release cycle (S0.5 deletes it). Pre-S0.4 default
+     * was 0; the flip is bit-identical because the S0.3 parity gate locked
+     * per-node FP equality across 6 D.0 maize XMLs + 55/55 FA pytest. */
+    int stem_growth_dispatch = 1;                      ///< 0=shadow, 1=MultiPhaseStemGrowth GF (default)
 
     /*
      * Callback functions for the Stem (set up by the class StemSystem)

@@ -186,10 +186,17 @@ void Plant::initCallbacks()
         tropism->setGeometry(geometry);
         rp->f_tf = tropism; // set new one
         // S0.3 dispatch (ADR_LEAF_KINEMATICS_2026-04-28). When the LRP opts
-        // into MultiPhaseStemGrowth, mint that GF regardless of the XML `gf`
-        // field. Stays orthogonal to gf so non-FA stems keep their
-        // ExponentialGrowth/Linear/etc. dispatch when dispatch=0.
-        const int gft_eff = (rp->stem_growth_dispatch == 1)
+        // into MultiPhaseStemGrowth AND the FA kinetics flag is set on the
+        // LRP, mint that GF in place of the XML `gf` field. The FA gate is
+        // required so non-FA XMLs (wheat, brassica, modelparam_4, …) keep
+        // their native ExponentialGrowth/Linear/etc. dispatch under the
+        // S0.4 `stem_growth_dispatch=1` default — MultiPhaseStemGrowth
+        // returns `p.lb + min(fa_sum, Σ p.ln)` which only reproduces the
+        // legacy length curve when the FA pathway is actually populating
+        // `fa_sum`. Bit-identical regression on native paths (CLAUDE.md
+        // principle 6) requires this AND gate.
+        const bool fa_on = rp->use_fournier_andrieu_kinetics;
+        const int gft_eff = (rp->stem_growth_dispatch == 1 && fa_on)
                           ? gft_multi_phase_stem
                           : rp->gf;
         auto gf_ = this->createGrowthFunction(gft_eff);
