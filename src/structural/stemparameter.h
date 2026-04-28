@@ -77,6 +77,14 @@ public:
 
     std::shared_ptr<OrganSpecificParameter> realize() override; ///< Creates a specific stem from the stem parameter set
 
+    /* S0.6: per-rank Phase III/IV arrays (v_n, D_n, IL_final) and basal_zero_ranks
+     * are vector fields that the scalar-only base reader cannot handle. Override
+     * read/write to parse/emit `<parameter name="..." values="..."/>` tags.
+     * Existing XMLs without these tags load identically (arrays remain empty;
+     * basal_zero_ranks keeps its constructor default {1,2,3,4}).               */
+    void readXML(tinyxml2::XMLElement* element, bool verbose) override;
+    tinyxml2::XMLElement* writeXML(tinyxml2::XMLDocument& doc, bool comments = true) const override;
+
     double nob() const { if(ln>0){ return std::max((lmax-la-lb)/ln+1, 1.);}else{return 1.;} }  ///< returns the mean maximal number of branching nodes [1]
     double nobs() const; ///< returns the standard deviation of number of branches [1]
 

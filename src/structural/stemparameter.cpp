@@ -438,4 +438,110 @@ void StemRandomParameter::bindParameters()
     bindParameter("basal_internode_cm", &basal_internode_cm, "Fixed internode spacing for basal_zero_ranks [cm]");
 }
 
+/**
+ * S0.6 — Read per-rank `MultiPhaseStemGrowth` arrays (`v_n`, `D_n`, `IL_final`)
+ * and basal-zero ranks from XML, on top of the scalar fields handled by the
+ * base reader. Format mirrors the leafGeometry/leafCurvature precedent in
+ * `LeafRandomParameter::readXML` but uses a single comma-separated `values=`
+ * attribute per array (the FA tables are short — 16-17 ranks — so per-element
+ * tags would be needlessly verbose).
+ *
+ * Back-compat: an XML that omits these tags leaves the constructor defaults
+ * untouched (`internode_*` empty; `basal_zero_ranks={1,2,3,4}`), so every
+ * existing file (wheat, brassica, carbon2020, 2020-maize, modelparam_4,
+ * maize_calibrated FA-off) loads bit-identically.
+ */
+void StemRandomParameter::readXML(tinyxml2::XMLElement* element, bool verbose)
+{
+    OrganRandomParameter::readXML(element, verbose);
+
+    // Reset double-vector arrays before parsing so a re-read overwrites rather
+    // than appending. Leave basal_zero_ranks alone unless the XML explicitly
+    // overrides it (the constructor default {1,2,3,4} is the canonical maize
+    // Zhu-2014/He-2021 convention; clobbering it would silently change every
+    // FA-off stem on round-trip).
+    internode_v_n.resize(0);
+    internode_D_n.resize(0);
+    internode_IL_final.resize(0);
+    bool basal_zero_ranks_overridden = false;
+
+    auto p = element->FirstChildElement("parameter");
+    while (p) {
+        const char* str = p->Attribute("name");
+        if (str != nullptr) {
+            std::string key = std::string(str);
+            const char* values = p->Attribute("values");
+            if (values != nullptr) {
+                if (key == "v_n") {
+                    internode_v_n = string2vector(values, 0.0);
+                } else if (key == "D_n") {
+                    internode_D_n = string2vector(values, 0.0);
+                } else if (key == "IL_final") {
+                    internode_IL_final = string2vector(values, 0.0);
+                } else if (key == "basal_zero_ranks") {
+                    if (!basal_zero_ranks_overridden) {
+                        basal_zero_ranks.resize(0);
+                        basal_zero_ranks_overridden = true;
+                    }
+                    auto v = string2vector(values, 0);
+                    basal_zero_ranks.insert(basal_zero_ranks.end(), v.begin(), v.end());
+                }
+            }
+        }
+        p = p->NextSiblingElement("parameter");
+    }
+}
+
+/**
+ * S0.6 — Emit per-rank arrays alongside the scalar fields written by the
+ * base writer. Empty arrays are skipped so non-FA stems round-trip without
+ * gaining empty `<parameter name="v_n" values=""/>` tags. `basal_zero_ranks`
+ * is gated on the FA flag so the constructor default {1,2,3,4} is not
+ * sprinkled into every stem XML on every round-trip — only stems that
+ * actually opt into FA kinetics need it persisted.
+ */
+tinyxml2::XMLElement* StemRandomParameter::writeXML(tinyxml2::XMLDocument& doc, bool comments) const
+{
+    tinyxml2::XMLElement* element = OrganRandomParameter::writeXML(doc, comments);
+
+    auto append_array_double = [&](const char* name,
+                                   const std::vector<double>& v,
+                                   const char* descr) {
+        if (v.empty()) return;
+        tinyxml2::XMLElement* p = doc.NewElement("parameter");
+        p->SetAttribute("name", name);
+        p->SetAttribute("values", vector2string(v).c_str());
+        element->InsertEndChild(p);
+        if (comments && descr) {
+            tinyxml2::XMLComment* c = doc.NewComment(descr);
+            element->InsertEndChild(c);
+        }
+    };
+    auto append_array_int = [&](const char* name,
+                                const std::vector<int>& v,
+                                const char* descr) {
+        if (v.empty()) return;
+        tinyxml2::XMLElement* p = doc.NewElement("parameter");
+        p->SetAttribute("name", name);
+        p->SetAttribute("values", vector2string(v).c_str());
+        element->InsertEndChild(p);
+        if (comments && descr) {
+            tinyxml2::XMLComment* c = doc.NewComment(descr);
+            element->InsertEndChild(c);
+        }
+    };
+
+    append_array_double("v_n",      internode_v_n,
+                        "MultiPhaseStemGrowth Phase III rate per rank [cm/degCd]");
+    append_array_double("D_n",      internode_D_n,
+                        "MultiPhaseStemGrowth Phase III duration per rank [degCd]");
+    append_array_double("IL_final", internode_IL_final,
+                        "MultiPhaseStemGrowth Phase IV asymptote per rank [cm]");
+    if (use_fournier_andrieu_kinetics) {
+        append_array_int("basal_zero_ranks", basal_zero_ranks,
+                         "Ranks pinned to IL_final=0 (basal-zero, Zhu 2014 / He 2021)");
+    }
+    return element;
+}
+
 } // end namespace CPlantBox
