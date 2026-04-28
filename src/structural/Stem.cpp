@@ -231,13 +231,15 @@ void Stem::simulate(double dt, bool verbose)
 							if (c->organType() != Organism::ot_leaf) continue;
 							leaf_ordinal_outer++;
 							if (leaf_ordinal_outer > n_ranks_outer) break;
-							if (cessation_andrieu_tt_per_n[leaf_ordinal_outer] >= 0.0) continue;
+							// S0.5b.3: read FA-specific per-rank state from GF.
+							if (!fa_gf || leaf_ordinal_outer >= static_cast<int>(fa_gf->cessation_andrieu_tt_per_n.size())) break;
+							if (fa_gf->cessation_andrieu_tt_per_n[leaf_ordinal_outer] >= 0.0) continue;
 							// Prefer plastochron-driven init_tt when available
 							// (S3b.7 path); fall back to leaf emergence axis.
 							double init_tt_outer = -1.0;
-							if (leaf_ordinal_outer < static_cast<int>(initiation_andrieu_tt_per_n.size())
-							    && initiation_andrieu_tt_per_n[leaf_ordinal_outer] >= 0.0) {
-								init_tt_outer = initiation_andrieu_tt_per_n[leaf_ordinal_outer];
+							if (leaf_ordinal_outer < static_cast<int>(fa_gf->initiation_andrieu_tt_per_n.size())
+							    && fa_gf->initiation_andrieu_tt_per_n[leaf_ordinal_outer] >= 0.0) {
+								init_tt_outer = fa_gf->initiation_andrieu_tt_per_n[leaf_ordinal_outer];
 							} else {
 								auto lf = std::static_pointer_cast<Leaf>(c);
 								double leaf_tt_outer = lf->getEmergenceAndrieuTT();
@@ -278,9 +280,13 @@ void Stem::simulate(double dt, bool verbose)
 					// latch (Bug 3 in the diagnostic).  Idempotent: only fires
 					// once cessation_age_ < 0.
 					if (!legacy_threshold && cessation_age_ < 0.0) {
-						bool all_latched = true;
-						for (int n = 1; n <= n_ranks_outer; ++n) {
-							if (cessation_age_per_n[n] < 0.0) { all_latched = false; break; }
+						bool all_latched = (fa_gf != nullptr);
+						for (int n = 1; n <= n_ranks_outer && all_latched; ++n) {
+							// S0.5b.3: per-rank latches read from GF.
+							if (n >= static_cast<int>(fa_gf->cessation_age_per_n.size())
+							    || fa_gf->cessation_age_per_n[n] < 0.0) {
+								all_latched = false;
+							}
 						}
 						if (all_latched) {
 							cessation_age_ = age;
@@ -531,8 +537,9 @@ void Stem::simulate(double dt, bool verbose)
 							// simulate step, and the older rank must be inserted
 							// lower on the stem than the younger).
 							for (int n = 1; n <= n_laterals_max; ++n) {
-								if (static_cast<int>(lateral_spawned_per_n.size()) <= n) break;
-								if (lateral_spawned_per_n[n]) continue;
+								// S0.5b.3: read spawn flags from GF state.
+								if (!fa_gf || static_cast<int>(fa_gf->lateral_spawned_per_n.size()) <= n) break;
+								if (fa_gf->lateral_spawned_per_n[n]) continue;
 								double init_tt_n = static_cast<double>(n) * plastochron;
 								if (plant_andrieu_tt < init_tt_n) break;
 								// Match scalar-burst order: lateral attaches at the
@@ -700,7 +707,10 @@ void Stem::simulate(double dt, bool verbose)
 					fa_gf->cessation_andrieu_tt_per_n.resize(max_tag + 1, -1.0);
 					fa_gf->lateral_spawned_per_n.resize(max_tag + 1, 0);
 				}
-				const int n_ranks_lpn = static_cast<int>(length_per_n.size()) - 1;
+				// S0.5b.3: size source-of-truth is the GF vector when present.
+				const int n_ranks_lpn = fa_gf
+					? static_cast<int>(fa_gf->length_per_n.size()) - 1
+					: static_cast<int>(length_per_n.size()) - 1;
 				if (n_ranks_lpn >= 1) {
 					for (int n = 0; n <= n_ranks_lpn; ++n) {
 						length_per_n[n] = 0.0;
@@ -1109,10 +1119,13 @@ double Stem::calcLengthPerPhytomer(int n) const
 	// order rather than relying on leafphytomerID (which is indexed by
 	// subType and all maize_calibrated leaves have phytomerId=1 for
 	// their unique subType).
+	// S0.5b.3: read FA per-organ kinetic state from the GF instance.
+	auto* fa_state = getFaState();
 	double init_tt = -1.0;
-	if (n >= 1 && n < static_cast<int>(initiation_andrieu_tt_per_n.size())
-	    && initiation_andrieu_tt_per_n[n] >= 0.0) {
-		init_tt = initiation_andrieu_tt_per_n[n];
+	if (n >= 1 && fa_state
+	    && n < static_cast<int>(fa_state->initiation_andrieu_tt_per_n.size())
+	    && fa_state->initiation_andrieu_tt_per_n[n] >= 0.0) {
+		init_tt = fa_state->initiation_andrieu_tt_per_n[n];
 	} else {
 		int leaf_ordinal = 0;                     // 1-based index among leaf children
 		double leaf_emerge_tt = -1.0;
@@ -1142,10 +1155,13 @@ double Stem::calcLengthPerPhytomer(int n) const
 	auto plant_fa = getPlant();
 	if (!plant_fa) return 0.0;
 	double andrieu_tt = plant_fa->getAccumulatedAndrieuTT();
-	if (n >= 1 && n < static_cast<int>(cessation_andrieu_tt_per_n.size())
-	    && cessation_andrieu_tt_per_n[n] >= 0.0
-	    && andrieu_tt > cessation_andrieu_tt_per_n[n]) {
-		andrieu_tt = cessation_andrieu_tt_per_n[n];
+	// S0.5b.3: per-rank cessation latch from GF; global cessation_andrieu_tt_
+	// stays on Stem (set by use_thermal_cessation gate independently of FA).
+	if (n >= 1 && fa_state
+	    && n < static_cast<int>(fa_state->cessation_andrieu_tt_per_n.size())
+	    && fa_state->cessation_andrieu_tt_per_n[n] >= 0.0
+	    && andrieu_tt > fa_state->cessation_andrieu_tt_per_n[n]) {
+		andrieu_tt = fa_state->cessation_andrieu_tt_per_n[n];
 	} else if (cessation_andrieu_tt_ >= 0.0 && andrieu_tt > cessation_andrieu_tt_) {
 		andrieu_tt = cessation_andrieu_tt_;
 	}
@@ -1265,10 +1281,12 @@ int Stem::computeInsertionIndexForRank(int n) const
  */
 double Stem::getPhytomerLength(int n) const
 {
-	if (n < 1 || n >= static_cast<int>(length_per_n.size())) {
+	// S0.5b.3: read latched length from GF state.
+	auto* fa_state = getFaState();
+	if (!fa_state || n < 1 || n >= static_cast<int>(fa_state->length_per_n.size())) {
 		return 0.0;
 	}
-	return length_per_n[n];
+	return fa_state->length_per_n[n];
 }
 
 
