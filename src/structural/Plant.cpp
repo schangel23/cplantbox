@@ -435,6 +435,7 @@ std::shared_ptr<GrowthFunction>Plant::createGrowthFunction(int gft) {
     case gft_linear: return std::make_shared<LinearGrowth>();
     case gft_CWLim: return std::make_shared<CWLimitedGrowth>();
     case gft_gompertz: return std::make_shared<GompertzGrowth>();
+    case gft_multi_phase_stem: return std::make_shared<MultiPhaseStemGrowth>();
     default: throw std::invalid_argument( "Plant::createGrowthFunction() growth function type not implemented" );
     }
 }

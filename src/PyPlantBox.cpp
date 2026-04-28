@@ -311,6 +311,17 @@ PYBIND11_MODULE(plantbox, m) {
 
     py::class_<CWLimitedGrowth, GrowthFunction, std::shared_ptr<CWLimitedGrowth>>(m, "CWLimitedGrowth");
 
+    py::class_<MultiPhaseStemGrowth, GrowthFunction, std::shared_ptr<MultiPhaseStemGrowth>>(m, "MultiPhaseStemGrowth")
+        .def(py::init<>())
+        .def("getPhytomerLength", &MultiPhaseStemGrowth::getPhytomerLength,
+             py::arg("organId"), py::arg("n"))
+        .def("calcLengthPerPhytomerSum", &MultiPhaseStemGrowth::calcLengthPerPhytomerSum,
+             py::arg("organId"), py::arg("o"))
+        .def("calcLengthPerPhytomer", &MultiPhaseStemGrowth::calcLengthPerPhytomer,
+             py::arg("n"), py::arg("o"))
+        .def("syncStateFromGeometry", &MultiPhaseStemGrowth::syncStateFromGeometry,
+             py::arg("o"), py::arg("node_to_phytomer"), py::arg("basal_length"));
+
     /**
      * Organ.h
      */
@@ -1338,6 +1349,7 @@ PYBIND11_MODULE(plantbox, m) {
              .value("linear", Plant::GrowthFunctionTypes::gft_linear)
              .value("CWLim", Plant::GrowthFunctionTypes::gft_CWLim)
              .value("gompertz", Plant::GrowthFunctionTypes::gft_gompertz)
+             .value("multi_phase_stem", Plant::GrowthFunctionTypes::gft_multi_phase_stem)
              .export_values();
 
     py::class_<ExudationModel, std::shared_ptr<ExudationModel>>(m, "ExudationModel")

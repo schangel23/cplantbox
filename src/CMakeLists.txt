@@ -36,6 +36,7 @@ set(CPLANTBOX_SOURCES
     structural/Leaf.cpp
     structural/Plant.cpp
     structural/Organism.cpp
+    structural/growth.cpp
 	structural/Plant.cpp            			
     structural/RootSystem.cpp
     structural/MappedOrganism.cpp
