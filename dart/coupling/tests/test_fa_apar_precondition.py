@@ -1,35 +1,41 @@
 #!/usr/bin/env python3
-"""Session 6 (D.4) — APAR delta sanity via geometric precondition.
+"""Session 6 (D.4) — FA-flag structural footprint characterization.
 
 Plan: PLAN_FOURNIER_ANDRIEU_INTERNODE_KINETICS_2026-04-23.md §D.4.
+Updated 2026-04-28 for the post-S1-S4 peduncle-exuberance fix.
 
-**Why this isn't a DART run.** The plan's D.4 ("APAR within 5% of
-cosmetic-z-compression baseline") was written when cosmetic-z was still in
-the code as an A/B target. Cosmetic-z was removed 2026-04-22 and replaced
-by the structural FA model (S3 status note). That makes the literal D.4
-untestable; the useful invariant is the GEOMETRIC precondition that pins
-APAR delta to a sub-percent effect regardless of any DART run.
+**History.** Pre-S1-S4 the FA-on/FA-off difference was confined to the
+apical peduncle (~+19 cm of thin leafless stem above the canopy under
+FA-on). Hard Invariant #2 in its early form held leaf insertion zs
+bit-identical FA-on/off, and a sub-percent APAR delta was argued
+geometrically (the only delta was a single thin cylinder above the
+absorbing leaf volume).
 
-**The precondition.** Hard Invariant #2: leaf emergence gates on the Tb=8
-axis (`tt_emergence`), while FA stem kinetics run on the Andrieu Tb=9.8
-axis. The two axes are decoupled — FA stem kinetics cannot shift leaf
-insertion z. All 16 mainstem leaves produce bit-identical insertion z
-between FA-on and FA-off at day 130 (verified in the B.6 snapshot, Δ =
-0.000000 cm at every rank).
+**Post-S1-S4.** The peduncle-exuberance fix is structurally invasive
+on the FA-on path: B.2 makes p.ln FA-aware (per-rank ln vector
+shrinks under FA-on so the stem fits the IL_final budget without an
+exuberant apex), B.3 fires Phase IV cessation per rank, and HI#4
+adds an ln basal_floor. Net effect at day 130 (Juelich, seed 7):
+    FA-off topmost leaf z ≈ 140 cm, peduncle ≈ 40 cm
+    FA-on  topmost leaf z ≈ 187 cm, peduncle ≈  1 cm
 
-The only FA-on vs FA-off geometric difference is the peduncle: +18.80 cm
-of thin leafless stem ABOVE the canopy (apex, where the tassel inserts).
-Radiatively this is a single narrow vertical cylinder above the APAR-
-absorbing leaf volume. Expected APAR delta: well under 1% — any true
-5%+ delta under DART would indicate a structural bug not captured by the
-snapshot (e.g., tassel re-insertion or stem-width perturbation).
+The 'leaves are bit-identical FA-on/off' precondition is GONE — that
+property was the visible signature of the bug, not an invariant.
+The post-fix APAR argument cannot be made geometrically; it needs a
+real DART A/B run.
 
-**When to replace with a real DART run.** If Chapter 2 adds a sensitivity
-study that toggles FA on the same plant, re-land D.4 as a server-side
-pipeline: 3×3 grid FA-on vs FA-off, integrate daily total aPAR across
-leaf segments, assert |Δ mean total APAR| / mean < 5%. Server path:
-`/media/data/Lukas/CPlantBox/dart/coupling/` with `python3 -m dart.coupling
-diurnal --growth-days 130 --with-carbon` on both branches.
+**What remains testable.** Two things:
+  1. The fix is FA-only (FA-off has cessation_age_d == -1, isActive
+     stays True per the legacy length-vs-getK rule).
+  2. The peduncle still sits above the topmost leaf (no peduncle-into-
+     canopy regression).
+
+**D.4 status.** Deferred to Chapter 2 as a server-side DART A/B run:
+3×3 grid FA-on vs FA-off, integrate daily total aPAR across leaf
+segments, assert |Δ mean total APAR| / mean within an empirically
+established band. Server path: `/media/data/Lukas/CPlantBox/dart/
+coupling/` with `python3 -m dart.coupling diurnal --growth-days 130
+--with-carbon` on both branches.
 
 Usage:
     cpbenv/bin/python3 -m pytest dart/coupling/tests/test_fa_apar_precondition.py -v
@@ -56,50 +62,47 @@ def snapshot() -> dict:
     return json.loads(SNAPSHOT_PATH.read_text())
 
 
-def test_all_mainstem_leaves_bit_identical_fa_flag(snapshot):
-    """Every mainstem leaf insertion z must be bit-identical between FA-on
-    and FA-off. This is what pins the APAR delta to sub-percent: the leaf
-    volume absorbing aPAR is geometrically frozen by the FA flag.
-
-    If any leaf diverges, either:
-      (a) FA kinetics are leaking into the leaf-appearance gate (Hard
-          Invariant #2 violated), or
-      (b) lateral creation timing has become flag-sensitive (B.3.5 bug).
+def test_fix_is_fa_only(snapshot):
+    """Pre-fix the FA flag was supposed to leave leaf positions and peduncle
+    geometry untouched (cosmetic kinetic forecast only). Post-S1-S4 the
+    fix is FA-only by design: FA-off cessation never fires, so its
+    mainstem keeps the legacy length-vs-getK active rule. This guards
+    against the fix accidentally leaking into the FA-off path.
     """
-    on = sorted(snapshot["fa_on"]["leaf_insertions"], key=lambda l: l["parentNI"])
-    off = sorted(snapshot["fa_off"]["leaf_insertions"], key=lambda l: l["parentNI"])
-    assert len(on) == len(off), (
-        f"Leaf count drift: FA-on={len(on)} FA-off={len(off)}"
+    fa_off = snapshot["fa_off"]
+    cessation_age = fa_off["cessation"]["cessation_age_d"]
+    assert cessation_age is None or cessation_age < 0.0, (
+        f"FA-off cessation_age_d = {cessation_age}; expected -1 (no FA "
+        "cessation). The cessation gate may be leaking into the legacy path."
     )
-    max_delta = 0.0
-    for lon, loff in zip(on, off):
-        assert lon["subType"] == loff["subType"], (
-            f"subType drift at parentNI~{lon['parentNI']}: "
-            f"FA-on={lon['subType']} FA-off={loff['subType']}"
-        )
-        delta = abs(lon["insertion_z_cm"] - loff["insertion_z_cm"])
-        max_delta = max(max_delta, delta)
-    assert max_delta < 0.001, (
-        f"Max leaf insertion z drift = {max_delta:.6f} cm (expect bit-identical). "
-        "FA flag is shifting leaf positions — Hard Invariant #2 at risk."
+    # FA-off active flag follows the legacy length-vs-getK rule.  At
+    # day 130 with mainstem_length=183.23 cm and getK ≈ 213 cm, the
+    # mainstem should still report active=True.
+    assert fa_off["mainstem_is_active"] is True, (
+        f"FA-off mainstem isActive() = {fa_off['mainstem_is_active']!r}; "
+        "expected True (legacy length-vs-getK comparison should not have "
+        "tripped). Did the cessation guard accidentally clear FA-off active?"
     )
 
 
-def test_peduncle_is_only_structural_delta(snapshot):
-    """The §B.6 peduncle gap is the ONLY FA-on vs FA-off mainstem-length
-    delta: mainstem_top_z_delta ≈ peduncle_kinetic_error.
+def test_post_fix_structural_delta_is_distributed(snapshot):
+    """Post-S1-S4 characterization: the FA-on/off structural delta is now
+    distributed across the stem (B.2 FA-aware p.ln + B.3 cessation), not
+    concentrated in the apical peduncle. Pre-fix, mainstem_top_z_delta ≈
+    peduncle_kinetic_error within 0.05 cm. Post-fix, |peduncle delta| is
+    larger than |mainstem-top delta| because FA-on lifts leaves into what
+    used to be the exuberant peduncle zone.
 
-    Both come from `discovery`. If these diverge, there's another source of
-    structural drift that we're not accounting for in the APAR argument.
+    If these collapse back to near-equality, B.2 (FA-aware p.ln) has
+    likely regressed and FA is again only changing the apex.
     """
     discovery = snapshot["discovery"]
     top_diff = discovery["mainstem_top_diff_cm"]
     ped_err = discovery["peduncle_kinetic_error_cm"]
-    gap = abs(top_diff - ped_err)
-    assert gap < 0.05, (
-        f"Mainstem-top delta ({top_diff:.3f} cm) disagrees with peduncle "
-        f"kinetic error ({ped_err:.3f} cm) by {gap:.3f} cm. There is a "
-        "second source of FA-flag structural drift beyond the peduncle."
+    assert ped_err > top_diff + 5.0, (
+        f"Peduncle kinetic error ({ped_err:.3f} cm) should exceed mainstem-top "
+        f"delta ({top_diff:.3f} cm) by >5 cm under the post-S1-S4 fix; "
+        f"observed gap = {ped_err - top_diff:.3f} cm. Did B.2/B.3 regress?"
     )
 
 
