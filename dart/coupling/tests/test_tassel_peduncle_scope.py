@@ -163,6 +163,35 @@ def test_mainstem_top_z_fa_on_documented_range(snapshot):
     )
 
 
+def test_mainstem_inactive_after_fa_cessation(snapshot):
+    """Codex-rescue follow-up (2026-04-28): once FA Phase IV cessation
+    latches (cessation_age_ ≥ 0), the mainstem must report isActive()
+    == False so PiafMunch (runPM.cpp:697,847) stops treating it as a
+    live carbon-water sink.
+
+    Pre-fixup (commit 3fd90f12): the in-block 'active = false' was
+    clobbered by the unconditional terminal-length check at the end
+    of Stem::simulate, since the FA target cap excludes apical la
+    (~22 cm) but getK() doesn't.
+
+    Fixup (commit ea508405): the terminal check itself is now gated
+    on FA cessation. This test guards against re-introducing the
+    clobber. FA-off retains the legacy length-vs-getK comparison.
+    """
+    fa_on = snapshot["fa_on"]
+    cessation_age_d = fa_on["cessation"]["cessation_age_d"]
+    is_active = fa_on["mainstem_is_active"]
+    assert cessation_age_d is not None and cessation_age_d >= 0.0, (
+        f"FA-on cessation_age_d = {cessation_age_d}; expected ≥0 (latch should "
+        "fire by day 130 under Juelich met)."
+    )
+    assert is_active is False, (
+        f"FA-on mainstem isActive() = {is_active!r} after cessation_age_d="
+        f"{cessation_age_d}; expected False. The terminal-length-check guard "
+        "in Stem.cpp may have regressed."
+    )
+
+
 def test_peduncle_fa_vs_scalar_error_quantified(snapshot):
     """§B.6 peduncle kinetic error: |FA-on peduncle - FA-off peduncle|.
 
