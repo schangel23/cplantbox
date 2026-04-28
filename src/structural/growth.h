@@ -203,8 +203,10 @@ public:
 	 */
 	struct PerOrganFAState
 	{
-		double cessation_age = -1.0;                     ///< calendar-day age at cessation latch; -1 = not triggered
-		double cessation_andrieu_tt = -1.0;              ///< Andrieu-axis TT (Tb=9.8) at cessation latch
+		// Note: the global cessation_age + cessation_andrieu_tt latches are
+		// kept on Stem (cessation_age_ / cessation_andrieu_tt_) because the
+		// use_thermal_cessation feature is not FA-specific (non-FA stems
+		// with use_thermal_cessation=1 also rely on those fields).
 		std::vector<double> length_per_n;                ///< per-rank realised latched length [cm] (monotone)
 		std::vector<double> epsilonDx_per_n;             ///< per-phytomer sub-resolution remainder [cm]
 		std::vector<double> cessation_age_per_n;         ///< per-rank cessation latch on legacy axis [day]

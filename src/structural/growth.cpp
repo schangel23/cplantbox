@@ -134,7 +134,9 @@ double MultiPhaseStemGrowth::calcLengthPerPhytomer(int n,
     double andrieu_tt = plant_fa->getAccumulatedAndrieuTT();
 
     // Cessation freeze: per-rank latch dominates over global latch when set
-    // (matches Stem::calcLengthPerPhytomer:1167-1173).
+    // (matches Stem::calcLengthPerPhytomer:1167-1173). Per-rank latches live
+    // on the GF state; the global latch lives on Stem (cessation_andrieu_tt_)
+    // because use_thermal_cessation is not FA-specific.
     if (state_it != per_organ_state.end()) {
         const auto& st = state_it->second;
         if (n >= 1
@@ -142,10 +144,13 @@ double MultiPhaseStemGrowth::calcLengthPerPhytomer(int n,
             && st.cessation_andrieu_tt_per_n[n] >= 0.0
             && andrieu_tt > st.cessation_andrieu_tt_per_n[n]) {
             andrieu_tt = st.cessation_andrieu_tt_per_n[n];
-        } else if (st.cessation_andrieu_tt >= 0.0
-                   && andrieu_tt > st.cessation_andrieu_tt) {
-            andrieu_tt = st.cessation_andrieu_tt;
+        } else if (stem->cessation_andrieu_tt_ >= 0.0
+                   && andrieu_tt > stem->cessation_andrieu_tt_) {
+            andrieu_tt = stem->cessation_andrieu_tt_;
         }
+    } else if (stem->cessation_andrieu_tt_ >= 0.0
+               && andrieu_tt > stem->cessation_andrieu_tt_) {
+        andrieu_tt = stem->cessation_andrieu_tt_;
     }
     const double tau = andrieu_tt - init_tt;
     if (tau < 0.0) return 0.0;
@@ -291,22 +296,11 @@ static void update_cessation_latches(MultiPhaseStemGrowth::PerOrganFAState& st,
         }
     }
 
-    // All-latched gate: when every rank's per-rank latch is set, fire the
-    // global cessation_age (mirrors Stem.cpp:246-257).
-    if (!legacy_threshold && st.cessation_age < 0.0) {
-        bool all_latched = true;
-        for (int n = 1; n <= n_ranks; ++n) {
-            if (n >= static_cast<int>(st.cessation_age_per_n.size())
-                || st.cessation_age_per_n[n] < 0.0) {
-                all_latched = false;
-                break;
-            }
-        }
-        if (all_latched) {
-            st.cessation_age = age;
-            st.cessation_andrieu_tt = plant_andrieu_tt;
-        }
-    }
+    // S0.5b.5: the global all-latched gate now lives on Stem (cessation_age_
+    // / cessation_andrieu_tt_ are non-FA-specific use_thermal_cessation
+    // feature state). The outer block in Stem::simulate fires the gate
+    // unconditionally each step using these very same per-rank latches; no
+    // need to duplicate it here.
 }
 
 // -------------------------------------------------------------------------
@@ -395,7 +389,9 @@ double MultiPhaseStemGrowth::getLength(double t, double r, double k,
 
     // Block 5: cessation gate. Force dl=0 in the caller by returning current
     // realised length (so e = targetlength - length = 0).
-    if (st.cessation_age >= 0.0) {
+    // S0.5b.5: the global cessation latch is canonical on Stem
+    // (use_thermal_cessation feature is not FA-specific). Read from there.
+    if (stem->cessation_age_ >= 0.0) {
         return o->getLength(true);
     }
     return targetlength;

@@ -171,11 +171,6 @@ void Stem::simulate(double dt, bool verbose)
 				// FA branch can freeze per-rank kinetics (plan §B.3 cessation
 				// interaction). Harmless for scalar path — never read there.
 				cessation_andrieu_tt_ = plant_tt->getAccumulatedAndrieuTT();
-				// S0.5b.2: mirror to GF state.
-				if (fa_gf) {
-					fa_gf->cessation_age = cessation_age_;
-					fa_gf->cessation_andrieu_tt = cessation_andrieu_tt_;
-				}
 			}
 		}
 
@@ -197,11 +192,7 @@ void Stem::simulate(double dt, bool verbose)
 			    && srp_fa_outer.use_thermal_cessation) {
 				const int n_ranks_outer = static_cast<int>(srp_fa_outer.internode_v_n.size());
 				if (n_ranks_outer > 0) {
-					if (static_cast<int>(cessation_andrieu_tt_per_n.size()) < n_ranks_outer + 1) {
-						cessation_andrieu_tt_per_n.resize(n_ranks_outer + 1, -1.0);
-						cessation_age_per_n.resize(n_ranks_outer + 1, -1.0);
-					}
-					// S0.5b.2: keep GF per-rank vectors in lockstep.
+					// S0.5b.5: per-rank cessation arrays live on the GF instance.
 					if (fa_gf && static_cast<int>(fa_gf->cessation_andrieu_tt_per_n.size()) < n_ranks_outer + 1) {
 						fa_gf->cessation_andrieu_tt_per_n.resize(n_ranks_outer + 1, -1.0);
 						fa_gf->cessation_age_per_n.resize(n_ranks_outer + 1, -1.0);
@@ -262,13 +253,9 @@ void Stem::simulate(double dt, bool verbose)
 									+ srp_fa_outer.phase_IV_duration;
 							}
 							if (tau_n_outer >= threshold_outer) {
-								cessation_andrieu_tt_per_n[leaf_ordinal_outer] = plant_andrieu_tt_outer;
-								cessation_age_per_n[leaf_ordinal_outer] = age;
-								// S0.5b.2: mirror to GF.
-								if (fa_gf) {
-									fa_gf->cessation_andrieu_tt_per_n[leaf_ordinal_outer] = plant_andrieu_tt_outer;
-									fa_gf->cessation_age_per_n[leaf_ordinal_outer] = age;
-								}
+								// S0.5b.5: write per-rank latches to GF state only.
+								fa_gf->cessation_andrieu_tt_per_n[leaf_ordinal_outer] = plant_andrieu_tt_outer;
+								fa_gf->cessation_age_per_n[leaf_ordinal_outer] = age;
 							}
 						}
 					}
@@ -292,11 +279,6 @@ void Stem::simulate(double dt, bool verbose)
 							cessation_age_ = age;
 							if (plant_cess_outer) {
 								cessation_andrieu_tt_ = plant_cess_outer->getAccumulatedAndrieuTT();
-							}
-							// S0.5b.2: mirror to GF.
-							if (fa_gf) {
-								fa_gf->cessation_age = cessation_age_;
-								fa_gf->cessation_andrieu_tt = cessation_andrieu_tt_;
 							}
 						}
 					}
@@ -387,71 +369,40 @@ void Stem::simulate(double dt, bool verbose)
 				// deferred to S0.5b (pytest consumers + the post-step span walk
 				// currently depend on the Stem-side accessors).
 				if (p.use_fournier_andrieu_kinetics) {
-					const auto& srp_disp = *getStemRandomParameter();
-					// Lazy resize per-rank arrays on BOTH Stem mirror and GF
-					// state to per_n_end so the downstream geometry block reads
-					// valid lateral_spawned_per_n / initiation_andrieu_tt_per_n
-					// without depending on the (skipped) shadow inner resize
-					// blocks.
-					const int n_ranks_gf = static_cast<int>(p.internode_v_n.size());
-					const int n_laterals_max_gf = static_cast<int>(p.ln.size()) + 1;
-					const int per_n_end_gf = std::max(n_ranks_gf + 1,
-					                                   n_laterals_max_gf + 1);
-					if (static_cast<int>(length_per_n.size()) < per_n_end_gf) {
-						length_per_n.resize(per_n_end_gf, 0.0);
-						epsilonDx_per_n.resize(per_n_end_gf, 0.0);
-						cessation_age_per_n.resize(per_n_end_gf, -1.0);
-						cessation_andrieu_tt_per_n.resize(per_n_end_gf, -1.0);
-						lateral_spawned_per_n.resize(per_n_end_gf, 0);
-					}
-					if (static_cast<int>(initiation_andrieu_tt_per_n.size()) < per_n_end_gf) {
-						initiation_andrieu_tt_per_n.resize(per_n_end_gf, -1.0);
-					}
-					// S0.5b.2: GF per-rank vectors get the same lazy-resize.
-					if (fa_gf && static_cast<int>(fa_gf->length_per_n.size()) < per_n_end_gf) {
-						fa_gf->length_per_n.resize(per_n_end_gf, 0.0);
-						fa_gf->epsilonDx_per_n.resize(per_n_end_gf, 0.0);
-						fa_gf->cessation_age_per_n.resize(per_n_end_gf, -1.0);
-						fa_gf->cessation_andrieu_tt_per_n.resize(per_n_end_gf, -1.0);
-						fa_gf->lateral_spawned_per_n.resize(per_n_end_gf, 0);
-					}
-					if (fa_gf && static_cast<int>(fa_gf->initiation_andrieu_tt_per_n.size()) < per_n_end_gf) {
-						fa_gf->initiation_andrieu_tt_per_n.resize(per_n_end_gf, -1.0);
-					}
-
 					if (!fa_gf) {
 						throw std::runtime_error(
 							"Stem::simulate: use_fournier_andrieu_kinetics requires "
 							"f_gf to be MultiPhaseStemGrowth (set in "
 							"Plant::initCallbacks); fa_gf is nullptr.");
 					}
+					// Lazy resize per-rank GF arrays to per_n_end so the
+					// downstream geometry block reads valid
+					// lateral_spawned_per_n / initiation_andrieu_tt_per_n
+					// without depending on the (skipped) shadow inner resize
+					// blocks.
+					const int n_ranks_gf = static_cast<int>(p.internode_v_n.size());
+					const int n_laterals_max_gf = static_cast<int>(p.ln.size()) + 1;
+					const int per_n_end_gf = std::max(n_ranks_gf + 1,
+					                                   n_laterals_max_gf + 1);
+					if (static_cast<int>(fa_gf->length_per_n.size()) < per_n_end_gf) {
+						fa_gf->length_per_n.resize(per_n_end_gf, 0.0);
+						fa_gf->epsilonDx_per_n.resize(per_n_end_gf, 0.0);
+						fa_gf->cessation_age_per_n.resize(per_n_end_gf, -1.0);
+						fa_gf->cessation_andrieu_tt_per_n.resize(per_n_end_gf, -1.0);
+						fa_gf->lateral_spawned_per_n.resize(per_n_end_gf, 0);
+					}
+					if (static_cast<int>(fa_gf->initiation_andrieu_tt_per_n.size()) < per_n_end_gf) {
+						fa_gf->initiation_andrieu_tt_per_n.resize(per_n_end_gf, -1.0);
+					}
 
-					// S0.5b.2: dispatch through f_gf->getLength. The push
-					// (Stem→GF) is gone — every writer in this simulate()
-					// step has already written through `fa_gf` so the GF
-					// entry is current.  Pass `age` (calendar) so
-					// update_cessation_latches stamps cessation_age == age.
-					targetlength = srp_disp.f_gf->getLength(
+					// S0.5b.5: dispatch through f_gf->getLength.  GF state
+					// is canonical — no push (S0.5b.2) and no pull
+					// (retired now that all readers consult getFaState()).
+					// Pass `age` (calendar) so update_cessation_latches
+					// stamps per-rank latches against age.
+					targetlength = getStemRandomParameter()->f_gf->getLength(
 						age, p.r, p.getK(), shared_from_this())
 					             + this->epsilonDx;
-
-					// Mirror pull GF → Stem.  getLength internally calls
-					// update_cessation_latches and update_plastochron_forecast
-					// which write to the GF entry; pulling those changes
-					// back to the Stem mirror keeps downstream readers (the
-					// dl=0 cessation gate, the FA-vs-scalar branching gate,
-					// the active-gate short-circuit, internodalGrowth's
-					// basal_zero_ranks check) correct without yet migrating
-					// them to read GF directly.  Pull retired in S0.5b.5.
-					cessation_age_                = fa_gf->cessation_age;
-					cessation_andrieu_tt_         = fa_gf->cessation_andrieu_tt;
-					length_per_n                  = fa_gf->length_per_n;
-					epsilonDx_per_n               = fa_gf->epsilonDx_per_n;
-					cessation_age_per_n           = fa_gf->cessation_age_per_n;
-					cessation_andrieu_tt_per_n    = fa_gf->cessation_andrieu_tt_per_n;
-					lateral_spawned_per_n         = fa_gf->lateral_spawned_per_n;
-					initiation_andrieu_tt_per_n   = fa_gf->initiation_andrieu_tt_per_n;
-					basal_length_                 = fa_gf->basal_length;
 				} else {
 					targetlength = calcLength(age__) + this->epsilonDx;
 				}
@@ -558,12 +509,7 @@ void Stem::simulate(double dt, bool verbose)
 									length += basal_step;
 									dl     -= basal_step;
 								}
-								// Record plastochron-axis init TT so
-								// calcLengthPerPhytomer(n) uses rank n's birthday
-								// as τ_n anchor (not leaf's emergence_andrieu_tt_).
-								initiation_andrieu_tt_per_n[n] = plant_andrieu_tt;
-								lateral_spawned_per_n[n] = 1;
-								// S0.5b.2: mirror to GF.
+								// S0.5b.5: per-rank initiation state lives on GF.
 								if (fa_gf
 								    && n < static_cast<int>(fa_gf->initiation_andrieu_tt_per_n.size())
 								    && n < static_cast<int>(fa_gf->lateral_spawned_per_n.size())) {
@@ -635,10 +581,9 @@ void Stem::simulate(double dt, bool verbose)
 			// p.lb crossing via the scalar branching burst, so T2's multi-rank
 			// co-initiation scenario doesn't apply to production runs.
 			if (p.use_fournier_andrieu_kinetics) {
-				basal_length_ = std::min(getLength(true), param()->lb);
-				// S0.5b.2: mirror to GF.
+				// S0.5b.5: basal-stub accumulator lives on GF state.
 				if (fa_gf) {
-					fa_gf->basal_length = basal_length_;
+					fa_gf->basal_length = std::min(getLength(true), param()->lb);
 				}
 
 				// Sync node_to_phytomer length with current nodes size.
@@ -692,14 +637,7 @@ void Stem::simulate(double dt, bool verbose)
 				for (int k = 0; k < n_nodes; ++k) {
 					if (node_to_phytomer[k] > max_tag) max_tag = node_to_phytomer[k];
 				}
-				if (static_cast<int>(length_per_n.size()) < max_tag + 1) {
-					length_per_n.resize(max_tag + 1, 0.0);
-					epsilonDx_per_n.resize(max_tag + 1, 0.0);
-					cessation_age_per_n.resize(max_tag + 1, -1.0);
-					cessation_andrieu_tt_per_n.resize(max_tag + 1, -1.0);
-					lateral_spawned_per_n.resize(max_tag + 1, 0);
-				}
-				// S0.5b.2: GF per-rank vectors get the same lazy-resize.
+				// S0.5b.5: per-rank arrays live on GF state.
 				if (fa_gf && static_cast<int>(fa_gf->length_per_n.size()) < max_tag + 1) {
 					fa_gf->length_per_n.resize(max_tag + 1, 0.0);
 					fa_gf->epsilonDx_per_n.resize(max_tag + 1, 0.0);
@@ -707,27 +645,19 @@ void Stem::simulate(double dt, bool verbose)
 					fa_gf->cessation_andrieu_tt_per_n.resize(max_tag + 1, -1.0);
 					fa_gf->lateral_spawned_per_n.resize(max_tag + 1, 0);
 				}
-				// S0.5b.3: size source-of-truth is the GF vector when present.
 				const int n_ranks_lpn = fa_gf
 					? static_cast<int>(fa_gf->length_per_n.size()) - 1
-					: static_cast<int>(length_per_n.size()) - 1;
-				if (n_ranks_lpn >= 1) {
+					: 0;
+				if (fa_gf && n_ranks_lpn >= 1) {
 					for (int n = 0; n <= n_ranks_lpn; ++n) {
-						length_per_n[n] = 0.0;
-						if (fa_gf && n < static_cast<int>(fa_gf->length_per_n.size())) {
-							fa_gf->length_per_n[n] = 0.0;
-						}
+						fa_gf->length_per_n[n] = 0.0;
 					}
 					// Sum segment lengths by rank tag (tag on the END node of
 					// each segment, since seg k-1→k is "contributed by" node k).
 					for (int k = 1; k < n_nodes; ++k) {
 						int tag = node_to_phytomer[k];
 						if (tag < 1 || tag > n_ranks_lpn) continue;
-						const double seg_len = nodes[k].length();
-						length_per_n[tag] += seg_len;
-						if (fa_gf && tag < static_cast<int>(fa_gf->length_per_n.size())) {
-							fa_gf->length_per_n[tag] += seg_len;
-						}
+						fa_gf->length_per_n[tag] += nodes[k].length();
 					}
 				}
 			}

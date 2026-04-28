@@ -108,39 +108,14 @@ public:
     /// Always sampled when cessation_age_ fires; harmless for the scalar path.
     double cessation_andrieu_tt_ = -1.0;
 
-    /* S3b per-phytomer bookkeeping (plan §A, decisions 1–5).
-     *
-     * All six vectors are EMPTY when use_fournier_andrieu_kinetics is false,
-     * so scalar-path stems pay zero memory or runtime overhead. Lazy-sized on
-     * the first FA-on simulate() step to n_ranks+1 entries (index 0 unused,
-     * ranks indexed 1..n_ranks).
-     *
-     * Hard Invariant #5 (plan): getLength() == basal_length_ + Σ length_per_n
-     * after every simulate(dt) step. basal_length_ accounts for the p.lb
-     * bootstrap stub growth driven by the scalar basal-zone allocator (kept
-     * under Option 1 bootstrap, see Stem::simulate FA branch). */
-    std::vector<double> length_per_n;              ///< realised latched length of each internode [cm]
-    std::vector<double> epsilonDx_per_n;           ///< per-phytomer sub-resolution remainder [cm]
-    std::vector<double> cessation_age_per_n;       ///< per-rank cessation latch on legacy Tb=8 axis [day]
-    std::vector<double> cessation_andrieu_tt_per_n;///< per-rank cessation latch on Andrieu Tb=9.8 axis [degCd]
-    std::vector<int>    node_to_phytomer;          ///< parallel to nodes; rank (>=1) owning each node, 0 = basal stub / untagged
-    std::vector<char>   lateral_spawned_per_n;     ///< bool flag per rank, set when rank n's lateral has been spawned (char avoids std::vector<bool> bit-packing)
-
-    /// S3b.7 — Plant-Andrieu-TT at the step rank n was initiated via the
-    /// plastochron clock. Used as the τ_n anchor for calcLengthPerPhytomer(n)
-    /// when the rank was created by the plastochron-driven initiation path,
-    /// decoupling internode kinetics from leaf emergence (resolves the
-    /// S3b.3 chicken-and-egg deadlock). Entry <0 means "not yet initiated
-    /// on the plastochron clock"; calcLengthPerPhytomer then falls back to
-    /// the leaf-emergence lookup (legacy S3b.3 path, kept for back-compat).
-    std::vector<double> initiation_andrieu_tt_per_n;
-
-    /// Growth accumulated in the p.lb basal-stub zone [cm]. Under Option 1
-    /// bootstrap the scalar basal-zone allocator grows the stem from 0 → p.lb
-    /// before any FA rank contributes length; those nodes carry rank 0 in
-    /// node_to_phytomer and their summed length is tracked here so that the
-    /// total-length invariant closes: getLength() == basal_length_ + Σ length_per_n.
-    double basal_length_ = 0.0;
+    /// Per-node rank tag, parallel to `nodes`. Populated by the post-step
+    /// span walk in Stem::simulate (FA-on stems only). Each node k carries
+    /// the rank (>=1) of the phytomer that owns it; 0 = basal stub /
+    /// untagged. Intrinsic Stem state — kept on Stem because it's a
+    /// parallel array to `nodes`. The kinetic per-rank arrays
+    /// (length_per_n, cessation_*_per_n, etc.) live on the
+    /// MultiPhaseStemGrowth GF instance — see Stem::getFaState().
+    std::vector<int>    node_to_phytomer;
 
 protected:
 	void storeLinkingNodeLocalId(int numCreatedLN, bool silence) override; ///<  override by @see Organ::createNonGrowingLateral()
