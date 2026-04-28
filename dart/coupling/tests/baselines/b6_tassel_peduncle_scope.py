@@ -185,6 +185,14 @@ def snapshot(plant, tassel_emerge_day, fa_on: bool) -> dict:
     except Exception:
         cessation["cessation_andrieu_tt_degCd"] = None
 
+    # Mainstem lifecycle flag — load-bearing for PiafMunch (runPM.cpp:697,847
+    # gate carbon-water growth on isActive()). Post-S1-S4 + codex-rescue
+    # follow-up, FA-on must report False after cessation_age_ latches.
+    try:
+        mainstem_is_active = bool(mainstem.isActive())
+    except Exception:
+        mainstem_is_active = None
+
     return {
         "fa_on": fa_on,
         "sim_days": SIM_DAYS,
@@ -192,6 +200,7 @@ def snapshot(plant, tassel_emerge_day, fa_on: bool) -> dict:
         "n_mainstem_nodes": len(mainstem_nodes),
         "mainstem_length_cm": float(mainstem_length),
         "mainstem_top_z_cm": mainstem_top_z,
+        "mainstem_is_active": mainstem_is_active,
         "n_leaves_total": len(leaves),
         "n_mainstem_leaves": len(mainstem_leaves),
         "leaf_insertions": leaf_insertions,
@@ -216,6 +225,7 @@ def print_snapshot(label: str, snap: dict):
         print(f"  spike#{ts['spike_id']}: first_z={ts['first_node_z_cm']:.2f}  top_z={ts['top_node_z_cm']:.2f}  length={ts['length_cm']:.2f}  age={ts['age_d']:.1f} d  nodes={ts['n_nodes']}")
     print(f"  tassel emerge day: {snap['tassel_emerge_day']}")
     print(f"  cessation: age={snap['cessation']['cessation_age_d']} d  andrieu_tt={snap['cessation']['cessation_andrieu_tt_degCd']} degCd")
+    print(f"  mainstem isActive(): {snap['mainstem_is_active']}")
 
 
 def report_discovery(fa_snap: dict, scalar_snap: dict) -> dict:

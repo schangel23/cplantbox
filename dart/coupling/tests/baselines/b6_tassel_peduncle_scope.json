@@ -132,6 +132,7 @@
         "subType": 17
       }
     ],
+    "mainstem_is_active": true,
     "mainstem_length_cm": 183.2290100441489,
     "mainstem_top_z_cm": 180.22901004414263,
     "n_leaves_total": 16,
@@ -274,6 +275,7 @@
         "subType": 17
       }
     ],
+    "mainstem_is_active": false,
     "mainstem_length_cm": 191.0,
     "mainstem_top_z_cm": 187.99999999994006,
     "n_leaves_total": 16,
