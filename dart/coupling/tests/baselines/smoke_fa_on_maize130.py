@@ -133,7 +133,7 @@ def summarize(plant, tassel_emerge_day):
     print(f"Mainstem nodes:    {len(mainstem_nodes)}")
     print(f"Mainstem length:   {mainstem_length:.2f} cm")
     print(f"Mainstem top z:    {mainstem_top_z:.2f} cm (structural FA output, 187–197 cm per plan D.1 §580)")
-    print(f"Topmost leaf z:    {topmost_leaf_insertion_z:.2f} cm (D.1 endpoint invariant: 150.35 ± 0.5 cm)")
+    print(f"Topmost leaf z:    {topmost_leaf_insertion_z:.2f} cm (D.1 endpoint invariant, FA-on post-S1-S4: 186.96 ± 1.0 cm)")
     print(f"N leaves:          {len(leaves)}")
     print(f"N tassel spikes:   {len(tassel_spikes)}")
     if tassel_emerge_day is not None:
@@ -157,9 +157,10 @@ def summarize(plant, tassel_emerge_day):
 
     # Invariant checks (D.1 post-Session-4 observables — see plan §580)
     failures = []
-    if abs(topmost_leaf_insertion_z - 150.35) >= 0.5:
+    if abs(topmost_leaf_insertion_z - 186.96) >= 1.0:
         failures.append(
-            f"topmost_leaf_insertion_z {topmost_leaf_insertion_z:.2f} not within 150.35±0.5"
+            f"topmost_leaf_insertion_z {topmost_leaf_insertion_z:.2f} not within 186.96±1.0 "
+            "(post-S1-S4 peduncle-exuberance fix anchor)"
         )
     if not (187.0 <= mainstem_top_z <= 197.0):
         failures.append(
