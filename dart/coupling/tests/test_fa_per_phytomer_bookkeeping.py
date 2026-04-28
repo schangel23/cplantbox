@@ -142,7 +142,10 @@ def test_t1_per_rank_monotonic_latch():
     prev = [0.0] * (N_RANKS + 2)
     violations: list[tuple[int, int, float, float]] = []  # (day, rank, old, new)
     for day, stem in _run_faon(days=130):
-        lpn = list(stem.length_per_n)
+        # S0.5b: FA per-organ kinetic state lives on the MultiPhaseStemGrowth GF.
+        fa = stem.getFaState()
+        assert fa is not None, "FA-on stem must have a MultiPhaseStemGrowth state"
+        lpn = list(fa.length_per_n)
         assert len(lpn) >= N_RANKS + 1, (
             f"length_per_n size {len(lpn)} < n_ranks+1 = {N_RANKS+1}; "
             "S3b.3 may size larger to cover apical rank tag"
@@ -174,8 +177,11 @@ def test_t4_invariant_5_every_step():
     worst: tuple[int, float, float, float] | None = None
     for day, stem in _run_faon(days=130):
         realized = stem.getLength(True)
-        basal = stem.basal_length_
-        s = sum(stem.length_per_n)
+        # S0.5b: FA bookkeeping reads from the MultiPhaseStemGrowth GF state.
+        fa = stem.getFaState()
+        assert fa is not None
+        basal = fa.basal_length
+        s = sum(fa.length_per_n)
         v = abs(realized - (basal + s))
         if v > max_viol:
             max_viol = v
@@ -257,7 +263,10 @@ def test_t6_synthetic_per_rank_cessation():
     stems = [o for o in plant.getOrgans(pb.OrganTypes.stem) if int(o.getParameter("subType")) == 1]
     assert stems, "no mainstem after 130d"
     stem = stems[0]
-    cess_tt = list(stem.cessation_andrieu_tt_per_n)
+    # S0.5b: per-rank cessation latches read from the GF state.
+    fa = stem.getFaState()
+    assert fa is not None
+    cess_tt = list(fa.cessation_andrieu_tt_per_n)
     # At least one early rank must have latched (cessation_andrieu_tt_per_n[n] >= 0).
     latched_ranks = [n for n in range(1, min(len(cess_tt), N_RANKS + 1))
                      if cess_tt[n] >= 0.0]

@@ -168,8 +168,11 @@ def test_initiation_andrieu_tt_recorded():
     ms = stems[0]
     srp = plant.getOrganRandomParameter(pb.OrganTypes.stem, 1)
     plastochron = srp.plastochron_andrieu
-    itt = list(ms.initiation_andrieu_tt_per_n)
-    spawned = list(ms.lateral_spawned_per_n)
+    # S0.5b: FA per-organ kinetic state lives on the MultiPhaseStemGrowth GF.
+    fa = ms.getFaState()
+    assert fa is not None, "FA-on stem must have a MultiPhaseStemGrowth state"
+    itt = list(fa.initiation_andrieu_tt_per_n)
+    spawned = list(fa.lateral_spawned_per_n)
     for n in range(1, min(len(itt), 9)):
         if not ord(spawned[n]):
             continue
@@ -205,7 +208,10 @@ def test_basal_ranks_pinned_at_basal_internode_cm():
     srp = plant.getOrganRandomParameter(pb.OrganTypes.stem, 1)
     basal_step = srp.basal_internode_cm
     basal_zero = list(srp.basal_zero_ranks)
-    lpn = list(ms.length_per_n)
+    # S0.5b: per-rank latched length from the GF state.
+    fa = ms.getFaState()
+    assert fa is not None
+    lpn = list(fa.length_per_n)
     cap_cm = 1.5 * basal_step  # plan §F tolerance
     for n in basal_zero:
         assert n < len(lpn), f"length_per_n[{n}] not populated (size={len(lpn)})"
