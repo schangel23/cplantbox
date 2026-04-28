@@ -180,8 +180,10 @@ def test_t4_basal_zero_ranks_emit_gate_fa_off():
     try:
         plant = _make_plant_from_xml(path)
         srp = _stem_lrp(plant)
-        # FA off (default), but the constructor still set basal_zero_ranks={1,2,3,4}
-        assert srp.use_fournier_andrieu_kinetics is False
+        # FA off (default), but the constructor still set basal_zero_ranks={1,2,3,4}.
+        # S0.7 bool→int (so bindParameter can serialise the flag); truthy semantics
+        # unchanged but identity check `is False` no longer applies.
+        assert int(srp.use_fournier_andrieu_kinetics) == 0
         assert list(srp.basal_zero_ranks) == [1, 2, 3, 4]
 
         plant.writeParameters(out_path)

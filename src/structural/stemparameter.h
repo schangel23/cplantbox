@@ -32,8 +32,12 @@ public:
 
     /* Fournier-Andrieu per-phytomer internode kinetics (opt-in; see plan
      * PLAN_FOURNIER_ANDRIEU_INTERNODE_KINETICS_2026-04-23.md §B.1).
-     * Default false on every constructor path — Hard Invariant #5 preserved. */
-    bool use_fournier_andrieu_kinetics = false;
+     * Default 0 on every constructor path — Hard Invariant #5 preserved.
+     * S0.7 (Lock #3 Half A): typed `int` (not `bool`) so it survives
+     * `OrganRandomParameter::bindParameter` round-trip via XML; matches the
+     * `use_fa_kinetics` / `use_thermal_*` flag pattern on other parameter
+     * classes. Truthy semantics unchanged for existing call sites. */
+    int use_fournier_andrieu_kinetics = 0;
     std::vector<double> internode_v_n;       ///< per-rank Phase III rate [cm/degCd], empty unless flag is true
     std::vector<double> internode_D_n;       ///< per-rank Phase III duration [degCd], empty unless flag is true
     std::vector<double> internode_IL_final;  ///< per-rank Phase IV asymptote [cm], empty unless flag is true (indexed 1-based by rank)
@@ -143,7 +147,7 @@ public:
      * Scope: maize_calibrated.xml mainstem subType=1 only; all other species,
      * test XMLs, and maize tassel (subType=20/21) keep flag=false and use the
      * existing scalar delayNG + cessation_age_ path bit-for-bit (Hard Invariant #5). */
-    bool use_fournier_andrieu_kinetics = false;        ///< OPT-IN: enables FA per-phytomer internode kinetics
+    int use_fournier_andrieu_kinetics = 0;             ///< OPT-IN: enables FA per-phytomer internode kinetics (int so bindParameter can serialize it; truthy semantics unchanged)
     double Tb_kinetic = 9.8;                           ///< °C, per-paper Tb chosen to match F-A 2000 + Birch 2002
     double r_I = 0.023;                                ///< Phase I exponential rate [1/degCd] (Zhu 2014)
     double phase_I_duration = 309.0;                   ///< Phase I duration [degCd] (FA 2000)

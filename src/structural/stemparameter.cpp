@@ -437,6 +437,7 @@ void StemRandomParameter::bindParameters()
     bindParameter("tt_cessation", &tt_cessation, "Thermal-time cessation threshold [degCd], <0 disables");
     bindParameter("plastochron_andrieu", &plastochron_andrieu, "Plastochron on Andrieu Tb=9.8 axis [degCd/rank] (FA 2000 Déa ~23)");
     bindParameter("basal_internode_cm", &basal_internode_cm, "Fixed internode spacing for basal_zero_ranks [cm]");
+    bindParameter("use_fournier_andrieu_kinetics", &use_fournier_andrieu_kinetics, "Use Fournier-Andrieu per-phytomer internode kinetics [0/1]"); ///< S0.7 (Lock #3 Half A): bind so the FA flag survives writeParameters → readXML round-trip; required for D6's pure-XML invocation contract.
 }
 
 /**

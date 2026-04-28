@@ -459,11 +459,18 @@ tinyxml2::XMLElement* OrganRandomParameter::writeXML(tinyxml2::XMLDocument& doc,
         if (!(key.compare("subType")==0 || key.compare("organType")==0)) { // already written in organ attributes
             tinyxml2::XMLElement* p = doc.NewElement("parameter");
             p->SetAttribute("name", key.c_str());
-            p->SetAttribute ("value", float(*dp.second)); // float output is much nicer
+            // S0.7 (Lock #3 Half A): write the full double (was previously cast
+            // to float "for nicer output"). Float-precision serialisation drops
+            // ~9 significant digits, which is fine for human inspection but
+            // breaks the D6 hard gate: RotBeta=π would round-trip as 3.1415927,
+            // visibly perturbing per-phytomer azimuths over a 130-day run.
+            // tinyxml2 prints the full double; existing XMLs round-trip with
+            // longer numeric strings but bit-identical numeric values.
+            p->SetAttribute("value", *dp.second);
             if (param_sd.count(key)) { // deviations
                 double d = *(param_sd.at(key));
                 if (d!=0) {
-                    p->SetAttribute("dev", float(d));
+                    p->SetAttribute("dev", d);
                 }
             }
             // S0.6 / Lock #1: emit axis flag when this scalar param has a
@@ -486,7 +493,7 @@ tinyxml2::XMLElement* OrganRandomParameter::writeXML(tinyxml2::XMLDocument& doc,
 			p->SetAttribute("name", "successor");
 			p->SetAttribute("ruleId",j);
 			if(successorNo.size()>j){p->SetAttribute("numLat", successorNo.at(j));}
-			if(successorWhere.size()>j){p->SetAttribute("Where", vector2string(successorWhere.at(j)).c_str());}
+			if(successorWhere.size()>j){p->SetAttribute("where", vector2string(successorWhere.at(j)).c_str());} ///< S0.7: lowercase to match readSuccessor's lookfor list — was "Where" since first commit and silently dropped on round-trip
 			p->SetAttribute("subType", vector2string(successorST.at(j)).c_str());
 			if(successorOT.size()>j){p->SetAttribute("organType", vector2string(successorOT.at(j)).c_str());}
 			p->SetAttribute("percentage", vector2string(successorP.at(j)).c_str());
