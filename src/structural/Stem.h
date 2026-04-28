@@ -3,6 +3,7 @@
 
 #include "Organ.h"
 #include "Organism.h"
+#include "growth.h"
 #include "stemparameter.h"
 
 #include <iostream>
@@ -74,6 +75,14 @@ public:
      * length of rank n (monotone per Decision 2), 0.0 for basal-zero ranks,
      * 0.0 when the FA flag is false. */
     double getPhytomerLength(int n) const;
+
+    /* S0.5b: GF-side per-organ FA state accessor. Returns a pointer to the
+     * MultiPhaseStemGrowth::PerOrganFAState entry for this organ id, or
+     * nullptr when the stem is not FA-on (no MultiPhaseStemGrowth GF, or
+     * not yet seeded by a getLength() call). After S0.5b state migration
+     * the GF entry is the source of truth; the Stem mirror fields are
+     * scheduled for retirement. */
+    MultiPhaseStemGrowth::PerOrganFAState* getFaState() const;
 
     /* abbreviations */
     std::shared_ptr<StemRandomParameter> getStemRandomParameter() const;  ///< root type parameter of this root

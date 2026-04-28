@@ -311,8 +311,21 @@ PYBIND11_MODULE(plantbox, m) {
 
     py::class_<CWLimitedGrowth, GrowthFunction, std::shared_ptr<CWLimitedGrowth>>(m, "CWLimitedGrowth");
 
+    py::class_<MultiPhaseStemGrowth::PerOrganFAState>(m, "PerOrganFAState")
+        .def(py::init<>())
+        .def_readwrite("cessation_age", &MultiPhaseStemGrowth::PerOrganFAState::cessation_age)
+        .def_readwrite("cessation_andrieu_tt", &MultiPhaseStemGrowth::PerOrganFAState::cessation_andrieu_tt)
+        .def_readwrite("length_per_n", &MultiPhaseStemGrowth::PerOrganFAState::length_per_n)
+        .def_readwrite("epsilonDx_per_n", &MultiPhaseStemGrowth::PerOrganFAState::epsilonDx_per_n)
+        .def_readwrite("cessation_age_per_n", &MultiPhaseStemGrowth::PerOrganFAState::cessation_age_per_n)
+        .def_readwrite("cessation_andrieu_tt_per_n", &MultiPhaseStemGrowth::PerOrganFAState::cessation_andrieu_tt_per_n)
+        .def_readwrite("lateral_spawned_per_n", &MultiPhaseStemGrowth::PerOrganFAState::lateral_spawned_per_n)
+        .def_readwrite("initiation_andrieu_tt_per_n", &MultiPhaseStemGrowth::PerOrganFAState::initiation_andrieu_tt_per_n)
+        .def_readwrite("basal_length", &MultiPhaseStemGrowth::PerOrganFAState::basal_length);
+
     py::class_<MultiPhaseStemGrowth, GrowthFunction, std::shared_ptr<MultiPhaseStemGrowth>>(m, "MultiPhaseStemGrowth")
         .def(py::init<>())
+        .def_readwrite("per_organ_state", &MultiPhaseStemGrowth::per_organ_state)
         .def("getPhytomerLength", &MultiPhaseStemGrowth::getPhytomerLength,
              py::arg("organId"), py::arg("n"))
         .def("calcLengthPerPhytomerSum", &MultiPhaseStemGrowth::calcLengthPerPhytomerSum,
@@ -931,6 +944,7 @@ PYBIND11_MODULE(plantbox, m) {
            .def("calcLengthPerPhytomerSum", &Stem::calcLengthPerPhytomerSum)
            .def("computeInsertionIndexForRank", &Stem::computeInsertionIndexForRank)
            .def("get_phytomer_length", &Stem::getPhytomerLength)
+           .def("getFaState", &Stem::getFaState, py::return_value_policy::reference_internal)
            .def_readwrite("cessation_age_", &Stem::cessation_age_)
            .def_readwrite("cessation_andrieu_tt_", &Stem::cessation_andrieu_tt_)
            .def_readwrite("basal_length_", &Stem::basal_length_)

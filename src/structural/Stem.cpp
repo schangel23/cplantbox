@@ -1207,6 +1207,26 @@ double Stem::getPhytomerLength(int n) const
 
 
 /**
+ * S0.5b: returns a pointer to the FA per-organ kinetic state living on the
+ * MultiPhaseStemGrowth GF instance, or nullptr when this stem isn't FA-on
+ * (no MultiPhaseStemGrowth GF on the LRP, or getLength() hasn't seeded the
+ * organ id yet).  After full state migration the GF entry is canonical;
+ * the Stem mirror fields (length_per_n, basal_length_, cessation_age_, etc.)
+ * are scheduled for retirement.
+ */
+MultiPhaseStemGrowth::PerOrganFAState* Stem::getFaState() const
+{
+	auto srp = getStemRandomParameter();
+	if (!srp || !srp->f_gf) return nullptr;
+	auto gf_mps = std::dynamic_pointer_cast<MultiPhaseStemGrowth>(srp->f_gf);
+	if (!gf_mps) return nullptr;
+	auto it = gf_mps->per_organ_state.find(getId());
+	if (it == gf_mps->per_organ_state.end()) return nullptr;
+	return &it->second;
+}
+
+
+/**
  * stores the local id of the linking node. used by @see Stem::internodalGrowth()
  */
 void Stem::storeLinkingNodeLocalId(int numCreatedLN, bool verbose)
