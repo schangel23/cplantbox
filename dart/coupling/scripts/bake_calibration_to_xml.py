@@ -52,6 +52,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import math
 import sys
 from pathlib import Path
 
@@ -178,11 +179,30 @@ def enable_andrieu_on_leaves(
                 print(f"    leaf subType={sub}: rank {rank} gated, gf=1 zero-kinetics")
             continue
         # Non-gated fitted rank → opt-in to MultiPhaseLeafGrowth.
+        # S1.B fix: derive R2_n and lag_exp_n live from the XML's actual
+        # `lmax` instead of trusting JSON's pre-computed `R2_cm_per_Cd_rescaled`
+        # / `lag_exp_Cd_implied`. The JSON's L_fin_target_cm was generated
+        # against an MF3D snapshot that has since drifted for ranks 4-5
+        # (JSON 53.2/64.8 cm vs current XML 45.2/50.0 cm). Live derivation
+        # against `lrp.lmax` keeps the C¹ rescaling self-consistent under
+        # future lmax updates and matches ADR §D6's "XML is the calibration
+        # source of truth" principle. JSON's R1_Cd_inv and D_lin_Cd remain
+        # the figure-read primitives. T0_Cd stays the published Phase-E
+        # origin (S1 plastochron-stepped). The published `lag_exp_Cd` was
+        # the original bug — it ended the exp phase at L_min·exp(R1·lag)
+        # << L1, so the linear phase over D_lin couldn't reach lmax (high
+        # ranks 15-17 plateaued at 24-56 % of lmax under the published value).
+        R1 = float(row["R1_Cd_inv"])
+        Dlin = float(row["D_lin_Cd"])
+        lmax_xml = float(lrp.lmax)
+        L1 = lmax_xml / (1.0 + R1 * Dlin)
+        R2_rescaled = R1 * L1
+        lag_implied = math.log(L1 / L_min_default) / R1
         lrp.gf = GFT_MULTI_PHASE_LEAF
-        lrp.R1_n = float(row["R1_Cd_inv"])
-        lrp.R2_n = float(row["R2_cm_per_Cd_rescaled"])
-        lrp.lag_exp_n = float(row["lag_exp_Cd_published"])
-        lrp.D_lin_n = float(row["D_lin_Cd"])
+        lrp.R1_n = R1
+        lrp.R2_n = R2_rescaled
+        lrp.lag_exp_n = lag_implied
+        lrp.D_lin_n = Dlin
         lrp.T0_n = float(row["T0_Cd"])
         lrp.L_min = L_min_default
         n_andrieu += 1

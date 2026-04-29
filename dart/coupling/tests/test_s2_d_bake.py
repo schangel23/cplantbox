@@ -36,6 +36,7 @@ Tests:
 from __future__ import annotations
 
 import json
+import math
 import shutil
 from pathlib import Path
 
@@ -153,15 +154,24 @@ def test_T2_shipped_xml_carries_andrieu_calibration():
             "rerun `python -m dart.coupling.scripts.bake_calibration_to_xml` "
             "and commit the resulting maize_calibrated.xml."
         )
+        # R1, D_lin, T0 come straight from the JSON (figure-read primitives).
         assert lrp.R1_n == pytest.approx(float(row["R1_Cd_inv"]), rel=1e-12)
-        assert lrp.R2_n == pytest.approx(
-            float(row["R2_cm_per_Cd_rescaled"]), rel=1e-12,
-        )
-        assert lrp.lag_exp_n == pytest.approx(
-            float(row["lag_exp_Cd_published"]), rel=1e-12,
-        )
         assert lrp.D_lin_n == pytest.approx(float(row["D_lin_Cd"]), rel=1e-12)
         assert lrp.T0_n == pytest.approx(float(row["T0_Cd"]), rel=1e-12)
+        # R2_n and lag_exp_n are derived live by the bake from R1, D_lin, and
+        # the XML's actual lmax (post-S1.B fix). The JSON's
+        # `R2_cm_per_Cd_rescaled` and `lag_exp_Cd_implied` track these
+        # values when JSON L_fin matches XML lmax, but for ranks 4-5 the
+        # JSON L_fin is stale (53.2/64.8 cm vs XML 45.2/50.0 cm), so the
+        # test recomputes against XML lmax to match the bake.
+        L_min = float(kin["_meta"]["L_min_cm"])
+        R1 = float(row["R1_Cd_inv"])
+        Dlin = float(row["D_lin_Cd"])
+        L1_xml = float(lrp.lmax) / (1.0 + R1 * Dlin)
+        assert lrp.R2_n == pytest.approx(R1 * L1_xml, rel=1e-12)
+        assert lrp.lag_exp_n == pytest.approx(
+            math.log(L1_xml / L_min) / R1, rel=1e-12,
+        )
 
 
 def test_T3_pure_xml_grow_dispatches_through_andrieu():

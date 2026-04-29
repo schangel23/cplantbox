@@ -511,7 +511,7 @@
         <parameter name="LER_max" value="1.5"/>
         <parameter name="L_min" value="0.025000000000000001"/>
         <parameter name="R1_n" value="0.059999999999999998"/>
-        <parameter name="R2_n" value="0.79800000000000004"/>
+        <parameter name="R2_n" value="0.6782999999999999"/>
         <parameter name="RotBeta" value="0"/>
         <parameter name="T0_n" value="57.600000000000001"/>
         <parameter name="T_base" value="8"/>
@@ -525,7 +525,7 @@
         <parameter name="dx" value="0.10000000000000001"/>
         <parameter name="dxMin" value="9.9999999999999995e-07"/>
         <parameter name="la" value="0"/>
-        <parameter name="lag_exp_n" value="80"/>
+        <parameter name="lag_exp_n" value="101.90207599739783"/>
         <parameter name="lb" value="0"/>
         <parameter name="ldelay" value="0"/>
         <parameter name="lmax" value="45.219999999999999"/>
@@ -630,7 +630,7 @@
         <parameter name="LER_max" value="1.5"/>
         <parameter name="L_min" value="0.025000000000000001"/>
         <parameter name="R1_n" value="0.055"/>
-        <parameter name="R2_n" value="0.82883720999999999"/>
+        <parameter name="R2_n" value="0.63953488372093026"/>
         <parameter name="RotBeta" value="0"/>
         <parameter name="T0_n" value="76.799999999999997"/>
         <parameter name="T_base" value="8"/>
@@ -644,7 +644,7 @@
         <parameter name="dx" value="0.10000000000000001"/>
         <parameter name="dxMin" value="9.9999999999999995e-07"/>
         <parameter name="la" value="0"/>
-        <parameter name="lag_exp_n" value="90"/>
+        <parameter name="lag_exp_n" value="111.67795339713756"/>
         <parameter name="lb" value="0"/>
         <parameter name="ldelay" value="0"/>
         <parameter name="lmax" value="50"/>
@@ -763,7 +763,7 @@
         <parameter name="dx" value="0.10000000000000001"/>
         <parameter name="dxMin" value="9.9999999999999995e-07"/>
         <parameter name="la" value="0"/>
-        <parameter name="lag_exp_n" value="100"/>
+        <parameter name="lag_exp_n" value="129.72321577888175"/>
         <parameter name="lb" value="0"/>
         <parameter name="ldelay" value="0"/>
         <parameter name="lmax" value="73.799999999999997"/>
@@ -868,7 +868,7 @@
         <parameter name="LER_max" value="1.5"/>
         <parameter name="L_min" value="0.025000000000000001"/>
         <parameter name="R1_n" value="0.048000000000000001"/>
-        <parameter name="R2_n" value="0.76760331000000004"/>
+        <parameter name="R2_n" value="0.76760330578512403"/>
         <parameter name="RotBeta" value="0"/>
         <parameter name="T0_n" value="115.2"/>
         <parameter name="T_base" value="8"/>
@@ -882,7 +882,7 @@
         <parameter name="dx" value="0.10000000000000001"/>
         <parameter name="dxMin" value="9.9999999999999995e-07"/>
         <parameter name="la" value="0"/>
-        <parameter name="lag_exp_n" value="110"/>
+        <parameter name="lag_exp_n" value="134.60315654127245"/>
         <parameter name="lb" value="0"/>
         <parameter name="ldelay" value="0"/>
         <parameter name="lmax" value="77.400000000000006"/>
@@ -987,7 +987,7 @@
         <parameter name="LER_max" value="1.5"/>
         <parameter name="L_min" value="0.025000000000000001"/>
         <parameter name="R1_n" value="0.043999999999999997"/>
-        <parameter name="R2_n" value="0.69991935000000005"/>
+        <parameter name="R2_n" value="0.69991935483870971"/>
         <parameter name="RotBeta" value="0"/>
         <parameter name="T0_n" value="134.40000000000001"/>
         <parameter name="T_base" value="8"/>
@@ -1001,7 +1001,7 @@
         <parameter name="dx" value="0.10000000000000001"/>
         <parameter name="dxMin" value="9.9999999999999995e-07"/>
         <parameter name="la" value="0"/>
-        <parameter name="lag_exp_n" value="120"/>
+        <parameter name="lag_exp_n" value="146.71943048247564"/>
         <parameter name="lb" value="0"/>
         <parameter name="ldelay" value="0"/>
         <parameter name="lmax" value="78.900000000000006"/>
@@ -1106,7 +1106,7 @@
         <parameter name="LER_max" value="1.5"/>
         <parameter name="L_min" value="0.025000000000000001"/>
         <parameter name="R1_n" value="0.041000000000000002"/>
-        <parameter name="R2_n" value="0.60856863000000005"/>
+        <parameter name="R2_n" value="0.60856862745098039"/>
         <parameter name="RotBeta" value="0"/>
         <parameter name="T0_n" value="153.59999999999999"/>
         <parameter name="T_base" value="8"/>
@@ -1120,7 +1120,7 @@
         <parameter name="dx" value="0.10000000000000001"/>
         <parameter name="dxMin" value="9.9999999999999995e-07"/>
         <parameter name="la" value="0"/>
-        <parameter name="lag_exp_n" value="130"/>
+        <parameter name="lag_exp_n" value="155.76627011773314"/>
         <parameter name="lb" value="0"/>
         <parameter name="ldelay" value="0"/>
         <parameter name="lmax" value="75.700000000000003"/>
@@ -1225,7 +1225,7 @@
         <parameter name="LER_max" value="1.5"/>
         <parameter name="L_min" value="0.025000000000000001"/>
         <parameter name="R1_n" value="0.041000000000000002"/>
-        <parameter name="R2_n" value="0.52384755000000005"/>
+        <parameter name="R2_n" value="0.52384754990925597"/>
         <parameter name="RotBeta" value="0"/>
         <parameter name="T0_n" value="172.80000000000001"/>
         <parameter name="T_base" value="8"/>
@@ -1239,7 +1239,7 @@
         <parameter name="dx" value="0.10000000000000001"/>
         <parameter name="dxMin" value="9.9999999999999995e-07"/>
         <parameter name="la" value="0"/>
-        <parameter name="lag_exp_n" value="140"/>
+        <parameter name="lag_exp_n" value="152.1099535149539"/>
         <parameter name="lb" value="0"/>
         <parameter name="ldelay" value="0"/>
         <parameter name="lmax" value="70.400000000000006"/>
@@ -1344,7 +1344,7 @@
         <parameter name="LER_max" value="1.5"/>
         <parameter name="L_min" value="0.025000000000000001"/>
         <parameter name="R1_n" value="0.041000000000000002"/>
-        <parameter name="R2_n" value="0.47324864"/>
+        <parameter name="R2_n" value="0.47324863883847557"/>
         <parameter name="RotBeta" value="0"/>
         <parameter name="T0_n" value="192"/>
         <parameter name="T_base" value="8"/>
@@ -1358,7 +1358,7 @@
         <parameter name="dx" value="0.10000000000000001"/>
         <parameter name="dxMin" value="9.9999999999999995e-07"/>
         <parameter name="la" value="0"/>
-        <parameter name="lag_exp_n" value="150"/>
+        <parameter name="lag_exp_n" value="149.63239759256561"/>
         <parameter name="lb" value="0"/>
         <parameter name="ldelay" value="0"/>
         <parameter name="lmax" value="63.600000000000001"/>
@@ -1463,7 +1463,7 @@
         <parameter name="LER_max" value="1.5"/>
         <parameter name="L_min" value="0.025000000000000001"/>
         <parameter name="R1_n" value="0.041000000000000002"/>
-        <parameter name="R2_n" value="0.49585290999999998"/>
+        <parameter name="R2_n" value="0.49585291113381008"/>
         <parameter name="RotBeta" value="0"/>
         <parameter name="T0_n" value="211.19999999999999"/>
         <parameter name="T_base" value="8"/>
@@ -1477,7 +1477,7 @@
         <parameter name="dx" value="0.10000000000000001"/>
         <parameter name="dxMin" value="9.9999999999999995e-07"/>
         <parameter name="la" value="0"/>
-        <parameter name="lag_exp_n" value="150"/>
+        <parameter name="lag_exp_n" value="150.77040780540054"/>
         <parameter name="lb" value="0"/>
         <parameter name="ldelay" value="0"/>
         <parameter name="lmax" value="59.200000000000003"/>
@@ -1596,7 +1596,7 @@
         <parameter name="dx" value="0.10000000000000001"/>
         <parameter name="dxMin" value="9.9999999999999995e-07"/>
         <parameter name="la" value="0"/>
-        <parameter name="lag_exp_n" value="150"/>
+        <parameter name="lag_exp_n" value="157.33548197116201"/>
         <parameter name="lb" value="0"/>
         <parameter name="ldelay" value="0"/>
         <parameter name="lmax" value="54.100000000000001"/>
@@ -1701,7 +1701,7 @@
         <parameter name="LER_max" value="1.5"/>
         <parameter name="L_min" value="0.025000000000000001"/>
         <parameter name="R1_n" value="0.037999999999999999"/>
-        <parameter name="R2_n" value="0.62964401000000003"/>
+        <parameter name="R2_n" value="0.62964401294498384"/>
         <parameter name="RotBeta" value="0"/>
         <parameter name="T0_n" value="249.59999999999999"/>
         <parameter name="T_base" value="8"/>
@@ -1715,7 +1715,7 @@
         <parameter name="dx" value="0.10000000000000001"/>
         <parameter name="dxMin" value="9.9999999999999995e-07"/>
         <parameter name="la" value="0"/>
-        <parameter name="lag_exp_n" value="150"/>
+        <parameter name="lag_exp_n" value="170.95915513815117"/>
         <parameter name="lb" value="0"/>
         <parameter name="ldelay" value="0"/>
         <parameter name="lmax" value="51.200000000000003"/>
@@ -1820,7 +1820,7 @@
         <parameter name="LER_max" value="1.5"/>
         <parameter name="L_min" value="0.025000000000000001"/>
         <parameter name="R1_n" value="0.029999999999999999"/>
-        <parameter name="R2_n" value="0.73317072999999999"/>
+        <parameter name="R2_n" value="0.73317073170731706"/>
         <parameter name="RotBeta" value="0"/>
         <parameter name="T0_n" value="268.80000000000001"/>
         <parameter name="T_base" value="8"/>
@@ -1834,7 +1834,7 @@
         <parameter name="dx" value="0.10000000000000001"/>
         <parameter name="dxMin" value="9.9999999999999995e-07"/>
         <parameter name="la" value="0"/>
-        <parameter name="lag_exp_n" value="150"/>
+        <parameter name="lag_exp_n" value="229.50202230181463"/>
         <parameter name="lb" value="0"/>
         <parameter name="ldelay" value="0"/>
         <parameter name="lmax" value="50.100000000000001"/>
@@ -1939,7 +1939,7 @@
         <parameter name="LER_max" value="1.5"/>
         <parameter name="L_min" value="0.025000000000000001"/>
         <parameter name="R1_n" value="0.025000000000000001"/>
-        <parameter name="R2_n" value="0.90909090999999997"/>
+        <parameter name="R2_n" value="0.90909090909090917"/>
         <parameter name="RotBeta" value="0"/>
         <parameter name="T0_n" value="288"/>
         <parameter name="T_base" value="8"/>
@@ -1953,7 +1953,7 @@
         <parameter name="dx" value="0.10000000000000001"/>
         <parameter name="dxMin" value="9.9999999999999995e-07"/>
         <parameter name="la" value="0"/>
-        <parameter name="lag_exp_n" value="150"/>
+        <parameter name="lag_exp_n" value="291.2979491369419"/>
         <parameter name="lb" value="0"/>
         <parameter name="ldelay" value="0"/>
         <parameter name="lmax" value="50"/>
@@ -2058,7 +2058,7 @@
         <parameter name="LER_max" value="1.5"/>
         <parameter name="L_min" value="0.025000000000000001"/>
         <parameter name="R1_n" value="0.02"/>
-        <parameter name="R2_n" value="0.68307691999999998"/>
+        <parameter name="R2_n" value="0.68307692307692303"/>
         <parameter name="RotBeta" value="0"/>
         <parameter name="T0_n" value="307.19999999999999"/>
         <parameter name="T_base" value="8"/>
@@ -2072,7 +2072,7 @@
         <parameter name="dx" value="0.10000000000000001"/>
         <parameter name="dxMin" value="9.9999999999999995e-07"/>
         <parameter name="la" value="0"/>
-        <parameter name="lag_exp_n" value="150"/>
+        <parameter name="lag_exp_n" value="360.98773295423121"/>
         <parameter name="lb" value="0"/>
         <parameter name="ldelay" value="0"/>
         <parameter name="lmax" value="44.399999999999999"/>
