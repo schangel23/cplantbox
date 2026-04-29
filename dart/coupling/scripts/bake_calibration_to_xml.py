@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-S0.7 — Bake runtime calibration into ``maize_calibrated.xml``.
+S0.7 + S2.D — Bake runtime calibration into ``maize_calibrated.xml``.
 
 ADR_LEAF_KINEMATICS_2026-04-28 §S0.7 (Lock #3 Half A): the runtime contract
 becomes pure XML + C++ — ``pb.MappedPlant("maize_calibrated.xml").initialize()
@@ -16,17 +16,28 @@ What this script does:
      ``use_fournier_andrieu_kinetics=1``, ``internode_v_n``, ``internode_D_n``,
      ``internode_IL_final`` (with basal-zero overrides) from
      ``data/phase_III_per_rank.json``.
-  4. Calls ``enable_fa_on_leaves(plant)`` — bakes ``use_fa_kinetics=1``,
-     ``tau_extension_n`` and ``sigma_extension_n`` per leaf LRP. (Lock #3 Half B
-     deferred: the formulas ``tau = tt_em + 2·phyll`` and ``sigma = phyll`` will
-     move into ``MultiPhaseLeafGrowth`` C++ in S2 — until then the bake script
-     evaluates them, but only at bake time, not at runtime.)
-  5. Dumps the mutated state via ``plant.writeParameters(out_xml)``.
+  4. Calls ``enable_fa_on_leaves(plant)`` — legacy logistic helper (writes
+     ``use_fa_kinetics=1``, ``tau_extension_n`` and ``sigma_extension_n``
+     per leaf LRP).  Post-S2.C the C++ no longer reads these fields, but the
+     bake keeps writing them for one cycle so external callers (Pheno4D
+     scripts, regression captures) can migrate.  Will be deleted in S3.
+  5. **S2.D:** Calls ``enable_andrieu_on_leaves(plant)`` — bakes
+     ``gf=6`` plus the Andrieu/Hillier/Birch piecewise primitives
+     (``R1_n``, ``R2_n``, ``lag_exp_n``, ``D_lin_n``, ``T0_n``, ``L_min``)
+     per leaf LRP from ``data/phase_III_per_rank_LEAF.json``.  Mirrors
+     stem-side per-rank baking on the leaf-side now that S2.A's
+     ``MultiPhaseLeafGrowth`` GF is live and S2.C's dispatch wiring routes
+     gf=6 leaves through ``f_gf->getLength``.  Gated juvenile ranks (1-3
+     per Andrieu 2006 §3.A) are left at ``gf=1`` (ExponentialGrowth)
+     because they have no published kinetic fit; their LRP arrays stay
+     zero so any accidental ``gf=6`` mint at runtime falls through to
+     ExponentialGrowth via the Lock #6 empty-array guard.
+  6. Dumps the mutated state via ``plant.writeParameters(out_xml)``.
 
-The bake is **idempotent**: the three helpers all overwrite (rather than
-append) target fields, so re-baking the already-baked XML produces an
-identical file. This is the property that lets us use the same path as both
-input and output.
+The bake is **idempotent**: every helper overwrites (rather than appends)
+target fields, so re-baking the already-baked XML produces an identical
+file.  This is the property that lets us use the same path as both input
+and output.
 
 Usage:
 
@@ -40,6 +51,7 @@ CLI defaults are the canonical maize XML in either direction (in-place bake).
 from __future__ import annotations
 
 import argparse
+import json
 import sys
 from pathlib import Path
 
@@ -55,6 +67,137 @@ from ..growth.grow import (
 
 DEFAULT_INPUT_XML = Path(DEFAULT_XML)
 DEFAULT_OUTPUT_XML = Path(DEFAULT_XML)
+LEAF_KINETICS_JSON = Path(DEFAULT_XML).parent / "phase_III_per_rank_LEAF.json"
+
+# MultiPhaseLeafGrowth enum value (mirrors Plant.h ``gft_multi_phase_leaf``).
+# Reasserted via ``int(pb.GrowthFunctionType.multi_phase_leaf)`` at call
+# time so a future enum-value renumber surfaces here as a drop-in fix.
+GFT_MULTI_PHASE_LEAF = 6
+GFT_EXPONENTIAL = 1
+
+
+def enable_andrieu_on_leaves(
+    plant,
+    json_path: Path = LEAF_KINETICS_JSON,
+    *,
+    verbose: bool = False,
+) -> int:
+    """Bake Andrieu/Hillier/Birch (2006) per-rank piecewise primitives onto
+    every leaf LRP whose subType maps to a non-gated Déa rank.
+
+    ADR_LEAF_KINEMATICS_2026-04-28 §S2.D + §C4.  After S2.A shipped
+    ``MultiPhaseLeafGrowth`` and S2.C wired ``Leaf::simulate`` to dispatch
+    through ``f_gf->getLength``, this helper makes the calibrated maize
+    XML actually USE the new GF — until this commit, every leaf in
+    ``maize_calibrated.xml`` carried ``gf=1`` and the Andrieu fields
+    were absent or zero, so the runtime fell back to ExponentialGrowth.
+
+    Mapping (per ADR §C4):
+      - Leaf subType N in maize_calibrated.xml  ⇄  Déa rank N (the JSON
+        ``leaf_subtype_to_rank_map`` is identity 2→2, 3→3, ..., 17→17).
+      - Ranks 1-3 are gated juvenile (no Andrieu fit) → leave at
+        ``gf=1`` + zero kinetic fields → falls through to
+        ExponentialGrowth at runtime.
+      - Ranks 4-17 are fitted (figure-read from Figs 6/7/9/10 of Andrieu
+        2006 + MF3D L_fin endpoint anchor via C¹ continuity) → set
+        ``gf=6`` + write the per-rank primitives.
+
+    R2 source: this helper writes ``R2_cm_per_Cd_rescaled`` (the C¹-anchored
+    rescaled value) rather than ``R2_cm_per_Cd_published``.  Per the JSON
+    ``unit_caveat_R2_published``, the published values appear to carry a
+    units mismatch (mm/°Cd printed as cm/°Cd); the rescaled column lands
+    in the kinematic literature range (0.47-0.91 cm/°Cd) and honours
+    MF3D ``lmax_n`` at the per-rank endpoint.
+
+    Idempotent: every call overwrites the same scalar fields with the
+    same values from the same JSON.
+
+    Args:
+        plant: pre-initialise() ``pb.MappedPlant`` with maize-shaped LRPs.
+        json_path: path to ``phase_III_per_rank_LEAF.json`` (defaults to
+            the in-tree calibration data alongside ``maize_calibrated.xml``).
+        verbose: print one line per LRP touched.
+
+    Returns:
+        int — count of LRPs that received the Andrieu primitives (does
+        NOT count gated subTypes left on ``gf=1``).
+    """
+    if not json_path.exists():
+        raise FileNotFoundError(
+            f"phase_III_per_rank_LEAF.json missing at {json_path}; "
+            "S2.D bake cannot proceed without the leaf calibration JSON."
+        )
+    with json_path.open() as f:
+        kin = json.load(f)
+    rank_by_n = {int(row["n"]): row for row in kin["ranks"]}
+    subtype_to_rank = {int(k): int(v) for k, v in
+                       kin["_meta"]["leaf_subtype_to_rank_map"].items()}
+    L_min_default = float(kin["_meta"].get("L_min_cm", 0.025))
+
+    # Confirm enum is what we expect — defensive guard against an upstream
+    # renumber that would silently mis-mint the GF on every leaf.
+    expected_enum = int(pb.GrowthFunctionType.multi_phase_leaf)
+    assert expected_enum == GFT_MULTI_PHASE_LEAF, (
+        f"pb.GrowthFunctionType.multi_phase_leaf={expected_enum}; "
+        f"S2.D was written assuming {GFT_MULTI_PHASE_LEAF}. Check "
+        "Plant.h GrowthFunctionTypes ordering and update GFT_MULTI_PHASE_LEAF."
+    )
+
+    leaf_lrps = list(plant.getOrganRandomParameter(pb.OrganTypes.leaf))
+    n_andrieu = 0
+    n_gated_left_alone = 0
+    for lrp in leaf_lrps:
+        sub = int(lrp.subType)
+        rank = subtype_to_rank.get(sub)
+        if rank is None:
+            # Subtype not in the published mapping — leave at gf=1 (legacy
+            # ExponentialGrowth).  Maize XML's tassel subType=21 is the
+            # canonical example; tassels are not leaves under Andrieu.
+            if verbose:
+                print(f"    leaf subType={sub}: no rank mapping, skipped")
+            continue
+        row = rank_by_n.get(rank)
+        if row is None:
+            if verbose:
+                print(f"    leaf subType={sub}: rank {rank} missing in JSON, skipped")
+            continue
+        if bool(row.get("gated", False)):
+            # Gated juvenile (Andrieu §3.A no-fit). Leave at gf=1.
+            # Zero out Andrieu fields so a downstream caller flipping
+            # gf to 6 still gets the empty-array fallback rather than
+            # stale data.
+            lrp.gf = GFT_EXPONENTIAL
+            lrp.R1_n = 0.0
+            lrp.R2_n = 0.0
+            lrp.lag_exp_n = 0.0
+            lrp.D_lin_n = 0.0
+            lrp.T0_n = float(row.get("T0_Cd", 0.0))
+            lrp.L_min = L_min_default
+            n_gated_left_alone += 1
+            if verbose:
+                print(f"    leaf subType={sub}: rank {rank} gated, gf=1 zero-kinetics")
+            continue
+        # Non-gated fitted rank → opt-in to MultiPhaseLeafGrowth.
+        lrp.gf = GFT_MULTI_PHASE_LEAF
+        lrp.R1_n = float(row["R1_Cd_inv"])
+        lrp.R2_n = float(row["R2_cm_per_Cd_rescaled"])
+        lrp.lag_exp_n = float(row["lag_exp_Cd_published"])
+        lrp.D_lin_n = float(row["D_lin_Cd"])
+        lrp.T0_n = float(row["T0_Cd"])
+        lrp.L_min = L_min_default
+        n_andrieu += 1
+        if verbose:
+            print(
+                f"    leaf subType={sub}: rank {rank} → gf=6 "
+                f"R1={lrp.R1_n:.4f} R2={lrp.R2_n:.4f} lag={lrp.lag_exp_n:.0f} "
+                f"D={lrp.D_lin_n:.0f} T0={lrp.T0_n:.0f}"
+            )
+    if verbose:
+        print(
+            f"  Andrieu kinetics: enabled on {n_andrieu} leaf LRPs "
+            f"(plus {n_gated_left_alone} gated juveniles left on gf=1)"
+        )
+    return n_andrieu
 
 
 def bake(input_xml: Path, output_xml: Path, *, verbose: bool = True) -> None:
@@ -67,7 +210,7 @@ def bake(input_xml: Path, output_xml: Path, *, verbose: bool = True) -> None:
         verbose: forwarded to the helpers for one-line summaries.
     """
     if verbose:
-        print(f"=== S0.7 bake: {input_xml} → {output_xml} ===")
+        print(f"=== bake: {input_xml} → {output_xml} ===")
 
     plant = pb.MappedPlant()
     plant.readParameters(str(input_xml))
@@ -76,6 +219,7 @@ def bake(input_xml: Path, output_xml: Path, *, verbose: bool = True) -> None:
     setup_successor_where(plant)
     enable_fa_on_mainstem(plant, verbose=verbose)
     enable_fa_on_leaves(plant, verbose=verbose)
+    enable_andrieu_on_leaves(plant, verbose=verbose)
 
     output_xml.parent.mkdir(parents=True, exist_ok=True)
     plant.writeParameters(str(output_xml))
@@ -88,7 +232,15 @@ def bake(input_xml: Path, output_xml: Path, *, verbose: bool = True) -> None:
             1 for lrp in plant.getOrganRandomParameter(pb.OrganTypes.leaf)
             if int(getattr(lrp, "use_fa_kinetics", 0)) == 1
         )
-        print(f"  baked: stem FA={fa_on} (v_n len={n_v}); leaf FA on {n_leaf_fa} LRPs")
+        n_leaf_andrieu = sum(
+            1 for lrp in plant.getOrganRandomParameter(pb.OrganTypes.leaf)
+            if int(getattr(lrp, "gf", 1)) == GFT_MULTI_PHASE_LEAF
+        )
+        print(
+            f"  baked: stem FA={fa_on} (v_n len={n_v}); "
+            f"leaf FA(legacy)={n_leaf_fa} LRPs; "
+            f"leaf Andrieu(gf=6)={n_leaf_andrieu} LRPs"
+        )
         print(f"  wrote {output_xml}")
 
 
@@ -96,9 +248,10 @@ def _parse_args(argv=None) -> argparse.Namespace:
     p = argparse.ArgumentParser(
         prog="bake_calibration_to_xml",
         description=(
-            "S0.7: bake setup_successor_where + enable_fa_on_mainstem + "
-            "enable_fa_on_leaves into the maize XML so the runtime contract "
-            "becomes pure XML + C++ (D6 closure)."
+            "Bake setup_successor_where + enable_fa_on_mainstem + "
+            "enable_fa_on_leaves + enable_andrieu_on_leaves into the "
+            "maize XML so the runtime contract becomes pure XML + C++ "
+            "(D6 closure)."
         ),
     )
     p.add_argument("--input", type=Path, default=DEFAULT_INPUT_XML,
