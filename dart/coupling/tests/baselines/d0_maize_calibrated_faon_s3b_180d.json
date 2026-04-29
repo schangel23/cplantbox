@@ -1,0 +1,20 @@
+{
+  "fa_enabled": true,
+  "mainstem_length_cm": 191.0,
+  "mainstem_top_z_cm": 188.0,
+  "n_leaf_nodes": 7491,
+  "n_leaves": 16,
+  "n_mainstem_nodes": 1912,
+  "n_organs": 1369,
+  "n_root_nodes": 28946,
+  "n_roots": 1339,
+  "n_segments_total": 39121,
+  "n_stems": 14,
+  "n_tassel_spikes": 1,
+  "seed": 7,
+  "sha256": "8db22af6fe7450b517383c7c86869f2753a18502a1d64392b81784ae4402fd04",
+  "sim_days": 180,
+  "slug": "maize_calibrated_faon_s3b_180d",
+  "topmost_leaf_insertion_z_cm": 186.9593,
+  "xml": "dart/coupling/data/maize_calibrated.xml"
+}
