@@ -65,15 +65,6 @@ def cli():
         help="rho_senesce threshold above which a leaf is tagged as "
              "`senescent_leaf_N` for DART routing (default: 0.50).",
     )
-    plantsim.add_argument(
-        "--no-fa", action="store_true",
-        help="Disable Fournier-Andrieu per-phytomer internode kinetics on the "
-             "mainstem. S3b.7/S3b.8 geometry (plastochron-driven rank initiation "
-             "+ basal_zero_ranks gate in internodalGrowth) are gated on this "
-             "flag; disabling reverts to the scalar-burst path used for "
-             "regression baselines. Default: FA-on.",
-    )
-
     sub = parser.add_subparsers(dest="command", required=True)
 
     # Phase 1 — DART RT simulation
@@ -238,9 +229,6 @@ def cli():
         os.environ["COUPLING_SENESCENT_SPLIT"] = "1"
         if args.senescent_threshold is not None:
             os.environ["COUPLING_SENESCENT_RHO_THRESHOLD"] = str(args.senescent_threshold)
-    # S3b.8 opt-out — FA-on is the default in grow.py::init_plant/grow_plant.
-    if getattr(args, "no_fa", False):
-        os.environ["COUPLING_NO_FA"] = "1"
 
     if args.command == "simulation":
         from .dart.simulation import main

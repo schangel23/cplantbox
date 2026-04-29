@@ -19,7 +19,6 @@ Usage:
 """
 
 import json
-import os
 import numpy as np
 from pathlib import Path
 import argparse
@@ -193,19 +192,6 @@ def enable_fa_on_leaves(plant, verbose=False):
     return n_done
 
 
-def _fa_requested(use_fa_kwarg):
-    """Resolve FA-on intent from kwarg + env var. Env overrides kwarg only
-    in the 'disable' direction: COUPLING_NO_FA=1 turns FA off even if the
-    caller passes use_fa=True, because the env-var path is how __main__.py
-    exposes ``--no-fa``. Caller-side ``use_fa=False`` wins unconditionally.
-    """
-    if not use_fa_kwarg:
-        return False
-    if os.environ.get("COUPLING_NO_FA", "").strip().lower() in ("1", "true", "yes"):
-        return False
-    return True
-
-
 def setup_successor_where(plant):
     """Set deterministic per-position successorWhere on the mainstem.
 
@@ -339,8 +325,7 @@ def setup_successor_where(plant):
 
 
 def init_plant(xml_path=None, seed=None, enable_photosynthesis=True,
-               cp_donor_seed=None, cp_donor_mode="draw_coherent",
-               use_fa=True):
+               cp_donor_seed=None, cp_donor_mode="draw_coherent"):
     """Create and initialize a plant without growing. For carbon-limited mode.
 
     Same setup as grow_plant() but stops after initialize().
@@ -374,16 +359,6 @@ def init_plant(xml_path=None, seed=None, enable_photosynthesis=True,
         apply_donor_cps(plant, donor_seed=cp_donor_seed, mode=cp_donor_mode,
                         verbose=False)
 
-    setup_successor_where(plant)
-
-    # S3b.8: FA-on by default for maize (no-op on non-maize XMLs). Must fire
-    # before plant.initialize() so the C++ plastochron + basal_zero gates see
-    # the flag at seed-init time. Opt-out via use_fa=False (caller) or
-    # COUPLING_NO_FA=1 env var (CLI --no-fa).
-    if _fa_requested(use_fa):
-        enable_fa_on_mainstem(plant, verbose=False)
-        enable_fa_on_leaves(plant, verbose=False)
-
     if enable_photosynthesis:
         depth = 100
         soil_domain = pb.SDF_PlantContainer(np.inf, np.inf, depth, True)
@@ -401,7 +376,7 @@ def grow_plant(xml_path, simulation_time, min_stem_nodes=50, min_leaf_nodes=20,
                enable_photosynthesis=False, seed=None,
                cp_donor_seed=None, cp_donor_mode="draw_coherent",
                daily_met=None, T_air_default=25.0,
-               use_fa=True, mutate_lrp_pre_init=None):
+               mutate_lrp_pre_init=None):
     """Grow a CPlantBox plant from calibrated XML.
 
     Args:
@@ -442,22 +417,10 @@ def grow_plant(xml_path, simulation_time, min_stem_nodes=50, min_leaf_nodes=20,
         apply_donor_cps(plant, donor_seed=cp_donor_seed, mode=cp_donor_mode,
                         verbose=True)
 
-    # Set per-position successor rules via Python API
-    setup_successor_where(plant)
-
-    # S3b.8: FA-on by default for maize (no-op on non-maize XMLs). Must fire
-    # before plant.initialize() so the C++ plastochron + basal_zero gates see
-    # the flag at seed-init time. Opt-out via use_fa=False (caller) or
-    # COUPLING_NO_FA=1 env var (CLI --no-fa).
-    if _fa_requested(use_fa):
-        enable_fa_on_mainstem(plant, verbose=True)
-        enable_fa_on_leaves(plant, verbose=True)
-
     # Final pre-initialize hook for tests / harnesses that need to flip
-    # LRP fields after FA setup but before f_gf is minted in
-    # plant.initialize() → Plant::initCallbacks. Used by the S0.3 dispatch
-    # parity harness (ADR_LEAF_KINEMATICS_2026-04-28); leave None for
-    # production runs.
+    # LRP fields before f_gf is minted in plant.initialize() →
+    # Plant::initCallbacks. Used by the S0.3 dispatch parity harness
+    # (ADR_LEAF_KINEMATICS_2026-04-28); leave None for production runs.
     if mutate_lrp_pre_init is not None:
         mutate_lrp_pre_init(plant)
 

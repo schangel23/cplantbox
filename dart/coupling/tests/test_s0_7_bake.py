@@ -11,15 +11,18 @@ Tests:
       against in-memory post-bake state. Diff must be empty (exact float
       equality after the precision fix in OrganRandomParameter::writeXML).
 
-  T2  hard gate: 25-day grow side-by-side.
-      Path A — ``grow_plant(MASTER, 25, daily_met={}, ...)`` (today's runtime
-        path: master XML + Python helpers, met-free deterministic loop).
+  T2  hard gate (post-S3): 25-day grow side-by-side, both paths reading
+      the BAKED XML.
+      Path A — ``grow_plant(BAKED, 25, daily_met={}, ...)`` (post-S3 runtime
+        path: pipeline driver, no pre-init Python helpers, met-free
+        deterministic loop).
       Path B — load BAKED XML, day-by-day simulate(1.0) for 25 days
-        (no Python helpers; pure XML + C++ contract).
+        (pure XML + C++ contract, no pipeline driver).
       Compare node positions: both paths must produce the same plant to
       < 1e-9 cm per node. 25 days exercises FA mainstem kinetics, leaf
       logistics, plastochron-driven rank initiation, basal_zero gate, and
-      the successorWhere phyllotaxy — the full Lock #3 Half A surface.
+      the successorWhere phyllotaxy — the full Lock #3 Half A surface
+      now living on the baked XML.
 
 The simulation length is kept at 25 days (rather than 130) for runtime;
 later 130-day end-to-end checks live in the diurnal-pipeline acceptance
@@ -172,12 +175,14 @@ def _grow_no_helpers(xml_path: Path, days: int, seed: int) -> "pb.MappedPlant":
     return plant
 
 
-def _grow_with_helpers(xml_path: Path, days: int, seed: int) -> "pb.MappedPlant":
+def _grow_via_pipeline_driver(xml_path: Path, days: int, seed: int) -> "pb.MappedPlant":
     """Grow via grow_plant() with met disabled (daily_met={} kills met loop).
 
-    Bypasses photosynthesis (no soil grid setup) so the only difference
-    from _grow_no_helpers is the pre-init Python configuration that the
-    bake retires. Simulation loop is otherwise identical.
+    Post-S3, ``grow_plant`` is a thin pipeline driver — no pre-init Python
+    configuration, just a daily-stepped simulate loop. Compared to
+    ``_grow_no_helpers`` the only differences are the (disabled) met-forcing
+    branch and the (no-op) cp-donor / soil-grid hooks; both paths must
+    produce a bit-identical plant on the baked XML.
     """
     return grow_plant(
         str(xml_path),
@@ -185,25 +190,28 @@ def _grow_with_helpers(xml_path: Path, days: int, seed: int) -> "pb.MappedPlant"
         seed=seed,
         enable_photosynthesis=False,
         daily_met={},
-        use_fa=True,
     )
 
 
 def test_T2_hard_gate_pure_xml_matches_grow_plant(baked_pair):
-    """T2: D6's operational closure.
+    """T2: D6's operational closure (post-S3).
 
-    grow_plant(MASTER, days)  ==  pure_XML(BAKED, days)   per-node, < 1e-9 cm.
+    grow_plant(BAKED, days) == pure_XML(BAKED, days)   per-node, < 1e-9 cm.
+
+    Both paths read the baked XML; ``grow_plant`` no longer mutates the
+    plant between ``readParameters`` and ``initialize``, so it must
+    reproduce the pure-XML invocation byte-for-byte.
     """
-    master_xml, baked_xml, _ = baked_pair
+    _, baked_xml, _ = baked_pair
 
-    plant_helpers = _grow_with_helpers(master_xml, HARD_GATE_DAYS, HARD_GATE_SEED)
+    plant_driver = _grow_via_pipeline_driver(baked_xml, HARD_GATE_DAYS, HARD_GATE_SEED)
     plant_pure = _grow_no_helpers(baked_xml, HARD_GATE_DAYS, HARD_GATE_SEED)
 
-    nodes_a = _node_array(plant_helpers)
+    nodes_a = _node_array(plant_driver)
     nodes_b = _node_array(plant_pure)
 
     assert nodes_a.shape == nodes_b.shape, (
-        f"Node-count diverged: helpers={nodes_a.shape[0]} pure={nodes_b.shape[0]}"
+        f"Node-count diverged: driver={nodes_a.shape[0]} pure={nodes_b.shape[0]}"
     )
     diff = np.abs(nodes_a - nodes_b)
     max_diff = float(diff.max()) if diff.size else 0.0
