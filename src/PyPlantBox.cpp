@@ -342,6 +342,19 @@ PYBIND11_MODULE(plantbox, m) {
         .def("syncStateFromGeometry", &MultiPhaseStemGrowth::syncStateFromGeometry,
              py::arg("o"), py::arg("node_to_phytomer"), py::arg("basal_length"));
 
+    // S2 / ADR_LEAF_KINEMATICS_2026-04-28 — MultiPhaseLeafGrowth.
+    // Stateless GF (per-rank kinetics live as scalar fields on
+    // LeafRandomParameter, since each leaf subType IS one Déa rank).
+    // Exposed for Python tests / inspection; production dispatch is
+    // through Plant::createGrowthFunction(gft_multi_phase_leaf) when
+    // the leaf XML's `gf` field is set to 6.
+    py::class_<MultiPhaseLeafGrowth, GrowthFunction, std::shared_ptr<MultiPhaseLeafGrowth>>(m, "MultiPhaseLeafGrowth")
+        .def(py::init<>())
+        .def("getLength", &MultiPhaseLeafGrowth::getLength,
+             py::arg("t"), py::arg("r"), py::arg("k"), py::arg("o"))
+        .def("getAge", &MultiPhaseLeafGrowth::getAge,
+             py::arg("l"), py::arg("r"), py::arg("k"), py::arg("o"));
+
     /**
      * Organ.h
      */
@@ -771,6 +784,13 @@ PYBIND11_MODULE(plantbox, m) {
       .def_readwrite("use_fa_kinetics", &LeafRandomParameter::use_fa_kinetics)
       .def_readwrite("tau_extension_n", &LeafRandomParameter::tau_extension_n)
       .def_readwrite("sigma_extension_n", &LeafRandomParameter::sigma_extension_n)
+      // S2 — Andrieu/Hillier/Birch 2006 piecewise leaf kinetics (per-rank scalars)
+      .def_readwrite("R1_n", &LeafRandomParameter::R1_n)
+      .def_readwrite("R2_n", &LeafRandomParameter::R2_n)
+      .def_readwrite("lag_exp_n", &LeafRandomParameter::lag_exp_n)
+      .def_readwrite("D_lin_n", &LeafRandomParameter::D_lin_n)
+      .def_readwrite("T0_n", &LeafRandomParameter::T0_n)
+      .def_readwrite("L_min", &LeafRandomParameter::L_min)
       .def_readwrite("surface_cps", &LeafRandomParameter::surface_cps)
       .def_readwrite("surface_n_u", &LeafRandomParameter::surface_n_u)
       .def_readwrite("surface_n_v", &LeafRandomParameter::surface_n_v)
@@ -1364,6 +1384,7 @@ PYBIND11_MODULE(plantbox, m) {
              .value("CWLim", Plant::GrowthFunctionTypes::gft_CWLim)
              .value("gompertz", Plant::GrowthFunctionTypes::gft_gompertz)
              .value("multi_phase_stem", Plant::GrowthFunctionTypes::gft_multi_phase_stem)
+             .value("multi_phase_leaf", Plant::GrowthFunctionTypes::gft_multi_phase_leaf)
              .export_values();
 
     py::class_<ExudationModel, std::shared_ptr<ExudationModel>>(m, "ExudationModel")

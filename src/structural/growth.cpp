@@ -29,6 +29,7 @@
 #include "Leaf.h"
 #include "Plant.h"
 #include "Stem.h"
+#include "leafparameter.h"
 #include "stemparameter.h"
 
 namespace CPlantBox {
@@ -487,6 +488,135 @@ void MultiPhaseStemGrowth::syncStateFromGeometry(std::shared_ptr<const Organ> o,
         if (tag < 1 || tag > n_ranks_lpn) continue;
         st.length_per_n[tag] += nodes[k].length();
     }
+}
+
+
+// =========================================================================
+// MultiPhaseLeafGrowth — Andrieu/Hillier/Birch 2006 piecewise leaf kinetics
+// (cv. Déa hybrid lineage with MF3D L_fin endpoint anchor; per-rank
+// scalars on LeafRandomParameter, see ADR_LEAF_KINEMATICS_2026-04-28 §D1).
+//
+// Length law (C¹ at the exp/lin junction):
+//   Phase E (exp):   t ∈ [T0, T1)   → L = L_min · exp(R1 · (t − T0))
+//   Phase L (lin):   t ∈ [T1, T2)   → L = L1 + R2 · (t − T1)
+//   Plateau:         t ≥ T2         → L = L_fin
+// with T1 = T0 + lag_exp, T2 = T1 + D_lin,
+//      L1 = L_min · exp(R1 · lag_exp),
+//      L_fin = (coordinated_lmax > 0) ? coordinated_lmax : getK()  (Lock #5).
+//
+// t is the plant's Andrieu-axis TT (Tb=9.8 °C — Plant::andrieu_tt_,
+// accessed via Plant::getAccumulatedAndrieuTT). The legacy
+// accumulatedTT_ (Tb=8) is untouched by this class — Lock #5 of the
+// ADR retires the original D3 "both submodels read the same axis"
+// reading because doing so silently rebinds the legacy axis that
+// non-Andrieu leaf XMLs depend on.
+//
+// Scope (Lock #4): pure scalar target length. Geometry side effects
+// (createSegments, branching-zone bookkeeping) stay in Leaf::simulate
+// after the dispatch. The class holds no per-organ state — every
+// dispatch reads kinetics fresh from o->getLeafRandomParameter(),
+// and no bookkeeping needs to persist across calls (a leaf is one
+// rank, not many phytomers like a stem).
+// =========================================================================
+double MultiPhaseLeafGrowth::getLength(double t, double r, double k,
+                                        std::shared_ptr<Organ> o) const
+{
+    if (!o) return 0.0;
+    auto leaf = std::static_pointer_cast<Leaf>(o);
+    auto lrp = leaf->getLeafRandomParameter();
+    if (!lrp) return 0.0;
+
+    // Empty-array silent freeze guard (Lock #6 minor finding 10): when
+    // R1_n is unconfigured, fall through to ExponentialGrowth so a
+    // misconfigured XML produces a visible scalar curve rather than a
+    // frozen zero-length leaf. The factory only mints this GF for
+    // opted-in subTypes (gf=6 in XML), so the fallback is defensive.
+    if (lrp->R1_n <= 0.0) {
+        return k * (1.0 - std::exp(-(r / k) * t));
+    }
+
+    auto plant = o->getPlant();
+    if (!plant) {
+        // No plant attached — return zero so caller's `e = target - length`
+        // collapses to a no-op. Defensive; in normal dispatch the plant
+        // is always set by the time getLength fires.
+        return 0.0;
+    }
+    const double tt = plant->getAccumulatedAndrieuTT();
+
+    // Reads canopy-coordinated lmax when set (M9 / Lock #5), else the
+    // realised getK(). The caller already passed `k = param()->getK()`,
+    // so we override only when sibling-leaf coordination is active.
+    const double k_final = (leaf->coordinated_lmax > 0.0) ? leaf->coordinated_lmax : k;
+
+    const double R1 = lrp->R1_n;
+    const double R2 = lrp->R2_n;
+    const double T0 = lrp->T0_n;
+    const double T1 = T0 + lrp->lag_exp_n;
+    const double T2 = T1 + lrp->D_lin_n;
+    const double L_min = (lrp->L_min > 0.0) ? lrp->L_min : 0.025;
+    const double L1 = L_min * std::exp(R1 * lrp->lag_exp_n);
+
+    double L;
+    if (tt < T0) {
+        // Pre-initiation: leaf has not entered Phase E. Andrieu's L_min
+        // is the "tip emergence" length; below T0 we still return L_min
+        // so existing-but-not-yet-elongating leaves carry a sensible
+        // microscopic length rather than zero (zero would let the caller
+        // wipe length to zero on every step).
+        L = L_min;
+    } else if (tt < T1) {
+        L = L_min * std::exp(R1 * (tt - T0));
+    } else if (tt < T2) {
+        L = L1 + R2 * (tt - T1);
+    } else {
+        // Plateau — saturate at L_fin. L_fin honours MF3D / coordinated_lmax.
+        L = L1 + R2 * lrp->D_lin_n;
+    }
+
+    // Honour the canopy-coordination cap unconditionally — even on the
+    // plateau, sibling coordination may shrink k_final below the Andrieu
+    // L_fin (rare under Chapter 1 maize calibration but needed for
+    // wheat / sorghum / shaded canopies).
+    if (L > k_final) L = k_final;
+    return L;
+}
+
+// -------------------------------------------------------------------------
+// MultiPhaseLeafGrowth::getAge — closed-form piecewise inverse, null-safe
+// for Plant::initCallbacks's gf->getAge(1,1,1,nullptr) probe (Lock #2).
+// -------------------------------------------------------------------------
+double MultiPhaseLeafGrowth::getAge(double l, double r, double k,
+                                     std::shared_ptr<const Organ> o) const
+{
+    if (!o) return 0.0;  // initCallbacks probe — Lock #2 null guard
+    auto leaf = std::static_pointer_cast<const Leaf>(o);
+    auto lrp = leaf->getLeafRandomParameter();
+    if (!lrp || lrp->R1_n <= 0.0) {
+        // Unconfigured: fall back to ExponentialGrowth's analytical inverse.
+        if (l <= 0) return 0.0;
+        if (l >= k) return 1.e9;
+        const double age = -k / r * std::log(1.0 - l / k);
+        return std::isfinite(age) ? age : 1.e9;
+    }
+
+    const double R1 = lrp->R1_n;
+    const double R2 = lrp->R2_n;
+    const double T0 = lrp->T0_n;
+    const double T1 = T0 + lrp->lag_exp_n;
+    const double T2 = T1 + lrp->D_lin_n;
+    const double L_min = (lrp->L_min > 0.0) ? lrp->L_min : 0.025;
+    const double L1 = L_min * std::exp(R1 * lrp->lag_exp_n);
+    const double L_fin = L1 + R2 * lrp->D_lin_n;
+
+    if (l < L_min) return T0;
+    if (l < L1) {
+        return T0 + std::log(l / L_min) / R1;
+    }
+    if (l < L_fin) {
+        return (R2 > 0.0) ? (T1 + (l - L1) / R2) : T2;
+    }
+    return T2;  // saturated
 }
 
 } // namespace CPlantBox

@@ -647,9 +647,20 @@ void LeafRandomParameter::bindParameters()
     bindParameter("use_thermal_emergence", &use_thermal_emergence, "Use thermal-time gated emergence [0/1]");
     bindParameter("tt_emergence", &tt_emergence, "Thermal-time emergence threshold [degCd], <0 disables");
     // Leaf-side FA logistic length kinetics (PLAN_YOUNG_LEAF_PHYSICS §Gap 1)
-    bindParameter("use_fa_kinetics", &use_fa_kinetics, "Use Fournier-Andrieu logistic length kinetics [0/1]");
-    bindParameter("tau_extension_n", &tau_extension_n, "FA logistic half-max plant TT [degCd], <0 disables");
-    bindParameter("sigma_extension_n", &sigma_extension_n, "FA logistic spread [degCd]");
+    // S2 — deprecated; populated for one cycle so external callers can migrate.
+    bindParameter("use_fa_kinetics", &use_fa_kinetics, "[deprecated, S2] Use Fournier-Andrieu logistic length kinetics [0/1]");
+    bindParameter("tau_extension_n", &tau_extension_n, "[deprecated, S2] FA logistic half-max plant TT [degCd], <0 disables");
+    bindParameter("sigma_extension_n", &sigma_extension_n, "[deprecated, S2] FA logistic spread [degCd]");
+    // Andrieu/Hillier/Birch 2006 piecewise leaf kinetics (ADR_LEAF_KINEMATICS_2026-04-28 §D1).
+    // Per-rank scalars (each leaf subType is one Déa rank). Round-trip via the base XML I/O
+    // is automatic — these are the *primitives* the bake script writes from
+    // dart/coupling/data/phase_III_per_rank_LEAF.json.
+    bindParameter("R1_n", &R1_n, "Andrieu Phase E exponential rate [1/degCd]; <=0 disables MultiPhaseLeafGrowth");
+    bindParameter("R2_n", &R2_n, "Andrieu Phase L linear rate [cm/degCd]; MF3D-anchored rescale");
+    bindParameter("lag_exp_n", &lag_exp_n, "Andrieu Phase E duration on Andrieu axis [degCd]");
+    bindParameter("D_lin_n", &D_lin_n, "Andrieu Phase L duration on Andrieu axis [degCd]");
+    bindParameter("T0_n", &T0_n, "Andrieu Phase E origin on Andrieu axis [degCd] = (rank-1)*plastochron");
+    bindParameter("L_min", &L_min, "Andrieu Phase E initial length at T0_n [cm]; Andrieu et al. 2006 p. 1007");
     // Native 2D leaf-surface NURBS grid (Phase A)
     bindParameter("surface_n_u", &surface_n_u, "Surface CP grid: number of CPs along midrib");
     bindParameter("surface_n_v", &surface_n_v, "Surface CP grid: number of CPs across width");

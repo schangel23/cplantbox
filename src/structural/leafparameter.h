@@ -172,10 +172,44 @@ public:
 	 *     length(t) = lmax / (1 + exp(-(TT - tau)/sigma))
 	 * driven by the plant's accumulated TT (Tb=8 axis, same accumulator as tt_emergence).
 	 * Saturates to lmax at large TT → mature renders are bit-identical to the scalar path.
-	 * Default off so non-maize XMLs and FA-off regression captures stay untouched. */
+	 * Default off so non-maize XMLs and FA-off regression captures stay untouched.
+	 *
+	 * S2 / ADR_LEAF_KINEMATICS_2026-04-28 — DEPRECATED. The logistic shadow
+	 * branch in Leaf::simulate is retired in S2.C; new calibrations should
+	 * use MultiPhaseLeafGrowth (gf=6) with the per-rank Andrieu primitives
+	 * declared below. The fields stay populated for one cycle so external
+	 * callers (Pheno4D scripts, regression captures) can migrate. */
 	int use_fa_kinetics = 0;             ///< 0 = scalar r*dt elongation, 1 = TT-driven logistic
 	double tau_extension_n = -1.0;       ///< TT half-max for length kinetics [degCd], <0 disables (acts as "off" sentinel)
 	double sigma_extension_n = 60.0;     ///< TT spread (logistic scale) [degCd]
+
+	/* Andrieu, Hillier & Birch (2006) cv. Déa piecewise leaf elongation
+	 * kinetics. Per-rank scalars (each leaf subType is one Déa rank — see
+	 * ADR_LEAF_KINEMATICS_2026-04-28 §C4 for the position↔subType↔rank
+	 * mapping). Active only when this LRP's `gf` field is set to
+	 * gft_multi_phase_leaf (=6). The `_n` suffix echoes the JSON column
+	 * name (`R1_n`, etc.) and reads as "this rank's R1"; it is NOT a
+	 * vector. Default sentinels (0.0 / -1.0) keep MultiPhaseLeafGrowth
+	 * inert for any non-Andrieu leaf even if the GF is mistakenly minted.
+	 *
+	 * Length law (Andrieu et al. 2006 eq. C.3):
+	 *   Phase E (exp):   t ∈ [T0_n, T1_n)         → L = L_min · exp(R1_n · (t − T0_n))
+	 *   Phase L (lin):   t ∈ [T1_n, T2_n)         → L = L1_n + R2_n · (t − T1_n)
+	 *   Plateau:         t ≥ T2_n                 → L = L_fin_n
+	 * with T1_n = T0_n + lag_exp_n, T2_n = T1_n + D_lin_n,
+	 *      L1_n = L_min · exp(R1_n · lag_exp_n),
+	 *      L_fin_n = L1_n + R2_n · D_lin_n.
+	 * t is the plant's Andrieu-axis TT (Tb=9.8 °C, see Plant::andrieu_tt_).
+	 * L_fin_n is anchored to MF3D `lmax_n` via R2_n rescale at bake time;
+	 * runtime reads `lmax = (coordinated_lmax > 0) ? coordinated_lmax :
+	 * param()->getK()` so canopy-coordination machinery (M9 / Lock #5)
+	 * stays live. */
+	double R1_n = 0.0;          ///< Phase E (exponential) rate constant [1/°Cd]; <=0 disables MultiPhaseLeafGrowth
+	double R2_n = 0.0;          ///< Phase L (linear) rate [cm/°Cd]; rescaled to honour MF3D L_fin
+	double lag_exp_n = 0.0;     ///< Phase E duration on Andrieu axis [°Cd]
+	double D_lin_n = 0.0;       ///< Phase L duration on Andrieu axis [°Cd]
+	double T0_n = 0.0;          ///< Phase E origin on Andrieu axis [°Cd] = (rank − 1) · plastochron
+	double L_min = 0.025;       ///< Phase E initial length at T0_n [cm]; Andrieu et al. 2006 p. 1007
 
 	/* call back functions */
     std::shared_ptr<SoilLookUp> f_se = std::make_shared<SoilLookUp>(); ///< scale elongation function

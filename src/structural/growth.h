@@ -8,12 +8,16 @@
 
 namespace CPlantBox {
 
-// Forward declarations for MultiPhaseStemGrowth (defined further below).
-// Bodies live in growth.cpp where Stem.h / Leaf.h / Plant.h can be included
-// without creating a circular include with structural/Stem.h.
+// Forward declarations for MultiPhaseStemGrowth / MultiPhaseLeafGrowth
+// (defined further below). Bodies live in growth.cpp where Stem.h / Leaf.h /
+// Plant.h can be included without creating a circular include with
+// structural/Stem.h or structural/Leaf.h.
 class Stem;
 class StemRandomParameter;
 class StemSpecificParameter;
+class Leaf;
+class LeafRandomParameter;
+class LeafSpecificParameter;
 
 /**
  * Abstract base class to all growth functions: currently LinearGrowth and ExponentialGrowth
@@ -301,6 +305,96 @@ private:
 	/// Lazy-allocate per_organ_state[organId] sized from the organ's LRP.
 	/// Idempotent. Returns the entry by reference.
 	PerOrganFAState& ensureState(int organId, std::shared_ptr<const Organ> o) const;
+};
+
+
+/**
+ * MultiPhaseLeafGrowth — per-rank piecewise leaf elongation
+ * (Andrieu, Hillier & Birch 2006 cv. Déa, hybrid lineage with
+ *  MF3D L_fin endpoint anchor — see ADR_LEAF_KINEMATICS_2026-04-28 §D1).
+ *
+ * The length law L(t) is exp → lin → plateau, C¹-continuous at the
+ * exp/lin junction. All per-rank kinetic primitives (R1_n, R2_n,
+ * lag_exp_n, D_lin_n, T0_n, L_min) live as scalar fields on the
+ * leaf's LeafRandomParameter — each leaf subType IS one Déa rank
+ * (ADR §C4 position↔subType mapping). This GF reads them at every
+ * dispatch via leaf->getLeafRandomParameter(); no per-organ kinetic
+ * state lives on this class (in contrast to MultiPhaseStemGrowth,
+ * whose multi-phytomer state has to persist across calls).
+ *
+ * Architectural separation (Lock #4):
+ *   - getLength returns a pure scalar target length [cm]; idempotent
+ *     under repeated calls in the same step.
+ *   - Geometry side effects (createSegments, createLateral,
+ *     branching-zone bookkeeping) stay in Leaf::simulate after the
+ *     dispatch — this GF does not mutate organ topology.
+ *   - getAge is the closed-form piecewise inverse with a null-safe
+ *     early return for Plant::initCallbacks's nullptr probe (Lock #2).
+ *   - Reads plant Andrieu-axis TT (Tb=9.8) via
+ *     Plant::getAccumulatedAndrieuTT() per Lock #5; legacy
+ *     accumulatedTT_ (Tb=8) is untouched by this class. The legacy
+ *     `tt_emergence` / `use_thermal_emergence` birth gate at
+ *     Leaf.cpp:140-147 (and the Lock #8 ldelay+axis=TT branch
+ *     alongside it) remain the canonical generic birth gate; T0_n
+ *     is a phase-E origin, not a second birth gate.
+ *   - L_fin = (coordinated_lmax > 0) ? coordinated_lmax :
+ *     param()->getK() — preserves canopy-coordination machinery
+ *     (M9 / Lock #5).
+ *
+ * Empty-array silent freeze guard (Lock #6 minor finding 10):
+ * R1_n <= 0 is the "Andrieu kinetics not configured" sentinel; in
+ * that case getLength falls through to ExponentialGrowth's formula
+ * so a misconfigured XML produces a visible scalar curve rather
+ * than a frozen zero-length leaf. The factory only mints this GF
+ * for opted-in subTypes (gf=6 in XML), so the fallback should
+ * never fire in production dispatch.
+ *
+ * Implementation lives in growth.cpp because the impl needs Leaf.h /
+ * leafparameter.h / Plant.h, which would create a circular include
+ * if pulled into this header.
+ */
+class MultiPhaseLeafGrowth : public GrowthFunction
+{
+public:
+
+	/**
+	 * Returns the analytical target length for an Andrieu-on leaf [cm]
+	 * at the plant's current Andrieu-axis TT. Idempotent under repeated
+	 * calls in the same step.
+	 *
+	 * Behaviour:
+	 *   - Reads R1_n / R2_n / lag_exp_n / D_lin_n / T0_n / L_min from
+	 *     o->getLeafRandomParameter().
+	 *   - Reads plant Andrieu TT via o->getPlant()->getAccumulatedAndrieuTT().
+	 *   - Computes the piecewise exp+lin+plateau target.
+	 *   - Caps at L_fin (coordinated_lmax when set, else getK()) so the
+	 *     plateau honours MF3D / canopy coordination.
+	 *   - Returns the unimpeded target — caller (Leaf::simulate) adds
+	 *     epsilonDx and clamps dl >= 0.
+	 *
+	 * Falls back to ExponentialGrowth's `k * (1 - exp(-(r/k) * t))`
+	 * formula when R1_n <= 0 (Andrieu kinetics unconfigured) so a
+	 * misconfigured XML produces a visible scalar curve rather than
+	 * a silent zero-length freeze.
+	 */
+	double getLength(double t, double r, double k, std::shared_ptr<Organ> o) const override;
+
+	/**
+	 * Closed-form piecewise inverse of the Andrieu length law.
+	 * Null-safe for Plant::initCallbacks's gf->getAge(1,1,1,nullptr)
+	 * probe (Lock #2 of ADR_LEAF_KINEMATICS_2026-04-28).
+	 *
+	 *   L < L_min    → T0_n
+	 *   L < L1_n     → T0_n + ln(L / L_min) / R1_n
+	 *   L < L_fin_n  → T1_n + (L − L1_n) / R2_n
+	 *   L ≥ L_fin_n  → T2_n  (saturated)
+	 */
+	double getAge(double l, double r, double k, std::shared_ptr<const Organ> o) const override;
+
+	std::shared_ptr<GrowthFunction> copy() const override
+	{
+		return std::make_shared<MultiPhaseLeafGrowth>(*this);
+	}
 };
 
 
