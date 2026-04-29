@@ -265,27 +265,10 @@ void Leaf::simulate(double dt, bool verbose)
 				}
 
 				double dl;
-				const auto& lrp_fa = *getLeafRandomParameter();
-				const bool fa_kinetics = lrp_fa.use_fa_kinetics
-				                         && lrp_fa.tau_extension_n >= 0.0
-				                         && plant_ptr;
-				if (fa_kinetics) {
-				    // Fournier-Andrieu logistic length kinetics (PLAN_YOUNG_LEAF_PHYSICS §Gap 1)
-				    //   length_target(TT) = lmax / (1 + exp(-(TT - tau)/sigma))
-				    // TT is the plant's accumulated TT (Tb=8 axis, same accumulator that drives
-				    // tt_emergence). Saturates exactly to lmax at large TT, so mature renders are
-				    // bit-identical to the scalar path that capped at lmax via getK().
-				    const double TT = plant_ptr->getAccumulatedTT();
-				    const double sigma = std::max(lrp_fa.sigma_extension_n, 1e-3);
-				    const double m = 1.0 / (1.0 + std::exp(-(TT - lrp_fa.tau_extension_n) / sigma));
-				    const double Lmax = param()->getK();
-				    const double targetlength = Lmax * m + this->epsilonDx;
-				    const double e = targetlength - length;
-				    dl = std::max(e, 0.0);
-				    length = getLength(true);
-				    this->epsilonDx = 0.;
-				} else if (thermal_elongation) {
-				    // Thermal-time-based elongation
+				if (thermal_elongation) {
+				    // Thermal-time-based elongation (orthogonal to f_gf chain;
+				    // gated by phytomer_mode + use_thermal_elongation, neither of
+				    // which is set in the FA-on production XMLs).
 				    double T = plant_ptr->getAirTemperature();
 				    double f_T = cardinalTemperature(T,
 				        getLeafRandomParameter()->T_base,
@@ -299,7 +282,17 @@ void Leaf::simulate(double dt, bool verbose)
 				    length = getLength(true);
 				    this->epsilonDx = 0.;
 				} else {
-				    // Original calendar-day elongation
+				    // Native length dispatch via f_gf->getLength (S2.C, ADR
+				    // §S2). f_gf is mintable to MultiPhaseLeafGrowth via gf=6
+				    // in XML (per-LRP); the legacy `if (use_fa_kinetics)`
+				    // logistic shadow that previously sat above this branch
+				    // was retired here. With gf=1 (the default) the dispatch
+				    // is ExponentialGrowth — bit-identical to upstream
+				    // CPlantBox. With gf=6 it is the Andrieu/Hillier/Birch
+				    // exp+lin+plateau (Lock #5: reads plant Andrieu-axis TT
+				    // internally; the `age_+dt_` argument is ignored by that
+				    // GF but kept here so any future calendar-axis growth
+				    // function still receives a well-formed input).
 				    double targetlength = calcLength(age_+dt_)+ this->epsilonDx;
 				    double e = targetlength-length; // unimpeded elongation in time step dt
 				    dl = std::max(e, 0.);// length increment
