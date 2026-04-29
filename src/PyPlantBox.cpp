@@ -303,6 +303,7 @@ PYBIND11_MODULE(plantbox, m) {
             .def_readwrite("ldelay", &OrganRandomParameter::ldelay)
             .def_readwrite("ldelays", &OrganRandomParameter::ldelays)
             .def_readwrite("delayNGEndAxis", &OrganRandomParameter::delayNGEndAxis)
+            .def_readwrite("ldelayAxis", &OrganRandomParameter::ldelayAxis)
             .def_readwrite("plant",&OrganRandomParameter::plant)
             .def_readwrite("f_gf", &OrganRandomParameter::f_gf)
             .def_readwrite("f_tf", &OrganRandomParameter::f_tf);

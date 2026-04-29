@@ -537,6 +537,7 @@ void OrganRandomParameter::bindParameters()
     bindParameter("dx", &dx, "Axial resolution [cm] (maximal segment size)");
     bindParameter("dxMin", &dxMin, "Axial resolution [cm] (minimal segment size)");
 	bindParameter("ldelay", &ldelay, "Lateral emergence delay [day]", &ldelays);
+	bindAxisParameter("ldelay", &ldelayAxis); ///< Lock #8: axis="TT" → Leaf::simulate (and future Stem::simulate) gate emergence on Andrieu-TT instead of calendar days
     // other parameters (descriptions only)
     description["name"]  = "Name of the sub type of the organ, e.g. small lateral";
     // other parameters (descriptions only)

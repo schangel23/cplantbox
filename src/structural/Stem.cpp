@@ -151,11 +151,25 @@ void Stem::simulate(double dt, bool verbose)
 		// Gates stem "birth" on plant TT instead of calendar-day ldelay. Each stem subType
 		// carries a tt_emergence threshold; the stem does not grow until plant accumulated TT
 		// crosses it. Used e.g. for tassel subType to emerge at VT under variable T forcing.
+		//
+		// S0.8 / Lock #8 — unified birth-gate path: when `ldelayAxis == DelayAxis::TT`
+		// the existing `ldelay` field is reinterpreted as an absolute Andrieu-TT
+		// threshold on the same accumulator as `tt_emergence`, retiring the
+		// parallel `tt_emergence` + `use_thermal_emergence` mechanism in a
+		// forward-compatible way. Existing XMLs default `ldelayAxis = Calendar`
+		// → axis-TT branch is inert → bit-identical. Symmetric to Lock #1's
+		// `delayNGEndAxis` on the cessation gate.
 		{
 			auto plant_tt = getPlant();
 			const auto& srp_tt = *getStemRandomParameter();
 			if (plant_tt && srp_tt.use_thermal_emergence && srp_tt.tt_emergence > 0.0) {
 				if (plant_tt->getAccumulatedTT() < srp_tt.tt_emergence) {
+					age -= dt;          // unborn: revert age, no growth this step
+					return;
+				}
+			}
+			if (plant_tt && srp_tt.ldelayAxis == DelayAxis::TT && srp_tt.ldelay > 0.0) {
+				if (plant_tt->getAccumulatedTT() < srp_tt.ldelay) {
 					age -= dt;          // unborn: revert age, no growth this step
 					return;
 				}

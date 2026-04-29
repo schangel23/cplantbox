@@ -13,11 +13,12 @@ stem growth function: anything that hardcodes maize plastochron, basal-zero
 ranks, or 16-rank lookup tables will surface here as a crash, a NaN, or a
 warning about unhandled fields.
 
-Lock #8 (ldelayAxis=TT for leaf birth-gate symmetry) is not yet shipped on
-the C++ side — covered by a follow-up commit. Today the leaf side stays on
-the existing ``use_thermal_emergence`` + ``tt_emergence`` path, exercised
-indirectly through ``Plant::createGrowthFunction`` resolution but without
-an axis-style flag.
+Lock #8 (leaf-side ``ldelayAxis=TT`` birth-gate symmetric to Lock #1's
+cessation gate) is exercised by a parallel closed-gate fixture: the wheat
+``leaf subType=2`` is opted into ``ldelayAxis = DelayAxis.TT`` with a high
+``ldelay`` threshold the 30-day simulation cannot cross, so the leaf is
+held unborn for the entire run. This activates the ADR validation row:
+"both Locks #1 and #8 exercised by test_multi_phase_stem_non_maize.py".
 
 Usage (from /home/lukas/PHD/CPlantBox):
     cpbenv/bin/python3 -m pytest dart/coupling/tests/test_multi_phase_stem_non_maize.py -v
@@ -48,6 +49,12 @@ PLACEHOLDER_D_N = [40.0, 50.0, 60.0, 70.0, 80.0]        # °Cd
 PLACEHOLDER_IL_FINAL = [0.0, 0.0, 1.5, 3.0, 5.0]        # cm; ranks 1-2 basal-zero, then small monotonic
 PLACEHOLDER_BASAL_ZERO_RANKS = [1, 2]                   # non-maize default (maize uses [1,2,3,4])
 TT_CESSATION_DEGCD = 600.0                              # well below maize 1500, ensures gate fires under wheat met
+
+# Lock #8 — closed-gate threshold the 30-day wheat simulation cannot cross.
+# Andrieu-TT under default plant temperature (no daily met injection in this
+# test) accumulates well below 99,999 °Cd in 30 days, so the leaf birth gate
+# stays closed for the full run.
+LEAF_LDELAY_TT_CLOSED = 99_999.0  # °Cd
 
 
 def _opt_in_stem_to_multi_phase(stem_rp: pb.StemRandomParameter) -> None:
@@ -157,6 +164,89 @@ def test_mainstem_uses_multi_phase_growth_function(opted_in_plant):
     assert isinstance(mainstem_rp.f_gf, pb.MultiPhaseStemGrowth), (
         f"expected MultiPhaseStemGrowth f_gf after FA opt-in, got {type(mainstem_rp.f_gf).__name__}"
     )
+
+
+@pytest.fixture(scope="module")
+def opted_in_plant_leaf_tt_closed():
+    """Lock #8 — wheat with leaf subType=2 stamped ldelayAxis=TT, ldelay=99999 °Cd.
+
+    Same wheat XML, same MultiPhaseStemGrowth opt-in on the mainstem, but
+    additionally puts the single wheat leaf subType onto the unified TT
+    birth-gate path with a threshold the 30-day simulation cannot cross.
+    Asserts the gate actually holds the leaf unborn (no elongation) without
+    crashing or NaN-ing the rest of the plant — the symmetric counterpart to
+    Lock #1's cessation gate exercised by the existing fixture.
+    """
+    assert WHEAT_XML.exists(), f"missing fixture XML: {WHEAT_XML}"
+
+    plant = pb.MappedPlant(SEED)
+    plant.readParameters(str(WHEAT_XML))
+
+    stem_rps = plant.getOrganRandomParameter(pb.OrganTypes.stem)
+    mainstem_rp = next((rp for rp in stem_rps if rp.subType == 1), None)
+    assert mainstem_rp is not None, "wheat XML lacks stem subType=1 mainstem"
+    _opt_in_stem_to_multi_phase(mainstem_rp)
+
+    leaf_rps = plant.getOrganRandomParameter(pb.OrganTypes.leaf)
+    assert leaf_rps, "wheat XML missing leaf RPs — fixture is wrong"
+    leaf_rp = next((rp for rp in leaf_rps if rp.subType == 2), None)
+    assert leaf_rp is not None, "wheat XML lacks leaf subType=2"
+    leaf_rp.ldelay = LEAF_LDELAY_TT_CLOSED
+    leaf_rp.ldelayAxis = pb.DelayAxis.TT
+
+    plant.setSeed(SEED)
+    plant.initialize()
+
+    with warnings.catch_warnings(record=True) as captured:
+        warnings.simplefilter("always")
+        plant.simulate(float(SIM_DAYS), False)
+
+    return plant, captured, leaf_rp
+
+
+def test_lock8_axis_round_trips_through_pybind(opted_in_plant_leaf_tt_closed):
+    """The DelayAxis enum write must survive setting and re-reading on the LRP."""
+    _plant, _captured, leaf_rp = opted_in_plant_leaf_tt_closed
+    assert leaf_rp.ldelayAxis == pb.DelayAxis.TT, (
+        f"ldelayAxis did not stick: got {leaf_rp.ldelayAxis}"
+    )
+    assert leaf_rp.ldelay == pytest.approx(LEAF_LDELAY_TT_CLOSED), (
+        f"ldelay scalar did not stick: got {leaf_rp.ldelay}"
+    )
+
+
+def test_lock8_closed_gate_blocks_leaf_elongation(opted_in_plant_leaf_tt_closed):
+    """With ldelayAxis=TT and ldelay above any reachable plant TT, leaves stay unborn.
+
+    Birth-gate semantics: Leaf::simulate reverts age and returns before any
+    nodes are added. Existing leaf objects (created at lateral emergence on
+    the parent stem) keep their initial single insertion node and never
+    elongate. We do not assert zero leaves total because Stem::createLateral
+    may still instantiate the Leaf object with a single node; the assertion
+    is that no leaf produces a real segment (>=2 nodes)."""
+    plant, _captured, _leaf_rp = opted_in_plant_leaf_tt_closed
+    leaves = [o for o in plant.getOrgans() if o.organType() == pb.OrganTypes.leaf]
+    elongated = [lf for lf in leaves if len(list(lf.getNodes())) >= 2]
+    assert not elongated, (
+        f"closed Lock #8 gate failed to hold leaves unborn — {len(elongated)}/"
+        f"{len(leaves)} leaves elongated past their insertion node"
+    )
+
+
+def test_lock8_closed_gate_does_not_break_stems(opted_in_plant_leaf_tt_closed):
+    """Stem path remains healthy when leaves are held unborn by the TT gate.
+
+    Catches the regression where a returning Leaf::simulate leaves the parent
+    stem in a half-updated state (e.g. node position vectors out of sync with
+    age accumulator)."""
+    plant, _captured, _leaf_rp = opted_in_plant_leaf_tt_closed
+    stems = [o for o in plant.getOrgans() if o.organType() == pb.OrganTypes.stem]
+    assert stems, "no stems after simulate with closed leaf gate"
+    bad = [
+        xyz for xyz in _all_node_xyz(plant)
+        if not (math.isfinite(xyz[0]) and math.isfinite(xyz[1]) and math.isfinite(xyz[2]))
+    ]
+    assert not bad, f"closed-gate fixture produced {len(bad)} non-finite node positions"
 
 
 def test_no_nan_in_per_organ_fa_state(opted_in_plant):

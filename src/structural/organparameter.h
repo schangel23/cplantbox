@@ -116,6 +116,19 @@ public:
      * axis="TT"/>` per Lock #1 spec. The field lives on the base class so
      * the future ldelayAxis (Lock #8) can share the enum cleanly. */
     DelayAxis delayNGEndAxis = DelayAxis::Calendar;
+
+    /* S0.8 / Lock #8: axis flag for `ldelay` (lateral emergence delay;
+     * lives on this base class). When DelayAxis::TT, the Leaf::simulate
+     * emergence gate (and, future-symmetric, the Stem::simulate gate)
+     * interprets `ldelay` as an absolute Andrieu-TT threshold [degCd] on
+     * the plant's accumulated TT axis instead of a calendar-day delay.
+     * Default Calendar = bit-identical with every existing XML; opt-in
+     * via `<parameter name="ldelay" value="<TT>" axis="TT"/>` per Lock #8
+     * spec. Symmetric to Lock #1's delayNGEndAxis (cessation gate) — Lock
+     * #8 is the birth-gate sibling that makes the upstream pitch
+     * coherent. Eventually retires `tt_emergence` + `use_thermal_emergence`
+     * as parallel fields once consumers and XMLs migrate. */
+    DelayAxis ldelayAxis = DelayAxis::Calendar;
     std::vector<std::vector<double> > successorWhere = std::vector<std::vector<double>>(0, std::vector<double> (0, 0));
     ///< Where should rule be implemented [1] or not [-1]; need to use double to distiguish between -0 and 0; default: vector empty == rule implemented everywhere
     std::vector<std::vector<int> > successorOT = std::vector<std::vector<int>>(0, std::vector<int> (0, 0)); ///< Lateral types [1]

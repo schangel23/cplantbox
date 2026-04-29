@@ -134,11 +134,25 @@ void Leaf::simulate(double dt, bool verbose)
 		// Gates leaf "birth" on plant TT instead of calendar-day ldelay. Each leaf subType
 		// carries a tt_emergence threshold; the leaf does not grow until plant accumulated TT
 		// crosses it. Compatible with both phytomer-mode and monolithic-leaf pipelines.
+		//
+		// S0.8 / Lock #8 — unified birth-gate path: when `ldelayAxis == DelayAxis::TT`
+		// the existing `ldelay` field is reinterpreted as an absolute Andrieu-TT
+		// threshold (same accumulator as `tt_emergence`), retiring the parallel
+		// `tt_emergence` + `use_thermal_emergence` mechanism in a forward-compatible
+		// way. Existing XMLs default `ldelayAxis = Calendar` → axis-TT branch is
+		// inert → bit-identical behaviour. Symmetric to Lock #1's `delayNGEndAxis`
+		// on the cessation gate.
 		{
 			auto plant_tt = getPlant();
 			const auto& lrp_tt = *getLeafRandomParameter();
 			if (plant_tt && lrp_tt.use_thermal_emergence && lrp_tt.tt_emergence > 0.0) {
 				if (plant_tt->getAccumulatedTT() < lrp_tt.tt_emergence) {
+					age -= dt;          // unborn: revert age, no growth this step
+					return;
+				}
+			}
+			if (plant_tt && lrp_tt.ldelayAxis == DelayAxis::TT && lrp_tt.ldelay > 0.0) {
+				if (plant_tt->getAccumulatedTT() < lrp_tt.ldelay) {
 					age -= dt;          // unborn: revert age, no growth this step
 					return;
 				}
