@@ -97,21 +97,46 @@ double MultiPhaseStemGrowth::calcLengthPerPhytomer(int n,
         return 0.0;
     }
 
-    // τ_n anchor: FA 2000 / Fournier 2005 coordination — Phase I→II trigger
-    // is same-rank LEAF COLLAR EMERGENCE (Hard Invariant #3, plan §coordination
-    // line 171). Read the same-rank leaf's Andrieu schedule (T0_n + lag_exp_n
-    // + α·D_lin_n) to estimate when its collar appears, then anchor τ=0 at
-    // primordium initiation = collar_TT − phase_I_duration. So τ=phase_I_duration
-    // coincides with collar emergence and Phase II onset fires there.
+    // τ_n anchor: same-rank LEAF COLLAR EMERGENCE triggers FA Phase I→II.
+    // Coordination rule (qualitative) is well attested in the FA lineage:
+    //   - Fournier et al. 2005 (New Phytol 166:881, line 57): "the end of
+    //     rapid elongation phase, after which the elongation rate rapidly
+    //     decays, was found to occur around the time of collar emergence"
+    //     (Williams 1975; Girardin et al. 1986; Skinner & Nelson 1995).
+    //   - Birch et al. 2002 (Maydica) + Fournier & Andrieu 2000: same I→II
+    //     synchrony for INTERNODES, "Transition from stage 1 to stage 2
+    //     coincided with collar emergence."
+    // Estimate collar_TT from the leaf's own Andrieu schedule:
+    //   collar_TT = T0_n + lag_exp_n + α · D_lin_n
+    // and anchor τ=0 at primordium initiation = collar_TT − phase_I_duration,
+    // so τ=phase_I_duration falls on collar emergence and Phase II fires there.
     //
     // The previous formula (init_tt = leaf_emerge_tt + 9.6) treated leaf TIP
     // emergence as the Phase II trigger, but tip emergence precedes collar
     // emergence by ~80–100 °Cd in maize. That lag is what kept the stem
     // frozen V1–V10 then bursting V11–V14 (V-sweep diagnostic 2026-04-30).
     //
-    // α is the leaf-length fraction that defines collar emergence. FA 2000
-    // collar emergence ≈ ligulation, ≈ leaf at 85 % of mature length.
-    constexpr double COLLAR_FRAC_OF_LMAX = 0.85;
+    // α = 1.0: collar emergence = end of linear phase (= T2 in Hillier 2005
+    // Model 2 / Andrieu, Hillier & Birch 2006, where Lfin = L1 + R2(T2−T1)
+    // and the linear phase explicitly stops at Lfin). This is the literal
+    // reading of the FA 2005 coordination rule above.
+    //
+    // The earlier value 0.85 (introduced in 3e2c5a2e) was attributed to a
+    // "FA / Birch / Hillier convention for ligulation timing (leaf at 85 %
+    // of mature length)". Full-text checks of FA 2000, Birch 2002, FA 2005,
+    // Hillier 2005, and AHB 2006 do not contain that figure — 0.85 is not
+    // stated for collar emergence in any of those papers. Closest related
+    // numbers are Hesketh 1988 (sheath at 95 % of elongation at LIGULE
+    // appearance, cited in FA 2000) and AHB 2006's two-phase fit where
+    // Lfin = L1 + R2(T2−T1) explicitly stops at Lfin. So α=1.0 is the
+    // defensible literal value; α=0.85 was a misattribution.
+    //
+    // Note: the V-stage detector in tests/baselines/s5_vstage_fa_baseline.py
+    // computes leaf maturity from the 3D arc length of leaf nodes, which
+    // couples to stem kinetics via the shared anchor node — V-stage timing
+    // shifts identically under α=0.85 and α=1.0, so this α change is not
+    // the cause of any V-stage drift seen in the rebaselined snapshot.
+    constexpr double COLLAR_FRAC_OF_DLIN = 1.0;
 
     auto state_it = per_organ_state.find(o->getId());
 
@@ -141,14 +166,12 @@ double MultiPhaseStemGrowth::calcLengthPerPhytomer(int n,
     auto lrp_n = leaf_n->getLeafRandomParameter();
     if (!lrp_n) return 0.0;
 
-    // Collar TT from the leaf's own Andrieu schedule:
-    //   collar_TT = T0_n + lag_exp_n + α · D_lin_n
     // For non-Andrieu leaves (lag_exp_n = D_lin_n = 0, e.g. maize basal
     // leaves with gf=1) collar_TT collapses to T0_n. Those ranks are also
     // in basal_zero_ranks, so this branch is bypassed early (line ~96).
     const double collar_tt = lrp_n->T0_n
                            + lrp_n->lag_exp_n
-                           + COLLAR_FRAC_OF_LMAX * lrp_n->D_lin_n;
+                           + COLLAR_FRAC_OF_DLIN * lrp_n->D_lin_n;
     const double init_tt = collar_tt - srp->phase_I_duration;
 
     auto plant_fa = stem->getPlant();

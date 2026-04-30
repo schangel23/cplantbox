@@ -33,7 +33,7 @@ SEED = 7
 MAX_DAYS = 70                    # V6 target is day 57 under Nielsen
 MAX_RANK = 16
 V_TARGETS = (1, 2, 3, 4, 5, 6)
-COLLAR_RELEASE = 0.45
+COLLAR_RELEASE = 0.45    # matches dart/coupling/growth/phenology.py (Nielsen-calibrated)
 COLLAR_THRESHOLD = 0.30
 # Nielsen (from project_young_whorl_fix.md): V1=17, V2=25, V3=33, V4=51, V6=57.
 NIELSEN = {1: 17, 2: 25, 3: 33, 4: 51, 5: None, 6: 57}

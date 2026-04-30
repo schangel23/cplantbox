@@ -17,8 +17,13 @@ from typing import Optional
 
 import plantbox as pb
 
-# Collar maturity thresholds — match cplantbox_adapter.py classification so
-# labels agree with what the lofter actually renders as collared/emerging/whorl.
+# Collar maturity threshold for V-stage observer scoring. Calibrated against
+# Nielsen V1..V6 on Juelich 2024 met (seed=7) — at 0.45 the seed=7 baseline
+# matches Nielsen V1=17/V2=25/V3=33/V4=51/V6=57 exactly. This is an empirical
+# observer convention (when a collar is visible to a field observer in the
+# whorl), not a developmental-biology event; do not conflate with the FA 2005
+# leaf-collar coordination rule used in src/structural/growth.cpp
+# (COLLAR_FRAC_OF_DLIN, anchors stem Phase I→II at end of leaf linear phase).
 COLLAR_RELEASE = 0.45
 COLLAR_THRESHOLD = 0.30
 

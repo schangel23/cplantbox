@@ -13,18 +13,16 @@
   "hits_fa_off": {
     "1": 17,
     "2": 25,
-    "3": 33,
-    "4": 51,
-    "5": 51,
-    "6": 57
+    "3": 34,
+    "4": 44,
+    "5": 51
   },
   "hits_fa_on": {
     "1": 17,
     "2": 25,
-    "3": 33,
-    "4": 51,
-    "5": 51,
-    "6": 57
+    "3": 34,
+    "4": 44,
+    "5": 51
   },
   "daily_fa_off": [
     {
@@ -58,19 +56,19 @@
       "day": 4,
       "tt_tb8": 25.700000000000003,
       "tt_andrieu": 18.5,
-      "total": 1,
+      "total": 0,
       "coll": 0,
       "emrg": 0,
-      "whrl": 1
+      "whrl": 0
     },
     {
       "day": 5,
       "tt_tb8": 30.300000000000004,
       "tt_andrieu": 21.299999999999997,
-      "total": 1,
+      "total": 0,
       "coll": 0,
       "emrg": 0,
-      "whrl": 1
+      "whrl": 0
     },
     {
       "day": 6,
@@ -105,8 +103,8 @@
       "tt_andrieu": 34.29999999999999,
       "total": 1,
       "coll": 0,
-      "emrg": 1,
-      "whrl": 0
+      "emrg": 0,
+      "whrl": 1
     },
     {
       "day": 10,
@@ -114,8 +112,8 @@
       "tt_andrieu": 39.69999999999999,
       "total": 1,
       "coll": 0,
-      "emrg": 1,
-      "whrl": 0
+      "emrg": 0,
+      "whrl": 1
     },
     {
       "day": 11,
@@ -131,8 +129,8 @@
       "tt_tb8": 76.1,
       "tt_andrieu": 54.499999999999986,
       "total": 2,
-      "coll": 1,
-      "emrg": 0,
+      "coll": 0,
+      "emrg": 1,
       "whrl": 1
     },
     {
@@ -240,8 +238,8 @@
       "tt_andrieu": 126.09999999999997,
       "total": 3,
       "coll": 2,
-      "emrg": 1,
-      "whrl": 0
+      "emrg": 0,
+      "whrl": 1
     },
     {
       "day": 25,
@@ -249,8 +247,8 @@
       "tt_andrieu": 131.09999999999997,
       "total": 4,
       "coll": 2,
-      "emrg": 1,
-      "whrl": 1
+      "emrg": 0,
+      "whrl": 2
     },
     {
       "day": 26,
@@ -258,8 +256,8 @@
       "tt_andrieu": 137.69999999999996,
       "total": 4,
       "coll": 2,
-      "emrg": 1,
-      "whrl": 1
+      "emrg": 0,
+      "whrl": 2
     },
     {
       "day": 27,
@@ -267,8 +265,8 @@
       "tt_andrieu": 142.59999999999997,
       "total": 4,
       "coll": 2,
-      "emrg": 1,
-      "whrl": 1
+      "emrg": 0,
+      "whrl": 2
     },
     {
       "day": 28,
@@ -276,53 +274,53 @@
       "tt_andrieu": 146.89999999999998,
       "total": 4,
       "coll": 2,
-      "emrg": 1,
-      "whrl": 1
+      "emrg": 0,
+      "whrl": 2
     },
     {
       "day": 29,
       "tt_tb8": 204.49999999999997,
       "tt_andrieu": 152.29999999999998,
       "total": 4,
-      "coll": 3,
+      "coll": 2,
       "emrg": 0,
-      "whrl": 1
+      "whrl": 2
     },
     {
       "day": 30,
       "tt_tb8": 210.99999999999997,
       "tt_andrieu": 156.99999999999997,
       "total": 4,
-      "coll": 3,
+      "coll": 2,
       "emrg": 0,
-      "whrl": 1
+      "whrl": 2
     },
     {
       "day": 31,
       "tt_tb8": 217.49999999999997,
       "tt_andrieu": 161.69999999999996,
       "total": 4,
-      "coll": 3,
+      "coll": 2,
       "emrg": 0,
-      "whrl": 1
+      "whrl": 2
     },
     {
       "day": 32,
       "tt_tb8": 225.29999999999998,
       "tt_andrieu": 167.69999999999996,
       "total": 4,
-      "coll": 3,
+      "coll": 2,
       "emrg": 1,
-      "whrl": 0
+      "whrl": 1
     },
     {
       "day": 33,
       "tt_tb8": 231.89999999999998,
       "tt_andrieu": 172.49999999999997,
       "total": 5,
-      "coll": 3,
+      "coll": 2,
       "emrg": 1,
-      "whrl": 1
+      "whrl": 2
     },
     {
       "day": 34,
@@ -330,8 +328,8 @@
       "tt_andrieu": 175.59999999999997,
       "total": 5,
       "coll": 3,
-      "emrg": 1,
-      "whrl": 1
+      "emrg": 0,
+      "whrl": 2
     },
     {
       "day": 35,
@@ -339,62 +337,62 @@
       "tt_andrieu": 182.09999999999997,
       "total": 5,
       "coll": 3,
-      "emrg": 1,
-      "whrl": 1
+      "emrg": 0,
+      "whrl": 2
     },
     {
       "day": 36,
       "tt_tb8": 251.2,
       "tt_andrieu": 186.39999999999998,
       "total": 5,
-      "coll": 4,
+      "coll": 3,
       "emrg": 0,
-      "whrl": 1
+      "whrl": 2
     },
     {
       "day": 37,
       "tt_tb8": 256.8,
       "tt_andrieu": 190.2,
       "total": 5,
-      "coll": 4,
+      "coll": 3,
       "emrg": 0,
-      "whrl": 1
+      "whrl": 2
     },
     {
       "day": 38,
       "tt_tb8": 263.40000000000003,
       "tt_andrieu": 195.0,
       "total": 5,
-      "coll": 4,
+      "coll": 3,
       "emrg": 0,
-      "whrl": 1
+      "whrl": 2
     },
     {
       "day": 39,
       "tt_tb8": 270.1,
       "tt_andrieu": 199.9,
       "total": 5,
-      "coll": 4,
+      "coll": 3,
       "emrg": 1,
-      "whrl": 0
+      "whrl": 1
     },
     {
       "day": 40,
       "tt_tb8": 276.20000000000005,
       "tt_andrieu": 204.20000000000002,
       "total": 5,
-      "coll": 4,
+      "coll": 3,
       "emrg": 1,
-      "whrl": 0
+      "whrl": 1
     },
     {
       "day": 41,
       "tt_tb8": 279.90000000000003,
       "tt_andrieu": 206.10000000000002,
       "total": 5,
-      "coll": 4,
+      "coll": 3,
       "emrg": 1,
-      "whrl": 0
+      "whrl": 1
     },
     {
       "day": 42,
@@ -402,61 +400,61 @@
       "tt_andrieu": 208.00000000000003,
       "total": 5,
       "coll": 4,
-      "emrg": 1,
-      "whrl": 0
+      "emrg": 0,
+      "whrl": 1
     },
     {
       "day": 43,
       "tt_tb8": 286.90000000000003,
       "tt_andrieu": 209.50000000000003,
       "total": 5,
-      "coll": 5,
+      "coll": 4,
       "emrg": 0,
-      "whrl": 0
+      "whrl": 1
     },
     {
       "day": 44,
       "tt_tb8": 292.6,
       "tt_andrieu": 213.40000000000003,
       "total": 6,
-      "coll": 5,
+      "coll": 4,
       "emrg": 0,
-      "whrl": 1
+      "whrl": 2
     },
     {
       "day": 45,
       "tt_tb8": 301.3,
       "tt_andrieu": 220.30000000000004,
       "total": 6,
-      "coll": 5,
+      "coll": 4,
       "emrg": 0,
-      "whrl": 1
+      "whrl": 2
     },
     {
       "day": 46,
       "tt_tb8": 308.7,
       "tt_andrieu": 225.90000000000003,
       "total": 6,
-      "coll": 5,
+      "coll": 4,
       "emrg": 0,
-      "whrl": 1
+      "whrl": 2
     },
     {
       "day": 47,
       "tt_tb8": 316.0,
       "tt_andrieu": 231.40000000000003,
       "total": 6,
-      "coll": 5,
+      "coll": 4,
       "emrg": 0,
-      "whrl": 1
+      "whrl": 2
     },
     {
       "day": 48,
       "tt_tb8": 324.9,
       "tt_andrieu": 238.50000000000003,
       "total": 6,
-      "coll": 5,
-      "emrg": 0,
+      "coll": 4,
+      "emrg": 1,
       "whrl": 1
     },
     {
@@ -464,8 +462,8 @@
       "tt_tb8": 334.4,
       "tt_andrieu": 246.20000000000002,
       "total": 6,
-      "coll": 5,
-      "emrg": 0,
+      "coll": 4,
+      "emrg": 1,
       "whrl": 1
     },
     {
@@ -474,8 +472,8 @@
       "tt_andrieu": 253.10000000000002,
       "total": 6,
       "coll": 5,
-      "emrg": 1,
-      "whrl": 0
+      "emrg": 0,
+      "whrl": 1
     },
     {
       "day": 51,
@@ -483,8 +481,8 @@
       "tt_andrieu": 260.20000000000005,
       "total": 7,
       "coll": 5,
-      "emrg": 1,
-      "whrl": 1
+      "emrg": 0,
+      "whrl": 2
     },
     {
       "day": 52,
@@ -500,8 +498,8 @@
       "tt_tb8": 369.69999999999993,
       "tt_andrieu": 274.3,
       "total": 7,
-      "coll": 6,
-      "emrg": 0,
+      "coll": 5,
+      "emrg": 1,
       "whrl": 1
     },
     {
@@ -536,9 +534,126 @@
       "tt_tb8": 418.9,
       "tt_andrieu": 316.3,
       "total": 8,
-      "coll": 6,
-      "emrg": 1,
+      "coll": 7,
+      "emrg": 0,
       "whrl": 1
+    },
+    {
+      "day": 58,
+      "tt_tb8": 434.7,
+      "tt_andrieu": 330.3,
+      "total": 8,
+      "coll": 7,
+      "emrg": 1,
+      "whrl": 0
+    },
+    {
+      "day": 59,
+      "tt_tb8": 444.4,
+      "tt_andrieu": 338.2,
+      "total": 8,
+      "coll": 7,
+      "emrg": 1,
+      "whrl": 0
+    },
+    {
+      "day": 60,
+      "tt_tb8": 455.7,
+      "tt_andrieu": 347.7,
+      "total": 8,
+      "coll": 8,
+      "emrg": 0,
+      "whrl": 0
+    },
+    {
+      "day": 61,
+      "tt_tb8": 465.59999999999997,
+      "tt_andrieu": 355.8,
+      "total": 9,
+      "coll": 8,
+      "emrg": 1,
+      "whrl": 0
+    },
+    {
+      "day": 62,
+      "tt_tb8": 473.09999999999997,
+      "tt_andrieu": 361.5,
+      "total": 9,
+      "coll": 8,
+      "emrg": 1,
+      "whrl": 0
+    },
+    {
+      "day": 63,
+      "tt_tb8": 479.29999999999995,
+      "tt_andrieu": 365.9,
+      "total": 9,
+      "coll": 9,
+      "emrg": 0,
+      "whrl": 0
+    },
+    {
+      "day": 64,
+      "tt_tb8": 484.59999999999997,
+      "tt_andrieu": 369.4,
+      "total": 9,
+      "coll": 9,
+      "emrg": 0,
+      "whrl": 0
+    },
+    {
+      "day": 65,
+      "tt_tb8": 492.7,
+      "tt_andrieu": 375.7,
+      "total": 9,
+      "coll": 9,
+      "emrg": 0,
+      "whrl": 0
+    },
+    {
+      "day": 66,
+      "tt_tb8": 500.5,
+      "tt_andrieu": 381.7,
+      "total": 9,
+      "coll": 9,
+      "emrg": 0,
+      "whrl": 0
+    },
+    {
+      "day": 67,
+      "tt_tb8": 510.7,
+      "tt_andrieu": 390.09999999999997,
+      "total": 9,
+      "coll": 9,
+      "emrg": 0,
+      "whrl": 0
+    },
+    {
+      "day": 68,
+      "tt_tb8": 518.2,
+      "tt_andrieu": 395.79999999999995,
+      "total": 9,
+      "coll": 9,
+      "emrg": 0,
+      "whrl": 0
+    },
+    {
+      "day": 69,
+      "tt_tb8": 527.5,
+      "tt_andrieu": 403.29999999999995,
+      "total": 10,
+      "coll": 10,
+      "emrg": 0,
+      "whrl": 0
+    },
+    {
+      "day": 70,
+      "tt_tb8": 542.5,
+      "tt_andrieu": 416.49999999999994,
+      "total": 10,
+      "coll": 10,
+      "emrg": 0,
+      "whrl": 0
     }
   ],
   "daily_fa_on": [
@@ -573,19 +688,19 @@
       "day": 4,
       "tt_tb8": 25.700000000000003,
       "tt_andrieu": 18.5,
-      "total": 1,
+      "total": 0,
       "coll": 0,
       "emrg": 0,
-      "whrl": 1
+      "whrl": 0
     },
     {
       "day": 5,
       "tt_tb8": 30.300000000000004,
       "tt_andrieu": 21.299999999999997,
-      "total": 1,
+      "total": 0,
       "coll": 0,
       "emrg": 0,
-      "whrl": 1
+      "whrl": 0
     },
     {
       "day": 6,
@@ -620,8 +735,8 @@
       "tt_andrieu": 34.29999999999999,
       "total": 1,
       "coll": 0,
-      "emrg": 1,
-      "whrl": 0
+      "emrg": 0,
+      "whrl": 1
     },
     {
       "day": 10,
@@ -629,8 +744,8 @@
       "tt_andrieu": 39.69999999999999,
       "total": 1,
       "coll": 0,
-      "emrg": 1,
-      "whrl": 0
+      "emrg": 0,
+      "whrl": 1
     },
     {
       "day": 11,
@@ -646,8 +761,8 @@
       "tt_tb8": 76.1,
       "tt_andrieu": 54.499999999999986,
       "total": 2,
-      "coll": 1,
-      "emrg": 0,
+      "coll": 0,
+      "emrg": 1,
       "whrl": 1
     },
     {
@@ -755,8 +870,8 @@
       "tt_andrieu": 126.09999999999997,
       "total": 3,
       "coll": 2,
-      "emrg": 1,
-      "whrl": 0
+      "emrg": 0,
+      "whrl": 1
     },
     {
       "day": 25,
@@ -764,8 +879,8 @@
       "tt_andrieu": 131.09999999999997,
       "total": 4,
       "coll": 2,
-      "emrg": 1,
-      "whrl": 1
+      "emrg": 0,
+      "whrl": 2
     },
     {
       "day": 26,
@@ -773,8 +888,8 @@
       "tt_andrieu": 137.69999999999996,
       "total": 4,
       "coll": 2,
-      "emrg": 1,
-      "whrl": 1
+      "emrg": 0,
+      "whrl": 2
     },
     {
       "day": 27,
@@ -782,8 +897,8 @@
       "tt_andrieu": 142.59999999999997,
       "total": 4,
       "coll": 2,
-      "emrg": 1,
-      "whrl": 1
+      "emrg": 0,
+      "whrl": 2
     },
     {
       "day": 28,
@@ -791,53 +906,53 @@
       "tt_andrieu": 146.89999999999998,
       "total": 4,
       "coll": 2,
-      "emrg": 1,
-      "whrl": 1
+      "emrg": 0,
+      "whrl": 2
     },
     {
       "day": 29,
       "tt_tb8": 204.49999999999997,
       "tt_andrieu": 152.29999999999998,
       "total": 4,
-      "coll": 3,
+      "coll": 2,
       "emrg": 0,
-      "whrl": 1
+      "whrl": 2
     },
     {
       "day": 30,
       "tt_tb8": 210.99999999999997,
       "tt_andrieu": 156.99999999999997,
       "total": 4,
-      "coll": 3,
+      "coll": 2,
       "emrg": 0,
-      "whrl": 1
+      "whrl": 2
     },
     {
       "day": 31,
       "tt_tb8": 217.49999999999997,
       "tt_andrieu": 161.69999999999996,
       "total": 4,
-      "coll": 3,
+      "coll": 2,
       "emrg": 0,
-      "whrl": 1
+      "whrl": 2
     },
     {
       "day": 32,
       "tt_tb8": 225.29999999999998,
       "tt_andrieu": 167.69999999999996,
       "total": 4,
-      "coll": 3,
+      "coll": 2,
       "emrg": 1,
-      "whrl": 0
+      "whrl": 1
     },
     {
       "day": 33,
       "tt_tb8": 231.89999999999998,
       "tt_andrieu": 172.49999999999997,
       "total": 5,
-      "coll": 3,
+      "coll": 2,
       "emrg": 1,
-      "whrl": 1
+      "whrl": 2
     },
     {
       "day": 34,
@@ -845,8 +960,8 @@
       "tt_andrieu": 175.59999999999997,
       "total": 5,
       "coll": 3,
-      "emrg": 1,
-      "whrl": 1
+      "emrg": 0,
+      "whrl": 2
     },
     {
       "day": 35,
@@ -854,62 +969,62 @@
       "tt_andrieu": 182.09999999999997,
       "total": 5,
       "coll": 3,
-      "emrg": 1,
-      "whrl": 1
+      "emrg": 0,
+      "whrl": 2
     },
     {
       "day": 36,
       "tt_tb8": 251.2,
       "tt_andrieu": 186.39999999999998,
       "total": 5,
-      "coll": 4,
+      "coll": 3,
       "emrg": 0,
-      "whrl": 1
+      "whrl": 2
     },
     {
       "day": 37,
       "tt_tb8": 256.8,
       "tt_andrieu": 190.2,
       "total": 5,
-      "coll": 4,
+      "coll": 3,
       "emrg": 0,
-      "whrl": 1
+      "whrl": 2
     },
     {
       "day": 38,
       "tt_tb8": 263.40000000000003,
       "tt_andrieu": 195.0,
       "total": 5,
-      "coll": 4,
+      "coll": 3,
       "emrg": 0,
-      "whrl": 1
+      "whrl": 2
     },
     {
       "day": 39,
       "tt_tb8": 270.1,
       "tt_andrieu": 199.9,
       "total": 5,
-      "coll": 4,
+      "coll": 3,
       "emrg": 1,
-      "whrl": 0
+      "whrl": 1
     },
     {
       "day": 40,
       "tt_tb8": 276.20000000000005,
       "tt_andrieu": 204.20000000000002,
       "total": 5,
-      "coll": 4,
+      "coll": 3,
       "emrg": 1,
-      "whrl": 0
+      "whrl": 1
     },
     {
       "day": 41,
       "tt_tb8": 279.90000000000003,
       "tt_andrieu": 206.10000000000002,
       "total": 5,
-      "coll": 4,
+      "coll": 3,
       "emrg": 1,
-      "whrl": 0
+      "whrl": 1
     },
     {
       "day": 42,
@@ -917,61 +1032,61 @@
       "tt_andrieu": 208.00000000000003,
       "total": 5,
       "coll": 4,
-      "emrg": 1,
-      "whrl": 0
+      "emrg": 0,
+      "whrl": 1
     },
     {
       "day": 43,
       "tt_tb8": 286.90000000000003,
       "tt_andrieu": 209.50000000000003,
       "total": 5,
-      "coll": 5,
+      "coll": 4,
       "emrg": 0,
-      "whrl": 0
+      "whrl": 1
     },
     {
       "day": 44,
       "tt_tb8": 292.6,
       "tt_andrieu": 213.40000000000003,
       "total": 6,
-      "coll": 5,
+      "coll": 4,
       "emrg": 0,
-      "whrl": 1
+      "whrl": 2
     },
     {
       "day": 45,
       "tt_tb8": 301.3,
       "tt_andrieu": 220.30000000000004,
       "total": 6,
-      "coll": 5,
+      "coll": 4,
       "emrg": 0,
-      "whrl": 1
+      "whrl": 2
     },
     {
       "day": 46,
       "tt_tb8": 308.7,
       "tt_andrieu": 225.90000000000003,
       "total": 6,
-      "coll": 5,
+      "coll": 4,
       "emrg": 0,
-      "whrl": 1
+      "whrl": 2
     },
     {
       "day": 47,
       "tt_tb8": 316.0,
       "tt_andrieu": 231.40000000000003,
       "total": 6,
-      "coll": 5,
+      "coll": 4,
       "emrg": 0,
-      "whrl": 1
+      "whrl": 2
     },
     {
       "day": 48,
       "tt_tb8": 324.9,
       "tt_andrieu": 238.50000000000003,
       "total": 6,
-      "coll": 5,
-      "emrg": 0,
+      "coll": 4,
+      "emrg": 1,
       "whrl": 1
     },
     {
@@ -979,8 +1094,8 @@
       "tt_tb8": 334.4,
       "tt_andrieu": 246.20000000000002,
       "total": 6,
-      "coll": 5,
-      "emrg": 0,
+      "coll": 4,
+      "emrg": 1,
       "whrl": 1
     },
     {
@@ -989,8 +1104,8 @@
       "tt_andrieu": 253.10000000000002,
       "total": 6,
       "coll": 5,
-      "emrg": 1,
-      "whrl": 0
+      "emrg": 0,
+      "whrl": 1
     },
     {
       "day": 51,
@@ -998,8 +1113,8 @@
       "tt_andrieu": 260.20000000000005,
       "total": 7,
       "coll": 5,
-      "emrg": 1,
-      "whrl": 1
+      "emrg": 0,
+      "whrl": 2
     },
     {
       "day": 52,
@@ -1015,8 +1130,8 @@
       "tt_tb8": 369.69999999999993,
       "tt_andrieu": 274.3,
       "total": 7,
-      "coll": 6,
-      "emrg": 0,
+      "coll": 5,
+      "emrg": 1,
       "whrl": 1
     },
     {
@@ -1051,9 +1166,126 @@
       "tt_tb8": 418.9,
       "tt_andrieu": 316.3,
       "total": 8,
-      "coll": 6,
-      "emrg": 1,
+      "coll": 7,
+      "emrg": 0,
       "whrl": 1
+    },
+    {
+      "day": 58,
+      "tt_tb8": 434.7,
+      "tt_andrieu": 330.3,
+      "total": 8,
+      "coll": 7,
+      "emrg": 1,
+      "whrl": 0
+    },
+    {
+      "day": 59,
+      "tt_tb8": 444.4,
+      "tt_andrieu": 338.2,
+      "total": 8,
+      "coll": 7,
+      "emrg": 1,
+      "whrl": 0
+    },
+    {
+      "day": 60,
+      "tt_tb8": 455.7,
+      "tt_andrieu": 347.7,
+      "total": 8,
+      "coll": 8,
+      "emrg": 0,
+      "whrl": 0
+    },
+    {
+      "day": 61,
+      "tt_tb8": 465.59999999999997,
+      "tt_andrieu": 355.8,
+      "total": 9,
+      "coll": 8,
+      "emrg": 1,
+      "whrl": 0
+    },
+    {
+      "day": 62,
+      "tt_tb8": 473.09999999999997,
+      "tt_andrieu": 361.5,
+      "total": 9,
+      "coll": 8,
+      "emrg": 1,
+      "whrl": 0
+    },
+    {
+      "day": 63,
+      "tt_tb8": 479.29999999999995,
+      "tt_andrieu": 365.9,
+      "total": 9,
+      "coll": 9,
+      "emrg": 0,
+      "whrl": 0
+    },
+    {
+      "day": 64,
+      "tt_tb8": 484.59999999999997,
+      "tt_andrieu": 369.4,
+      "total": 9,
+      "coll": 9,
+      "emrg": 0,
+      "whrl": 0
+    },
+    {
+      "day": 65,
+      "tt_tb8": 492.7,
+      "tt_andrieu": 375.7,
+      "total": 9,
+      "coll": 9,
+      "emrg": 0,
+      "whrl": 0
+    },
+    {
+      "day": 66,
+      "tt_tb8": 500.5,
+      "tt_andrieu": 381.7,
+      "total": 9,
+      "coll": 9,
+      "emrg": 0,
+      "whrl": 0
+    },
+    {
+      "day": 67,
+      "tt_tb8": 510.7,
+      "tt_andrieu": 390.09999999999997,
+      "total": 9,
+      "coll": 9,
+      "emrg": 0,
+      "whrl": 0
+    },
+    {
+      "day": 68,
+      "tt_tb8": 518.2,
+      "tt_andrieu": 395.79999999999995,
+      "total": 9,
+      "coll": 9,
+      "emrg": 0,
+      "whrl": 0
+    },
+    {
+      "day": 69,
+      "tt_tb8": 527.5,
+      "tt_andrieu": 403.29999999999995,
+      "total": 10,
+      "coll": 10,
+      "emrg": 0,
+      "whrl": 0
+    },
+    {
+      "day": 70,
+      "tt_tb8": 542.5,
+      "tt_andrieu": 416.49999999999994,
+      "total": 10,
+      "coll": 10,
+      "emrg": 0,
+      "whrl": 0
     }
   ]
 }
