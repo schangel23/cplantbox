@@ -40,6 +40,7 @@ set(CPLANTBOX_SOURCES
 	structural/Plant.cpp            			
     structural/RootSystem.cpp
     structural/MappedOrganism.cpp
+    structural/nurbs.cpp
     structural/sdf.cpp
     structural/SegmentAnalyser.cpp
     structural/tropism.cpp

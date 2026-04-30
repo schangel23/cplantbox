@@ -8,6 +8,7 @@ namespace py = pybind11;
  * A Python binding based on pybind11
  */
 #include "mymath.h"
+#include "nurbs.h"
 #include "sdf.h"
 #include "organparameter.h"
 #include "Organ.h"
@@ -268,6 +269,26 @@ PYBIND11_MODULE(plantbox, m) {
             .def_readwrite("n", &SDF_HalfPlane::n)
             .def_readwrite("p1", &SDF_HalfPlane::p1)
             .def_readwrite("p2", &SDF_HalfPlane::p2);
+    /*
+     * nurbs
+     */
+    py::class_<NurbsPatch, std::shared_ptr<NurbsPatch>>(m, "NurbsPatch")
+            .def(py::init<const std::vector<std::vector<Vector3d>>&, int, int,
+                          const std::vector<double>&, const std::vector<double>&>(),
+                 py::arg("cps"), py::arg("deg_u"), py::arg("deg_v"),
+                 py::arg("knots_u"), py::arg("knots_v"))
+            .def("getPointAt", &NurbsPatch::getPointAt, py::arg("u"), py::arg("v"))
+            .def("getNormalAt", &NurbsPatch::getNormalAt, py::arg("u"), py::arg("v"))
+            .def("getPointsAtGrid", &NurbsPatch::getPointsAtGrid,
+                 py::arg("n_u"), py::arg("n_v"))
+            .def("getNormalsAtGrid", &NurbsPatch::getNormalsAtGrid,
+                 py::arg("n_u"), py::arg("n_v"))
+            .def_property_readonly("degree_u", &NurbsPatch::degreeU)
+            .def_property_readonly("degree_v", &NurbsPatch::degreeV)
+            .def_property_readonly("n_u", &NurbsPatch::numCpsU)
+            .def_property_readonly("n_v", &NurbsPatch::numCpsV)
+            .def_property_readonly("knots_u", &NurbsPatch::knotsU)
+            .def_property_readonly("knots_v", &NurbsPatch::knotsV);
     /*
      * organparameter.h
      */
