@@ -59,8 +59,8 @@ def _synthetic_leaf(organ_id: int = 7, n_skel: int = 15,
 def test_output_shape_and_dtype():
     organ = _synthetic_leaf()
     result = loft_leaf_nurbs(organ)
-    assert len(result) == 9
-    verts, idxs, norms, uvs, oids, sids, qidxs, qoids, cps = result
+    assert len(result) == 10
+    verts, idxs, norms, uvs, oids, sids, qidxs, qoids, cps, is_midrib = result
     assert verts.shape == (30 * 7, 3) and verts.dtype == np.float64
     assert idxs.shape == (2 * 29 * 6, 3) and idxs.dtype == np.int32
     assert norms.shape == (30 * 7, 3)
@@ -157,8 +157,9 @@ def test_per_organ_override():
     n_org1 = int(np.sum(mesh.organ_ids == 1))
     n_org2 = int(np.sum(mesh.organ_ids == 2))
     assert n_org1 > 0 and n_org2 > 0
-    # Organ 1 produces exactly the NURBS triangle count (2 * 29 * 6 = 348).
-    assert n_org1 == 2 * 29 * 6
+    # Organ 1 produces exactly the NURBS triangle count (2 * (n_u-1) * (n_v-1)).
+    # Defaults: nurbs_n_u_eval=30, nurbs_n_v_eval=21 → 2 * 29 * 20 = 1160.
+    assert n_org1 == 2 * 29 * 20
 
 
 # ---------------------------------------------------------------------------
@@ -202,7 +203,7 @@ def test_cps_round_trip_through_patch():
     those vertices, not some stale pre-deformation copy.
     """
     organ = _synthetic_leaf(deformed=True)
-    verts, *_, cps = loft_leaf_nurbs(organ, n_u_eval=30, n_v_eval=7)
+    verts, *_, cps, _is_midrib = loft_leaf_nurbs(organ, n_u_eval=30, n_v_eval=7)
     # Shape & finiteness.
     assert cps.shape == (N_U, N_V, 3)
     assert np.all(np.isfinite(cps))

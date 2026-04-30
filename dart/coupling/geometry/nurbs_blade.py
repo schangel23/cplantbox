@@ -1,4 +1,4 @@
-"""PlantGL ``NurbsPatch``-based leaf lofter.
+"""NURBS-patch leaf lofter.
 
 Drop-in replacement for the quad-ribbon ``_loft_leaf`` in ``g1_to_g3.py``.
 
@@ -15,7 +15,7 @@ Pipeline
    - vertical undulation (normal-offset on the whole cross-section)
    - axial twist (rotate the cross-section around the tangent)
    - asymmetric edge curl (signed normal-offset on the two edge CPs)
-5. Build a PlantGL ``NurbsPatch`` via
+5. Build a ``plantbox.NurbsPatch`` via
    ``canonical_cp_grid.cp_grid_to_plantgl_patch`` and tessellate at
    ``n_u_eval × n_v_eval`` uniform samples.
 6. Emit a 9-tuple: ``(vertices, indices, normals, uvs, organ_ids,

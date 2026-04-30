@@ -46,22 +46,22 @@ Callers converting MaizeField3D data must swap axes before feeding into the
 canonical adapters (see `resample_to_canonical` in
 `maizefield3d_nurbs_reader.py`).
 
-PlantGL LD_LIBRARY_PATH mitigation
-----------------------------------
-PlantGL's C++ shared libraries are installed next to the Python package but
-are not on the system linker's search path. `ensure_plantgl_loaded()` uses
-ctypes to `RTLD_GLOBAL`-preload the four required ``.so`` files before the
-first scenegraph import. Importing this module triggers that preload
-automatically.
+NURBS backend
+-------------
+The patch-construction helpers (``cp_grid_to_plantgl_patch`` and
+``cp_grid_to_plantgl_patch_general``) build a CPlantBox-native
+``plantbox.NurbsPatch`` (see ``CPlantBox/src/structural/nurbs.h``). The
+historical names retain the ``plantgl`` suffix until a planned rename;
+behaviour and API are identical (``getPointAt``, ``getNormalAt``, batch
+``getPointsAtGrid``) — only the underlying engine moved from the
+``openalea.plantgl`` external dependency into CPlantBox itself.
 """
 
 from __future__ import annotations
 
-import ctypes
-import os
-import sys
-from pathlib import Path
 import numpy as np
+
+import plantbox as pb
 
 # ---------------------------------------------------------------------------
 # Canonical dimensions and degrees
@@ -74,70 +74,6 @@ DEG_V: int = 2
 U_COLLAR: float = 0.0
 U_TIP: float = 1.0
 V_MIDRIB: float = 0.5
-
-
-# ---------------------------------------------------------------------------
-# PlantGL loader (ctypes preload; avoids LD_LIBRARY_PATH dependency)
-# ---------------------------------------------------------------------------
-_PLANTGL_LOADED = False
-_PLANTGL_CANDIDATE_LIBDIRS = [
-    # Local (python 3.14)
-    "/home/lukas/PHD/CPlantBox/cpbenv/lib/python3.14/site-packages/lib",
-    # Server (python 3.12) — whichever is present at import time
-    "/media/data/Lukas/CPlantBox/cpbenv/lib/python3.12/site-packages/lib",
-]
-# Dependency order: tool → math → sg → algo. gui is skipped (broken/irrelevant).
-_PLANTGL_LIB_NAMES = ["libpgltool.so", "libpglmath.so", "libpglsg.so", "libpglalgo.so"]
-
-
-def _discover_plantgl_libdir() -> Path | None:
-    """Locate the PlantGL shared-library directory."""
-    env_override = os.environ.get("PLANTGL_LD_LIBRARY_PATH")
-    if env_override:
-        p = Path(env_override)
-        if p.is_dir():
-            return p
-    for cand in _PLANTGL_CANDIDATE_LIBDIRS:
-        p = Path(cand)
-        if p.is_dir() and (p / _PLANTGL_LIB_NAMES[0]).exists():
-            return p
-    # Last resort: inspect sys.prefix for a site-packages/lib directory
-    for site in (Path(sys.prefix), Path(sys.base_prefix)):
-        for sp in site.rglob("site-packages/lib"):
-            if (sp / _PLANTGL_LIB_NAMES[0]).exists():
-                return sp
-    return None
-
-
-def ensure_plantgl_loaded() -> None:
-    """Preload PlantGL shared libraries so `from openalea.plantgl.scenegraph
-    import NurbsPatch` succeeds without setting LD_LIBRARY_PATH externally.
-
-    Idempotent. Safe to call repeatedly.
-    """
-    global _PLANTGL_LOADED
-    if _PLANTGL_LOADED:
-        return
-    libdir = _discover_plantgl_libdir()
-    if libdir is None:
-        # Let the import raise; the caller will see a clearer error.
-        _PLANTGL_LOADED = True
-        return
-    for name in _PLANTGL_LIB_NAMES:
-        lib_path = libdir / name
-        if not lib_path.exists():
-            continue
-        try:
-            ctypes.CDLL(str(lib_path), mode=ctypes.RTLD_GLOBAL)
-        except OSError:
-            # Already loaded or dependency issue — fall back silently.
-            pass
-    _PLANTGL_LOADED = True
-
-
-# Preload on import so downstream `from openalea.plantgl.scenegraph import ...`
-# calls work without per-call setup.
-ensure_plantgl_loaded()
 
 
 # ---------------------------------------------------------------------------
@@ -261,46 +197,30 @@ def enforce_orientation(cps: np.ndarray) -> np.ndarray:
 # PlantGL / geomdl adapters
 # ---------------------------------------------------------------------------
 def cp_grid_to_plantgl_patch(cps: np.ndarray):
-    """Build a PlantGL ``NurbsPatch`` from a canonical CP grid.
+    """Build a ``plantbox.NurbsPatch`` from a canonical CP grid.
 
     Args:
         cps: ``(N_U, N_V, 3)`` control points in world coordinates (cm).
 
     Returns:
-        ``openalea.plantgl.scenegraph.NurbsPatch`` with canonical degrees and
-        clamped-uniform knot vectors. w=1 (no rational weights).
+        ``plantbox.NurbsPatch`` with canonical degrees and clamped-uniform
+        knot vectors. Weights are implicit 1 (non-rational).
     """
     cps = np.asarray(cps, dtype=np.float64)
     if cps.shape != (N_U, N_V, 3):
         raise ValueError(
             f"Expected CP shape ({N_U}, {N_V}, 3); got {cps.shape}"
         )
-
-    ensure_plantgl_loaded()
-    from openalea.plantgl.scenegraph import NurbsPatch, Point4Matrix, RealArray
-
-    # PlantGL indexes Point4Matrix as [u][v]; the constructor expects a
-    # list of lists with outer index = U and inner index = V. That matches
-    # our canonical (N_U, N_V, 3) layout directly.
-    rows = []
-    for i in range(N_U):
-        row = []
-        for j in range(N_V):
-            row.append(
-                (float(cps[i, j, 0]), float(cps[i, j, 1]), float(cps[i, j, 2]), 1.0)
-            )
-        rows.append(row)
-    pmat = Point4Matrix(rows)
-
+    rows = [
+        [pb.Vector3d(float(cps[i, j, 0]),
+                     float(cps[i, j, 1]),
+                     float(cps[i, j, 2]))
+         for j in range(N_V)]
+        for i in range(N_U)
+    ]
     knots_u, knots_v = canonical_knots()
-    patch = NurbsPatch(
-        pmat,
-        DEG_U,
-        DEG_V,
-        RealArray(knots_u.tolist()),
-        RealArray(knots_v.tolist()),
-    )
-    return patch
+    return pb.NurbsPatch(rows, DEG_U, DEG_V,
+                         knots_u.tolist(), knots_v.tolist())
 
 
 def cp_grid_to_plantgl_patch_general(
@@ -308,7 +228,7 @@ def cp_grid_to_plantgl_patch_general(
     deg_u: int = DEG_U,
     deg_v: int = DEG_V,
 ):
-    """Build a PlantGL ``NurbsPatch`` from an arbitrary-shaped CP grid.
+    """Build a ``plantbox.NurbsPatch`` from an arbitrary-shaped CP grid.
 
     Same as :func:`cp_grid_to_plantgl_patch` but without the canonical
     ``(N_U, N_V)`` shape check. Used by the compound sheath+blade path where
@@ -323,21 +243,17 @@ def cp_grid_to_plantgl_patch_general(
             f"Need n_u>deg_u and n_v>deg_v; got n_u={n_u}, n_v={n_v}, "
             f"deg_u={deg_u}, deg_v={deg_v}"
         )
-
-    ensure_plantgl_loaded()
-    from openalea.plantgl.scenegraph import NurbsPatch, Point4Matrix, RealArray
-
     rows = [
-        [(float(cps[i, j, 0]), float(cps[i, j, 1]), float(cps[i, j, 2]), 1.0)
+        [pb.Vector3d(float(cps[i, j, 0]),
+                     float(cps[i, j, 1]),
+                     float(cps[i, j, 2]))
          for j in range(n_v)]
         for i in range(n_u)
     ]
     knots_u = build_uniform_knotvector(n_u, deg_u)
     knots_v = build_uniform_knotvector(n_v, deg_v)
-    return NurbsPatch(
-        Point4Matrix(rows), deg_u, deg_v,
-        RealArray(knots_u.tolist()), RealArray(knots_v.tolist()),
-    )
+    return pb.NurbsPatch(rows, deg_u, deg_v,
+                         knots_u.tolist(), knots_v.tolist())
 
 
 def cp_grid_to_geomdl_surface(cps: np.ndarray):
@@ -383,10 +299,10 @@ def cp_grid_to_geomdl_surface(cps: np.ndarray):
 # Evaluation
 # ---------------------------------------------------------------------------
 def eval_grid(patch, n_u: int = 30, n_v: int = 7) -> tuple[np.ndarray, np.ndarray]:
-    """Evaluate a PlantGL ``NurbsPatch`` at a uniform ``(n_u × n_v)`` grid.
+    """Evaluate a NURBS patch at a uniform ``(n_u × n_v)`` grid.
 
     Args:
-        patch: ``NurbsPatch`` (e.g. built by `cp_grid_to_plantgl_patch`).
+        patch: ``plantbox.NurbsPatch`` (e.g. built by `cp_grid_to_plantgl_patch`).
         n_u: number of u samples (inclusive of endpoints).
         n_v: number of v samples (inclusive of endpoints).
 
@@ -403,14 +319,11 @@ def eval_grid(patch, n_u: int = 30, n_v: int = 7) -> tuple[np.ndarray, np.ndarra
     norms = np.empty((n_u * n_v, 3), dtype=np.float64)
     for i, u in enumerate(us):
         for j, v in enumerate(vs):
-            # PlantGL clamps evaluations inside the parametric domain;
-            # u, v in [0, 1] are safe with clamped knot vectors.
             p = patch.getPointAt(float(u), float(v))
             n = patch.getNormalAt(float(u), float(v))
             k = i * n_v + j
             verts[k] = (p.x, p.y, p.z)
             norms[k] = (n.x, n.y, n.z)
-    # Normalize (PlantGL may return unnormalized normals depending on build)
     lens = np.linalg.norm(norms, axis=1, keepdims=True)
     lens = np.maximum(lens, 1e-12)
     norms /= lens
@@ -419,7 +332,6 @@ def eval_grid(patch, n_u: int = 30, n_v: int = 7) -> tuple[np.ndarray, np.ndarra
 
 __all__ = [
     "N_U", "N_V", "DEG_U", "DEG_V", "U_COLLAR", "U_TIP", "V_MIDRIB",
-    "ensure_plantgl_loaded",
     "build_uniform_knotvector",
     "canonical_knots",
     "enforce_orientation",

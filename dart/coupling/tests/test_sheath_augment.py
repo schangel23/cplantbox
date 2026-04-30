@@ -98,23 +98,21 @@ def test_wrap_arc_spans_requested_degrees():
 
 
 def _build_nurbs_patch(cps: np.ndarray, deg_u: int, deg_v: int):
-    """Build a PlantGL ``NurbsPatch`` for arbitrary CP grid shape (not just
+    """Build a ``plantbox.NurbsPatch`` for arbitrary CP grid shape (not just
     the canonical 11×5). The canonical helper hardcodes ``(N_U, N_V, 3)``."""
-    from dart.coupling.geometry.canonical_cp_grid import (
-        ensure_plantgl_loaded, build_uniform_knotvector,
-    )
-    ensure_plantgl_loaded()
-    from openalea.plantgl.scenegraph import NurbsPatch, Point4Matrix, RealArray
+    import plantbox as pb
+    from dart.coupling.geometry.canonical_cp_grid import build_uniform_knotvector
     n_u, n_v, _ = cps.shape
     rows = [
-        [(float(cps[i, j, 0]), float(cps[i, j, 1]), float(cps[i, j, 2]), 1.0)
+        [pb.Vector3d(float(cps[i, j, 0]),
+                     float(cps[i, j, 1]),
+                     float(cps[i, j, 2]))
          for j in range(n_v)]
         for i in range(n_u)
     ]
     ku = build_uniform_knotvector(n_u, deg_u)
     kv = build_uniform_knotvector(n_v, deg_v)
-    return NurbsPatch(Point4Matrix(rows), deg_u, deg_v,
-                      RealArray(ku.tolist()), RealArray(kv.tolist()))
+    return pb.NurbsPatch(rows, deg_u, deg_v, ku.tolist(), kv.tolist())
 
 
 def test_nurbs_evaluation_produces_finite_mesh():
