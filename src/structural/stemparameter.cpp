@@ -439,6 +439,9 @@ void StemRandomParameter::bindParameters()
     bindParameter("basal_internode_cm", &basal_internode_cm, "Fixed internode spacing for basal_zero_ranks [cm]");
     bindParameter("use_fournier_andrieu_kinetics", &use_fournier_andrieu_kinetics, "Use Fournier-Andrieu per-phytomer internode kinetics [0/1]"); ///< S0.7 (Lock #3 Half A): bind so the FA flag survives writeParameters → readXML round-trip; required for D6's pure-XML invocation contract.
     bindParameter("phase_IV_k", &phase_IV_k, "FA Phase IV exponential decay rate [1/degCd]; lower = slower asymptote, smoother post-cliff stem ramp (FA 2000 default 0.09)");
+    bindParameter("phase_I_duration", &phase_I_duration, "FA Phase I duration [degCd] (FA 2000 default 309)");
+    bindParameter("phase_II_duration", &phase_II_duration, "FA Phase II duration [degCd] (FA 2000 default 25)");
+    bindParameter("phase_IV_duration", &phase_IV_duration, "FA Phase IV operational duration [degCd] (FA 2000 default 30)");
 }
 
 /**
