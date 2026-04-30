@@ -98,14 +98,31 @@ double MultiPhaseStemGrowth::calcLengthPerPhytomer(int n,
     }
 
     // τ_n anchor resolution: prefer plastochron-driven init_tt when set
-    // (S3b.7), else fall back to leaf emergence + half-plastochron lag.
+    // (S3b.7), else fall back to leaf appearance.
+    //
+    // FA 2000 measures Phase I from internode primordium initiation in the
+    // SAM, ~309 °Cd before the same-rank collar appears (Hard Invariant #3:
+    // Phase I→II trigger = same-rank collar emergence). Both anchors below
+    // record TT at *leaf appearance in the plant* (lateral spawn ≈ leaf-tip
+    // visible), not at primordium initiation. We back-date τ=0 to the SAM
+    // event by subtracting phase_I_duration — so τ=phase_I_duration falls
+    // on leaf appearance and Phase II onset fires there. Without this,
+    // Phase II is delayed ~309 °Cd into the canopy and the stem freezes
+    // through V10 before unloading at V11+ (V-sweep diagnostic 2026-04-30).
+    //
+    // Pre-emergence gate: pre-leaf-appearance Phase I happens up in the
+    // SAM and is invisible at the plant level — gate IL=0 until the
+    // leaf appears (same gate the unfixed code carried via leaf_emerge_tt
+    // < 0 fallback; the plastochron-driven primary path lacked it).
     auto state_it = per_organ_state.find(o->getId());
     double init_tt = -1.0;
+    double leaf_appearance_tt = -1.0;
     if (state_it != per_organ_state.end()
         && n >= 1
         && n < static_cast<int>(state_it->second.initiation_andrieu_tt_per_n.size())
         && state_it->second.initiation_andrieu_tt_per_n[n] >= 0.0) {
-        init_tt = state_it->second.initiation_andrieu_tt_per_n[n];
+        leaf_appearance_tt = state_it->second.initiation_andrieu_tt_per_n[n];
+        init_tt = leaf_appearance_tt - srp->phase_I_duration;
     } else {
         // Walk children looking for the n-th leaf (1-based ordinal).
         // const_cast around getNumberOfChildren / getChild because Organ
@@ -127,12 +144,21 @@ double MultiPhaseStemGrowth::calcLengthPerPhytomer(int n,
             }
         }
         if (leaf_emerge_tt < 0.0) return 0.0;  // not yet emerged
-        init_tt = leaf_emerge_tt + HALF_PLASTOCHRON_LAG_DEGCD;
+        leaf_appearance_tt = leaf_emerge_tt;
+        init_tt = leaf_emerge_tt - srp->phase_I_duration;
     }
 
     auto plant_fa = stem->getPlant();
     if (!plant_fa) return 0.0;
     double andrieu_tt = plant_fa->getAccumulatedAndrieuTT();
+
+    // Pre-emergence gate: internode is invisible at the plant level until
+    // its leaf appears (Phase I happens up in the SAM). Without this gate
+    // the back-dated init_tt above would let internodes elongate during
+    // the embryo stage at plant TT=0.
+    if (leaf_appearance_tt >= 0.0 && andrieu_tt < leaf_appearance_tt) {
+        return 0.0;
+    }
 
     // Cessation freeze: per-rank latch dominates over global latch when set
     // (matches Stem::calcLengthPerPhytomer:1167-1173). Per-rank latches live
@@ -278,6 +304,14 @@ static void update_cessation_latches(MultiPhaseStemGrowth::PerOrganFAState& st,
         if (st.cessation_andrieu_tt_per_n[leaf_ordinal] >= 0.0) continue;
 
         // Prefer plastochron-driven init_tt (S3b.7) over leaf emergence.
+        // Note: cessation latch keeps the original leaf-appearance + 9.6
+        // anchor (NOT the back-dated SAM anchor used in
+        // calcLengthPerPhytomer above). Reason: the legacy `tt_cessation`
+        // threshold in XML (1500 °Cd on maize mainstem) was calibrated
+        // against the leaf-appearance frame; back-dating here would fire
+        // cessation 309 °Cd earlier in wall-clock terms and freeze the
+        // stem mid-canopy. Cessation timing is decoupled from elongation
+        // anchor — the latch only needs a stable per-rank reference.
         double init_tt = -1.0;
         if (leaf_ordinal < static_cast<int>(st.initiation_andrieu_tt_per_n.size())
             && st.initiation_andrieu_tt_per_n[leaf_ordinal] >= 0.0) {
