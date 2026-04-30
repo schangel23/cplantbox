@@ -74,5 +74,9 @@ dart/tools/blender_preview/stages/
 dart/tools/blender_preview/stages_nodonor/
 dart/tools/blender_preview/vr_stages/
 
+# Generated demo meshes (run_demo.py outputs; never push)
+dart/tools/plantsim_features_demo/*.obj
+dart/tools/plantsim_features_demo/*.mtl
+
 # Virtual environments
 cpbenv/
