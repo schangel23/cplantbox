@@ -438,6 +438,7 @@ void StemRandomParameter::bindParameters()
     bindParameter("plastochron_andrieu", &plastochron_andrieu, "Plastochron on Andrieu Tb=9.8 axis [degCd/rank] (FA 2000 Déa ~23)");
     bindParameter("basal_internode_cm", &basal_internode_cm, "Fixed internode spacing for basal_zero_ranks [cm]");
     bindParameter("use_fournier_andrieu_kinetics", &use_fournier_andrieu_kinetics, "Use Fournier-Andrieu per-phytomer internode kinetics [0/1]"); ///< S0.7 (Lock #3 Half A): bind so the FA flag survives writeParameters → readXML round-trip; required for D6's pure-XML invocation contract.
+    bindParameter("phase_IV_k", &phase_IV_k, "FA Phase IV exponential decay rate [1/degCd]; lower = slower asymptote, smoother post-cliff stem ramp (FA 2000 default 0.09)");
 }
 
 /**
