@@ -97,38 +97,59 @@ double MultiPhaseStemGrowth::calcLengthPerPhytomer(int n,
         return 0.0;
     }
 
-    // τ_n anchor resolution: prefer plastochron-driven init_tt when set
-    // (S3b.7), else fall back to leaf emergence + half-plastochron lag.
+    // τ_n anchor: FA 2000 / Fournier 2005 coordination — Phase I→II trigger
+    // is same-rank LEAF COLLAR EMERGENCE (Hard Invariant #3, plan §coordination
+    // line 171). Read the same-rank leaf's Andrieu schedule (T0_n + lag_exp_n
+    // + α·D_lin_n) to estimate when its collar appears, then anchor τ=0 at
+    // primordium initiation = collar_TT − phase_I_duration. So τ=phase_I_duration
+    // coincides with collar emergence and Phase II onset fires there.
+    //
+    // The previous formula (init_tt = leaf_emerge_tt + 9.6) treated leaf TIP
+    // emergence as the Phase II trigger, but tip emergence precedes collar
+    // emergence by ~80–100 °Cd in maize. That lag is what kept the stem
+    // frozen V1–V10 then bursting V11–V14 (V-sweep diagnostic 2026-04-30).
+    //
+    // α is the leaf-length fraction that defines collar emergence. FA 2000
+    // collar emergence ≈ ligulation, ≈ leaf at 85 % of mature length.
+    constexpr double COLLAR_FRAC_OF_LMAX = 0.85;
+
     auto state_it = per_organ_state.find(o->getId());
-    double init_tt = -1.0;
-    if (state_it != per_organ_state.end()
-        && n >= 1
-        && n < static_cast<int>(state_it->second.initiation_andrieu_tt_per_n.size())
-        && state_it->second.initiation_andrieu_tt_per_n[n] >= 0.0) {
-        init_tt = state_it->second.initiation_andrieu_tt_per_n[n];
-    } else {
-        // Walk children looking for the n-th leaf (1-based ordinal).
-        // const_cast around getNumberOfChildren / getChild because Organ
-        // declares them non-const (legacy signature); the calls don't
-        // mutate state, only iterate. Const-correctness fix is upstream.
-        auto stem_mut = std::const_pointer_cast<Stem>(stem);
-        int leaf_ordinal = 0;
-        double leaf_emerge_tt = -1.0;
-        const int n_children = stem_mut->getNumberOfChildren();
-        for (int ci = 0; ci < n_children; ++ci) {
-            auto c = stem_mut->getChild(ci);
-            if (c->organType() == Organism::ot_leaf) {
-                ++leaf_ordinal;
-                if (leaf_ordinal == n) {
-                    auto lf = std::static_pointer_cast<Leaf>(c);
-                    leaf_emerge_tt = lf->getEmergenceAndrieuTT();
-                    break;
-                }
+
+    // Walk children to find the n-th leaf (1-based ordinal). Always walk —
+    // we need the LRP regardless of whether plastochron-driven state is set,
+    // because collar_TT is computed from the leaf's Andrieu params, not from
+    // a stored leaf-appearance TT.
+    //
+    // const_cast around getNumberOfChildren / getChild because Organ declares
+    // them non-const (legacy signature); the calls don't mutate state, only
+    // iterate. Const-correctness fix is upstream.
+    auto stem_mut = std::const_pointer_cast<Stem>(stem);
+    int leaf_ordinal = 0;
+    std::shared_ptr<Leaf> leaf_n;
+    const int n_children = stem_mut->getNumberOfChildren();
+    for (int ci = 0; ci < n_children; ++ci) {
+        auto c = stem_mut->getChild(ci);
+        if (c->organType() == Organism::ot_leaf) {
+            ++leaf_ordinal;
+            if (leaf_ordinal == n) {
+                leaf_n = std::static_pointer_cast<Leaf>(c);
+                break;
             }
         }
-        if (leaf_emerge_tt < 0.0) return 0.0;  // not yet emerged
-        init_tt = leaf_emerge_tt + HALF_PLASTOCHRON_LAG_DEGCD;
     }
+    if (!leaf_n) return 0.0;  // n-th leaf not yet spawned
+    auto lrp_n = leaf_n->getLeafRandomParameter();
+    if (!lrp_n) return 0.0;
+
+    // Collar TT from the leaf's own Andrieu schedule:
+    //   collar_TT = T0_n + lag_exp_n + α · D_lin_n
+    // For non-Andrieu leaves (lag_exp_n = D_lin_n = 0, e.g. maize basal
+    // leaves with gf=1) collar_TT collapses to T0_n. Those ranks are also
+    // in basal_zero_ranks, so this branch is bypassed early (line ~96).
+    const double collar_tt = lrp_n->T0_n
+                           + lrp_n->lag_exp_n
+                           + COLLAR_FRAC_OF_LMAX * lrp_n->D_lin_n;
+    const double init_tt = collar_tt - srp->phase_I_duration;
 
     auto plant_fa = stem->getPlant();
     if (!plant_fa) return 0.0;
