@@ -155,7 +155,7 @@
     {
       "n": 5,
       "gated": false,
-      "R1_Cd_inv": 0.055,
+      "R1_Cd_inv": 0.0385,
       "R2_cm_per_Cd_published": 2.5,
       "R2_cm_per_Cd_rescaled": 0.82883721,
       "lag_exp_Cd_published": 90,
@@ -168,7 +168,7 @@
       "R2_rescale_flag": true,
       "map_position": 3,
       "map_leaf_subtype": 5,
-      "note": ""
+      "note": "Nielsen V4 retune: slower early expansion for current XML lmax while preserving C1 bake."
     },
     {
       "n": 6,
@@ -209,7 +209,7 @@
     {
       "n": 8,
       "gated": false,
-      "R1_Cd_inv": 0.044,
+      "R1_Cd_inv": 0.0506,
       "R2_cm_per_Cd_published": 4.5,
       "R2_cm_per_Cd_rescaled": 0.69991935,
       "lag_exp_Cd_published": 120,
@@ -222,12 +222,12 @@
       "R2_rescale_flag": true,
       "map_position": 6,
       "map_leaf_subtype": 8,
-      "note": ""
+      "note": "Nielsen V6 retune: faster younger-leaf maturity gate for current XML lmax while preserving C1 bake."
     },
     {
       "n": 9,
       "gated": false,
-      "R1_Cd_inv": 0.041,
+      "R1_Cd_inv": 0.04715,
       "R2_cm_per_Cd_published": 5.0,
       "R2_cm_per_Cd_rescaled": 0.60856863,
       "lag_exp_Cd_published": 130,
@@ -240,7 +240,7 @@
       "R2_rescale_flag": true,
       "map_position": 7,
       "map_leaf_subtype": 9,
-      "note": ""
+      "note": "Nielsen V6 retune: faster younger-leaf maturity gate for current XML lmax while preserving C1 bake."
     },
     {
       "n": 10,
