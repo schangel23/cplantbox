@@ -15,11 +15,9 @@ Scope (plan §B.5):
     emergence when the schedule is synthesized from plausible leaf-primordium
     initiation and phyllochron timing.
 
-All constants match plan §B.3 literally — when B.3 ports to C++ those numeric
-defaults must be copied verbatim from the shipped `StemRandomParameter` fields
-(`r_I=0.023`, `phase_I_duration=309`, `phase_II_duration=25`,
-`phase_IV_duration=30`, `phase_IV_k=0.09`, `IL_INIT_CM=0.0025`,
-`IL_AT_END_PHASE_II_CM=4.5`, half-plastochron lag 9.6 °Cd).
+All defaults mirror the shipped ``StemRandomParameter`` fields in
+``src/structural/stemparameter.h``. Edit there, not here — these defaults
+exist only so the test oracle can run without instantiating a Plant.
 """
 
 from __future__ import annotations
@@ -27,24 +25,55 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from typing import Dict, Mapping, Sequence
 
-IL_INIT_CM = 0.0025            # Zhu 2014 initial internode length at tau=0
-IL_AT_END_PHASE_II_CM = 4.5    # FA 2000 line 223 (phyt 7-15 mean)
-HALF_PLASTOCHRON_LAG_DEGCD = 9.6  # FA 2000 line 207, Fournier 2005 lines 22-23
-
 
 @dataclass(frozen=True)
 class FAParams:
-    """Mirror of the per-stem FA subset of StemRandomParameter."""
+    """Mirror of the per-stem FA subset of ``StemRandomParameter``.
+
+    Defaults match the C++ ``StemRandomParameter`` field initialisers
+    (Zhu 2014 / FA 2000 / FA 2005 / AHB 2006); see
+    ``src/structural/stemparameter.h``. The C++ side is the canonical
+    home — change values there and rebake; this dataclass picks up the
+    edits automatically when constructed from a baked ``StemRandomParameter``
+    via ``FAParams.from_srp(srp)``.
+    """
 
     r_I: float = 0.023
     phase_I_duration: float = 309.0
     phase_II_duration: float = 25.0
     phase_IV_duration: float = 30.0
     phase_IV_k: float = 0.09
+    il_init_cm: float = 0.0025                  # Zhu 2014: initial IL at tau=0
+    il_at_end_phase_II_cm: float = 4.5          # FA 2000 line 223 (phyt 7-15 mean)
+    half_plastochron_lag_degCd: float = 9.6     # FA 2000 line 207 / Fournier 2005
+    collar_frac_of_dlin: float = 1.0            # FA 2005 / AHB 2006 literal end-of-linear
     basal_zero_ranks: Sequence[int] = field(default_factory=lambda: (1, 2, 3, 4))
     internode_v_n: Mapping[int, float] = field(default_factory=dict)
     internode_D_n: Mapping[int, float] = field(default_factory=dict)
     internode_IL_final: Mapping[int, float] = field(default_factory=dict)
+
+    @classmethod
+    def from_srp(cls, srp) -> "FAParams":
+        """Build an FAParams from a baked ``pb.StemRandomParameter`` instance.
+
+        Keeps the test oracle in lockstep with whatever the runtime XML
+        contains, even when the cultivar XML overrides the C++ defaults.
+        """
+        return cls(
+            r_I=float(srp.r_I),
+            phase_I_duration=float(srp.phase_I_duration),
+            phase_II_duration=float(srp.phase_II_duration),
+            phase_IV_duration=float(srp.phase_IV_duration),
+            phase_IV_k=float(srp.phase_IV_k),
+            il_init_cm=float(srp.il_init_cm),
+            il_at_end_phase_II_cm=float(srp.il_at_end_phase_II_cm),
+            half_plastochron_lag_degCd=float(srp.half_plastochron_lag_degCd),
+            collar_frac_of_dlin=float(srp.collar_frac_of_dlin),
+            basal_zero_ranks=tuple(srp.basal_zero_ranks),
+            internode_v_n={i + 1: v for i, v in enumerate(srp.internode_v_n)},
+            internode_D_n={i + 1: v for i, v in enumerate(srp.internode_D_n)},
+            internode_IL_final={i + 1: v for i, v in enumerate(srp.internode_IL_final)},
+        )
 
 
 def phase_boundaries(n: int, init_tt_n: float, params: FAParams) -> Dict[str, float]:
@@ -76,14 +105,14 @@ def internode_length(tau: float, n: int, params: FAParams) -> float:
         return 0.0
     if tau < params.phase_I_duration:
         import math
-        return IL_INIT_CM * math.exp(params.r_I * tau)
+        return params.il_init_cm * math.exp(params.r_I * tau)
 
     phase_II_end = params.phase_I_duration + params.phase_II_duration
     import math
     if tau < phase_II_end:
-        IL_end_I = IL_INIT_CM * math.exp(params.r_I * params.phase_I_duration)
+        IL_end_I = params.il_init_cm * math.exp(params.r_I * params.phase_I_duration)
         frac = (tau - params.phase_I_duration) / params.phase_II_duration
-        return IL_end_I + frac * (IL_AT_END_PHASE_II_CM - IL_end_I)
+        return IL_end_I + frac * (params.il_at_end_phase_II_cm - IL_end_I)
 
     D_n = params.internode_D_n.get(n)
     v_n = params.internode_v_n.get(n)
@@ -93,9 +122,9 @@ def internode_length(tau: float, n: int, params: FAParams) -> float:
         )
     phase_III_end = phase_II_end + D_n
     if tau < phase_III_end:
-        return IL_AT_END_PHASE_II_CM + v_n * (tau - phase_II_end)
+        return params.il_at_end_phase_II_cm + v_n * (tau - phase_II_end)
 
-    IL_end_III = IL_AT_END_PHASE_II_CM + v_n * D_n
+    IL_end_III = params.il_at_end_phase_II_cm + v_n * D_n
     IL_final = params.internode_IL_final.get(n)
     if IL_final is None:
         raise KeyError(f"internode_IL_final missing for rank {n}; required for Phase IV")
@@ -125,13 +154,18 @@ def sheath_collar_trigger_rank(n: int) -> int:
     return n - 1
 
 
-def init_tt_from_primordium(primordium_tt_n: float) -> float:
-    """Internode-n initiates 9.6 °Cd after leaf-n primordium initiation.
+def init_tt_from_primordium(
+    primordium_tt_n: float,
+    params: FAParams = FAParams(),
+) -> float:
+    """Internode-n initiates ``params.half_plastochron_lag_degCd`` after leaf-n
+    primordium initiation.
 
     Direct from FA 2000 line 207 / Fournier 2005. Scalar (no per-rank variance)
-    per the spec's current choice.
+    per the spec's current choice. ``params`` defaults to FAParams() so existing
+    callers that didn't pass it keep working with the literature defaults.
     """
-    return primordium_tt_n + HALF_PLASTOCHRON_LAG_DEGCD
+    return primordium_tt_n + params.half_plastochron_lag_degCd
 
 
 def synthesize_collar_schedule(
@@ -147,6 +181,6 @@ def synthesize_collar_schedule(
     absorb leaf-appearance drift, never H(TT) residuals.
     """
     return {
-        n: init_tt_from_primordium(p) + params.phase_I_duration
+        n: init_tt_from_primordium(p, params) + params.phase_I_duration
         for n, p in primordium_schedule.items()
     }

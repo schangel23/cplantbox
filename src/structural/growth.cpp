@@ -34,13 +34,11 @@
 
 namespace CPlantBox {
 
-// FA kinetic constants. Mirrors the anonymous namespace in Stem.cpp:1086-1089.
-// Defined locally so the GF impl is self-contained.
-namespace {
-constexpr double IL_INIT_CM = 0.0025;            // Zhu 2014: initial IL at tau=0
-constexpr double IL_AT_END_PHASE_II_CM = 4.5;    // FA 2000 line 223, phyt 7-15
-constexpr double HALF_PLASTOCHRON_LAG_DEGCD = 9.6;  // FA 2000 line 207
-}
+// FA kinetic literature constants now live as XML-bound StemRandomParameter
+// fields (il_init_cm, il_at_end_phase_II_cm, half_plastochron_lag_degCd,
+// collar_frac_of_dlin) so they can be tuned per-cultivar from XML and stay
+// in sync with fa_kinetics.py via the JSON _meta.constants_inherited block.
+// See dart/coupling/data/calibration_inventory.xml for the canonical inventory.
 
 // -------------------------------------------------------------------------
 // Helper: lazy-allocate per_organ_state[organId] sized from the LRP.
@@ -136,7 +134,7 @@ double MultiPhaseStemGrowth::calcLengthPerPhytomer(int n,
     // couples to stem kinetics via the shared anchor node — V-stage timing
     // shifts identically under α=0.85 and α=1.0, so this α change is not
     // the cause of any V-stage drift seen in the rebaselined snapshot.
-    constexpr double COLLAR_FRAC_OF_DLIN = 1.0;
+    const double COLLAR_FRAC_OF_DLIN = srp->collar_frac_of_dlin;
 
     auto state_it = per_organ_state.find(o->getId());
 
@@ -208,29 +206,29 @@ double MultiPhaseStemGrowth::calcLengthPerPhytomer(int n,
 
     // Phase I: pre-collar exponential.
     if (tau < phase_I_duration) {
-        return IL_INIT_CM * std::exp(r_I * tau);
+        return srp->il_init_cm * std::exp(r_I * tau);
     }
     // Phase II: linear ramp from end-of-Phase-I to 4.5 cm uniform boundary.
     const double phase_II_end = phase_I_duration + phase_II_duration;
     if (tau < phase_II_end) {
-        const double IL_end_I = IL_INIT_CM * std::exp(r_I * phase_I_duration);
+        const double IL_end_I = srp->il_init_cm * std::exp(r_I * phase_I_duration);
         const double frac = (tau - phase_I_duration) / phase_II_duration;
-        return IL_end_I + frac * (IL_AT_END_PHASE_II_CM - IL_end_I);
+        return IL_end_I + frac * (srp->il_at_end_phase_II_cm - IL_end_I);
     }
     // Phase III: per-rank linear at v_n for D_n.
     const auto& vvec = sp->internode_v_n;
     const auto& dvec = sp->internode_D_n;
     if (n < 1 || n > static_cast<int>(vvec.size()) || n > static_cast<int>(dvec.size())) {
-        return IL_AT_END_PHASE_II_CM;
+        return srp->il_at_end_phase_II_cm;
     }
     const double v_n = vvec[n - 1];
     const double D_n = dvec[n - 1];
     const double phase_III_end = phase_II_end + D_n;
     if (tau < phase_III_end) {
-        return IL_AT_END_PHASE_II_CM + v_n * (tau - phase_II_end);
+        return srp->il_at_end_phase_II_cm + v_n * (tau - phase_II_end);
     }
     // Phase IV: exponential decay toward IL_final.
-    const double IL_end_III = IL_AT_END_PHASE_II_CM + v_n * D_n;
+    const double IL_end_III = srp->il_at_end_phase_II_cm + v_n * D_n;
     const auto& ilfvec = sp->internode_IL_final;
     if (n < 1 || n > static_cast<int>(ilfvec.size())) {
         return IL_end_III;
@@ -330,7 +328,7 @@ static void update_cessation_latches(MultiPhaseStemGrowth::PerOrganFAState& st,
             auto lf = std::static_pointer_cast<Leaf>(c);
             const double leaf_tt = lf->getEmergenceAndrieuTT();
             if (leaf_tt < 0.0) continue;
-            init_tt = leaf_tt + HALF_PLASTOCHRON_LAG_DEGCD;
+            init_tt = leaf_tt + srp->half_plastochron_lag_degCd;
         }
         const double tau_n = plant_andrieu_tt - init_tt;
         double threshold;

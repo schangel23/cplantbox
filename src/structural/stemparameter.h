@@ -154,6 +154,10 @@ public:
     double phase_II_duration = 25.0;                   ///< Phase II duration [degCd] (FA 2000)
     double phase_IV_duration = 30.0;                   ///< Phase IV duration, operational [degCd] (FA 2000)
     double phase_IV_k = 0.09;                          ///< Phase IV exponential decay rate [1/degCd] (FA 2000)
+    double il_init_cm = 0.0025;                        ///< Initial internode length at tau=0 [cm] (Zhu 2014)
+    double il_at_end_phase_II_cm = 4.5;                ///< IL at end of Phase II [cm] (FA 2000 line 223, phyt 7-15 mean)
+    double half_plastochron_lag_degCd = 9.6;           ///< Lag between leaf-n primordium initiation and internode-n FA init [degCd] (FA 2000 line 207, Fournier 2005 lines 22-23)
+    double collar_frac_of_dlin = 1.0;                  ///< Collar emergence point as fraction of leaf D_lin duration; α in init_tt = T0 + lag_exp + α·D_lin − phase_I (FA 2005 / AHB 2006 literal end-of-linear; revised from 0.85 misattribution 2026-04-30)
     std::vector<int> basal_zero_ranks = {1, 2, 3, 4};  ///< ranks with IL_final=0 (Zhu 2014, He 2021)
     std::vector<double> internode_v_n;                 ///< per-rank Phase III rate [cm/degCd] (FA 2000 Fig 12A); empty→disabled
     std::vector<double> internode_D_n;                 ///< per-rank Phase III duration [degCd] (FA 2000 Fig 12B); empty→disabled

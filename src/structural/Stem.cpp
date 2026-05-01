@@ -280,7 +280,7 @@ void Stem::simulate(double dt, bool verbose)
 								auto lf = std::static_pointer_cast<Leaf>(c);
 								double leaf_tt_outer = lf->getEmergenceAndrieuTT();
 								if (leaf_tt_outer < 0.0) continue;
-								init_tt_outer = leaf_tt_outer + 9.6;   // HALF_PLASTOCHRON_LAG_DEGCD
+								init_tt_outer = leaf_tt_outer + srp_fa_outer.half_plastochron_lag_degCd;
 							}
 							double tau_n_outer = plant_andrieu_tt_outer - init_tt_outer;
 							double threshold_outer;
@@ -1055,12 +1055,11 @@ double Stem::calcAge(double length) const
 }
 
 
-/* Fournier-Andrieu kinetic constants (plan §B.3). */
-namespace {
-constexpr double IL_INIT_CM = 0.0025;            // Zhu 2014: initial IL at tau=0
-constexpr double IL_AT_END_PHASE_II_CM = 4.5;    // FA 2000 line 223, phyt 7-15
-constexpr double HALF_PLASTOCHRON_LAG_DEGCD = 9.6;  // FA 2000 line 207
-}
+/* Fournier-Andrieu kinetic literature constants now live as XML-bound
+ * StemRandomParameter fields (il_init_cm, il_at_end_phase_II_cm,
+ * half_plastochron_lag_degCd, collar_frac_of_dlin). Read via
+ * getStemRandomParameter(). See dart/coupling/data/calibration_inventory.xml
+ * for the canonical inventory. */
 
 /**
  * Fournier-Andrieu per-phytomer internode length (plan §B.3).
@@ -1082,8 +1081,9 @@ constexpr double HALF_PLASTOCHRON_LAG_DEGCD = 9.6;  // FA 2000 line 207
 double Stem::calcLengthPerPhytomer(int n) const
 {
 	const auto& sp = *param();
+	const auto& srp = *getStemRandomParameter();
 	// Basal zero (Zhu 2014 line 127): these ranks are zero-length at all tau.
-	const auto& basal_zero = getStemRandomParameter()->basal_zero_ranks;
+	const auto& basal_zero = srp.basal_zero_ranks;
 	if (std::find(basal_zero.begin(), basal_zero.end(), n) != basal_zero.end()) {
 		return 0.0;
 	}
@@ -1099,7 +1099,7 @@ double Stem::calcLengthPerPhytomer(int n) const
 	// Fallback (FA-on stems built pre-S3b.7, or edge cases where the
 	// plastochron path didn't set the entry): read the leaf's
 	// emergence_andrieu_tt_ as the primordium init time, shifted by
-	// HALF_PLASTOCHRON_LAG_DEGCD per FA 2000 line 207. For maize_calibrated
+	// srp.half_plastochron_lag_degCd per FA 2000 line 207. For maize_calibrated
 	// the per-position leaf subType convention maps subType=n+1 to rank=n
 	// (subType 2 = rank 1, subType 17 = rank 16). We scan children in
 	// order rather than relying on leafphytomerID (which is indexed by
@@ -1129,7 +1129,7 @@ double Stem::calcLengthPerPhytomer(int n) const
 			// Leaf-n not yet emerged (or absent): internode contributes nothing.
 			return 0.0;
 		}
-		init_tt = leaf_emerge_tt + HALF_PLASTOCHRON_LAG_DEGCD;
+		init_tt = leaf_emerge_tt + srp.half_plastochron_lag_degCd;
 	}
 
 	// Effective Andrieu TT: freeze at cessation latch (parallel to the scalar
@@ -1154,7 +1154,6 @@ double Stem::calcLengthPerPhytomer(int n) const
 	double tau = andrieu_tt - init_tt;
 	if (tau < 0.0) return 0.0;
 
-	const auto& srp = *getStemRandomParameter();
 	double r_I = srp.r_I;
 	double phase_I_duration = srp.phase_I_duration;
 	double phase_II_duration = srp.phase_II_duration;
@@ -1163,15 +1162,15 @@ double Stem::calcLengthPerPhytomer(int n) const
 
 	// Phase I: pre-collar exponential.
 	if (tau < phase_I_duration) {
-		return IL_INIT_CM * std::exp(r_I * tau);
+		return srp.il_init_cm * std::exp(r_I * tau);
 	}
 
 	// Phase II: 25 °Cd linear ramp from end-of-Phase-I to 4.5 cm uniform boundary.
 	double phase_II_end = phase_I_duration + phase_II_duration;
 	if (tau < phase_II_end) {
-		double IL_end_I = IL_INIT_CM * std::exp(r_I * phase_I_duration);
+		double IL_end_I = srp.il_init_cm * std::exp(r_I * phase_I_duration);
 		double frac = (tau - phase_I_duration) / phase_II_duration;
-		return IL_end_I + frac * (IL_AT_END_PHASE_II_CM - IL_end_I);
+		return IL_end_I + frac * (srp.il_at_end_phase_II_cm - IL_end_I);
 	}
 
 	// Phase III / IV need per-rank v_n and D_n. Specific param holds the
@@ -1181,18 +1180,18 @@ double Stem::calcLengthPerPhytomer(int n) const
 	const auto& vvec = sp.internode_v_n;
 	const auto& dvec = sp.internode_D_n;
 	if (n < 1 || n > static_cast<int>(vvec.size()) || n > static_cast<int>(dvec.size())) {
-		return IL_AT_END_PHASE_II_CM;       // no Fig 12 data for this rank
+		return srp.il_at_end_phase_II_cm;       // no Fig 12 data for this rank
 	}
 	double v_n = vvec[n - 1];                // 0-indexed vector, 1-indexed rank
 	double D_n = dvec[n - 1];
 	double phase_III_end = phase_II_end + D_n;
 	if (tau < phase_III_end) {
-		return IL_AT_END_PHASE_II_CM + v_n * (tau - phase_II_end);
+		return srp.il_at_end_phase_II_cm + v_n * (tau - phase_II_end);
 	}
 
 	// Phase IV: exponential decay toward IL_final. If per-rank IL_final is
 	// missing, fall through to end-of-Phase-III value (no decay).
-	double IL_end_III = IL_AT_END_PHASE_II_CM + v_n * D_n;
+	double IL_end_III = srp.il_at_end_phase_II_cm + v_n * D_n;
 	const auto& ilfvec = sp.internode_IL_final;
 	if (n < 1 || n > static_cast<int>(ilfvec.size())) {
 		return IL_end_III;

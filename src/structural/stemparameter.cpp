@@ -442,6 +442,10 @@ void StemRandomParameter::bindParameters()
     bindParameter("phase_I_duration", &phase_I_duration, "FA Phase I duration [degCd] (FA 2000 default 309)");
     bindParameter("phase_II_duration", &phase_II_duration, "FA Phase II duration [degCd] (FA 2000 default 25)");
     bindParameter("phase_IV_duration", &phase_IV_duration, "FA Phase IV operational duration [degCd] (FA 2000 default 30)");
+    bindParameter("il_init_cm", &il_init_cm, "FA initial internode length at tau=0 [cm] (Zhu 2014 default 0.0025)");
+    bindParameter("il_at_end_phase_II_cm", &il_at_end_phase_II_cm, "FA IL at end of Phase II [cm] (FA 2000 line 223 default 4.5)");
+    bindParameter("half_plastochron_lag_degCd", &half_plastochron_lag_degCd, "FA lag between leaf primordium and internode init [degCd] (FA 2000 line 207 default 9.6)");
+    bindParameter("collar_frac_of_dlin", &collar_frac_of_dlin, "FA α in collar_TT = T0 + lag_exp + α·D_lin (FA 2005 / AHB 2006 literal default 1.0)");
 }
 
 /**

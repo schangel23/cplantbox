@@ -28,9 +28,6 @@ sys.path.insert(0, str(COUPLING_DIR.parent.parent))
 
 from dart.coupling.fa_kinetics import (  # noqa: E402
     FAParams,
-    HALF_PLASTOCHRON_LAG_DEGCD,
-    IL_AT_END_PHASE_II_CM,
-    IL_INIT_CM,
     init_tt_from_primordium,
     internode_collar_trigger_rank,
     internode_length,
@@ -38,6 +35,13 @@ from dart.coupling.fa_kinetics import (  # noqa: E402
     sheath_collar_trigger_rank,
     synthesize_collar_schedule,
 )
+
+# Module-level constants were removed in Tier 1a; pull defaults off an
+# unmutated FAParams() instead so the test oracle tracks the SRP defaults.
+_DEFAULTS = FAParams()
+HALF_PLASTOCHRON_LAG_DEGCD = _DEFAULTS.half_plastochron_lag_degCd
+IL_AT_END_PHASE_II_CM = _DEFAULTS.il_at_end_phase_II_cm
+IL_INIT_CM = _DEFAULTS.il_init_cm
 
 
 # --- Fixtures --------------------------------------------------------------
