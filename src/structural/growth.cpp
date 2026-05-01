@@ -167,9 +167,20 @@ double MultiPhaseStemGrowth::calcLengthPerPhytomer(int n,
     // For non-Andrieu leaves (lag_exp_n = D_lin_n = 0, e.g. maize basal
     // leaves with gf=1) collar_TT collapses to T0_n. Those ranks are also
     // in basal_zero_ranks, so this branch is bypassed early (line ~96).
-    const double collar_tt = lrp_n->T0_n
-                           + lrp_n->lag_exp_n
-                           + COLLAR_FRAC_OF_DLIN * lrp_n->D_lin_n;
+    //
+    // Empirical-anchor branch: when LeafRandomParameter::t_col_emp_Cd is
+    // set (>=0), use the directly-measured per-rank collar emergence event
+    // instead of inferring it from the leaf-curve fits. This decouples
+    // stem timing from any future C¹ rescaling of the leaf curve to MF3D
+    // lmax, and eliminates the upper-rank stem clipping that arises when
+    // Vidal's lengthened mid-rank lag_exp shifts init_tt past per-rank
+    // cessation. Source: Vidal 2021 SupData3 sheet `1.tem_tcol_des`,
+    // M40+M52 averaged. α (COLLAR_FRAC_OF_DLIN) is only consulted on the
+    // computed-fallback path; with the empirical t_col we read the event
+    // directly.
+    const double collar_tt = (lrp_n->t_col_emp_Cd >= 0.0)
+        ? lrp_n->t_col_emp_Cd
+        : (lrp_n->T0_n + lrp_n->lag_exp_n + COLLAR_FRAC_OF_DLIN * lrp_n->D_lin_n);
     const double init_tt = collar_tt - srp->phase_I_duration;
 
     // Negative-init_tt guard: when collar_TT < phase_I_duration the FA schedule
