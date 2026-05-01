@@ -529,12 +529,12 @@
         <parameter name="use_thermal_elongation" value="0"/>
         <parameter name="use_thermal_emergence" value="1"/>
         <parameter name="BetaDev" value="0.02"/>
-        <parameter name="D_lin_n" value="50"/>
+        <parameter name="D_lin_n" value="99.5"/>
         <parameter name="InitBeta" value="0.026977508524951337"/>
         <parameter name="LER_max" value="1.5"/>
         <parameter name="L_min" value="0.025000000000000001"/>
-        <parameter name="R1_n" value="0.059999999999999998"/>
-        <parameter name="R2_n" value="0.6782999999999999"/>
+        <parameter name="R1_n" value="0.051900000000000002"/>
+        <parameter name="R2_n" value="0.38074285575230571"/>
         <parameter name="RotBeta" value="0"/>
         <parameter name="T0_n" value="57.600000000000001"/>
         <parameter name="T_base" value="8"/>
@@ -548,7 +548,7 @@
         <parameter name="dx" value="0.10000000000000001"/>
         <parameter name="dxMin" value="9.9999999999999995e-07"/>
         <parameter name="la" value="0"/>
-        <parameter name="lag_exp_n" value="101.90207599739783"/>
+        <parameter name="lag_exp_n" value="109.47369733955598"/>
         <parameter name="lb" value="0"/>
         <parameter name="ldelay" value="0"/>
         <parameter name="lmax" value="45.219999999999999"/>
@@ -648,12 +648,12 @@
         <parameter name="use_thermal_elongation" value="0"/>
         <parameter name="use_thermal_emergence" value="1"/>
         <parameter name="BetaDev" value="0.02"/>
-        <parameter name="D_lin_n" value="60"/>
+        <parameter name="D_lin_n" value="139.69999999999999"/>
         <parameter name="InitBeta" value="1.0210514881865349"/>
         <parameter name="LER_max" value="1.5"/>
         <parameter name="L_min" value="0.025000000000000001"/>
-        <parameter name="R1_n" value="0.055"/>
-        <parameter name="R2_n" value="0.63953488372093026"/>
+        <parameter name="R1_n" value="0.049200000000000001"/>
+        <parameter name="R2_n" value="0.31245078265110682"/>
         <parameter name="RotBeta" value="0"/>
         <parameter name="T0_n" value="76.799999999999997"/>
         <parameter name="T_base" value="8"/>
@@ -667,7 +667,7 @@
         <parameter name="dx" value="0.10000000000000001"/>
         <parameter name="dxMin" value="9.9999999999999995e-07"/>
         <parameter name="la" value="0"/>
-        <parameter name="lag_exp_n" value="111.67795339713756"/>
+        <parameter name="lag_exp_n" value="112.5494469892673"/>
         <parameter name="lb" value="0"/>
         <parameter name="ldelay" value="0"/>
         <parameter name="lmax" value="50"/>
@@ -767,12 +767,12 @@
         <parameter name="use_thermal_elongation" value="0"/>
         <parameter name="use_thermal_emergence" value="1"/>
         <parameter name="BetaDev" value="0.02"/>
-        <parameter name="D_lin_n" value="70"/>
+        <parameter name="D_lin_n" value="161.80000000000001"/>
         <parameter name="InitBeta" value="0.018045272908552734"/>
         <parameter name="LER_max" value="1.5"/>
         <parameter name="L_min" value="0.025000000000000001"/>
-        <parameter name="R1_n" value="0.050000000000000003"/>
-        <parameter name="R2_n" value="0.81999999999999995"/>
+        <parameter name="R1_n" value="0.043499999999999997"/>
+        <parameter name="R2_n" value="0.39937548984237958"/>
         <parameter name="RotBeta" value="0"/>
         <parameter name="T0_n" value="96"/>
         <parameter name="T_base" value="8"/>
@@ -786,7 +786,7 @@
         <parameter name="dx" value="0.10000000000000001"/>
         <parameter name="dxMin" value="9.9999999999999995e-07"/>
         <parameter name="la" value="0"/>
-        <parameter name="lag_exp_n" value="129.72321577888175"/>
+        <parameter name="lag_exp_n" value="135.77058776259162"/>
         <parameter name="lb" value="0"/>
         <parameter name="ldelay" value="0"/>
         <parameter name="lmax" value="73.799999999999997"/>
@@ -886,12 +886,12 @@
         <parameter name="use_thermal_elongation" value="0"/>
         <parameter name="use_thermal_emergence" value="1"/>
         <parameter name="BetaDev" value="0.02"/>
-        <parameter name="D_lin_n" value="80"/>
+        <parameter name="D_lin_n" value="147"/>
         <parameter name="InitBeta" value="1.0180442009038313"/>
         <parameter name="LER_max" value="1.5"/>
         <parameter name="L_min" value="0.025000000000000001"/>
-        <parameter name="R1_n" value="0.048000000000000001"/>
-        <parameter name="R2_n" value="0.76760330578512403"/>
+        <parameter name="R1_n" value="0.0287"/>
+        <parameter name="R2_n" value="0.42564141868976224"/>
         <parameter name="RotBeta" value="0"/>
         <parameter name="T0_n" value="115.2"/>
         <parameter name="T_base" value="8"/>
@@ -905,7 +905,7 @@
         <parameter name="dx" value="0.10000000000000001"/>
         <parameter name="dxMin" value="9.9999999999999995e-07"/>
         <parameter name="la" value="0"/>
-        <parameter name="lag_exp_n" value="134.60315654127245"/>
+        <parameter name="lag_exp_n" value="222.4940621251107"/>
         <parameter name="lb" value="0"/>
         <parameter name="ldelay" value="0"/>
         <parameter name="lmax" value="77.400000000000006"/>
@@ -1005,12 +1005,12 @@
         <parameter name="use_thermal_elongation" value="0"/>
         <parameter name="use_thermal_emergence" value="1"/>
         <parameter name="BetaDev" value="0.02"/>
-        <parameter name="D_lin_n" value="90"/>
+        <parameter name="D_lin_n" value="155.90000000000001"/>
         <parameter name="InitBeta" value="0.030359271651919977"/>
         <parameter name="LER_max" value="1.5"/>
         <parameter name="L_min" value="0.025000000000000001"/>
-        <parameter name="R1_n" value="0.043999999999999997"/>
-        <parameter name="R2_n" value="0.69991935483870971"/>
+        <parameter name="R1_n" value="0.032800000000000003"/>
+        <parameter name="R2_n" value="0.42331095669925023"/>
         <parameter name="RotBeta" value="0"/>
         <parameter name="T0_n" value="134.40000000000001"/>
         <parameter name="T_base" value="8"/>
@@ -1024,7 +1024,7 @@
         <parameter name="dx" value="0.10000000000000001"/>
         <parameter name="dxMin" value="9.9999999999999995e-07"/>
         <parameter name="la" value="0"/>
-        <parameter name="lag_exp_n" value="146.71943048247564"/>
+        <parameter name="lag_exp_n" value="190.44384054635896"/>
         <parameter name="lb" value="0"/>
         <parameter name="ldelay" value="0"/>
         <parameter name="lmax" value="78.900000000000006"/>
@@ -1124,12 +1124,12 @@
         <parameter name="use_thermal_elongation" value="0"/>
         <parameter name="use_thermal_emergence" value="1"/>
         <parameter name="BetaDev" value="0.02"/>
-        <parameter name="D_lin_n" value="100"/>
+        <parameter name="D_lin_n" value="135.30000000000001"/>
         <parameter name="InitBeta" value="1.066274495367775"/>
         <parameter name="LER_max" value="1.5"/>
         <parameter name="L_min" value="0.025000000000000001"/>
-        <parameter name="R1_n" value="0.041000000000000002"/>
-        <parameter name="R2_n" value="0.60856862745098039"/>
+        <parameter name="R1_n" value="0.025499999999999998"/>
+        <parameter name="R2_n" value="0.43377189532937083"/>
         <parameter name="RotBeta" value="0"/>
         <parameter name="T0_n" value="153.59999999999999"/>
         <parameter name="T_base" value="8"/>
@@ -1143,7 +1143,7 @@
         <parameter name="dx" value="0.10000000000000001"/>
         <parameter name="dxMin" value="9.9999999999999995e-07"/>
         <parameter name="la" value="0"/>
-        <parameter name="lag_exp_n" value="155.76627011773314"/>
+        <parameter name="lag_exp_n" value="255.79293376792626"/>
         <parameter name="lb" value="0"/>
         <parameter name="ldelay" value="0"/>
         <parameter name="lmax" value="75.700000000000003"/>
@@ -1243,12 +1243,12 @@
         <parameter name="use_thermal_elongation" value="0"/>
         <parameter name="use_thermal_emergence" value="1"/>
         <parameter name="BetaDev" value="0.02"/>
-        <parameter name="D_lin_n" value="110"/>
+        <parameter name="D_lin_n" value="98.799999999999997"/>
         <parameter name="InitBeta" value="0.07116066718858706"/>
         <parameter name="LER_max" value="1.5"/>
         <parameter name="L_min" value="0.025000000000000001"/>
-        <parameter name="R1_n" value="0.041000000000000002"/>
-        <parameter name="R2_n" value="0.52384754990925597"/>
+        <parameter name="R1_n" value="0.020299999999999999"/>
+        <parameter name="R2_n" value="0.47547943200117121"/>
         <parameter name="RotBeta" value="0"/>
         <parameter name="T0_n" value="187.19999999999999"/>
         <parameter name="T_base" value="8"/>
@@ -1262,7 +1262,7 @@
         <parameter name="dx" value="0.10000000000000001"/>
         <parameter name="dxMin" value="9.9999999999999995e-07"/>
         <parameter name="la" value="0"/>
-        <parameter name="lag_exp_n" value="152.1099535149539"/>
+        <parameter name="lag_exp_n" value="337.07301446295821"/>
         <parameter name="lb" value="0"/>
         <parameter name="ldelay" value="0"/>
         <parameter name="lmax" value="70.400000000000006"/>
@@ -1362,12 +1362,12 @@
         <parameter name="use_thermal_elongation" value="0"/>
         <parameter name="use_thermal_emergence" value="1"/>
         <parameter name="BetaDev" value="0.02"/>
-        <parameter name="D_lin_n" value="110"/>
+        <parameter name="D_lin_n" value="90.099999999999994"/>
         <parameter name="InitBeta" value="1.0759143367909354"/>
         <parameter name="LER_max" value="1.5"/>
         <parameter name="L_min" value="0.025000000000000001"/>
-        <parameter name="R1_n" value="0.041000000000000002"/>
-        <parameter name="R2_n" value="0.47324863883847557"/>
+        <parameter name="R1_n" value="0.0247"/>
+        <parameter name="R2_n" value="0.4870359978545763"/>
         <parameter name="RotBeta" value="0"/>
         <parameter name="T0_n" value="220.80000000000001"/>
         <parameter name="T_base" value="8"/>
@@ -1381,7 +1381,7 @@
         <parameter name="dx" value="0.10000000000000001"/>
         <parameter name="dxMin" value="9.9999999999999995e-07"/>
         <parameter name="la" value="0"/>
-        <parameter name="lag_exp_n" value="149.63239759256561"/>
+        <parameter name="lag_exp_n" value="270.05725702010892"/>
         <parameter name="lb" value="0"/>
         <parameter name="ldelay" value="0"/>
         <parameter name="lmax" value="63.600000000000001"/>
@@ -1481,12 +1481,12 @@
         <parameter name="use_thermal_elongation" value="0"/>
         <parameter name="use_thermal_emergence" value="1"/>
         <parameter name="BetaDev" value="0.02"/>
-        <parameter name="D_lin_n" value="95"/>
+        <parameter name="D_lin_n" value="113.2"/>
         <parameter name="InitBeta" value="0.062025977524257883"/>
         <parameter name="LER_max" value="1.5"/>
         <parameter name="L_min" value="0.025000000000000001"/>
-        <parameter name="R1_n" value="0.041000000000000002"/>
-        <parameter name="R2_n" value="0.49585291113381008"/>
+        <parameter name="R1_n" value="0.042299999999999997"/>
+        <parameter name="R2_n" value="0.43261994761901473"/>
         <parameter name="RotBeta" value="0"/>
         <parameter name="T0_n" value="254.40000000000001"/>
         <parameter name="T_base" value="8"/>
@@ -1500,7 +1500,7 @@
         <parameter name="dx" value="0.10000000000000001"/>
         <parameter name="dxMin" value="9.9999999999999995e-07"/>
         <parameter name="la" value="0"/>
-        <parameter name="lag_exp_n" value="150.77040780540054"/>
+        <parameter name="lag_exp_n" value="142.17380594606482"/>
         <parameter name="lb" value="0"/>
         <parameter name="ldelay" value="0"/>
         <parameter name="lmax" value="59.200000000000003"/>
@@ -1600,12 +1600,12 @@
         <parameter name="use_thermal_elongation" value="0"/>
         <parameter name="use_thermal_emergence" value="1"/>
         <parameter name="BetaDev" value="0.02"/>
-        <parameter name="D_lin_n" value="75"/>
+        <parameter name="D_lin_n" value="120.8"/>
         <parameter name="InitBeta" value="1.104218215651644"/>
         <parameter name="LER_max" value="1.5"/>
         <parameter name="L_min" value="0.025000000000000001"/>
-        <parameter name="R1_n" value="0.040000000000000001"/>
-        <parameter name="R2_n" value="0.54100000000000004"/>
+        <parameter name="R1_n" value="0.0516"/>
+        <parameter name="R2_n" value="0.38593279950451248"/>
         <parameter name="RotBeta" value="0"/>
         <parameter name="T0_n" value="288"/>
         <parameter name="T_base" value="8"/>
@@ -1619,7 +1619,7 @@
         <parameter name="dx" value="0.10000000000000001"/>
         <parameter name="dxMin" value="9.9999999999999995e-07"/>
         <parameter name="la" value="0"/>
-        <parameter name="lag_exp_n" value="157.33548197116201"/>
+        <parameter name="lag_exp_n" value="110.48490390285154"/>
         <parameter name="lb" value="0"/>
         <parameter name="ldelay" value="0"/>
         <parameter name="lmax" value="54.100000000000001"/>
@@ -1719,12 +1719,12 @@
         <parameter name="use_thermal_elongation" value="0"/>
         <parameter name="use_thermal_emergence" value="1"/>
         <parameter name="BetaDev" value="0.02"/>
-        <parameter name="D_lin_n" value="55"/>
+        <parameter name="D_lin_n" value="161.90000000000001"/>
         <parameter name="InitBeta" value="0.11477522848001875"/>
         <parameter name="LER_max" value="1.5"/>
         <parameter name="L_min" value="0.025000000000000001"/>
-        <parameter name="R1_n" value="0.037999999999999999"/>
-        <parameter name="R2_n" value="0.62964401294498384"/>
+        <parameter name="R1_n" value="0.072700000000000001"/>
+        <parameter name="R2_n" value="0.29148019636448497"/>
         <parameter name="RotBeta" value="0"/>
         <parameter name="T0_n" value="321.60000000000002"/>
         <parameter name="T_base" value="8"/>
@@ -1738,7 +1738,7 @@
         <parameter name="dx" value="0.10000000000000001"/>
         <parameter name="dxMin" value="9.9999999999999995e-07"/>
         <parameter name="la" value="0"/>
-        <parameter name="lag_exp_n" value="170.95915513815117"/>
+        <parameter name="lag_exp_n" value="69.841955103949587"/>
         <parameter name="lb" value="0"/>
         <parameter name="ldelay" value="0"/>
         <parameter name="lmax" value="51.200000000000003"/>
@@ -1838,12 +1838,12 @@
         <parameter name="use_thermal_elongation" value="0"/>
         <parameter name="use_thermal_emergence" value="1"/>
         <parameter name="BetaDev" value="0.02"/>
-        <parameter name="D_lin_n" value="35"/>
+        <parameter name="D_lin_n" value="166.90000000000001"/>
         <parameter name="InitBeta" value="1.0872150715857012"/>
         <parameter name="LER_max" value="1.5"/>
         <parameter name="L_min" value="0.025000000000000001"/>
-        <parameter name="R1_n" value="0.029999999999999999"/>
-        <parameter name="R2_n" value="0.73317073170731706"/>
+        <parameter name="R1_n" value="0.051299999999999998"/>
+        <parameter name="R2_n" value="0.2687866621627133"/>
         <parameter name="RotBeta" value="0"/>
         <parameter name="T0_n" value="355.19999999999999"/>
         <parameter name="T_base" value="8"/>
@@ -1857,7 +1857,7 @@
         <parameter name="dx" value="0.10000000000000001"/>
         <parameter name="dxMin" value="9.9999999999999995e-07"/>
         <parameter name="la" value="0"/>
-        <parameter name="lag_exp_n" value="229.50202230181463"/>
+        <parameter name="lag_exp_n" value="104.19311285428294"/>
         <parameter name="lb" value="0"/>
         <parameter name="ldelay" value="0"/>
         <parameter name="lmax" value="50.100000000000001"/>
@@ -1957,12 +1957,12 @@
         <parameter name="use_thermal_elongation" value="0"/>
         <parameter name="use_thermal_emergence" value="1"/>
         <parameter name="BetaDev" value="0.02"/>
-        <parameter name="D_lin_n" value="15"/>
+        <parameter name="D_lin_n" value="186.5"/>
         <parameter name="InitBeta" value="0.10252555409809336"/>
         <parameter name="LER_max" value="1.5"/>
         <parameter name="L_min" value="0.025000000000000001"/>
-        <parameter name="R1_n" value="0.025000000000000001"/>
-        <parameter name="R2_n" value="0.90909090909090917"/>
+        <parameter name="R1_n" value="0.062"/>
+        <parameter name="R2_n" value="0.24675634800604948"/>
         <parameter name="RotBeta" value="0"/>
         <parameter name="T0_n" value="388.80000000000001"/>
         <parameter name="T_base" value="8"/>
@@ -1976,7 +1976,7 @@
         <parameter name="dx" value="0.10000000000000001"/>
         <parameter name="dxMin" value="9.9999999999999995e-07"/>
         <parameter name="la" value="0"/>
-        <parameter name="lag_exp_n" value="291.2979491369419"/>
+        <parameter name="lag_exp_n" value="81.776556024512928"/>
         <parameter name="lb" value="0"/>
         <parameter name="ldelay" value="0"/>
         <parameter name="lmax" value="50"/>
