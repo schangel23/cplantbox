@@ -6,7 +6,7 @@
      Sections: <json_files>, <cpp_constants>, <python_constants>, <duplicates>.
      The <duplicates> block flags constants that exist in more than one home;
      a non-empty list is the consolidation backlog. -->
-<calibration_inventory generated="2026-05-01" head_commit="1d9ca200" repo="/home/lukas/PHD/CPlantBox">
+<calibration_inventory generated="2026-05-01" head_commit="87adcf2b" repo="/home/lukas/PHD/CPlantBox">
   <json_files n_files="16">
     <file path="dart/coupling/data/lops_prospect_profiles.json" n_constants="108">
       <provenance key="source">LOPS_maize_P1.xlsx</provenance>

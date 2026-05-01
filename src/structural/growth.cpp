@@ -172,6 +172,14 @@ double MultiPhaseStemGrowth::calcLengthPerPhytomer(int n,
                            + COLLAR_FRAC_OF_DLIN * lrp_n->D_lin_n;
     const double init_tt = collar_tt - srp->phase_I_duration;
 
+    // Negative-init_tt guard: when collar_TT < phase_I_duration the FA schedule
+    // is invalid for this rank — Phase I would have started before andrieu_tt=0.
+    // Without this guard the (tau < 0) check below never fires (tau = andrieu_tt
+    // − negative_init_tt is always positive), so the internode runs Phase I→IV
+    // from day 0 and races ahead of its leaf. Treat as basal-like (zero growth);
+    // the rank is implicitly basal because its FA schedule can't fit pre-collar.
+    if (init_tt < 0.0) return 0.0;
+
     auto plant_fa = stem->getPlant();
     if (!plant_fa) return 0.0;
     double andrieu_tt = plant_fa->getAccumulatedAndrieuTT();

@@ -910,7 +910,22 @@ void Stem::internodalGrowth(double dl,double dt, bool verbose)
 		int nn2 = localId_linking_nodes.at(phytomerId+1); //node at end of phytomere (if nn1 != nn2)
 
 		double length1 = getLength(nn1);
-		double availableForGrowth = p.ln.at(phytomerId) -( getLength(nn2) - length1 ) ;//difference between maximum and current length of the phytomer
+		const double current_in_phytomer = getLength(nn2) - length1;
+		double availableForGrowth = p.ln.at(phytomerId) - current_in_phytomer;//difference between maximum and current length of the phytomer
+		// FA per-rank gate (Tier 1d, 2026-05-01): under FA-on, the rank-n
+		// internode's CURRENT permissible length is the FA Phase I→IV target,
+		// not the IL_final cap p.ln[n]. Without this, internodalGrowth fills
+		// rank n's bucket up to p.ln[n] cm immediately after rank initiation,
+		// bypassing the FA schedule and producing a "tall bare stem above
+		// the basal whorl" before upper leaves emerge (V7 plant ~70 cm tall
+		// instead of ~38 cm). Cap availableForGrowth at FA target − current.
+		// FA-off path keeps the legacy p.ln[n] cap bit-identically.
+		if (fa_on) {
+			const int rank_one_indexed = static_cast<int>(phytomerId) + 1;
+			const double fa_target = calcLengthPerPhytomer(rank_one_indexed);
+			const double fa_room = fa_target - current_in_phytomer;
+			if (fa_room < availableForGrowth) availableForGrowth = fa_room;
+		}
 		// S3b.8 gate: force basal_zero_ranks to contribute no growth capacity.
 		// Combined with toGrow[i]=0 above, dl_ comes out 0 for these phytomers
 		// and the transfer-to-next mechanism forwards their budget onward.
@@ -1086,6 +1101,26 @@ double Stem::calcLengthPerPhytomer(int n) const
 	const auto& basal_zero = srp.basal_zero_ranks;
 	if (std::find(basal_zero.begin(), basal_zero.end(), n) != basal_zero.end()) {
 		return 0.0;
+	}
+
+	// Tier 1d (2026-05-01): under FA-on, delegate to MultiPhaseStemGrowth's
+	// canonical FA target so the segment allocator (internodalGrowth) and
+	// the GF total cap (getLength → fa_sum) agree on per-rank length. The
+	// inline plastochron-anchored fallback below was the S3b.7 design
+	// (init_tt = n × plastochron_andrieu); 3e2c5a2e moved the GF to a
+	// collar-anchored init_tt (init_tt = collar_TT − phase_I_duration) per
+	// FA 2005, but Stem::calcLengthPerPhytomer was not updated and now
+	// returns ~20× smaller values than the GF for mid-canopy ranks. Two
+	// inconsistent FA targets cause leftover dl to spill into the apex
+	// during internodalGrowth (V7 mainstem too tall + apical bulge).
+	// The canonical answer is the GF; route through it for FA stems.
+	if (srp.use_fournier_andrieu_kinetics && srp.f_gf) {
+		auto gf_mp = std::dynamic_pointer_cast<MultiPhaseStemGrowth>(srp.f_gf);
+		if (gf_mp) {
+			auto self = std::const_pointer_cast<Stem>(
+				std::static_pointer_cast<const Stem>(shared_from_this()));
+			return gf_mp->calcLengthPerPhytomer(n, self);
+		}
 	}
 
 	// S3b.7: τ_n anchor resolution. Prefer the plastochron-driven
