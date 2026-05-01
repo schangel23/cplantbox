@@ -339,13 +339,26 @@ static void update_cessation_latches(MultiPhaseStemGrowth::PerOrganFAState& st,
         if (st.cessation_andrieu_tt_per_n[leaf_ordinal] >= 0.0) continue;
 
         // Prefer plastochron-driven init_tt (S3b.7) over leaf emergence.
+        // Empirical-anchor branch: when LeafRandomParameter::t_col_emp_Cd is
+        // set (>=0) on the n-th leaf, derive init_tt = t_col_emp − phase_I
+        // — symmetric with calcLengthPerPhytomer's empirical-anchor read,
+        // so cessation thresholds and length-growth windows stay aligned.
+        // Without this symmetry, internodes start later (empirical t_col)
+        // but cessation latches fire at the unchanged plastochron-derived
+        // plant-TT, shrinking the Phase III window and clipping upper-rank
+        // internodes (V13 day-100 regression observed without this branch).
         double init_tt = -1.0;
-        if (leaf_ordinal < static_cast<int>(st.initiation_andrieu_tt_per_n.size())
+        auto lf_n = std::static_pointer_cast<Leaf>(c);
+        auto lrp_n = lf_n->getLeafRandomParameter();
+        const bool have_t_col_emp = lrp_n && lrp_n->t_col_emp_Cd >= 0.0;
+        if (have_t_col_emp) {
+            init_tt = lrp_n->t_col_emp_Cd - srp->phase_I_duration;
+            if (init_tt < 0.0) continue;  // empirical t_col < phase_I; rank acts basal-like
+        } else if (leaf_ordinal < static_cast<int>(st.initiation_andrieu_tt_per_n.size())
             && st.initiation_andrieu_tt_per_n[leaf_ordinal] >= 0.0) {
             init_tt = st.initiation_andrieu_tt_per_n[leaf_ordinal];
         } else {
-            auto lf = std::static_pointer_cast<Leaf>(c);
-            const double leaf_tt = lf->getEmergenceAndrieuTT();
+            const double leaf_tt = lf_n->getEmergenceAndrieuTT();
             if (leaf_tt < 0.0) continue;
             init_tt = leaf_tt + srp->half_plastochron_lag_degCd;
         }
