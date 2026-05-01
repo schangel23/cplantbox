@@ -205,6 +205,12 @@ def enable_andrieu_on_leaves(
         lrp.D_lin_n = Dlin
         lrp.T0_n = float(row["T0_Cd"])
         lrp.L_min = L_min_default
+        # Empirical collar emergence (Vidal 2021 SupData3, M40+M52 averaged).
+        # Setting t_col_emp_Cd >= 0 makes MultiPhaseStemGrowth::calcLengthPerPhytomer
+        # anchor stem internode init_tt on the empirical event instead of computing
+        # it from the leaf curve fits (decouples stem timing from leaf C¹ rescaling).
+        # Default -1.0 preserves bit-identical fallback for ranks not in SupData3.
+        lrp.t_col_emp_Cd = float(row.get("t_col_emp_Cd", -1.0))
         n_andrieu += 1
         if verbose:
             print(
