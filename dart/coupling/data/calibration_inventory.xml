@@ -6,7 +6,7 @@
      Sections: <json_files>, <cpp_constants>, <python_constants>, <duplicates>.
      The <duplicates> block flags constants that exist in more than one home;
      a non-empty list is the consolidation backlog. -->
-<calibration_inventory generated="2026-05-01" head_commit="cff54016" repo="/home/lukas/PHD/CPlantBox">
+<calibration_inventory generated="2026-05-01" head_commit="1d9ca200" repo="/home/lukas/PHD/CPlantBox">
   <json_files n_files="16">
     <file path="dart/coupling/data/lops_prospect_profiles.json" n_constants="108">
       <provenance key="source">LOPS_maize_P1.xlsx</provenance>
@@ -4718,16 +4718,8 @@
       <constant path="sample_evaluations_for_N_leaves_16.rank_16_rho_1p0" value="1.08"/>
     </file>
   </json_files>
-  <cpp_constants n_constants="7">
-    <constant name="IL_INIT_CM" value="0.0025" file="src/structural/Stem.cpp" line="1060" citation="Zhu 2014: initial IL at tau=0"/>
-    <constant name="IL_AT_END_PHASE_II_CM" value="4.5" file="src/structural/Stem.cpp" line="1061" citation="FA 2000 line 223, phyt 7-15"/>
-    <constant name="HALF_PLASTOCHRON_LAG_DEGCD" value="9.6" file="src/structural/Stem.cpp" line="1062" citation="FA 2000 line 207"/>
-    <constant name="IL_INIT_CM" value="0.0025" file="src/structural/growth.cpp" line="40" citation="Zhu 2014: initial IL at tau=0"/>
-    <constant name="IL_AT_END_PHASE_II_CM" value="4.5" file="src/structural/growth.cpp" line="41" citation="FA 2000 line 223, phyt 7-15"/>
-    <constant name="HALF_PLASTOCHRON_LAG_DEGCD" value="9.6" file="src/structural/growth.cpp" line="42" citation="FA 2000 line 207"/>
-    <constant name="COLLAR_FRAC_OF_DLIN" value="1.0" file="src/structural/growth.cpp" line="139"/>
-  </cpp_constants>
-  <python_constants n_constants="124">
+  <cpp_constants n_constants="0"/>
+  <python_constants n_constants="121">
     <constant name="MOLCO2" value="0.0440098" file="dart/coupling/agroc/unit_conversions.py" line="8"/>
     <constant name="SUC_MOLAR_MASS_KG" value="342.3e-6" file="dart/coupling/agroc/unit_conversions.py" line="11" citation="342.3 g/mol = 342.3e-6 kg/mmol"/>
     <constant name="C_FRACTION_DM" value="0.467" file="dart/coupling/agroc/unit_conversions.py" line="14"/>
@@ -4769,9 +4761,6 @@
     <constant name="_BLADE" value="0" file="dart/coupling/experimental/reverse_engineer_maize.py" line="707"/>
     <constant name="_COLLAR" value="1" file="dart/coupling/experimental/reverse_engineer_maize.py" line="708"/>
     <constant name="_SHEATH" value="2" file="dart/coupling/experimental/reverse_engineer_maize.py" line="709"/>
-    <constant name="IL_INIT_CM" value="0.0025" file="dart/coupling/fa_kinetics.py" line="30" citation="Zhu 2014 initial internode length at tau=0"/>
-    <constant name="IL_AT_END_PHASE_II_CM" value="4.5" file="dart/coupling/fa_kinetics.py" line="31" citation="FA 2000 line 223 (phyt 7-15 mean)"/>
-    <constant name="HALF_PLASTOCHRON_LAG_DEGCD" value="9.6" file="dart/coupling/fa_kinetics.py" line="32" citation="FA 2000 line 207, Fournier 2005 lines 22-23"/>
     <constant name="_DISABLE" value="1.0e9" file="dart/coupling/geometry/_pheno4d_eval_sweeps.py" line="49"/>
     <constant name="DEFAULT_MIN_WIDTH" value="0.1" file="dart/coupling/geometry/cplantbox_adapter.py" line="15" citation="cm, fallback when Width_blade=0"/>
     <constant name="YOUNG_MORPH_FADE_END" value="1.0" file="dart/coupling/geometry/cplantbox_adapter.py" line="818"/>
@@ -4853,7 +4842,7 @@
     <constant name="N_PLANTS" value="9" file="dart/coupling/visualize_multifield_svg.py" line="39"/>
     <constant name="SIMULATION_DAYS" value="55" file="dart/coupling/visualize_multifield_svg.py" line="40"/>
   </python_constants>
-  <duplicates n_duplicates="14">
+  <duplicates n_duplicates="11">
     <duplicate name="FIELD_SEED" value="42" n_homes="2">
       <location file="dart/coupling/photosynthesis/diurnal.py" line="103"/>
       <location file="dart/coupling/visualize_multifield_svg.py" line="38"/>
@@ -4865,21 +4854,6 @@
     <duplicate name="GRID_SPACING_Y" value="0.15" n_homes="2">
       <location file="dart/coupling/dart/parsers.py" line="17" citation="meters (within-row spacing, ~89k pl/ha)"/>
       <location file="dart/coupling/photosynthesis/diurnal.py" line="99" citation="within-row spacing"/>
-    </duplicate>
-    <duplicate name="HALF_PLASTOCHRON_LAG_DEGCD" value="9.6" n_homes="3">
-      <location file="src/structural/Stem.cpp" line="1062" citation="FA 2000 line 207"/>
-      <location file="src/structural/growth.cpp" line="42" citation="FA 2000 line 207"/>
-      <location file="dart/coupling/fa_kinetics.py" line="32" citation="FA 2000 line 207, Fournier 2005 lines 22-23"/>
-    </duplicate>
-    <duplicate name="IL_AT_END_PHASE_II_CM" value="4.5" n_homes="3">
-      <location file="src/structural/Stem.cpp" line="1061" citation="FA 2000 line 223, phyt 7-15"/>
-      <location file="src/structural/growth.cpp" line="41" citation="FA 2000 line 223, phyt 7-15"/>
-      <location file="dart/coupling/fa_kinetics.py" line="31" citation="FA 2000 line 223 (phyt 7-15 mean)"/>
-    </duplicate>
-    <duplicate name="IL_INIT_CM" value="0.0025" n_homes="3">
-      <location file="src/structural/Stem.cpp" line="1060" citation="Zhu 2014: initial IL at tau=0"/>
-      <location file="src/structural/growth.cpp" line="40" citation="Zhu 2014: initial IL at tau=0"/>
-      <location file="dart/coupling/fa_kinetics.py" line="30" citation="Zhu 2014 initial internode length at tau=0"/>
     </duplicate>
     <duplicate name="N_POSITIONS" value="11" n_homes="2">
       <location file="dart/coupling/experimental/fitting/multistage_optimizer.py" line="33"/>
