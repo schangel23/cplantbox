@@ -210,6 +210,7 @@ public:
 	double D_lin_n = 0.0;       ///< Phase L duration on Andrieu axis [°Cd]
 	double T0_n = 0.0;          ///< Phase E origin on Andrieu axis [°Cd] = (rank − 1) · plastochron
 	double L_min = 0.025;       ///< Phase E initial length at T0_n [cm]; Andrieu et al. 2006 p. 1007
+	double t_col_emp_Cd = -1.0; ///< Empirical collar emergence on Andrieu (Tb=9.8) axis [°Cd]; <0 disables (uses computed fallback T0+lag_exp+α·D_lin)
 
 	/* call back functions */
     std::shared_ptr<SoilLookUp> f_se = std::make_shared<SoilLookUp>(); ///< scale elongation function

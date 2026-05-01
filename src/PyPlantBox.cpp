@@ -812,6 +812,7 @@ PYBIND11_MODULE(plantbox, m) {
       .def_readwrite("D_lin_n", &LeafRandomParameter::D_lin_n)
       .def_readwrite("T0_n", &LeafRandomParameter::T0_n)
       .def_readwrite("L_min", &LeafRandomParameter::L_min)
+      .def_readwrite("t_col_emp_Cd", &LeafRandomParameter::t_col_emp_Cd)
       .def_readwrite("surface_cps", &LeafRandomParameter::surface_cps)
       .def_readwrite("surface_n_u", &LeafRandomParameter::surface_n_u)
       .def_readwrite("surface_n_v", &LeafRandomParameter::surface_n_v)
