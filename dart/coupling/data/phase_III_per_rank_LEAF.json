@@ -88,6 +88,24 @@
       ],
       "averaging_rule": "arithmetic mean of M40 and M52 per-rank fits",
       "notes": "Closes the V13 'stem shoots up without leaves' regression by raising R1 for ranks 12-17 from descending AHB-D\u00e9a figure-reads to Vidal-refit U-shape values. Re-baked maize_calibrated.xml in the same commit chain."
+    },
+    "vidal_tcol_provenance": {
+      "source_xlsx": "plaa072_suppl_supplementary_data_3.xlsx",
+      "source_sha256": "bc985166f0af0d2818a4b39ab6e93e82faf9c0e6589bb8292d9889f61c44bda9",
+      "fitter_script": "dart/coupling/scripts/vidal_tcol_extract.py",
+      "applied_at": "2026-05-01",
+      "model_form_ref": "Vidal 2021 \u00a7Methods t_col observation (SupData3 sheet 1.tem_tcol_des)",
+      "cultivars_used": [
+        "M40",
+        "M52"
+      ],
+      "averaging_rule": "arithmetic mean of M40 and M52 per rank",
+      "n_ranks_written": 14,
+      "rank_range_written": [
+        4,
+        18
+      ],
+      "consumer": "MultiPhaseStemGrowth::calcLengthPerPhytomer reads LeafRandomParameter::t_col_emp_Cd to anchor stem Phase II \u2192 directly on observed leaf-collar emergence, decoupled from leaf-curve fits."
     }
   },
   "ranks": [
@@ -161,11 +179,12 @@
       "R2_rescale_flag": false,
       "map_position": 2,
       "map_leaf_subtype": 4,
-      "note": "R1, D_lin from Vidal 2021 SupData1 1.blade_des refit (M40+M52 averaged, 2026-05-01). R1 SE worst-case 83%; D_lin SE worst-case 6%; fit RMSE worst-case 1.69 cm. L1/R2/lag derived via S1.B C\u00b9 continuity on MF3D L_fin=53.2 cm.",
+      "note": "R1, D_lin from Vidal 2021 SupData1 1.blade_des refit (M40+M52 averaged, 2026-05-01). R1 SE worst-case 83%; D_lin SE worst-case 6%; fit RMSE worst-case 1.69 cm. L1/R2/lag derived via S1.B C\u00b9 continuity on MF3D L_fin=53.2 cm. t_col empirical 252.0 Cd (M40+M52 avg, \u00b13.0 Cd from cultivar split).",
       "R1_se_pct": 83.0,
       "D_lin_se_pct": 5.7,
       "fit_rmse_cm_max": 1.69,
-      "source": "vidal_2021_supdata1_refit"
+      "source": "vidal_2021_supdata1_refit",
+      "t_col_emp_Cd": 252.0
     },
     {
       "n": 5,
@@ -183,11 +202,12 @@
       "R2_rescale_flag": false,
       "map_position": 3,
       "map_leaf_subtype": 5,
-      "note": "R1, D_lin from Vidal 2021 SupData1 1.blade_des refit (M40+M52 averaged, 2026-05-01). R1 SE worst-case 107%; D_lin SE worst-case 8%; fit RMSE worst-case 2.55 cm. L1/R2/lag derived via S1.B C\u00b9 continuity on MF3D L_fin=64.8 cm.",
+      "note": "R1, D_lin from Vidal 2021 SupData1 1.blade_des refit (M40+M52 averaged, 2026-05-01). R1 SE worst-case 107%; D_lin SE worst-case 8%; fit RMSE worst-case 2.55 cm. L1/R2/lag derived via S1.B C\u00b9 continuity on MF3D L_fin=64.8 cm. t_col empirical 315.5 Cd (M40+M52 avg, \u00b15.5 Cd from cultivar split).",
       "R1_se_pct": 107.2,
       "D_lin_se_pct": 7.9,
       "fit_rmse_cm_max": 2.55,
-      "source": "vidal_2021_supdata1_refit"
+      "source": "vidal_2021_supdata1_refit",
+      "t_col_emp_Cd": 315.5
     },
     {
       "n": 6,
@@ -205,11 +225,12 @@
       "R2_rescale_flag": false,
       "map_position": 4,
       "map_leaf_subtype": 6,
-      "note": "R1, D_lin from Vidal 2021 SupData1 1.blade_des refit (M40+M52 averaged, 2026-05-01). R1 SE worst-case 133%; D_lin SE worst-case 7%; fit RMSE worst-case 3.92 cm. L1/R2/lag derived via S1.B C\u00b9 continuity on MF3D L_fin=73.8 cm.",
+      "note": "R1, D_lin from Vidal 2021 SupData1 1.blade_des refit (M40+M52 averaged, 2026-05-01). R1 SE worst-case 133%; D_lin SE worst-case 7%; fit RMSE worst-case 3.92 cm. L1/R2/lag derived via S1.B C\u00b9 continuity on MF3D L_fin=73.8 cm. t_col empirical 370.0 Cd (M40+M52 avg, \u00b112.0 Cd from cultivar split).",
       "R1_se_pct": 132.8,
       "D_lin_se_pct": 7.0,
       "fit_rmse_cm_max": 3.92,
-      "source": "vidal_2021_supdata1_refit"
+      "source": "vidal_2021_supdata1_refit",
+      "t_col_emp_Cd": 370.0
     },
     {
       "n": 7,
@@ -227,11 +248,12 @@
       "R2_rescale_flag": false,
       "map_position": 5,
       "map_leaf_subtype": 7,
-      "note": "R1, D_lin from Vidal 2021 SupData1 1.blade_des refit (M40+M52 averaged, 2026-05-01). R1 SE worst-case 60%; D_lin SE worst-case 6%; fit RMSE worst-case 3.56 cm. L1/R2/lag derived via S1.B C\u00b9 continuity on MF3D L_fin=77.4 cm.",
+      "note": "R1, D_lin from Vidal 2021 SupData1 1.blade_des refit (M40+M52 averaged, 2026-05-01). R1 SE worst-case 60%; D_lin SE worst-case 6%; fit RMSE worst-case 3.56 cm. L1/R2/lag derived via S1.B C\u00b9 continuity on MF3D L_fin=77.4 cm. t_col empirical 429.0 Cd (M40+M52 avg, \u00b12.0 Cd from cultivar split).",
       "R1_se_pct": 59.9,
       "D_lin_se_pct": 6.4,
       "fit_rmse_cm_max": 3.56,
-      "source": "vidal_2021_supdata1_refit"
+      "source": "vidal_2021_supdata1_refit",
+      "t_col_emp_Cd": 429.0
     },
     {
       "n": 8,
@@ -249,11 +271,12 @@
       "R2_rescale_flag": false,
       "map_position": 6,
       "map_leaf_subtype": 8,
-      "note": "R1, D_lin from Vidal 2021 SupData1 1.blade_des refit (M40+M52 averaged, 2026-05-01). R1 SE worst-case 91%; D_lin SE worst-case 4%; fit RMSE worst-case 4.24 cm. L1/R2/lag derived via S1.B C\u00b9 continuity on MF3D L_fin=78.9 cm.",
+      "note": "R1, D_lin from Vidal 2021 SupData1 1.blade_des refit (M40+M52 averaged, 2026-05-01). R1 SE worst-case 91%; D_lin SE worst-case 4%; fit RMSE worst-case 4.24 cm. L1/R2/lag derived via S1.B C\u00b9 continuity on MF3D L_fin=78.9 cm. t_col empirical 484.0 Cd (M40+M52 avg, \u00b11.0 Cd from cultivar split).",
       "R1_se_pct": 91.3,
       "D_lin_se_pct": 4.4,
       "fit_rmse_cm_max": 4.24,
-      "source": "vidal_2021_supdata1_refit"
+      "source": "vidal_2021_supdata1_refit",
+      "t_col_emp_Cd": 484.0
     },
     {
       "n": 9,
@@ -271,11 +294,12 @@
       "R2_rescale_flag": false,
       "map_position": 7,
       "map_leaf_subtype": 9,
-      "note": "R1, D_lin from Vidal 2021 SupData1 1.blade_des refit (M40+M52 averaged, 2026-05-01). R1 SE worst-case 64%; D_lin SE worst-case 4%; fit RMSE worst-case 3.32 cm. L1/R2/lag derived via S1.B C\u00b9 continuity on MF3D L_fin=75.7 cm.",
+      "note": "R1, D_lin from Vidal 2021 SupData1 1.blade_des refit (M40+M52 averaged, 2026-05-01). R1 SE worst-case 64%; D_lin SE worst-case 4%; fit RMSE worst-case 3.32 cm. L1/R2/lag derived via S1.B C\u00b9 continuity on MF3D L_fin=75.7 cm. t_col empirical 533.5 Cd (M40+M52 avg, \u00b11.5 Cd from cultivar split).",
       "R1_se_pct": 63.6,
       "D_lin_se_pct": 4.5,
       "fit_rmse_cm_max": 3.32,
-      "source": "vidal_2021_supdata1_refit"
+      "source": "vidal_2021_supdata1_refit",
+      "t_col_emp_Cd": 533.5
     },
     {
       "n": 10,
@@ -293,11 +317,12 @@
       "R2_rescale_flag": false,
       "map_position": 8,
       "map_leaf_subtype": 10,
-      "note": "R1, D_lin from Vidal 2021 SupData1 1.blade_des refit (M40+M52 averaged, 2026-05-01). R1 SE worst-case 19%; D_lin SE worst-case 6%; fit RMSE worst-case 3.63 cm. L1/R2/lag derived via S1.B C\u00b9 continuity on MF3D L_fin=70.4 cm.",
+      "note": "R1, D_lin from Vidal 2021 SupData1 1.blade_des refit (M40+M52 averaged, 2026-05-01). R1 SE worst-case 19%; D_lin SE worst-case 6%; fit RMSE worst-case 3.63 cm. L1/R2/lag derived via S1.B C\u00b9 continuity on MF3D L_fin=70.4 cm. t_col empirical 558.0 Cd (M40+M52 avg, \u00b119.0 Cd from cultivar split).",
       "R1_se_pct": 19.0,
       "D_lin_se_pct": 5.6,
       "fit_rmse_cm_max": 3.63,
-      "source": "vidal_2021_supdata1_refit"
+      "source": "vidal_2021_supdata1_refit",
+      "t_col_emp_Cd": 558.0
     },
     {
       "n": 11,
@@ -315,11 +340,12 @@
       "R2_rescale_flag": false,
       "map_position": 9,
       "map_leaf_subtype": 11,
-      "note": "R1, D_lin from Vidal 2021 SupData1 1.blade_des refit (M40+M52 averaged, 2026-05-01). R1 SE worst-case 17%; D_lin SE worst-case 4%; fit RMSE worst-case 3.83 cm. L1/R2/lag derived via S1.B C\u00b9 continuity on MF3D L_fin=63.6 cm.",
+      "note": "R1, D_lin from Vidal 2021 SupData1 1.blade_des refit (M40+M52 averaged, 2026-05-01). R1 SE worst-case 17%; D_lin SE worst-case 4%; fit RMSE worst-case 3.83 cm. L1/R2/lag derived via S1.B C\u00b9 continuity on MF3D L_fin=63.6 cm. t_col empirical 611.5 Cd (M40+M52 avg, \u00b115.5 Cd from cultivar split).",
       "R1_se_pct": 16.5,
       "D_lin_se_pct": 4.0,
       "fit_rmse_cm_max": 3.83,
-      "source": "vidal_2021_supdata1_refit"
+      "source": "vidal_2021_supdata1_refit",
+      "t_col_emp_Cd": 611.5
     },
     {
       "n": 12,
@@ -337,11 +363,12 @@
       "R2_rescale_flag": false,
       "map_position": 10,
       "map_leaf_subtype": 12,
-      "note": "R1, D_lin from Vidal 2021 SupData1 1.blade_des refit (M40+M52 averaged, 2026-05-01). R1 SE worst-case 43%; D_lin SE worst-case 3%; fit RMSE worst-case 3.21 cm. L1/R2/lag derived via S1.B C\u00b9 continuity on MF3D L_fin=59.2 cm.",
+      "note": "R1, D_lin from Vidal 2021 SupData1 1.blade_des refit (M40+M52 averaged, 2026-05-01). R1 SE worst-case 43%; D_lin SE worst-case 3%; fit RMSE worst-case 3.21 cm. L1/R2/lag derived via S1.B C\u00b9 continuity on MF3D L_fin=59.2 cm. t_col empirical 642.0 Cd (M40+M52 avg, \u00b13.0 Cd from cultivar split).",
       "R1_se_pct": 43.0,
       "D_lin_se_pct": 3.0,
       "fit_rmse_cm_max": 3.21,
-      "source": "vidal_2021_supdata1_refit"
+      "source": "vidal_2021_supdata1_refit",
+      "t_col_emp_Cd": 642.0
     },
     {
       "n": 13,
@@ -359,11 +386,12 @@
       "R2_rescale_flag": false,
       "map_position": 11,
       "map_leaf_subtype": 13,
-      "note": "R1, D_lin from Vidal 2021 SupData1 1.blade_des refit (M40+M52 averaged, 2026-05-01). R1 SE worst-case 81%; D_lin SE worst-case 4%; fit RMSE worst-case 3.19 cm. L1/R2/lag derived via S1.B C\u00b9 continuity on MF3D L_fin=54.1 cm.",
+      "note": "R1, D_lin from Vidal 2021 SupData1 1.blade_des refit (M40+M52 averaged, 2026-05-01). R1 SE worst-case 81%; D_lin SE worst-case 4%; fit RMSE worst-case 3.19 cm. L1/R2/lag derived via S1.B C\u00b9 continuity on MF3D L_fin=54.1 cm. t_col empirical 674.0 Cd (M40+M52 avg, \u00b11.0 Cd from cultivar split).",
       "R1_se_pct": 81.2,
       "D_lin_se_pct": 3.6,
       "fit_rmse_cm_max": 3.19,
-      "source": "vidal_2021_supdata1_refit"
+      "source": "vidal_2021_supdata1_refit",
+      "t_col_emp_Cd": 674.0
     },
     {
       "n": 14,
@@ -381,11 +409,12 @@
       "R2_rescale_flag": false,
       "map_position": 12,
       "map_leaf_subtype": 14,
-      "note": "R1, D_lin from Vidal 2021 SupData1 1.blade_des refit (M40+M52 averaged, 2026-05-01). R1 SE worst-case 199%; D_lin SE worst-case 4%; fit RMSE worst-case 3.51 cm. L1/R2/lag derived via S1.B C\u00b9 continuity on MF3D L_fin=51.2 cm.",
+      "note": "R1, D_lin from Vidal 2021 SupData1 1.blade_des refit (M40+M52 averaged, 2026-05-01). R1 SE worst-case 199%; D_lin SE worst-case 4%; fit RMSE worst-case 3.51 cm. L1/R2/lag derived via S1.B C\u00b9 continuity on MF3D L_fin=51.2 cm. t_col empirical 702.5 Cd (M40+M52 avg, \u00b10.5 Cd from cultivar split).",
       "R1_se_pct": 199.3,
       "D_lin_se_pct": 3.6,
       "fit_rmse_cm_max": 3.51,
-      "source": "vidal_2021_supdata1_refit"
+      "source": "vidal_2021_supdata1_refit",
+      "t_col_emp_Cd": 702.5
     },
     {
       "n": 15,
@@ -403,11 +432,12 @@
       "R2_rescale_flag": false,
       "map_position": 13,
       "map_leaf_subtype": 15,
-      "note": "R1, D_lin from Vidal 2021 SupData1 1.blade_des refit (M40+M52 averaged, 2026-05-01). R1 SE worst-case 58%; D_lin SE worst-case 3%; fit RMSE worst-case 2.83 cm. L1/R2/lag derived via S1.B C\u00b9 continuity on MF3D L_fin=50.1 cm.",
+      "note": "R1, D_lin from Vidal 2021 SupData1 1.blade_des refit (M40+M52 averaged, 2026-05-01). R1 SE worst-case 58%; D_lin SE worst-case 3%; fit RMSE worst-case 2.83 cm. L1/R2/lag derived via S1.B C\u00b9 continuity on MF3D L_fin=50.1 cm. t_col empirical 711.0 Cd (M40+M52 avg, \u00b111.0 Cd from cultivar split).",
       "R1_se_pct": 57.8,
       "D_lin_se_pct": 2.9,
       "fit_rmse_cm_max": 2.83,
-      "source": "vidal_2021_supdata1_refit"
+      "source": "vidal_2021_supdata1_refit",
+      "t_col_emp_Cd": 711.0
     },
     {
       "n": 16,
@@ -425,11 +455,12 @@
       "R2_rescale_flag": false,
       "map_position": 14,
       "map_leaf_subtype": 16,
-      "note": "R1, D_lin from Vidal 2021 SupData1 1.blade_des refit (M40+M52 averaged, 2026-05-01). R1 SE worst-case 232%; D_lin SE worst-case 5%; fit RMSE worst-case 5.36 cm. L1/R2/lag derived via S1.B C\u00b9 continuity on MF3D L_fin=50.0 cm.",
+      "note": "R1, D_lin from Vidal 2021 SupData1 1.blade_des refit (M40+M52 averaged, 2026-05-01). R1 SE worst-case 232%; D_lin SE worst-case 5%; fit RMSE worst-case 5.36 cm. L1/R2/lag derived via S1.B C\u00b9 continuity on MF3D L_fin=50.0 cm. t_col empirical 731.0 Cd (M40+M52 avg, \u00b117.0 Cd from cultivar split).",
       "R1_se_pct": 232.2,
       "D_lin_se_pct": 5.2,
       "fit_rmse_cm_max": 5.36,
-      "source": "vidal_2021_supdata1_refit"
+      "source": "vidal_2021_supdata1_refit",
+      "t_col_emp_Cd": 731.0
     },
     {
       "n": 17,
@@ -447,11 +478,12 @@
       "R2_rescale_flag": false,
       "map_position": 15,
       "map_leaf_subtype": 17,
-      "note": "R1, D_lin from Vidal 2021 SupData1 1.blade_des refit (M40+M52 averaged, 2026-05-01). R1 SE worst-case 226%; D_lin SE worst-case 3%; fit RMSE worst-case 2.55 cm. L1/R2/lag derived via S1.B C\u00b9 continuity on MF3D L_fin=44.4 cm.",
+      "note": "R1, D_lin from Vidal 2021 SupData1 1.blade_des refit (M40+M52 averaged, 2026-05-01). R1 SE worst-case 226%; D_lin SE worst-case 3%; fit RMSE worst-case 2.55 cm. L1/R2/lag derived via S1.B C\u00b9 continuity on MF3D L_fin=44.4 cm. t_col empirical 734.5 Cd (M40+M52 avg, \u00b118.5 Cd from cultivar split).",
       "R1_se_pct": 225.8,
       "D_lin_se_pct": 2.8,
       "fit_rmse_cm_max": 2.55,
-      "source": "vidal_2021_supdata1_refit"
+      "source": "vidal_2021_supdata1_refit",
+      "t_col_emp_Cd": 734.5
     }
   ]
 }
