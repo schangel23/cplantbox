@@ -595,7 +595,10 @@ double MultiPhaseLeafGrowth::getLength(double t, double r, double k,
 
     const double R1 = lrp->R1_n;
     const double R2 = lrp->R2_n;
-    const double T0 = lrp->T0_n;
+    const double T0_raw = lrp->T0_n;
+    const double T1_raw = T0_raw + lrp->lag_exp_n;
+    const double birth_tt = leaf->getEmergenceAndrieuTT();
+    const double T0 = (birth_tt > T1_raw) ? birth_tt : T0_raw;
     const double T1 = T0 + lrp->lag_exp_n;
     const double T2 = T1 + lrp->D_lin_n;
     const double L_min = (lrp->L_min > 0.0) ? lrp->L_min : 0.025;
