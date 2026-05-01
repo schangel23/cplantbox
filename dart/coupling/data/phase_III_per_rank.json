@@ -20,7 +20,7 @@
     "_description": "Phase III linear elongation rate per phytomer rank, in cm·°Cd⁻¹ (absolute, not relative-to-final-length)",
     "expt_1B_primary": {
       "6": 0.13, "7": 0.20, "8": 0.32, "9": 0.38, "10": 0.36, "11": 0.28,
-      "12": 0.25, "13": 0.24, "14": 0.19, "15": 0.16, "16": 0.18, "17": 0.18
+      "12": 0.25, "13": 0.24, "14": 0.19, "15": 0.16, "16": 0.18
     },
     "expt_1A_secondary": {
       "8": 0.33, "9": 0.36, "10": 0.32, "11": 0.27, "12": 0.24, "13": 0.22,
@@ -32,9 +32,9 @@
     "_description": "Phase III duration per phytomer rank, in °Cd. Combined estimate from both experiments (figure shows joint regression with CI bars).",
     "values": {
       "6": 32, "7": 52, "8": 40, "9": 43, "10": 41, "11": 50,
-      "12": 56, "13": 50, "14": 63, "15": 79, "16": 90, "17": 100
+      "12": 56, "13": 50, "14": 63, "15": 79, "16": 90
     },
-    "_phyt_16_17_note": "Ranks 16-17 not shown in Fig 12B; populated 2026-04-23 (S5.3) via linear extrapolation of 13->15 slope (~14.5 °Cd/rank). Removes silent fallback to rank-15 value in smoke/adapter code.",
+    "_phyt_16_note": "Rank 16 not shown in Fig 12B; populated 2026-04-23 (S5.3) via linear extrapolation of 13->15 slope (~14.5 °Cd/rank). Rank 17 dropped post-`ba2188fd` (15-leaf Déa cap; the 16th phytomer carries the tassel, no leaf-bearing rank 17). Stem arrays now end at rank 16 to match the 15 leaves; the 16th phytomer (tassel) FA target falls back via the n>n_ranks guard in MultiPhaseStemGrowth::calcLengthPerPhytomer.",
     "_prose_quote": "FA2000 line 233: 'D_n was almost constant for phytomers 6 to 10 and then increased with leaf insertion'"
   },
   "IL_final_cross_check_cm": {
@@ -42,7 +42,7 @@
     "_extracted_from": "_page_9_Figure_11.jpeg",
     "values": {
       "5": 0.8, "6": 7, "7": 14, "8": 22, "9": 23, "10": 22, "11": 22,
-      "12": 20, "13": 18, "14": 19, "15": 16, "16": 17, "17": 16
+      "12": 20, "13": 18, "14": 19, "15": 16, "16": 17
     },
     "internal_consistency_check": {
       "phyt_9_derived": "0.38 * 43 + 4.5 + 2 = 22.8 cm",

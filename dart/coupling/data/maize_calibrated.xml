@@ -189,9 +189,9 @@
         <parameter name="successor" ruleId="13" numLat="1" where="13" subType="15" organType="4" percentage="1"/>
         <parameter name="successor" ruleId="14" numLat="1" where="14" subType="16" organType="4" percentage="1"/>
         <parameter name="successor" ruleId="15" numLat="1" where="15" subType="20" organType="3" percentage="1"/>
-        <parameter name="v_n" values="0.16, 0.16, 0.16, 0.16, 0.16, 0.13, 0.2, 0.32, 0.38, 0.36, 0.28, 0.25, 0.24, 0.19, 0.16, 0.18"/>
-        <parameter name="D_n" values="79, 79, 79, 79, 79, 32, 52, 40, 43, 41, 50, 56, 50, 63, 79, 90"/>
-        <parameter name="IL_final" values="0, 0, 0, 0, 0.8, 7, 14, 22, 23, 22, 22, 20, 18, 19, 16, 17"/>
+        <parameter name="v_n" values="0.16, 0.16, 0.16, 0.16, 0.16, 0.13, 0.2, 0.32, 0.38, 0.36, 0.28, 0.25, 0.24, 0.19, 0.16"/>
+        <parameter name="D_n" values="79, 79, 79, 79, 79, 32, 52, 40, 43, 41, 50, 56, 50, 63, 79"/>
+        <parameter name="IL_final" values="0, 0, 0, 0, 0.8, 7, 14, 22, 23, 22, 22, 20, 18, 19, 16"/>
         <parameter name="basal_zero_ranks" values="1, 2, 3, 4"/>
     </stem>
     <stem name="tassel_spike" subType="20">

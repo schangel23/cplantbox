@@ -33,7 +33,12 @@ from .cp_swap import apply_donor_cps
 
 
 FA_KINETICS_PATH = Path(__file__).resolve().parent.parent / "data" / "phase_III_per_rank.json"
-FA_DEFAULT_MAX_RANK = 16
+# 15 = number of leaf-bearing phytomers on the maize_calibrated mainstem
+# (subType 2..16, 15 leaves). The 16th phytomer carries the tassel and has
+# no leaf child, so its per-rank cessation latch never fires; trimming the
+# stem arrays to 15 lets the global mainstem cessation_age_ gate fire when
+# all 15 leaves have collared (closes the ba2188fd dangling-rank bug).
+FA_DEFAULT_MAX_RANK = 15
 
 
 def enable_fa_on_mainstem(plant, kinetics_path=None, max_rank=FA_DEFAULT_MAX_RANK,
