@@ -22,6 +22,10 @@
     "birth_gate_separation": "T0_Cd here is the Andrieu phase-E origin on the Tb=9.8 axis (M7), NOT the leaf birth gate. The birth gate is ldelay + ldelayAxis=TT on LeafRandomParameter (post-Lock #8, CPlantBox ff30912e, S0.9). Bake script must satisfy T0_Cd >= ldelay per leaf subType: a leaf cannot enter Andrieu phase E before it is born. Validation gate active once XML is baked with axis=\"TT\" ldelay values.",
     "mf3d_anchor_note": "R2_cm_per_Cd_rescaled is computed under C^1 continuity (Andrieu 2006 eq. C.3) with R1 and D_lin held at published figure-read values, anchoring L_fin on MF3D lmax_n at the corresponding position (per ADR D2). Sanity flag R2_rescale_flag fires when the rescaled-to-published ratio is outside [0.7, 1.3] (per ADR C5). Formula: L1 = L_fin_MF3D / (1 + R1 * D_lin); R2_rescaled = R1 * L1.",
     "extrapolation_note": "Ranks 16-17 linearly extrapolated from rank 13-15 slope per ADR C4: R1 slope = -0.005/rank; R2_published slope = -1.0/rank; lag_exp constant plateau at 150 Cd; D_lin slope = -20/rank with floor 15 Cd to avoid degeneracy. Mirrors stem-side phase_III_per_rank.json extrapolation pattern. lag_exp_Cd_implied diverges sharply (>250 Cd) for these ranks because MF3D lmax at top positions (44-50 cm) is much larger than Dea flag-leaf lengths.",
+    "bilinear_plastochron_note": "T0_Cd schedule per Vidal et al. 2021 (Ann. Bot. Plants, doi:10.1093/aobpla/plaa072 — same Andrieu lab as AHB 2006, M52/M40 cultivars derived from MBS847). Vidal Fig 3 + Table 1 report a bilinear plastochron: leaves 1-9 initiated at 19.7 °Cd Tb=10 (lower regime, heterotrophic→early autotrophic), leaves 10+ initiated at 32.9 °Cd Tb=10 (upper regime, post-juvenile-adult phase change). Padilla & Otegui 2005 (Ann. Bot. 96:997-1007) corroborate this biological breakpoint via a bilinear N_AL/N_IL coordination model fitted on 16 US/Argentina hybrids: breakpoint at ~8 initiated primordia matches the heterotrophic→autotrophic transition (~3 visible leaves), supporting the bilinear pattern as structural rather than Grignon-specific. P&O don't publish rank-resolved plastochron values, so the numerical 19.7/32.9 split is taken from Vidal directly. Tb=10 → Tb=9.8 conversion at T=20°C: factor 10.2/10 = 1.02; Vidal upper-regime 32.9 Cd Tb=10 ≈ 33.6 Cd Tb=9.8. T0_Cd schedule: ranks 1-9 at 19.2 Cd spacing (kept ≈ Vidal lower 20.1), ranks 10-17 stretched at 33.6 Cd spacing anchored at unchanged T0_9 = 153.6 Cd (so T0_10=187.2, T0_11=220.8, ..., T0_17=422.4).",
+    "r1_pattern_provenance_note": "R1_Cd_inv per-rank values are AHB 2006 figure-reads (Déa, French dent), the only published rank-resolved R1 dataset complete enough to use directly. Vidal 2021 Fig 5A reports a U-shaped RER pattern (high at ranks 4-9, minimum at rank 10-11, increasing for ranks 12+) which differs from AHB's monotonic-decreasing assumption — but Vidal's per-rank R1 values aren't tabulated to the precision needed for direct substitution. Treat the U-shape as a structural claim from Vidal and the numerical R1 values as AHB-Déa best-available. If a US-dent rank-resolved R1 dataset becomes available, swap values in here; the U-shape structure stays.",
+    "appearance_clock_note": "Leaf elongation kinetics are anchored to appearance time via the leaf's tt_emergence parameter (Tb=8 axis on the plant), not to AHB's primordium initiation (Tb=9.8 Andrieu axis). The 30 °Cd tip-emergence-to-appearance interval reported by Vidal 2021 (constant across ranks) is therefore implicit in the appearance-clock calibration of tt_emergence and is NOT applied as an explicit offset in MultiPhaseLeafGrowth. Our XML tt_emergence ≈ 48 °Cd Tb=10 equivalent at T=20°C lands within Padilla & Otegui 2005's US-dent phyllochron range (48.6-65.5 Cd Tb=2.9-5.0 across 16 hybrids) and within ~14% of Vidal M52/M40 (42.3 Cd Tb=10), supporting the appearance-clock interpretation.",
+    "ch2_residual_note": "After reverting the rank-5/8/9 R1 retunes (May 2026, see git log) and adopting the Vidal bilinear T0, the Nielsen V4/V6 calendar drift exceeds the ±2 d test gate. This residual is intentionally left visible: it is the signature of unmodulated leaf kinetics under field met (no carbon/water modulation), and is the validation target for Ch2 coupling. Test test_fa_vstage_calendar.py marks V4/V6 xfail with Ch2 TODO.",
     "position_mapping_note": "Per ADR C4: positions 0-1 of our 16-leaf XML are FA-S3b stubs (project_16leaf_extension memory) and represent Dea juvenile ranks 1-3 (all gated). Positions 2-15 map to Dea ranks 4-17 1:1 (rank n -> position n-2). Cultivar offset between MF3D peak (position 6) and Dea peak (rank 11) is absorbed by the per-rank R2 rescaling.",
     "leaf_subtype_mapping_note": "In maize_calibrated.xml, <leaf subType=\"N\"/> uses N = Dea rank directly (subType 2 = stub for rank 2, ..., subType 17 = rank 17). The bake script writes per-rank arrays into the matching subType; gated ranks (1-3) get zero-valued kinetic fields.",
     "cultivar_mismatch_summary": {
@@ -155,7 +159,7 @@
     {
       "n": 5,
       "gated": false,
-      "R1_Cd_inv": 0.0385,
+      "R1_Cd_inv": 0.055,
       "R2_cm_per_Cd_published": 2.5,
       "R2_cm_per_Cd_rescaled": 0.82883721,
       "lag_exp_Cd_published": 90,
@@ -168,7 +172,7 @@
       "R2_rescale_flag": true,
       "map_position": 3,
       "map_leaf_subtype": 5,
-      "note": "Nielsen V4 retune: slower early expansion for current XML lmax while preserving C1 bake."
+      "note": "AHB 2006 figure-read R1 (Déa). Vidal 2021 Fig 5A reports U-shaped RER with high values for ranks 4-9 — the prior Nielsen V4 retune (R1=0.0385) violated the U-shape direction; reverted."
     },
     {
       "n": 6,
@@ -209,7 +213,7 @@
     {
       "n": 8,
       "gated": false,
-      "R1_Cd_inv": 0.0506,
+      "R1_Cd_inv": 0.044,
       "R2_cm_per_Cd_published": 4.5,
       "R2_cm_per_Cd_rescaled": 0.69991935,
       "lag_exp_Cd_published": 120,
@@ -222,12 +226,12 @@
       "R2_rescale_flag": true,
       "map_position": 6,
       "map_leaf_subtype": 8,
-      "note": "Nielsen V6 retune: faster younger-leaf maturity gate for current XML lmax while preserving C1 bake."
+      "note": "AHB 2006 figure-read R1 (Déa). Prior raise to 0.0506 (Nielsen V6 retune) was directionally inconsistent with Vidal 2021 U-shape (rank 8 should be on descending side toward rank 10-11 minimum); reverted."
     },
     {
       "n": 9,
       "gated": false,
-      "R1_Cd_inv": 0.04715,
+      "R1_Cd_inv": 0.041,
       "R2_cm_per_Cd_published": 5.0,
       "R2_cm_per_Cd_rescaled": 0.60856863,
       "lag_exp_Cd_published": 130,
@@ -240,7 +244,7 @@
       "R2_rescale_flag": true,
       "map_position": 7,
       "map_leaf_subtype": 9,
-      "note": "Nielsen V6 retune: faster younger-leaf maturity gate for current XML lmax while preserving C1 bake."
+      "note": "AHB 2006 figure-read R1 (Déa). Prior raise to 0.04715 reverted, same logic as rank 8."
     },
     {
       "n": 10,
@@ -250,7 +254,7 @@
       "R2_cm_per_Cd_rescaled": 0.52384755,
       "lag_exp_Cd_published": 140,
       "D_lin_Cd": 110,
-      "T0_Cd": 172.8,
+      "T0_Cd": 187.2,
       "L1_target_cm": 12.77676951,
       "L_fin_target_cm": 70.4,
       "lag_exp_Cd_implied": 152.11,
@@ -268,7 +272,7 @@
       "R2_cm_per_Cd_rescaled": 0.47324864,
       "lag_exp_Cd_published": 150,
       "D_lin_Cd": 110,
-      "T0_Cd": 192.0,
+      "T0_Cd": 220.8,
       "L1_target_cm": 11.54264973,
       "L_fin_target_cm": 63.6,
       "lag_exp_Cd_implied": 149.63,
@@ -286,7 +290,7 @@
       "R2_cm_per_Cd_rescaled": 0.49585291,
       "lag_exp_Cd_published": 150,
       "D_lin_Cd": 95,
-      "T0_Cd": 211.2,
+      "T0_Cd": 254.4,
       "L1_target_cm": 12.09397344,
       "L_fin_target_cm": 59.2,
       "lag_exp_Cd_implied": 150.77,
@@ -304,7 +308,7 @@
       "R2_cm_per_Cd_rescaled": 0.541,
       "lag_exp_Cd_published": 150,
       "D_lin_Cd": 75,
-      "T0_Cd": 230.4,
+      "T0_Cd": 288.0,
       "L1_target_cm": 13.525,
       "L_fin_target_cm": 54.1,
       "lag_exp_Cd_implied": 157.34,
@@ -322,7 +326,7 @@
       "R2_cm_per_Cd_rescaled": 0.62964401,
       "lag_exp_Cd_published": 150,
       "D_lin_Cd": 55,
-      "T0_Cd": 249.6,
+      "T0_Cd": 321.6,
       "L1_target_cm": 16.56957929,
       "L_fin_target_cm": 51.2,
       "lag_exp_Cd_implied": 170.96,
@@ -340,7 +344,7 @@
       "R2_cm_per_Cd_rescaled": 0.73317073,
       "lag_exp_Cd_published": 150,
       "D_lin_Cd": 35,
-      "T0_Cd": 268.8,
+      "T0_Cd": 355.2,
       "L1_target_cm": 24.43902439,
       "L_fin_target_cm": 50.1,
       "lag_exp_Cd_implied": 229.5,
@@ -358,7 +362,7 @@
       "R2_cm_per_Cd_rescaled": 0.90909091,
       "lag_exp_Cd_published": 150,
       "D_lin_Cd": 15,
-      "T0_Cd": 288.0,
+      "T0_Cd": 388.8,
       "L1_target_cm": 36.36363636,
       "L_fin_target_cm": 50.0,
       "lag_exp_Cd_implied": 291.3,
@@ -376,7 +380,7 @@
       "R2_cm_per_Cd_rescaled": 0.68307692,
       "lag_exp_Cd_published": 150,
       "D_lin_Cd": 15,
-      "T0_Cd": 307.2,
+      "T0_Cd": 422.4,
       "L1_target_cm": 34.15384615,
       "L_fin_target_cm": 44.4,
       "lag_exp_Cd_implied": 360.99,
