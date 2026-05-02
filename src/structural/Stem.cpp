@@ -270,15 +270,31 @@ void Stem::simulate(double dt, bool verbose)
 							// S0.5b.3: read FA-specific per-rank state from GF.
 							if (!fa_gf || leaf_ordinal_outer >= static_cast<int>(fa_gf->cessation_andrieu_tt_per_n.size())) break;
 							if (fa_gf->cessation_andrieu_tt_per_n[leaf_ordinal_outer] >= 0.0) continue;
-							// Prefer plastochron-driven init_tt when available
-							// (S3b.7 path); fall back to leaf emergence axis.
+							// Empirical-anchor branch: when LeafRandomParameter::t_col_emp_Cd
+							// is set (>=0) on the n-th leaf, derive init_tt = t_col_emp − phase_I
+							// — symmetric with growth.cpp::update_cessation_latches and
+							// MultiPhaseStemGrowth::calcLengthPerPhytomer (commit c47f9554 mirror).
+							// Without this symmetry, this Stem.cpp latch fires earlier than the
+							// growth.cpp latch (plastochron init_tt < empirical t_col init_tt),
+							// freezing upper-rank internodes ~50 Cd before they complete Phase III/IV.
 							double init_tt_outer = -1.0;
-							if (leaf_ordinal_outer < static_cast<int>(fa_gf->initiation_andrieu_tt_per_n.size())
+							auto lf_outer = std::static_pointer_cast<Leaf>(c);
+							auto lrp_outer = lf_outer->getLeafRandomParameter();
+							const bool have_t_col_emp_outer = lrp_outer && lrp_outer->t_col_emp_Cd >= 0.0;
+							if (have_t_col_emp_outer) {
+								init_tt_outer = lrp_outer->t_col_emp_Cd - srp_fa_outer.phase_I_duration;
+								// Empirical t_col < phase_I → primordium already past Phase I
+								// at andrieu_tt=0; clamp init_tt to 0 so the cessation latch
+								// can still fire (else this rank's latch never sets, blocking
+								// the all-latched global gate). Biological interpretation:
+								// the rank skips Phase I entirely.
+								if (init_tt_outer < 0.0) init_tt_outer = 0.0;
+							} else if (leaf_ordinal_outer < static_cast<int>(fa_gf->initiation_andrieu_tt_per_n.size())
 							    && fa_gf->initiation_andrieu_tt_per_n[leaf_ordinal_outer] >= 0.0) {
+								// Fallback: plastochron-driven init_tt (S3b.7 path).
 								init_tt_outer = fa_gf->initiation_andrieu_tt_per_n[leaf_ordinal_outer];
 							} else {
-								auto lf = std::static_pointer_cast<Leaf>(c);
-								double leaf_tt_outer = lf->getEmergenceAndrieuTT();
+								double leaf_tt_outer = lf_outer->getEmergenceAndrieuTT();
 								if (leaf_tt_outer < 0.0) continue;
 								init_tt_outer = leaf_tt_outer + srp_fa_outer.half_plastochron_lag_degCd;
 							}

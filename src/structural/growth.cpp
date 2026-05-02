@@ -353,7 +353,11 @@ static void update_cessation_latches(MultiPhaseStemGrowth::PerOrganFAState& st,
         const bool have_t_col_emp = lrp_n && lrp_n->t_col_emp_Cd >= 0.0;
         if (have_t_col_emp) {
             init_tt = lrp_n->t_col_emp_Cd - srp->phase_I_duration;
-            if (init_tt < 0.0) continue;  // empirical t_col < phase_I; rank acts basal-like
+            // Empirical t_col < phase_I → primordium already past Phase I at
+            // andrieu_tt=0; clamp init_tt to 0 so the cessation latch can still
+            // fire (else this rank's latch never sets, blocking the all-latched
+            // global gate). Biological interpretation: rank skips Phase I.
+            if (init_tt < 0.0) init_tt = 0.0;
         } else if (leaf_ordinal < static_cast<int>(st.initiation_andrieu_tt_per_n.size())
             && st.initiation_andrieu_tt_per_n[leaf_ordinal] >= 0.0) {
             init_tt = st.initiation_andrieu_tt_per_n[leaf_ordinal];

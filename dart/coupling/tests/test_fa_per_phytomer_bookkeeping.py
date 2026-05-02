@@ -274,18 +274,38 @@ def test_t6_synthetic_per_rank_cessation():
         f"T6 FAIL: no ranks latched under tt_cessation=800 after 130d; "
         f"cess_tt[1..16] = {cess_tt[1:N_RANKS+1]}"
     )
-    # Ordering: for ranks m<n both latched, cess_tt[m] must be <= cess_tt[n]
-    # (early ranks hit tau_n=800 earlier at lower plant TT). The LATCH value
-    # is plant_andrieu_tt at the moment tau_n crossed tt_cessation; since
-    # earlier ranks have smaller init_tt_n, they reach tau_n=tt_cessation at
-    # smaller plant_andrieu_tt.
-    sorted_ranks = sorted(latched_ranks)
-    for i in range(len(sorted_ranks) - 1):
-        m, n = sorted_ranks[i], sorted_ranks[i + 1]
-        assert cess_tt[m] <= cess_tt[n] + 1e-6, (
-            f"T6 FAIL: per-rank cessation ordering violated at ({m},{n}): "
-            f"cess_tt[{m}]={cess_tt[m]:.3f} > cess_tt[{n}]={cess_tt[n]:.3f}"
-        )
+    # Ordering: cess_tt[m] <= cess_tt[n] for m<n WITHIN each init_tt source.
+    # Two sources coexist after the Vidal empirical-t_col anchor (commit chain
+    # 132d036b..f45b2a65 + Stem.cpp duplicate-latch mirror): leaves with
+    # `lrp.t_col_emp_Cd >= 0` use init_tt = t_col_emp − phase_I (clamped to 0
+    # if negative); other leaves use plastochron init_tt. Both sources are
+    # monotonic ascending within themselves, but the boundary may invert
+    # (rank 3 with empirical-clamped init_tt=0 can latch before gated rank 1-2
+    # whose plastochron init_tt is positive). The biological invariant is
+    # preserved within each source — the strict cross-source assertion was
+    # an over-fit to the pre-empirical-anchor monotonic plastochron regime.
+    leaf_lrps = {
+        int(lrp.subType): lrp
+        for lrp in plant.getOrganRandomParameter(pb.OrganTypes.leaf)
+        if lrp is not None and int(lrp.subType) > 0
+    }
+    # Map leaf_ordinal n (1..15 in our XML) to leaf subType N=n+1, then look
+    # up t_col_emp_Cd. Keep ordering check per-source.
+    empirical_ranks = sorted(n for n in latched_ranks
+                             if (n + 1) in leaf_lrps
+                             and leaf_lrps[n + 1].t_col_emp_Cd >= 0.0)
+    plastochron_ranks = sorted(n for n in latched_ranks
+                               if (n + 1) in leaf_lrps
+                               and leaf_lrps[n + 1].t_col_emp_Cd < 0.0)
+    for source_name, ranks in [("empirical", empirical_ranks),
+                                ("plastochron", plastochron_ranks)]:
+        for i in range(len(ranks) - 1):
+            m, n = ranks[i], ranks[i + 1]
+            assert cess_tt[m] <= cess_tt[n] + 1e-6, (
+                f"T6 FAIL: per-rank cessation ordering violated within "
+                f"{source_name} source at ({m},{n}): "
+                f"cess_tt[{m}]={cess_tt[m]:.3f} > cess_tt[{n}]={cess_tt[n]:.3f}"
+            )
     # Stem must still have produced some growth (not stuck at 0-length).
     assert stem.getLength(True) > 50.0, (
         f"T6 FAIL: synthetic cessation froze all growth (L={stem.getLength(True):.1f} cm); "
