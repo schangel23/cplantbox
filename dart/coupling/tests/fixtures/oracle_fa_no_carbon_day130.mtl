@@ -1,0 +1,30 @@
+# G1-to-G3 default materials
+newmtl blade
+Ka 0.05 0.10 0.05
+Kd 0.30 0.65 0.20
+Ks 0.10 0.10 0.10
+Ns 12
+
+newmtl blade_senescent
+Ka 0.10 0.07 0.02
+Kd 0.55 0.40 0.10
+Ks 0.05 0.05 0.05
+Ns 8
+
+newmtl midrib
+Ka 0.10 0.10 0.05
+Kd 0.85 0.90 0.45
+Ks 0.20 0.20 0.10
+Ns 24
+
+newmtl stem
+Ka 0.08 0.10 0.03
+Kd 0.45 0.60 0.20
+Ks 0.05 0.05 0.05
+Ns 8
+
+newmtl tassel
+Ka 0.10 0.07 0.02
+Kd 0.70 0.55 0.20
+Ks 0.10 0.10 0.05
+Ns 16
