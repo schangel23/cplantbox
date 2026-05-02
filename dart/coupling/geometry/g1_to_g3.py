@@ -1386,6 +1386,56 @@ def _loft_leaf(organ):
             quad_indices, quad_organ_ids, is_midrib_tri)
 
 
+def _stem_internode_width_scale_at_z(zi, node_heights_z,
+                                     node_bulge=0.12, node_band_cm=1.0,
+                                     groove_depth=0.04, groove_width_cm=0.8,
+                                     internode_barrel=0.02):
+    """Return the rendered stem width scale from internode modulation at z."""
+    if not node_heights_z or len(node_heights_z) < 2:
+        return 1.0
+
+    nodes_z = sorted(node_heights_z)
+
+    # Node bulge: raised-cosine bump centered at each leaf attachment
+    # height. Each bump is smooth and zero outside ±node_band_cm.
+    node_bump = 0.0
+    for nz in nodes_z:
+        dist = abs(float(zi) - nz)
+        if dist < node_band_cm:
+            bump = 0.5 * (1.0 + np.cos(np.pi * dist / node_band_cm))
+            node_bump = max(node_bump, bump)
+
+    # Groove: shallow constriction just above and below each node.
+    groove = 0.0
+    for nz in nodes_z:
+        dist = abs(float(zi) - nz)
+        groove_center = node_band_cm + groove_width_cm * 0.5
+        groove_dist = abs(dist - groove_center)
+        if groove_dist < groove_width_cm * 0.5:
+            g = 0.5 * (
+                1.0 + np.cos(np.pi * groove_dist / (groove_width_cm * 0.5))
+            )
+            groove = max(groove, g)
+
+    # Internode barrel: very subtle outward bow at internode midpoints.
+    barrel = 0.0
+    if node_bump < 0.05 and groove < 0.05:
+        seg_idx = np.searchsorted(nodes_z, float(zi), side='right') - 1
+        if 0 <= seg_idx < len(nodes_z) - 1:
+            z_lo = nodes_z[seg_idx]
+            z_hi = nodes_z[seg_idx + 1]
+            dz = z_hi - z_lo
+            if dz > 3.0:
+                t = (float(zi) - z_lo) / dz
+                barrel = np.sin(np.pi * t)
+
+    return (
+        1.0 + node_bulge * node_bump
+        - groove_depth * groove
+        + internode_barrel * barrel
+    )
+
+
 def _apply_internode_modulation(skeleton, widths, node_heights_z,
                                  node_bulge=0.12, node_band_cm=1.0,
                                  groove_depth=0.04, groove_width_cm=0.8,
@@ -1414,49 +1464,16 @@ def _apply_internode_modulation(skeleton, widths, node_heights_z,
 
     z = skeleton[:, 2]
     modulated = widths.copy()
-    nodes_z = sorted(node_heights_z)
-
     for i in range(len(z)):
         zi = z[i]
-
-        # Node bulge: raised-cosine bump centered at each leaf attachment
-        # height.  Each bump is smooth (C1 continuous) and zero outside
-        # ±node_band_cm of the node.  Take the max contribution from all
-        # nearby nodes (overlapping bands don't stack).
-        node_bump = 0.0
-        for nz in nodes_z:
-            dist = abs(zi - nz)
-            if dist < node_band_cm:
-                bump = 0.5 * (1.0 + np.cos(np.pi * dist / node_band_cm))
-                node_bump = max(node_bump, bump)
-
-        # Groove: shallow constriction just above and below each node.
-        # Creates the visible "ring" effect by darkening the shadow line.
-        # Groove bands sit at ±(node_band_cm + groove_width_cm/2) from node.
-        groove = 0.0
-        for nz in nodes_z:
-            dist = abs(zi - nz)
-            groove_center = node_band_cm + groove_width_cm * 0.5
-            groove_dist = abs(dist - groove_center)
-            if groove_dist < groove_width_cm * 0.5:
-                g = 0.5 * (1.0 + np.cos(np.pi * groove_dist / (groove_width_cm * 0.5)))
-                groove = max(groove, g)
-
-        # Internode barrel: very subtle outward bow at internode midpoints.
-        barrel = 0.0
-        if node_bump < 0.05 and groove < 0.05:
-            seg_idx = np.searchsorted(nodes_z, zi, side='right') - 1
-            if 0 <= seg_idx < len(nodes_z) - 1:
-                z_lo = nodes_z[seg_idx]
-                z_hi = nodes_z[seg_idx + 1]
-                dz = z_hi - z_lo
-                if dz > 3.0:
-                    t = (zi - z_lo) / dz
-                    barrel = np.sin(np.pi * t)
-
-        scale = (1.0 + node_bulge * node_bump
-                 - groove_depth * groove
-                 + internode_barrel * barrel)
+        scale = _stem_internode_width_scale_at_z(
+            zi, node_heights_z,
+            node_bulge=node_bulge,
+            node_band_cm=node_band_cm,
+            groove_depth=groove_depth,
+            groove_width_cm=groove_width_cm,
+            internode_barrel=internode_barrel,
+        )
         modulated[i] = widths[i] * scale
 
     return modulated
@@ -2069,6 +2086,17 @@ def _laplacian_smooth(mesh, iterations=3, lambda_factor=0.5):
             boundary.add(v0)
             boundary.add(v1)
 
+    fixed_vertices = set(boundary)
+    fixed_organ_ids = {
+        int(meta["organ_id"])
+        for meta in mesh.organ_meta
+        if meta.get("type") in ("stem", "root")
+    }
+    if fixed_organ_ids:
+        fixed_tri_mask = np.isin(mesh.organ_ids, list(fixed_organ_ids))
+        if np.any(fixed_tri_mask):
+            fixed_vertices.update(mesh.indices[fixed_tri_mask].ravel().tolist())
+
     # Build vertex-to-triangle adjacency for quality checking
     vert_tris = [[] for _ in range(n_verts)]
     for ti, tri in enumerate(indices):
@@ -2084,7 +2112,7 @@ def _laplacian_smooth(mesh, iterations=3, lambda_factor=0.5):
     for _ in range(iterations):
         new_verts = vertices.copy()
         for i in range(n_verts):
-            if i in boundary or not adjacency[i]:
+            if i in fixed_vertices or not adjacency[i]:
                 continue
             neighbors = list(adjacency[i])
             avg = vertices[neighbors].mean(axis=0)

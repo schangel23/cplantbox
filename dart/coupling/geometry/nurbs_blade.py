@@ -551,6 +551,9 @@ def loft_leaf_nurbs(
                     young_frac * float(sheath_length_cm)
                     + (1.0 - young_frac) * default_cap
                 )
+            explicit_cup_cap = organ.get("sheath_cup_max_length_cm")
+            if explicit_cup_cap is not None:
+                max_sheath_cap = min(max_sheath_cap, float(explicit_cup_cap))
             cps_local = build_compound_leaf_cps(
                 cps_local,
                 stem_radius_cm=stem_radius_cm,

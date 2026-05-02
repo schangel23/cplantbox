@@ -11,6 +11,7 @@ import numpy as np
 from pathlib import Path
 
 from ..config import MAIZEFIELD3D_DEFORMATION, MAIZEFIELD3D_STEM_PROFILE
+from .g1_to_g3 import _stem_internode_width_scale_at_z
 
 DEFAULT_MIN_WIDTH = 0.1  # cm, fallback when Width_blade=0
 
@@ -364,6 +365,7 @@ def _stem_radius_at_collar_cm(organ, collar_z=None, stem_profile=None, fallback=
 
 def _make_stem_radius_at_z_callable(
     organ, collar_pos, stem_axis_world, stem_profile, fallback=0.3,
+    node_heights_z=None,
 ):
     """Return ``stem_r(z_local_cm) -> cm`` for the compound leaf cup.
 
@@ -429,7 +431,10 @@ def _make_stem_radius_at_z_callable(
         elif z_frac > 1.0:
             z_frac = 1.0
         r = float(np.interp(z_frac, h_frac, r_prof))
-        return r * width_scale
+        internode_scale = _stem_internode_width_scale_at_z(
+            world_z, node_heights_z,
+        )
+        return r * width_scale * internode_scale
 
     return stem_r_at_z_local
 
@@ -1868,6 +1873,18 @@ def extract_organs_for_lofter(plant, min_stem_nodes=50, min_leaf_nodes=20,
             continue
         collision_obstacles.extend(_stem_capsule_chain(_o, margin_cm=0.0))
 
+    leaf_attachment_z_for_modulation = []
+    for _leaf in plant.getOrgans(pb.leaf):
+        try:
+            if _leaf.getParameter("isPseudostem") == 1:
+                continue
+            _nodes = _leaf.getNodes()
+            if len(_nodes) >= 2:
+                leaf_attachment_z_for_modulation.append(float(_nodes[0].z))
+        except Exception:
+            continue
+    leaf_attachment_z_for_modulation = sorted(leaf_attachment_z_for_modulation)
+
     # Leaves with resampling
     for organ in plant.getOrgans(pb.leaf):
         nodes = organ.getNodes()
@@ -2066,7 +2083,22 @@ def extract_organs_for_lofter(plant, min_stem_nodes=50, min_leaf_nodes=20,
                 parent_tangent_np = _parent_tangent_at_collar(organ, collar_pos_np)
                 parent_stem_r_callable = _make_stem_radius_at_z_callable(
                     organ, collar_pos_np, parent_tangent_np, stem_profile,
+                    node_heights_z=leaf_attachment_z_for_modulation,
                 )
+                sheath_cup_max_length_cm = None
+                if sheath_length_cm is not None and stem_radius_cm > 0.0:
+                    sheath_cup_max_length_cm = 2.5 * float(stem_radius_cm)
+                    lower_nodes = [
+                        float(z) for z in leaf_attachment_z_for_modulation
+                        if float(z) < float(collar_pos_np[2]) - 1e-6
+                    ]
+                    if lower_nodes:
+                        prev_gap = float(collar_pos_np[2]) - max(lower_nodes)
+                        if prev_gap > 1e-6:
+                            sheath_cup_max_length_cm = min(
+                                sheath_cup_max_length_cm,
+                                0.95 * prev_gap,
+                            )
 
                 # Muted procedural deformations layered over the data-driven
                 # CP grid. The base shape already encodes the large-scale
@@ -2544,6 +2576,7 @@ def extract_organs_for_lofter(plant, min_stem_nodes=50, min_leaf_nodes=20,
                     "skeleton": current_skel,
                     "stem_radius_cm": stem_radius_cm,
                     "sheath_length_cm": sheath_length_cm,
+                    "sheath_cup_max_length_cm": sheath_cup_max_length_cm,
                     "sheath_provenance": sheath_provenance,
                     "parent_stem_radius_at_z_cm": parent_stem_r_callable,
                     "break_fraction": break_fraction_nurbs,
