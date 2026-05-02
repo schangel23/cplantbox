@@ -657,7 +657,7 @@ def loft_leaf_nurbs(
         amp_threshold = 0.0
     c = 0
     for i in range(n_u - 1):
-        if has_midrib_active:
+        if midrib_amps_per_u is not None:
             _row_amp = 0.5 * (abs(midrib_amps_per_u[i])
                               + abs(midrib_amps_per_u[i + 1]))
             _row_active = _row_amp > amp_threshold
