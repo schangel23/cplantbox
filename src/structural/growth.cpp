@@ -80,9 +80,25 @@ double CWLimitedGrowth::getLength(double t, double r, double k,
     }
 
     const double supply_target = o->getLength(false) + it->second;
-    const double bound = demand_
-        ? std::min(supply_target, demand_->getLength(t, r, k, o))
-        : supply_target;
+    double bound;
+    if (demand_) {
+        // Lock #6 + §M2 backlog (PLAN_S5_SINK_SOURCE_COUPLING_2026-05-02):
+        // the demand fed into the cap is FA target + accumulated supply
+        // deficit, but never beyond the organ's structural ceiling k.
+        // Under well-watered carbon (supply_target >> demand_target),
+        // bound==demand_with_backlog and the new backlog goes to zero
+        // (any accumulated backlog drains in a single sufficient step).
+        // Under stress (supply_target < demand_with_backlog), bound is
+        // capped by supply and the unmet portion accumulates in the
+        // organ's dl_backlog for next step's demand to include.
+        const double demand_target = demand_->getLength(t, r, k, o);
+        const double demand_with_backlog = std::min(demand_target + o->dl_backlog, k);
+        bound = std::min(supply_target, demand_with_backlog);
+        const double unmet = std::max(0.0, demand_with_backlog - bound);
+        o->dl_backlog = unmet;
+    } else {
+        bound = supply_target;
+    }
 
     // Mark supply spent regardless of which arm of the min() wins — the
     // phloem allocation for this organ-step is now dispatched.

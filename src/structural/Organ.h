@@ -114,6 +114,31 @@ public:
 
 	 /* useful */
     int parentNI; ///< local parent node index
+
+	/* Lock #6 backlog (PLAN_S5_SINK_SOURCE_COUPLING_2026-05-02 §M2 / §S5).
+	 * Supply-deficit carry-over [cm] when CWLimitedGrowth is wrapping a
+	 * demand GF and supply can't satisfy demand_target this step. Public
+	 * so CWLimitedGrowth::getLength can write to it from outside the
+	 * Organ inheritance tree, and so pybind can expose it readwrite for
+	 * the §S6 stress-fixture tests.
+	 *
+	 * Distinct from epsilonDx — that field is rounding-carry from
+	 * dx-quantised segment creation (sub-resolution remainder); this
+	 * field is a *biological* sink-source mismatch bounded by the
+	 * organ's remaining growth capacity (k − current_length, or for
+	 * stems by per-rank phase-remaining capacity in dl_backlog_per_n).
+	 *
+	 * When demand_ is null on the wrapping CWLimitedGrowth (bare CW-supply
+	 * path or non-FA organ), this field stays 0 unconditionally. */
+	double dl_backlog = 0.0;
+
+	/* Per-phytomer backlog for stems (D1 decision a — per-rank). Index 0
+	 * unused (matches the existing length_per_n / cessation_age_per_n
+	 * convention). Lazily sized by MultiPhaseStemGrowth::ensureState
+	 * (or staying empty for non-FA stems / leaves / roots, which use the
+	 * scalar dl_backlog above). */
+	std::vector<double> dl_backlog_per_n;
+
     virtual Vector3d heading(int n)  const ; ///< current (absolute) heading of the organs at node n
     Vector3d getiHeading0() const ;///< the initial coordinate system of the root, when it was created
 	bool hasRelCoord() const; //check if organ has relative coordinates

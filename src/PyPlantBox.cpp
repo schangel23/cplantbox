@@ -414,6 +414,10 @@ PYBIND11_MODULE(plantbox, m) {
             .def("getLength", (double (Organ::*)(bool realized) const) &Organ::getLength, py::arg("realized") = true)
             .def("getLength", (double (Organ::*)(int i) const) &Organ::getLength)
 			.def("getEpsilon",&Organ::getEpsilon)
+			// Lock #6 §M2 (PLAN_S5_SINK_SOURCE_COUPLING_2026-05-02 §S5):
+			// supply-deficit carry-over for stress-fixture introspection.
+			.def_readwrite("dl_backlog", &Organ::dl_backlog)
+			.def_readwrite("dl_backlog_per_n", &Organ::dl_backlog_per_n)
 			.def("getNumberOfNodes",&Organ::getNumberOfNodes)
 			.def("getNumberOfSegments",&Organ::getNumberOfSegments)
             .def("getOrigin",&Organ::getOrigin)
