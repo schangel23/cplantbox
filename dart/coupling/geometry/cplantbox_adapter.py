@@ -619,7 +619,7 @@ def _leaf_wave_params(leaf_length, rng, position=None, deformation_stats=None,
     # Independent L/R phases mirror bltree.lsy:9-10 (ZLeft, ZRight with
     # phase_L, phase_R drawn independently) so the two blade edges undulate
     # out-of-sync instead of moving as a rigid ribbon.
-    normal_amp = leaf_length * rng.uniform(0.020, 0.040) * intensity
+    normal_amp = leaf_length * rng.uniform(0.080, 0.150) * intensity
     normal_freq = rng.uniform(3.0, 5.0)
     normal_phase_L = rng.uniform(0, 2 * np.pi)
     normal_phase_R = rng.uniform(0, 2 * np.pi)
