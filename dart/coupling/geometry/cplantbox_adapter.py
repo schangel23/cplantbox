@@ -183,9 +183,47 @@ _DEFAULT_REFERENCE_PROFILES_JSON = Path(
     "/home/lukas/PHD/Resources/MaizeField3d/maizefield3d_reference_profiles.json"
 )
 
+_VIDAL_SHEATH_JSON = Path(__file__).resolve().parents[1] / "data" / "vidal_per_rank_sheath_cm.json"
+
+
+def load_vidal_sheath_lengths(path=None):
+    """Load Vidal 2021 SupData1 per-rank mature sheath lengths (M40+M52 averaged).
+
+    Returns:
+        Dict mapping ``rank`` (int, 0-indexed: S0..S20) -> sheath_length_cm (float),
+        or ``None`` if the JSON isn't present. Provenance: vidal_2021_per_rank.
+    """
+    if path is None:
+        path = _VIDAL_SHEATH_JSON
+    path = Path(path)
+    key = "vidal:" + str(path)
+    if key in _reference_profiles_cache:
+        return _reference_profiles_cache[key]
+    if not path.exists():
+        _reference_profiles_cache[key] = None
+        return None
+    with open(path) as f:
+        data = json.load(f)
+    per_rank = data.get("per_rank", [])
+    out = {}
+    for entry in per_rank:
+        rank = int(entry["rank"])
+        L = entry.get("sheath_length_cm")
+        if L is None or L <= 0:
+            continue
+        out[rank] = float(L)
+    _reference_profiles_cache[key] = out
+    return out
+
 
 def load_reference_profiles(path=None):
     """Load MaizeField3D per-position reference profiles (sheath length etc.).
+
+    For maize sheath length the Vidal 2021 SupData1 cultivar-averaged values
+    (load_vidal_sheath_lengths) take precedence at the consumer site
+    (cplantbox_adapter.py ~line 2002). MF3D medians remain as fallback for
+    positions Vidal doesn't cover, and as the only source for non-sheath
+    fields if any are added later.
 
     Returns:
         Dict mapping ``position`` (int) -> ``{"sheath_length_cm_median": float}``,
@@ -1997,9 +2035,18 @@ def extract_organs_for_lofter(plant, min_stem_nodes=50, min_leaf_nodes=20,
                 # blade-only NURBS surface.
                 position = max(int(getattr(lrp, "subType", 2)) - 2, 0)
                 refs = load_reference_profiles()
+                vidal_sheaths = load_vidal_sheath_lengths()
                 sheath_length_cm = None
-                if refs is not None and position in refs:
+                sheath_provenance = None
+                # Prefer Vidal 2021 SupData1 cultivar-averaged sheath lengths
+                # (vidal_per_rank_sheath_cm.json) over MF3D medians for maize.
+                # Vidal rank index == leaf position (S0 = position 0).
+                if vidal_sheaths is not None and position in vidal_sheaths:
+                    sheath_length_cm = vidal_sheaths[position]
+                    sheath_provenance = "vidal_per_rank"
+                elif refs is not None and position in refs:
                     sheath_length_cm = refs[position]["sheath_length_cm_median"]
+                    sheath_provenance = "mf3d_median"
                 stem_radius_cm = _stem_radius_at_collar_cm(
                     organ, collar_z=collar.z, stem_profile=stem_profile,
                 )
@@ -2087,9 +2134,9 @@ def extract_organs_for_lofter(plant, min_stem_nodes=50, min_leaf_nodes=20,
                 # ym_fade_end/ym_exp survives as an opt-out ceiling:
                 # young_morph='off' gives ym_fade_end=None which skips
                 # the whole block, leaving mature regression bit-identical.
-                THETA_YOUNG_FROM_STEM = math.radians(8.0)  # near-vertical = 8° off stem axis
-                M_YOUNG_LO = 0.30   # below: fully young theta
-                M_YOUNG_HI = 0.70   # above: fully mature theta_rank
+                THETA_YOUNG_FROM_STEM = math.radians(5.0)  # near-vertical = 5° off stem axis (was 8°, pushed for tighter whorl)
+                M_YOUNG_LO = 0.95   # below: fully young theta (collar emergence at m≈0.95)
+                M_YOUNG_HI = 0.99   # above: fully mature theta_rank (4% smoothing window)
                 collar_tangent_out = np.array([tangent.x, tangent.y, tangent.z],
                                               dtype=np.float64)
                 # Seedling first leaf: use the tropism-evolved skeleton
@@ -2142,9 +2189,16 @@ def extract_organs_for_lofter(plant, min_stem_nodes=50, min_leaf_nodes=20,
                     # already opened to its natural splay, so forcing it
                     # near-vertical produces an unnatural "pencil at the
                     # base" look that contradicts the Nielsen reference.
+                    # Lifted profile_alpha gate (2026-05-02): the original 'soft'
+                    # profile clamped profile_alpha to 0 at m=0.7, blocking the
+                    # whorl-posture morph for leaves with m in [0.7, 1.0]. With
+                    # the new collar-emergence smoothstep [M_YOUNG_LO=0.95,
+                    # M_YOUNG_HI=0.99], we want the morph to fire across all
+                    # maturities so leaves stay vertical until collar-emergence.
+                    # Smoothstep itself handles the fade — profile_alpha gate is
+                    # redundant.
                     can_morph = (
-                        profile_alpha > 0.0
-                        and n_c >= 1e-9 and n_p >= 1e-9
+                        n_c >= 1e-9 and n_p >= 1e-9
                         and leaf_position != 0
                     )
                     if can_morph:
@@ -2490,6 +2544,7 @@ def extract_organs_for_lofter(plant, min_stem_nodes=50, min_leaf_nodes=20,
                     "skeleton": current_skel,
                     "stem_radius_cm": stem_radius_cm,
                     "sheath_length_cm": sheath_length_cm,
+                    "sheath_provenance": sheath_provenance,
                     "parent_stem_radius_at_z_cm": parent_stem_r_callable,
                     "break_fraction": break_fraction_nurbs,
                     **wave_params,

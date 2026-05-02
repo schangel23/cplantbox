@@ -1,0 +1,185 @@
+{
+  "_meta": {
+    "source": "/home/lukas/Downloads/plaa072_suppl_supplementary_data_1.xlsx",
+    "source_sha256": "c37d6f21024887fc4692bfae308bca981c0996d1ea51aadd608229cc7b769e90",
+    "sheet": "2.sheath_des",
+    "cultivars": [
+      "M40",
+      "M52"
+    ],
+    "averaging": "top 10% per cultivar, then M40+M52 mean",
+    "extracted_by": "dart/coupling/scripts/vidal_sheath_extract.py",
+    "citation": "Vidal T., Andrieu B. et al. 2021 'Two maize cultivars of contrasting leaf size...' AoB PLANTS 13(1) plaa072",
+    "note": "rank index is the 1-indexed leaf position (S0=basal/primordial; S1 maps to maize_calibrated.xml leaf subType=2 internal position 0)"
+  },
+  "per_rank": [
+    {
+      "rank": 0,
+      "sheath_length_cm": 3.092,
+      "M40_top10pct_mean_cm": 3.25,
+      "M52_top10pct_mean_cm": 2.933,
+      "n_obs_M40": 25,
+      "n_obs_M52": 27
+    },
+    {
+      "rank": 1,
+      "sheath_length_cm": 3.337,
+      "M40_top10pct_mean_cm": 3.475,
+      "M52_top10pct_mean_cm": 3.2,
+      "n_obs_M40": 38,
+      "n_obs_M52": 37
+    },
+    {
+      "rank": 2,
+      "sheath_length_cm": 3.675,
+      "M40_top10pct_mean_cm": 3.717,
+      "M52_top10pct_mean_cm": 3.633,
+      "n_obs_M40": 55,
+      "n_obs_M52": 56
+    },
+    {
+      "rank": 3,
+      "sheath_length_cm": 4.392,
+      "M40_top10pct_mean_cm": 4.517,
+      "M52_top10pct_mean_cm": 4.267,
+      "n_obs_M40": 60,
+      "n_obs_M52": 64
+    },
+    {
+      "rank": 4,
+      "sheath_length_cm": 6.289,
+      "M40_top10pct_mean_cm": 6.75,
+      "M52_top10pct_mean_cm": 5.829,
+      "n_obs_M40": 64,
+      "n_obs_M52": 68
+    },
+    {
+      "rank": 5,
+      "sheath_length_cm": 8.229,
+      "M40_top10pct_mean_cm": 8.786,
+      "M52_top10pct_mean_cm": 7.671,
+      "n_obs_M40": 66,
+      "n_obs_M52": 66
+    },
+    {
+      "rank": 6,
+      "sheath_length_cm": 11.875,
+      "M40_top10pct_mean_cm": 13.629,
+      "M52_top10pct_mean_cm": 10.121,
+      "n_obs_M40": 71,
+      "n_obs_M52": 67
+    },
+    {
+      "rank": 7,
+      "sheath_length_cm": 15.054,
+      "M40_top10pct_mean_cm": 16.637,
+      "M52_top10pct_mean_cm": 13.471,
+      "n_obs_M40": 82,
+      "n_obs_M52": 68
+    },
+    {
+      "rank": 8,
+      "sheath_length_cm": 16.925,
+      "M40_top10pct_mean_cm": 18.288,
+      "M52_top10pct_mean_cm": 15.562,
+      "n_obs_M40": 81,
+      "n_obs_M52": 80
+    },
+    {
+      "rank": 9,
+      "sheath_length_cm": 16.538,
+      "M40_top10pct_mean_cm": 17.587,
+      "M52_top10pct_mean_cm": 15.488,
+      "n_obs_M40": 84,
+      "n_obs_M52": 83
+    },
+    {
+      "rank": 10,
+      "sheath_length_cm": 15.512,
+      "M40_top10pct_mean_cm": 16.587,
+      "M52_top10pct_mean_cm": 14.438,
+      "n_obs_M40": 82,
+      "n_obs_M52": 80
+    },
+    {
+      "rank": 11,
+      "sheath_length_cm": 14.169,
+      "M40_top10pct_mean_cm": 15.1,
+      "M52_top10pct_mean_cm": 13.238,
+      "n_obs_M40": 79,
+      "n_obs_M52": 77
+    },
+    {
+      "rank": 12,
+      "sheath_length_cm": 13.473,
+      "M40_top10pct_mean_cm": 14.175,
+      "M52_top10pct_mean_cm": 12.771,
+      "n_obs_M40": 76,
+      "n_obs_M52": 72
+    },
+    {
+      "rank": 13,
+      "sheath_length_cm": 13.936,
+      "M40_top10pct_mean_cm": 14.471,
+      "M52_top10pct_mean_cm": 13.4,
+      "n_obs_M40": 74,
+      "n_obs_M52": 64
+    },
+    {
+      "rank": 14,
+      "sheath_length_cm": 14.267,
+      "M40_top10pct_mean_cm": 14.867,
+      "M52_top10pct_mean_cm": 13.667,
+      "n_obs_M40": 61,
+      "n_obs_M52": 62
+    },
+    {
+      "rank": 15,
+      "sheath_length_cm": 14.55,
+      "M40_top10pct_mean_cm": 15.367,
+      "M52_top10pct_mean_cm": 13.733,
+      "n_obs_M40": 63,
+      "n_obs_M52": 63
+    },
+    {
+      "rank": 16,
+      "sheath_length_cm": 14.133,
+      "M40_top10pct_mean_cm": 14.917,
+      "M52_top10pct_mean_cm": 13.35,
+      "n_obs_M40": 62,
+      "n_obs_M52": 60
+    },
+    {
+      "rank": 17,
+      "sheath_length_cm": 13.667,
+      "M40_top10pct_mean_cm": 14.483,
+      "M52_top10pct_mean_cm": 12.85,
+      "n_obs_M40": 59,
+      "n_obs_M52": 58
+    },
+    {
+      "rank": 18,
+      "sheath_length_cm": 12.937,
+      "M40_top10pct_mean_cm": 13.633,
+      "M52_top10pct_mean_cm": 12.24,
+      "n_obs_M40": 57,
+      "n_obs_M52": 52
+    },
+    {
+      "rank": 19,
+      "sheath_length_cm": 11.45,
+      "M40_top10pct_mean_cm": 12.3,
+      "M52_top10pct_mean_cm": 10.6,
+      "n_obs_M40": 25,
+      "n_obs_M52": 9
+    },
+    {
+      "rank": 20,
+      "sheath_length_cm": 5.8,
+      "M40_top10pct_mean_cm": 5.8,
+      "M52_top10pct_mean_cm": null,
+      "n_obs_M40": 3,
+      "n_obs_M52": 0
+    }
+  ]
+}

@@ -532,25 +532,25 @@ def loft_leaf_nurbs(
             else:
                 stem_r_at_z = None
 
-            # Sheath-cap gate (young-plant whorl fix, 2026-04-22).
-            # build_compound_leaf_cps defaults max_sheath_length_cm to
-            # 2.5·stem_radius — for a V3 plant with ~0.2 cm stem radius
-            # that caps the visible sheath at 0.5 cm, so the inflated
-            # botanical length (via the scale/0.30 sheath_maturity tweak
-            # above) never makes it onto the mesh and the stem renders
-            # bare. For young leaves we need the full botanical length
-            # to be rendered so the sheath wraps the stem and forms the
-            # telescoping whorl column seen in the Nielsen reference.
-            # Mature leaves keep the default 2.5·stem_radius cap so
-            # master renders stay bit-for-bit identical. Linear blend
-            # on ``scale`` to avoid a step discontinuity at the
-            # transition.
-            young_frac = max(0.0, min(1.0, 1.0 - scale / 0.50))
-            default_cap = 2.5 * float(stem_radius_cm)
-            max_sheath_cap = (
-                young_frac * float(sheath_length_cm)
-                + (1.0 - young_frac) * default_cap
-            )
+            # Sheath-cap gate (young-plant whorl fix, 2026-04-22; refined
+            # 2026-05-02). When the sheath length is sourced from Vidal 2021
+            # SupData1 (sheath_provenance="vidal_per_rank"), the value is
+            # cultivar-calibrated and trustworthy at every maturity — render
+            # full botanical length so the sheath wraps the stem and forms
+            # the telescoping whorl column. Otherwise (MF3D medians or
+            # missing data, e.g. non-maize XMLs) keep the conservative
+            # young_frac blend so master renders stay bit-for-bit identical
+            # for those code paths.
+            sheath_provenance = organ.get("sheath_provenance")
+            if sheath_provenance == "vidal_per_rank":
+                max_sheath_cap = float(sheath_length_cm)
+            else:
+                young_frac = max(0.0, min(1.0, 1.0 - scale / 0.50))
+                default_cap = 2.5 * float(stem_radius_cm)
+                max_sheath_cap = (
+                    young_frac * float(sheath_length_cm)
+                    + (1.0 - young_frac) * default_cap
+                )
             cps_local = build_compound_leaf_cps(
                 cps_local,
                 stem_radius_cm=stem_radius_cm,
