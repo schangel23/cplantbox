@@ -339,7 +339,14 @@ PYBIND11_MODULE(plantbox, m) {
     py::class_<GrowthFunction, std::shared_ptr<GrowthFunction>>(m, "GrowthFunction")
         .def_readwrite("CW_Gr", &GrowthFunction::CW_Gr);
 
-    py::class_<CWLimitedGrowth, GrowthFunction, std::shared_ptr<CWLimitedGrowth>>(m, "CWLimitedGrowth");
+    // Lock #6 (PLAN_S5_SINK_SOURCE_COUPLING_2026-05-02 §S3): expose the
+    // optional `demand` GF wrap so the Python wrap helper
+    // (dart/coupling/growth/carbon_growth.py::enable_cw_limited_growth)
+    // can introspect / build CWLimitedGrowth(demand=existing_fa_gf).
+    py::class_<CWLimitedGrowth, GrowthFunction, std::shared_ptr<CWLimitedGrowth>>(m, "CWLimitedGrowth")
+        .def(py::init<>())
+        .def(py::init<std::shared_ptr<GrowthFunction>>(), py::arg("demand"))
+        .def_readwrite("demand", &CWLimitedGrowth::demand_);
 
     py::class_<MultiPhaseStemGrowth::PerOrganFAState>(m, "PerOrganFAState")
         .def(py::init<>())
