@@ -2524,8 +2524,15 @@ def extract_organs_for_lofter(plant, min_stem_nodes=50, min_leaf_nodes=20,
                     # Bump-height taper: 1.0 at base → 0.6 at tip
                     _arc = np.linspace(0.0, 1.0, _n_skel_n)
                     _amp_taper = 1.0 - 0.4 * _arc
+                    # Basal ramp: blade skeleton starts at the collar, so
+                    # arc=0 sits at the sheath boundary. Fade in from 0
+                    # over the first 15% of arc (smoothstep) to keep the
+                    # rib off the collar transition.
+                    _basal_t = np.clip(_arc / 0.15, 0.0, 1.0)
+                    _basal_ramp = _basal_t * _basal_t * (3.0 - 2.0 * _basal_t)
                     _midrib_amps_nurbs = (
-                        _w_max_local * _midrib_amp_scale_nurbs * _amp_taper
+                        _w_max_local * _midrib_amp_scale_nurbs
+                        * _amp_taper * _basal_ramp
                     )
                     _midrib_amps_nurbs *= max(0.0, min(1.0, nurbs_maturity)) ** 0.6
                 else:
@@ -2856,10 +2863,19 @@ def extract_organs_for_lofter(plant, min_stem_nodes=50, min_leaf_nodes=20,
         # distally).
         midrib_amp_scale = 0.20 if species == 'maize' else 0.0
         midrib_arc_taper_min = 0.6  # fraction of base amp retained at tip
+        # The blade skeleton starts at the collar (top of the sheath), so
+        # arc=0 is the sheath–blade boundary. A non-zero amplitude there
+        # makes the rib bleed into the visible collar transition. Fade in
+        # from 0 over the first MIDRIB_BASAL_ONSET of the arc (smoothstep)
+        # so the rib only emerges once the blade is clearly above the
+        # sheath collar.
+        midrib_basal_onset = 0.15
         if midrib_amp_scale > 0.0 and n_skel > 0:
             arc_frac = np.linspace(0.0, 1.0, n_skel)
             taper = 1.0 - (1.0 - midrib_arc_taper_min) * arc_frac
-            midrib_amps_cm = widths * midrib_amp_scale * taper
+            basal_t = np.clip(arc_frac / max(midrib_basal_onset, 1e-6), 0.0, 1.0)
+            basal_ramp = basal_t * basal_t * (3.0 - 2.0 * basal_t)  # smoothstep
+            midrib_amps_cm = widths * midrib_amp_scale * taper * basal_ramp
             if maturity < 0.95:
                 midrib_amps_cm *= unfurl  # young leaves: smaller ridge
         else:
