@@ -114,10 +114,13 @@ def test_partial_wrap_leaves_slit():
 def test_cup_bottom_row_is_horizontal_ring():
     """The bottom cup row (t = 0) carries no ligule offset, so every
     column sits at the same z = -L_rendered and at uniform radial
-    distance ``R = stem_r · (1 + base_clearance + bulge)`` from the
-    stem central axis. Leaf-local origin IS the stem-axis point
-    (CPlantBox puts leaf node 0 on the stem skeleton), so
-    ``stem_center = axis · z``. This is the flat floor of the ring."""
+    distance from the stem central axis. The cup bulge tapers along
+    u (smoothstep, 0 at the bottom row → 1 at the top row) so the
+    bottom hugs the stem, leaving the radius
+    ``R = stem_r · (1 + base_clearance)`` (no bulge contribution at
+    t = 0). Leaf-local origin IS the stem-axis point (CPlantBox puts
+    leaf node 0 on the stem skeleton), so ``stem_center = axis · z``.
+    This is the flat floor of the ring."""
     blade = _fake_blade()
     stem_r = 0.9
     bulge = 0.4
@@ -130,7 +133,7 @@ def test_cup_bottom_row_is_horizontal_ring():
     L_rendered = 2.5 * stem_r  # default cap
     axis_vec = np.array([0.0, 0.0, 1.0])
     stem_center = axis_vec * (-L_rendered)
-    expected_R = stem_r * (1.0 + clearance + bulge)
+    expected_R = stem_r * (1.0 + clearance)  # bulge_scale = 0 at bottom
     for j in range(n_v):
         np.testing.assert_allclose(out[0, j, 2], -L_rendered, rtol=1e-9)
         d = float(np.linalg.norm(out[0, j] - stem_center))
@@ -166,7 +169,13 @@ def test_cup_row_is_closed_ring_uniform_radius():
     asymmetric bulging on one side. This is what "stem-aware 360°"
     means geometrically. Leaf-local origin is ON the stem axis (CPlantBox
     places leaf node 0 at the parent stem node), so
-    ``stem_center(z) = axis · z``."""
+    ``stem_center(z) = axis · z``.
+
+    The cup bulge tapers along u (smoothstep ramp 0 → 1 from bottom row
+    to top row) so the bottom hugs the stem and the top keeps the full
+    bulge. Each row's radius equals
+    ``stem_r · (1 + clearance + bulge · smoothstep(t_i))`` with
+    ``t_i = i / (n_cup - 1)``. This invariant covers all rows."""
     blade = _fake_blade()
     stem_r = 0.9
     bulge = 0.3
@@ -178,8 +187,10 @@ def test_cup_row_is_closed_ring_uniform_radius():
         bulge=bulge, base_clearance=clearance, n_cup=n_cup, n_v=n_v,
     )
     axis_vec = np.array([0.0, 0.0, 1.0])
-    expected_R = stem_r * (1.0 + clearance + bulge)
     for i in range(n_cup):
+        t_i = i / max(n_cup - 1, 1)
+        s_i = t_i * t_i * (3.0 - 2.0 * t_i)  # smoothstep
+        expected_R = stem_r * (1.0 + clearance + bulge * s_i)
         for j in range(n_v):
             z = out[i, j, 2]
             stem_center = axis_vec * z

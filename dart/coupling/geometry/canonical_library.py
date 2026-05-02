@@ -841,11 +841,17 @@ def build_compound_leaf_cps(
     out = np.zeros((n_u_total, n_v, 3), dtype=np.float64)
 
     # --- Ring cup: closed rings with ligule tilt ramped 0→1 bottom→top ---
+    # Cup bulge tapers along u: bottom row (t_i = 0) hugs the stem
+    # (bulge_scale = 0 → R = stem_r · (1 + base_clearance)), top row
+    # (t_i = 1) keeps the full bulge so the collar wrap is unchanged.
+    # Smoothstep ramp keeps the cup C¹ and joins the morph rows
+    # (bulge_scale = asym = 1 at the cup-top boundary) without a jump.
     for i in range(n_cup):
         t_i = i / max(n_cup - 1, 1)
         z_base = -L_rendered + t_i * L_rendered  # -L at bottom, 0 at top
         z_j = z_base + t_i * ligule_z
-        out[i] = _ring_row(z_j, bulge_scale=1.0)
+        cup_bulge_scale = t_i * t_i * (3.0 - 2.0 * t_i)  # smoothstep(t_i)
+        out[i] = _ring_row(z_j, bulge_scale=cup_bulge_scale)
 
     # --- Transition: first n_morph blade rows blend ring → flat blade ---
     # frac = 0 at i=0 (pure ring at blade_up[0].z + ligule) matches the
