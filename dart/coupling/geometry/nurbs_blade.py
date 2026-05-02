@@ -638,8 +638,31 @@ def loft_leaf_nurbs(
                              np.linspace(0, 1, len(_arr)), _arr)
         midrib_band_v_per_u = _arr
     is_midrib_tri = np.zeros(2 * n_cells, dtype=bool)
+    # Per-u amplitude gate: the adapter's basal ramp drives midrib_amps
+    # to ~0 near the collar; without this gate the optical tagging would
+    # paint the full arc despite the geometric ridge fading out. Skip
+    # u-rows whose local amplitude is below 1 % of the organ max so the
+    # painted stripe matches the geometric ridge.
+    if has_midrib_active:
+        _amp_arr = np.asarray(midrib_amps, dtype=np.float64)
+        if len(_amp_arr) != n_u:
+            midrib_amps_per_u = np.interp(np.linspace(0, 1, n_u),
+                                          np.linspace(0, 1, len(_amp_arr)),
+                                          _amp_arr)
+        else:
+            midrib_amps_per_u = _amp_arr
+        amp_threshold = 0.01 * float(np.max(np.abs(midrib_amps_per_u)))
+    else:
+        midrib_amps_per_u = None
+        amp_threshold = 0.0
     c = 0
     for i in range(n_u - 1):
+        if has_midrib_active:
+            _row_amp = 0.5 * (abs(midrib_amps_per_u[i])
+                              + abs(midrib_amps_per_u[i + 1]))
+            _row_active = _row_amp > amp_threshold
+        else:
+            _row_active = False
         for j in range(n_v - 1):
             v00 = i * n_v + j
             v10 = (i + 1) * n_v + j
@@ -648,7 +671,7 @@ def loft_leaf_nurbs(
             indices[2 * c] = (v00, v10, v11)
             indices[2 * c + 1] = (v00, v11, v01)
             quads[c] = (v00, v10, v11, v01)
-            if has_midrib_active:
+            if _row_active:
                 # vs[j] / vs[j+1] are the v-fractions of this strip's rails.
                 # Mark midrib when the mean |v - 0.5| sits inside the band
                 # for THIS u-row (the band tapers along the leaf length).

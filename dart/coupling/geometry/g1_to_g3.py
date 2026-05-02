@@ -1285,8 +1285,25 @@ def _loft_leaf(organ):
     is_midrib_tri = np.zeros(n_segs * n_tris_per_seg, dtype=bool)
     has_midrib_active = (midrib_amps is not None
                          and float(np.max(np.abs(np.asarray(midrib_amps)))) > 1e-6)
+    # Per-row amplitude gate: the adapter's basal ramp drives midrib_amps
+    # to ~0 near the collar, but the original tagging was a single
+    # organ-level boolean and therefore painted the optical stripe across
+    # the full arc — including the basal ramp region that has no
+    # geometric ridge. Skip rows whose local amplitude is below 1 % of
+    # the organ max so the painted stripe matches the geometric ridge.
+    if has_midrib_active:
+        _amp_arr = np.asarray(midrib_amps, dtype=np.float64)
+        _amp_threshold = 0.01 * float(np.max(np.abs(_amp_arr)))
+    else:
+        _amp_arr = None
+        _amp_threshold = 0.0
 
     for i in range(n_segs):
+        if has_midrib_active:
+            _row_amp = 0.5 * (abs(_amp_arr[i]) + abs(_amp_arr[i + 1]))
+            _row_active = _row_amp > _amp_threshold
+        else:
+            _row_active = False
         for j in range(n_cross - 1):
             bl = n_cross * i + j
             br = n_cross * i + j + 1
@@ -1295,7 +1312,7 @@ def _loft_leaf(organ):
             tri_base = i * n_tris_per_seg + 2 * j
             indices[tri_base] = [bl, tl, br]
             indices[tri_base + 1] = [br, tl, tr]
-            if has_midrib_active:
+            if _row_active:
                 # Strip j-(j+1) is "midrib" when both rails sit inside the
                 # band. Use the average |frac| of the two rails as the test.
                 mean_abs_frac = 0.5 * (abs(cross_fracs[j])
