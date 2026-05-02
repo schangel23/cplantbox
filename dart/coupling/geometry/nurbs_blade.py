@@ -705,6 +705,35 @@ def loft_leaf_nurbs(
             for i in range(n_u - 1):
                 segment_ids[i * tris_per_row:(i + 1) * tris_per_row] = row_seg[i]
 
+    # Midrib overlay: duplicate midrib-tagged tris with a small +normal
+    # offset so the painted stripe is adaxial-only. The original central
+    # strip stays as regular blade material; the overlay carries the
+    # midrib material a hair above it. Looking from above you see the
+    # overlay; from below the overlay is occluded by the underlying
+    # blade triangle, so the underside reads as bare blade.
+    if np.any(is_midrib_tri):
+        mid_idx = np.where(is_midrib_tri)[0]
+        mid_tris = indices[mid_idx]
+        unique_verts, inverse = np.unique(mid_tris.flatten(),
+                                          return_inverse=True)
+        offset_cm = 0.01
+        new_vertices = (verts[unique_verts]
+                        + offset_cm * norms[unique_verts])
+        new_normals = norms[unique_verts].copy()
+        new_uvs = uvs[unique_verts].copy()
+        n_old = len(verts)
+        overlay_tris = (n_old + inverse).reshape(-1, 3).astype(np.int32)
+        verts = np.vstack([verts, new_vertices])
+        norms = np.vstack([norms, new_normals])
+        uvs = np.vstack([uvs, new_uvs])
+        indices = np.vstack([indices, overlay_tris])
+        organ_ids = np.concatenate([organ_ids, organ_ids[mid_idx]])
+        segment_ids = np.concatenate([segment_ids, segment_ids[mid_idx]])
+        is_midrib_tri = is_midrib_tri.copy()
+        is_midrib_tri[mid_idx] = False
+        is_midrib_tri = np.concatenate(
+            [is_midrib_tri, np.ones(len(mid_idx), dtype=bool)])
+
     return (verts, indices, norms, uvs, organ_ids, segment_ids,
             quads, quad_organ_ids, cps, is_midrib_tri)
 

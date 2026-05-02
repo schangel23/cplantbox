@@ -428,6 +428,53 @@ def _subdivide_skeleton(skeleton, widths, target_spacing=0.5):
     return new_skeleton, new_widths, orig_segment_map
 
 
+def _apply_midrib_overlay(vertices, indices, normals_arr, uvs, organ_ids,
+                          segment_ids, is_midrib_tri, offset_cm=0.01):
+    """Duplicate midrib-tagged triangles as a +normal-offset overlay.
+
+    The original central-strip triangles get re-tagged as regular blade so
+    the underside reads as uniform leaf material; an extra ~0.1 mm
+    +per-vertex-normal offset layer carries the midrib tag and therefore
+    the painted PROSPECT material. Looking from above you see the overlay
+    (painted stripe); looking from below the overlay is hidden behind the
+    original blade triangle, so the underside stays bare blade.
+
+    Returns the seven element tuple (vertices, indices, normals_arr, uvs,
+    organ_ids, segment_ids, is_midrib_tri) with overlay rows appended.
+    """
+    if is_midrib_tri is None or not np.any(is_midrib_tri):
+        return (vertices, indices, normals_arr, uvs, organ_ids,
+                segment_ids, is_midrib_tri)
+
+    mid_idx = np.where(is_midrib_tri)[0]
+    mid_tris = indices[mid_idx]
+
+    unique_verts, inverse = np.unique(mid_tris.flatten(), return_inverse=True)
+
+    new_vertices = (vertices[unique_verts]
+                    + offset_cm * normals_arr[unique_verts])
+    new_normals = normals_arr[unique_verts].copy()
+    new_uvs = uvs[unique_verts].copy()
+
+    n_old = len(vertices)
+    overlay_tris = (n_old + inverse).reshape(-1, 3).astype(np.int32)
+
+    out_vertices = np.vstack([vertices, new_vertices])
+    out_normals = np.vstack([normals_arr, new_normals])
+    out_uvs = np.vstack([uvs, new_uvs])
+    out_indices = np.vstack([indices, overlay_tris])
+    out_organ_ids = np.concatenate([organ_ids, organ_ids[mid_idx]])
+    out_segment_ids = np.concatenate([segment_ids, segment_ids[mid_idx]])
+
+    out_is_midrib = is_midrib_tri.copy()
+    out_is_midrib[mid_idx] = False
+    overlay_flag = np.ones(len(mid_idx), dtype=bool)
+    out_is_midrib = np.concatenate([out_is_midrib, overlay_flag])
+
+    return (out_vertices, out_indices, out_normals, out_uvs,
+            out_organ_ids, out_segment_ids, out_is_midrib)
+
+
 def _loft_leaf(organ):
     """Loft a leaf organ into ribbon geometry with optional cross-sectional curvature.
 
@@ -1398,6 +1445,12 @@ def _loft_leaf(organ):
             # Reference-faces path bypasses the lofter grid, so we can't
             # tag midrib tris from cross_fracs. Default to no midrib here.
             is_midrib_tri = np.zeros(len(indices), dtype=bool)
+
+    (vertices, indices, normals_arr, uvs, organ_ids, segment_ids,
+     is_midrib_tri) = _apply_midrib_overlay(
+        vertices, indices, normals_arr, uvs, organ_ids, segment_ids,
+        is_midrib_tri,
+    )
 
     return (vertices, indices, normals_arr, uvs, organ_ids, segment_ids,
             quad_indices, quad_organ_ids, is_midrib_tri)
