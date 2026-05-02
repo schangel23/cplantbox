@@ -222,14 +222,23 @@ def _apply_deformations(
     # flat painted feature. ``midrib_amps_cm`` is still consumed
     # downstream as the trigger / gate for the optical-stripe mask.
 
-    # 2. Wave normal (bulk vertical undulation).
+    # 2. Wave normal — independent L/R phases (bltree.lsy:9-10 ZLeft/ZRight).
+    # Each blade edge gets its own sine; cross-section interpolates linearly
+    # from L (v=0) to R (v=1) so the midrib (v=0.5) sees the mean. When
+    # phase_L == phase_R this collapses to the legacy rigid centre shift.
     wave_amp = float(organ.get("wave_normal_amp", 0.0)) * unfurl
     if wave_amp != 0.0:
         freq = float(organ.get("wave_normal_freq", 3.5))
-        phase = float(organ.get("wave_normal_phase", 0.0))
-        offsets = wave_amp * ramp * np.sin(2.0 * np.pi * freq * arc_frac + phase)
-        for i in range(N_U):
-            cps[i, :, :] += offsets[i] * normals[i]
+        phase_legacy = float(organ.get("wave_normal_phase", 0.0))
+        phase_L = float(organ.get("wave_normal_phase_L", phase_legacy))
+        phase_R = float(organ.get("wave_normal_phase_R", phase_legacy))
+        offsets_L = wave_amp * ramp * np.sin(2.0 * np.pi * freq * arc_frac + phase_L)
+        offsets_R = wave_amp * ramp * np.sin(2.0 * np.pi * freq * arc_frac + phase_R)
+        for j in range(N_V):
+            v = _V_PARAMS[j]
+            offsets_j = (1.0 - v) * offsets_L + v * offsets_R
+            for i in range(N_U):
+                cps[i, j] += offsets_j[i] * normals[i]
 
     # 3. Axial twist.
     twist_max = float(organ.get("twist_max", 0.0)) * unfurl
