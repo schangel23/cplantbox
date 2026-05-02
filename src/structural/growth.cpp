@@ -24,6 +24,7 @@
 #include "growth.h"
 
 #include <algorithm>
+#include <cassert>
 #include <cmath>
 
 #include "Leaf.h"
@@ -33,6 +34,69 @@
 #include "stemparameter.h"
 
 namespace CPlantBox {
+
+// -------------------------------------------------------------------------
+// CWLimitedGrowth — Lock #6 implementation
+// -------------------------------------------------------------------------
+// Pre-Lock-#6 behaviour (kept verbatim when demand_==nullptr):
+//   * empty CW_Gr → ExponentialGrowth fallback (unchanged)
+//   * organ created this step (no entry, or entry < 0) → return 0,
+//     with the legacy assert(false) on rounding-error overshoot
+//   * otherwise: length = current + supply, supply marked spent (-1.0)
+//
+// Lock #6 extension (when demand_!=nullptr):
+//   * supply target computed as before
+//   * additionally evaluate demand_->getLength(t,r,k,o) — the FA target
+//     (or any other sink-side demand law)
+//   * return min(supply_target, demand_target) so well-watered carbon
+//     can never push the organ past its structural target
+//   * mark supply spent regardless of which arm of the min() wins —
+//     the supply allocation is "consumed" once dispatched
+//
+// Net effect for FA-on maize under well-watered Juelich met:
+//   demand_ ≈ FA target ≪ supply_target (carbon plentiful)
+//   → return demand_target → FA target shape preserved
+//   This is the silent-clobber bug the plan exists to fix.
+// -------------------------------------------------------------------------
+double CWLimitedGrowth::getLength(double t, double r, double k,
+                                  std::shared_ptr<Organ> o) const
+{
+    if (CW_Gr.empty()) {
+        return ExponentialGrowth::getLength(t, r, k, o);
+    }
+
+    auto it = CW_Gr.find(o->getId());
+    const bool no_supply = (it == CW_Gr.end()) || (it->second < 0);
+    if (no_supply) {
+        // Organ was created this time step (no CW_Gr entry yet, or
+        // entry already spent). Legacy behaviour: return 0 and assert
+        // on rounding-error overshoot from the phloem solver.
+        if (it != CW_Gr.end()
+            && t > o->getOrganism()->getDt()
+            && it->second < -1e-5) {
+            assert(false);
+        }
+        return 0.0;
+    }
+
+    const double supply_target = o->getLength(false) + it->second;
+    const double bound = demand_
+        ? std::min(supply_target, demand_->getLength(t, r, k, o))
+        : supply_target;
+
+    // Mark supply spent regardless of which arm of the min() wins — the
+    // phloem allocation for this organ-step is now dispatched.
+    const_cast<double&>(it->second) = -1.0;
+    return bound;
+}
+
+std::shared_ptr<GrowthFunction> CWLimitedGrowth::copy() const
+{
+    auto c = std::make_shared<CWLimitedGrowth>();
+    c->CW_Gr = this->CW_Gr;
+    c->demand_ = this->demand_ ? this->demand_->copy() : nullptr;
+    return c;
+}
 
 // FA kinetic literature constants now live as XML-bound StemRandomParameter
 // fields (il_init_cm, il_at_end_phase_II_cm, half_plastochron_lag_degCd,

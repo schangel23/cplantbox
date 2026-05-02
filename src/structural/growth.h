@@ -101,36 +101,31 @@ public:
 
 
 /**
- * CWLimitedGrowth uses growth given by phloem module
+ * CWLimitedGrowth uses growth given by phloem module.
+ *
+ * Lock #6 (PLAN_S5_SINK_SOURCE_COUPLING_2026-05-02): an optional
+ * `demand_` GF can be wrapped in. When non-null, getLength returns
+ * `min(demand_->getLength(...), current + supply)` so a sink-side
+ * structural target (e.g. MultiPhase{Stem,Leaf}Growth FA target) caps
+ * the supply-driven growth instead of being silently overwritten by
+ * the carbon-feedback wrap policy. Default `demand_=nullptr` keeps
+ * pre-Lock-#6 semantics bit-identical for non-FA XMLs and roots.
  */
 class CWLimitedGrowth : public ExponentialGrowth
 {
 public:
+	std::shared_ptr<GrowthFunction> demand_ = nullptr;  ///< Lock #6 demand-side cap (null → bare CW supply growth)
 
-	double getLength(double t, double r, double k, std::shared_ptr<Organ> o) const override {
-		double length_;
-		if (this->CW_Gr.empty()  ){//
-			double length = ExponentialGrowth::getLength(t, r, k, o);
-			return length;
-		} else {
-			if((CW_Gr.count(o->getId()) ==0)||(this->CW_Gr.find(o->getId())->second<0)){length_ = 0; //org created at this time step
-				if((t> o->getOrganism()->getDt())&&(this->CW_Gr.find(o->getId())->second<-1e-5)){//possible rounding errors?
-					assert(false);
-				}
-			}else{
-				length_= o->getLength(false) +this->CW_Gr.find(o->getId())->second; // o->getParameter("length");
-				const_cast<double&>( this->CW_Gr.find(o->getId())->second ) = -1.;//sucrose is spent
-			}
-			return length_;
-		}
-	} ///< @copydoc GrowthFunction::getLegngth
+	CWLimitedGrowth() = default;
+	explicit CWLimitedGrowth(std::shared_ptr<GrowthFunction> demand) : demand_(std::move(demand)) {}
+
+	double getLength(double t, double r, double k, std::shared_ptr<Organ> o) const override; ///< @copydoc GrowthFunction::getLength
 
 	double getAge(double l, double r, double k, std::shared_ptr<const Organ> o) const override {
 		return ExponentialGrowth::getAge(l, r, k, o);//used to compute growth delay of root and leaf laterals
 	}  ///< @copydoc GrowthFunction::getAge
 
-	std::shared_ptr<GrowthFunction> copy() const override { return std::make_shared<CWLimitedGrowth>(*this); }
-
+	std::shared_ptr<GrowthFunction> copy() const override;
 };
 
 /**
