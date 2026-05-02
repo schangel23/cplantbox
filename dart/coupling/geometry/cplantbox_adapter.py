@@ -2848,7 +2848,7 @@ def extract_organs_for_lofter(plant, min_stem_nodes=50, min_leaf_nodes=20,
         # Depth scales with blade width — wider leaves have a deeper channel.
         # Values from MaizeField3D: ~0.3-0.8 cm for 4-6 cm wide blades.
         n_skel = len(skeleton)
-        gutter_depth_scale = 0.18 if species == 'maize' else 0.06  # fraction of width
+        gutter_depth_scale = 0.28 if species == 'maize' else 0.06  # fraction of width
         gutter_depths = widths * gutter_depth_scale
         if maturity < 0.95:
             gutter_depths *= unfurl  # young leaves are flat
