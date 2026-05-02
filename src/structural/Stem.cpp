@@ -131,7 +131,20 @@ void Stem::simulate(double dt, bool verbose)
 	{
 		const auto& srp_init = *getStemRandomParameter();
 		if (srp_init.use_fournier_andrieu_kinetics) {
+			// Direct dispatch (FA-on, no carbon mode): f_gf == MultiPhaseStemGrowth.
 			auto gf_mps = std::dynamic_pointer_cast<MultiPhaseStemGrowth>(srp_init.f_gf);
+			// Lock #6 wrap (PLAN_S5_SINK_SOURCE_COUPLING_2026-05-02 §S4): under
+			// carbon mode, enable_cw_limited_growth wraps the FA GF inside
+			// CWLimitedGrowth(demand=MultiPhaseStemGrowth). The wrap's
+			// getLength returns min(FA_target, supply); the per-organ FA
+			// state still lives on the wrapped MultiPhaseStemGrowth instance,
+			// so we look through the wrap to reach it.
+			if (!gf_mps) {
+				auto gf_cwl = std::dynamic_pointer_cast<CWLimitedGrowth>(srp_init.f_gf);
+				if (gf_cwl) {
+					gf_mps = std::dynamic_pointer_cast<MultiPhaseStemGrowth>(gf_cwl->demand_);
+				}
+			}
 			if (gf_mps) {
 				fa_gf = &gf_mps->per_organ_state[getId()];
 			}
