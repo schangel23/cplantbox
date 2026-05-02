@@ -193,7 +193,10 @@ def create_dart_f_simulation(obj_paths, prospect_params, eta_file_path,
             is_tassel = gname.startswith(('tassel_spike_', 'tassel_branch_'))
             is_stem = gname.endswith('_00')
             if is_midrib:
-                op_ident, df = 'leaf_fluorescent', 1
+                # Adaxial-only painted stripe (df=0): the back face stays
+                # optically inactive so the underside reads as bare blade
+                # (matches the visible-light routing in simulation.py).
+                op_ident, df = 'leaf_fluorescent', 0
             elif is_tassel:
                 op_ident, df = 'stem_bark', 1
             elif is_stem:

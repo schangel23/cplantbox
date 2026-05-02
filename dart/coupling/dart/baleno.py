@@ -387,7 +387,9 @@ def setup_baleno_full(obj_path, mapping_json, reindex_json, grid_info_path,
     for gi, gname in enumerate(gnames):
         g = ptd.object_3d.create_Group(num=gi + 1, name=gname)
         if gname.endswith('_midrib'):
-            op_ident, df = 'maize_leaf_midrib', 1
+            # Adaxial-only painted stripe — back face stays optically
+            # inactive so the underside reads as bare blade.
+            op_ident, df = 'maize_leaf_midrib', 0
         elif gname.startswith(('tassel_spike_', 'tassel_branch_')):
             op_ident, df = 'maize_tassel', 1
         elif gname.endswith('_00'):
@@ -594,7 +596,8 @@ def setup_baleno_full_multi(obj_paths, mapping_json_paths, reindex_json_paths,
         for gi, gname in enumerate(gnames):
             g = ptd.object_3d.create_Group(num=gi + 1, name=gname)
             if gname.endswith('_midrib'):
-                op_ident, df = 'maize_leaf_midrib', 1
+                # Adaxial-only painted stripe (df=0).
+                op_ident, df = 'maize_leaf_midrib', 0
             elif gname.startswith(('tassel_spike_', 'tassel_branch_')):
                 op_ident, df = 'maize_tassel', 1
             elif gname.endswith('_00'):

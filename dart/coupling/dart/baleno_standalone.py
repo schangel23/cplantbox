@@ -142,7 +142,8 @@ def step1_create_simu_I():
     for gi, gname in enumerate(gnames):
         g = ptd.object_3d.create_Group(num=gi + 1, name=gname)
         if gname.endswith('_midrib'):
-            op_ident, df = 'maize_leaf_midrib', 1
+            # Adaxial-only painted stripe (df=0).
+            op_ident, df = 'maize_leaf_midrib', 0
         elif gname.startswith(('tassel_spike_', 'tassel_branch_')):
             op_ident, df = 'maize_tassel', 1
         elif gname.endswith('_00'):

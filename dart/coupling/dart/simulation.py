@@ -349,13 +349,21 @@ def step3_create_dart_simulation():
     # Routing precedence: midrib suffix (catches both blade- and senescent-
     # leaf midribs) > tassel prefix > senescent prefix > stem (organ_00)
     # > per-position leaf.
+    #
+    # Midrib runs single-sided (doubleFace=0): the painted optical stripe
+    # is meant as an adaxial-only feature, so the back face stays
+    # optically inactive and the underside reads as bare blade rather
+    # than a second painted ridge. Trade-off: a thin (~5–15 % × W)
+    # central strip becomes RT-transparent from below — narrow enough
+    # not to bias canopy fluxes, but worth noting if you ever try to
+    # close the leaf-level energy balance to <1 % at the strip itself.
     groups_list = []
     leaf_idx = 0
     for gi, gname in enumerate(gnames):
         g = ptd.object_3d.create_Group(num=gi + 1, name=gname)
         if gname.endswith('_midrib'):
             op_ident = 'maize_leaf_midrib'
-            df = 1
+            df = 0
         elif gname.startswith(('tassel_spike_', 'tassel_branch_')):
             op_ident = 'maize_tassel'
             df = 1
@@ -1304,7 +1312,8 @@ def create_dart_simulation(obj_path, mapping_json_path, simu_name,
     for gi, gname in enumerate(gnames):
         g = ptd.object_3d.create_Group(num=gi + 1, name=gname)
         if gname.endswith('_midrib'):
-            op_ident, df = 'maize_leaf_midrib', 1
+            # Adaxial-only stripe — see ``run_simulation`` for the trade-off.
+            op_ident, df = 'maize_leaf_midrib', 0
         elif gname.startswith(('tassel_spike_', 'tassel_branch_')):
             op_ident, df = 'maize_tassel', 1
         elif gname.startswith('senescent_leaf_'):
