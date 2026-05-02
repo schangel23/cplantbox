@@ -12,19 +12,75 @@ total organ length when CW_Gr entries are present.
 import numpy as np
 
 
-def enable_cw_limited_growth(plant):
-    """Switch all organ types to CWLimitedGrowth (gf=3).
+def enable_cw_limited_growth(plant, wrap_roots=False, wrap_fa=True):
+    """Switch all organ types to CWLimitedGrowth (Lock #9 wrap policy).
+
+    PLAN_S5_SINK_SOURCE_COUPLING_2026-05-02 §S4 / ADR_LEAF_KINEMATICS_2026-04-28 §S5.
+    Replaces the pre-Lock-#9 blanket overwrite (which silently clobbered
+    the FA target by discarding `MultiPhase{Stem,Leaf}Growth` instances
+    that `Plant::initCallbacks` had just minted) with a strict per-organ-type
+    policy:
+
+      * root (ot=2):
+          bare CWLimitedGrowth() — preserves pre-Lock-#9 semantics.
+          Override with ``wrap_roots=True`` for future root demand laws.
+          See [[project_root_path_preservation]] for why bare-CWLim is the
+          contract for roots.
+
+      * stem/leaf (ot=3,4):
+          if existing ``f_gf`` is ``MultiPhaseStemGrowth`` /
+          ``MultiPhaseLeafGrowth`` and ``wrap_fa=True`` → wrap with
+          ``demand=existing`` so getLength returns ``min(FA_target, supply)``.
+          Otherwise bare ``CWLimitedGrowth()`` (pre-Lock-#9 semantics for
+          non-FA XMLs — strict isinstance, D2 decision a).
+
+    The strict wrap predicate keeps the 17+ non-maize XMLs in
+    ``gui/cplantbox/params/`` bit-identical under carbon mode. Future
+    demand laws (wheat FA, sorghum, ...) opt in by adding their class to
+    the wrap allowlist here.
+
+    Timing requirement
+    ------------------
+    Must run **after** ``Plant::initialize()`` (which dispatches through
+    ``Plant::initCallbacks`` and mints ``MultiPhase{Stem,Leaf}Growth``
+    via the ``gft_multi_phase_stem`` / ``gft_multi_phase_leaf`` factory
+    types). Calling this helper before initialize would find the original
+    ``gft_negexp`` ``ExponentialGrowth`` GF on the params, miss the FA
+    wrap entirely, and reproduce the silent-clobber bug.
+
+    The single production call site at
+    ``dart/coupling/photosynthesis/diurnal.py:1627`` already runs after
+    ``grow_plant(...)`` (which drives ``MappedPlant.initialize()``).
 
     Args:
         plant: pb.MappedPlant instance.
+        wrap_roots: When True, also build CWLimitedGrowth(demand=existing)
+            for roots whose ``f_gf`` is in the FA wrap allowlist. Default
+            False to preserve [[project_root_path_preservation]].
+        wrap_fa: When True (default), wrap MultiPhase{Stem,Leaf}Growth
+            instances. Set False for an emergency rollback to pre-Lock-#9
+            blanket-bare semantics across all organ types.
     """
     import plantbox as pb
 
+    # Allowlist of demand GFs the wrap recognises. Adding a new demand law
+    # (e.g. WheatFournierAndrieu) is opt-in by appending here.
+    fa_wrap_classes = (pb.MultiPhaseStemGrowth, pb.MultiPhaseLeafGrowth)
+
     for ot in [2, 3, 4]:  # root, stem, leaf
         for param in plant.getOrganRandomParameter(ot):
-            if param is not None:
-                param.f_gf = plant.createGrowthFunction(
-                    pb.GrowthFunctionType.CWLim)
+            if param is None:
+                continue
+            existing = getattr(param, "f_gf", None)
+            should_wrap = (
+                wrap_fa
+                and (ot in (3, 4) or wrap_roots)
+                and isinstance(existing, fa_wrap_classes)
+            )
+            if should_wrap:
+                param.f_gf = pb.CWLimitedGrowth(demand=existing)
+            else:
+                param.f_gf = pb.CWLimitedGrowth()
 
 
 def inject_cw_gr(plant, organ_growth_map):
