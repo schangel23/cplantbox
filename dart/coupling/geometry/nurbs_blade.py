@@ -213,11 +213,13 @@ def _apply_deformations(
         for i in range(N_U):
             cps[i, 2] += (-gd[i]) * normals[i]
 
-    # 1b. Raised central midrib: lifts the v=0.5 CP along +normal AND
-    # depresses the v=0.25 / v=0.75 CPs by half that amount along -normal.
-    # With only N_V=5 CPs, lifting v=0.5 alone just shallows the U; the
-    # paired depression deepens the surrounding trough so the ridge stands
-    # visibly above its neighbours, approximating the maize cross-section.
+    # 1b. Raised central midrib: lifts the v=0.5 CP along +normal.
+    # Earlier versions paired this with a 0.5×downward push on v=0.25 /
+    # v=0.75 to sharpen the ridge against deepened flanking troughs, but
+    # those depressed CPs protruded on the abaxial face and read as twin
+    # ridges on the underside. We now keep the lift only and absorb the
+    # 1.5× factor into the v=0.5 displacement, so the adaxial ridge
+    # prominence is preserved while the abaxial face stays smooth.
     # ramp+unfurl mute the effect for young/early-arc regions.
     midrib_amps = organ.get("midrib_amps_cm")
     if midrib_amps is not None:
@@ -227,13 +229,8 @@ def _apply_deformations(
         if float(np.max(np.abs(ma))) > 1e-6:
             ma = ma * ramp * unfurl
             mid_col = N_V // 2
-            # v=0.5 CPs lift up; v=0.25 and v=0.75 CPs (mid_col±1) push down.
             for i in range(N_U):
-                cps[i, mid_col] += ma[i] * normals[i]
-                if mid_col - 1 >= 0:
-                    cps[i, mid_col - 1] += (-0.5 * ma[i]) * normals[i]
-                if mid_col + 1 < N_V:
-                    cps[i, mid_col + 1] += (-0.5 * ma[i]) * normals[i]
+                cps[i, mid_col] += 1.5 * ma[i] * normals[i]
 
     # 2. Wave normal (bulk vertical undulation).
     wave_amp = float(organ.get("wave_normal_amp", 0.0)) * unfurl
