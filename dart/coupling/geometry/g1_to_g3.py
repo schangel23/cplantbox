@@ -1231,14 +1231,11 @@ def _loft_leaf(organ):
                 if abs(pnd_cs_angle[i]) > 0.01:
                     cs_profile = (2.0 * frac) ** 2
                     cs_offset = pnd_cs_angle[i] * cs_profile * normal
-                # Raised central midrib: narrow Gaussian bump opposite the
-                # gutter direction. Stands as a ridge inside the V-channel.
+                # Geometric midrib ridge: removed. The painted stripe is
+                # carried by the +normal-offset overlay at the end of
+                # _loft_leaf, so the cross-section keeps a clean gutter
+                # U with no centerline relief.
                 midrib_offset = np.zeros(3)
-                if midrib_amps is not None and abs(midrib_amps[i]) > 1e-6:
-                    mid_profile = np.exp(
-                        -(frac / midrib_half_width) ** 2)
-                    midrib_offset = (-gutter_sign * float(midrib_amps[i])
-                                     * mid_profile * normal)
                 v_idx = n_cross * i + j
                 vertices[v_idx] = (center + lateral + gutter_offset
                                    + cs_offset + midrib_offset)
@@ -1287,14 +1284,10 @@ def _loft_leaf(organ):
                     cs_profile = (2.0 * frac) ** 2
                     cs_offset = cross_section_values[i] * cs_profile * normal * w_fade
 
-                # Raised central midrib: narrow Gaussian bump opposite the
-                # gutter direction. Stands as a ridge inside the V-channel.
+                # Geometric midrib ridge: removed (see overlay block at
+                # end of _loft_leaf). midrib_offset stays in the sum for
+                # readability — kept as zero.
                 midrib_offset = np.zeros(3)
-                if midrib_amps is not None and abs(midrib_amps[i]) > 1e-6:
-                    mid_profile = np.exp(
-                        -(frac / midrib_half_width) ** 2)
-                    midrib_offset = (-gutter_sign * float(midrib_amps[i])
-                                     * mid_profile * normal * w_fade)
 
                 v_idx = n_cross * i + j
                 vertices[v_idx] = (center + lateral + gutter_offset

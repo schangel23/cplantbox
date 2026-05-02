@@ -213,24 +213,15 @@ def _apply_deformations(
         for i in range(N_U):
             cps[i, 2] += (-gd[i]) * normals[i]
 
-    # 1b. Raised central midrib: lifts the v=0.5 CP along +normal.
-    # Earlier versions paired this with a 0.5×downward push on v=0.25 /
-    # v=0.75 to sharpen the ridge against deepened flanking troughs, but
-    # those depressed CPs protruded on the abaxial face and read as twin
-    # ridges on the underside. We now keep the lift only and absorb the
-    # 1.5× factor into the v=0.5 displacement, so the adaxial ridge
-    # prominence is preserved while the abaxial face stays smooth.
-    # ramp+unfurl mute the effect for young/early-arc regions.
-    midrib_amps = organ.get("midrib_amps_cm")
-    if midrib_amps is not None:
-        ma = np.asarray(midrib_amps, dtype=np.float64)
-        if len(ma) != N_U:
-            ma = np.interp(arc_frac, np.linspace(0, 1, len(ma)), ma)
-        if float(np.max(np.abs(ma))) > 1e-6:
-            ma = ma * ramp * unfurl
-            mid_col = N_V // 2
-            for i in range(N_U):
-                cps[i, mid_col] += 1.5 * ma[i] * normals[i]
+    # 1b. Geometric midrib ridge: removed. Earlier versions lifted the
+    # v=0.5 CP along +normal so the rib stood above the gutter floor,
+    # but on curved/drooping leaves that 3D ridge reads as a protruding
+    # fold rather than paint. The painted stripe is now carried by the
+    # +normal-offset overlay at the end of loft_leaf_nurbs, so the
+    # cross-section keeps a clean gutter U with no centerline relief
+    # and the rib reads as a flat painted feature.
+    # ``midrib_amps_cm`` is still consumed downstream as the trigger /
+    # gate for the optical-stripe mask + overlay emission.
 
     # 2. Wave normal (bulk vertical undulation).
     wave_amp = float(organ.get("wave_normal_amp", 0.0)) * unfurl
