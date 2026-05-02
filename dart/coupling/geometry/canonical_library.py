@@ -638,22 +638,15 @@ def build_compound_leaf_cps(
     1. **Ring cup** — rows ``0..n_cup-1``. ``n_cup`` closed rings
        stacked from ``z = -L_rendered`` (cup bottom) to ``z = 0``
        (ligule crest at the midrib column). Each ring has radius
-       ``stem_r(z) · (1 + node_safety) + stem_radius_cm · cosmetic``
-       (see ``_ring_row``) measured from the stem central axis. The
-       fractional ``node_safety`` term tracks the local stem so the
-       cup also clears the +12 % node bulge that
-       ``_apply_internode_modulation`` adds in ``_loft_stem``; the
-       ``cosmetic`` term is constant cm (anchored to the COLLAR stem
-       radius) so the visible gap stays uniform from collar to cup
-       bottom even when the stem tapers wider downward. CPlantBox
-       attaches a leaf's node 0 to the parent stem node, which lies
-       on the stem skeleton, so the leaf-local origin IS the
-       stem-axis point and ``stem_center(z) = axis · z`` — rings
-       wrap the stem symmetrically with no lateral bias. ``v = 0``
-       and ``v = n_v − 1`` both sit at the back seam (θ = ±π), so
-       every ring is a true 360° wrap. The top of the cup tilts
-       upward on the blade-emergence side and downward at the back
-       (ligule asymmetry).
+       ``stem_r(z) · (1 + base_clearance + bulge)`` measured from
+       the stem central axis. CPlantBox attaches a leaf's node 0 to
+       the parent stem node, which lies on the stem skeleton, so
+       the leaf-local origin IS the stem-axis point and
+       ``stem_center(z) = axis · z`` — rings wrap the stem
+       symmetrically with no lateral bias. ``v = 0`` and ``v = n_v − 1``
+       both sit at the back seam (θ = ±π), so every ring is a true
+       360° wrap. The top of the cup tilts upward on the blade-
+       emergence side and downward at the back (ligule asymmetry).
 
     2. **Ring → blade transition** — rows ``n_cup..n_cup+n_morph-1``.
        The first ``n_morph`` blade rows smoothstep-blend from a ring
@@ -826,26 +819,6 @@ def build_compound_leaf_cps(
             return stem_r_fallback
         return r if r > 0.0 else stem_r_fallback
 
-    # Split the bulge into a fractional safety margin (tracks the local
-    # stem so the cup always clears the +12 % node bulge that
-    # _apply_internode_modulation applies in _loft_stem) and a constant
-    # cm cosmetic term anchored to the COLLAR stem radius. With the old
-    # ``stem_r_z * (1 + clearance + bulge)`` formula the absolute gap
-    # scaled with the local taper, so a cup that wrapped tightly at the
-    # (narrow) collar visibly splayed out at the (wider) cup bottom.
-    # Pinning the cosmetic part of the bulge to ``stem_radius_cm`` keeps
-    # the visible gap uniform from collar to cup bottom. At the collar
-    # (where ``stem_r_z == stem_radius_cm``) this evaluates to the same
-    # radius as the old formula, so existing renders at the collar are
-    # bit-identical. The clearance term keeps its original taper-aware
-    # behaviour. ``_NODE_BULGE_SAFETY_FRAC`` matches the default
-    # ``node_bulge`` in ``_apply_internode_modulation`` so the cup
-    # always clears the bulged stem at intermediate node attachments
-    # the cup spans on its way down.
-    _NODE_BULGE_SAFETY_FRAC = 0.12
-    safety_bulge = min(bulge, _NODE_BULGE_SAFETY_FRAC)
-    cosmetic_bulge_cm = (bulge - safety_bulge) * float(stem_radius_cm)
-
     def _ring_row(z_j: np.ndarray, bulge_scale: float) -> np.ndarray:
         """Closed ring at per-column z values (n_v,). Returns (n_v, 3).
 
@@ -860,10 +833,7 @@ def build_compound_leaf_cps(
             z = float(z_j[j])
             stem_r_z = _stem_r_at(z)
             stem_center = axis * z
-            R = (
-                stem_r_z * (1.0 + base_clearance + safety_bulge * bulge_scale)
-                + cosmetic_bulge_cm * bulge_scale
-            )
+            R = stem_r_z * (1.0 + base_clearance + bulge * bulge_scale)
             row[j] = stem_center + R * arc_dir[j]
         return row
 
