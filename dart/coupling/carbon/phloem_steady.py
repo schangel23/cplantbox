@@ -19,6 +19,7 @@ Algorithm: O(N) tree-sweep Picard iteration (no linear algebra needed).
 """
 
 import json
+import math
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -1069,7 +1070,7 @@ class QuasiSteadyPhloem:
         }
 
 
-    def compute_organ_growth_map(self, Rg_node):
+    def compute_organ_growth_map(self, Rg_node, return_per_rank=False):
         """Convert per-node Rg (mmol Suc/d) to per-organ CW_Gr length increments (cm).
 
         Follows PiafMunch runPM.cpp:553-632 logic:
@@ -1078,19 +1079,35 @@ class QuasiSteadyPhloem:
           3. newl = organ.orgVolume2Length(vol + delta_vol)
           4. orgGr = newl - current_length  [cm]
 
+        PLAN_PER_RANK_CARBON_FA_2026-05-03 §S2: when ``return_per_rank=True``
+        also returns a stem-only ``per_rank_map`` keyed by orgID, with
+        each entry an index-1-based vector of per-rank dL [cm]. Per-rank
+        Rg is grouped via ``stem.node_to_phytomer`` (S3b.3 post-hoc tagging).
+        Leaves and roots have one rank ≡ one organ, so per_rank_map
+        contains stems only.
+
+        D2 fallback: ranks whose Rg sum is zero but whose FA target
+        exceeds the currently-allocated rank length get a small seed share
+        (FA-target-weighted) so just-emerged ranks can build their first
+        segment instead of staying frozen at the seeding length forever.
+
         Args:
             Rg_node: np.array(N), mmol Suc/d per node (from solver output).
+            return_per_rank: when True, also return per-rank stem map.
 
         Returns:
-            {2: {orgID: dL_cm, ...},   # root
-             3: {orgID: dL_cm, ...},   # stem
-             4: {orgID: dL_cm, ...}}   # leaf
+            organ_map: {2: {orgID: dL_cm, ...}, 3: ..., 4: ...}
+            per_rank_map (if return_per_rank): {orgID: [0.0, dL_n=1, dL_n=2, ...]}
+                                               (index 0 unused; stems only)
         """
         import plantbox as pb
 
         p = self.params
         t = self.tree
         segments = self.plant.getSegments()
+        per_rank_map: dict = {}
+        SEED_FRAC = 1e-4  # D2: tiny seed share for zero-Rg ranks
+        STEM_OT = int(pb.OrganTypes.stem)
 
         # Build node -> segment index lookup for child nodes
         child_to_seg = {}
@@ -1119,11 +1136,19 @@ class QuasiSteadyPhloem:
             if n_org_segs <= 0:
                 continue
 
-            # Sum Rg across this organ's nodes
+            # Sum Rg across this organ's nodes (organ-total).
+            # For stems also aggregate per-rank via node_to_phytomer.
             total_Rg = 0.0
-            for nid in org_node_ids:
+            rg_per_rank: dict[int, float] = {}
+            ntp = list(getattr(org, "node_to_phytomer", []) or []) if ot == STEM_OT else []
+            for local_idx, nid in enumerate(org_node_ids):
                 if nid < len(Rg_node):
-                    total_Rg += Rg_node[nid]
+                    rg_node = float(Rg_node[nid])
+                    total_Rg += rg_node
+                    if ntp and local_idx < len(ntp):
+                        rank = int(ntp[local_idx])
+                        if rank > 0:
+                            rg_per_rank[rank] = rg_per_rank.get(rank, 0.0) + rg_node
 
             # Only include organs with positive growth in the map.
             # Omitting zero-growth organs lets CWLimitedGrowth fall back
@@ -1156,6 +1181,49 @@ class QuasiSteadyPhloem:
 
             growth_map[ot][org_id] = org_gr
 
+            # §S2 per-rank dispatch: only stems with FA-on demand cap +
+            # node_to_phytomer populated. Mirror the per-organ Rg → length
+            # conversion (same Gr_Y, rho_s, π·a²) so per-rank ≡ per-organ
+            # under uniform supply (well-watered case = bit-identical).
+            if not (return_per_rank and ot == STEM_OT and ntp):
+                continue
+            try:
+                radius = float(org.getParameter("a"))
+            except Exception:
+                radius = 0.0
+            if radius <= 0:
+                continue
+            denom = math.pi * radius * radius
+            n_max = int(max(rg_per_rank.keys(), default=0))
+            per_rank = [0.0] * (n_max + 1)
+            for n, total_Rg_n in rg_per_rank.items():
+                if total_Rg_n <= 0:
+                    continue
+                delta_vol_n = total_Rg_n * p.Gr_Y / rho_s
+                per_rank[n] = max(0.0, delta_vol_n / denom)
+            # D2 fallback: zero-Rg ranks with FA target > allocated length
+            # receive a tiny FA-weighted seed so they aren't frozen.
+            rp = org.getOrganRandomParameter()
+            f_gf = getattr(rp, "f_gf", None)
+            demand_gf = getattr(f_gf, "demand", None)
+            if demand_gf is not None and hasattr(demand_gf, "per_organ_state"):
+                state_map = demand_gf.per_organ_state
+                if org_id in state_map:
+                    length_per_n = list(state_map[org_id].length_per_n)
+                    # Extend per_rank to cover all FA-known ranks
+                    if len(length_per_n) > len(per_rank):
+                        per_rank.extend([0.0] * (len(length_per_n) - len(per_rank)))
+                    for n in range(1, len(length_per_n)):
+                        if per_rank[n] > 0:
+                            continue
+                        target_n = float(demand_gf.calcLengthPerPhytomer(n, org))
+                        deficit_n = target_n - float(length_per_n[n])
+                        if deficit_n > 0:
+                            per_rank[n] = SEED_FRAC * deficit_n
+            per_rank_map[org_id] = per_rank
+
+        if return_per_rank:
+            return growth_map, per_rank_map
         return growth_map
 
 
