@@ -183,9 +183,13 @@ static void PM_build_analytic_jacobian_values(realtype *y_data, map<pair<suninde
 		const double vol_meso = vol_ParApo[i];
 		const double c0 = std::max(0., qst / vol_st);
 		const double dc0 = PM_pos_deriv(qst, 1. / vol_st);
-		const double cmeso_raw = qmeso / vol_meso;
+		// F.6.B: vol_meso==0 at root nodes (no parenchyma apoplast). Avoid 1/0 -> inf
+		// propagation into dfl_dqmeso. RHS PiafMunch2.cpp:206 already gates the
+		// mesophyll starch block with `if (vol_ParApo[i]>0)`, so the Jacobian
+		// must mirror that exclusion.
+		const double cmeso_raw = (vol_meso > 0.) ? (qmeso / vol_meso) : 0.;
 		const double cmeso = std::max(0., cmeso_raw);
-		const double dcmeso = PM_pos_deriv(cmeso_raw, 1. / vol_meso);
+		const double dcmeso = (vol_meso > 0.) ? PM_pos_deriv(cmeso_raw, 1. / vol_meso) : 0.;
 
 		const double den_st = phloem->kM_S_ST + c0;
 		double dstarch_st_dqst = 0.;
