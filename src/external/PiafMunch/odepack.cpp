@@ -197,7 +197,7 @@ static void PM_build_analytic_jacobian_values(realtype *y_data, map<pair<suninde
 		double starch_st = 0.;
 		if (den_st != 0.) starch_st += phloem->Vmax_S_ST * std::max(0., qst) / den_st;
 		starch_st += phloem->k_S_ST * (c0 - phloem->C_targ) * vol_st - phloem->kHyd_S_ST * std::max(0., q_s_st);
-		if ((q_s_st < 0.) && (starch_st < 0.)) {
+		if ((q_s_st <= 0.) && (starch_st < 0.)) {
 			dstarch_st_dqst = 0.;
 			dstarch_st_dqsst = 0.;
 			dmucil_dqsst = 0.;
@@ -214,7 +214,7 @@ static void PM_build_analytic_jacobian_values(realtype *y_data, map<pair<suninde
 			dstarch_meso_dqsmeso = -phloem->kHyd_S_Mesophyll;
 			if (den_meso != 0.) starch_meso += phloem->Vmax_S_Mesophyll * std::max(0., qmeso) / den_meso;
 			starch_meso += -phloem->kHyd_S_Mesophyll * q_s_meso + phloem->k_S_Mesophyll * (cmeso - phloem->C_targMesophyll) * vol_meso;
-			if ((q_s_meso < 0.) && (starch_meso < 0.)) {
+			if ((q_s_meso <= 0.) && (starch_meso < 0.)) {
 				dstarch_meso_dqmeso = 0.;
 				dstarch_meso_dqsmeso = 0.;
 			}
