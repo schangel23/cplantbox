@@ -106,8 +106,16 @@ double CWLimitedGrowth::getLength(double t, double r, double k,
         if (o->dl_backlog_per_n.size() < st.length_per_n.size()) {
             o->dl_backlog_per_n.resize(st.length_per_n.size(), 0.0);
         }
+        // Iterate ranks 1..n_ranks (internode_v_n.size()) — same range as
+        // MPSG::getLength Block 3. The apical/peduncle rank (n_ranks+1)
+        // tagged by node_to_phytomer is NOT a Phase I→IV phytomer; including
+        // it would double-count peduncle length under the ln_sum cap and
+        // drift from MPSG's scalar contract. Same n_ranks the per-organ
+        // demand_target reflects, so well-watered parity is bit-identical.
+        auto sp = std::static_pointer_cast<const StemSpecificParameter>(stem->param());
+        const std::size_t n_ranks = sp->internode_v_n.size();
         double effective_total = 0.0;
-        for (std::size_t n = 1; n < st.length_per_n.size(); ++n) {
+        for (std::size_t n = 1; n <= n_ranks && n < st.length_per_n.size(); ++n) {
             const double allocated_n = st.length_per_n[n];
             const double target_n = mpsg->calcLengthPerPhytomer(static_cast<int>(n), o);
             // Mirror MPSG Block 3: driver = max(target, allocated). Keeps
@@ -128,7 +136,6 @@ double CWLimitedGrowth::getLength(double t, double r, double k,
             }
         }
         // Branching cap (mirrors MPSG Block 4).
-        auto sp = std::static_pointer_cast<const StemSpecificParameter>(stem->param());
         double ln_sum = 0.0;
         for (double v : sp->ln) ln_sum += v;
         const double clamped = (effective_total < ln_sum) ? effective_total : ln_sum;

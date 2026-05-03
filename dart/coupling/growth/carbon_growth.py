@@ -83,21 +83,57 @@ def enable_cw_limited_growth(plant, wrap_roots=False, wrap_fa=True):
                 param.f_gf = pb.CWLimitedGrowth()
 
 
-def inject_cw_gr(plant, organ_growth_map):
-    """Fill CW_Gr maps on each organ type's f_gf instances.
+def inject_cw_gr(plant, organ_growth_map, per_rank_map=None):
+    """Fill CW_Gr (per-organ) and optionally CW_Gr_per_n (per-rank) maps.
 
     PiafMunch copies the SAME map to ALL subtypes of each organ type
-    (runPM.cpp:643-652). We replicate this pattern.
+    (runPM.cpp:643-652). We replicate this pattern for the per-organ
+    scalar path. PLAN_PER_RANK_CARBON_FA_2026-05-03 §S5 extends the
+    helper with an optional per-rank supply map for FA-on stems —
+    populating CW_Gr_per_n activates the per-rank cap dispatch
+    inside ``CWLimitedGrowth::getLength`` (S3).
+
+    Per-rank semantics
+    ------------------
+    Only stem RPs whose ``f_gf`` is a wrap-aware ``CWLimitedGrowth``
+    receive the per-rank map. Non-FA stems (bare ``CWLimitedGrowth``
+    without a demand) and roots/leaves are unaffected: their
+    ``CW_Gr_per_n`` stays empty, so ``getLength`` falls through to
+    today's per-organ Lock #6 path. This preserves §G3 bit-identical
+    regression for all non-FA XMLs and roots.
 
     Args:
         plant: pb.MappedPlant instance.
         organ_growth_map: {2: {orgID: dL}, 3: {...}, 4: {...}}
+        per_rank_map: {orgID: [0.0, dL_n=1, ...]} — index-1-based per-rank
+            supply [cm], stems only. Defaults to None (per-organ path only,
+            i.e., S5 HEAD semantics).
     """
     for ot in [2, 3, 4]:
         cw_map = organ_growth_map.get(ot, {})
         for param in plant.getOrganRandomParameter(ot):
             if param is not None:
                 param.f_gf.CW_Gr = cw_map
+    if per_rank_map is None:
+        return
+    # Per-rank only attaches to FA-wrapped stems. Iterate stem RPs only;
+    # leaves/roots have one rank ≡ one organ so per-rank is meaningless.
+    for param in plant.getOrganRandomParameter(3):
+        if param is None:
+            continue
+        growth_fn = getattr(param, "f_gf", None)
+        if not hasattr(growth_fn, "CW_Gr_per_n"):
+            continue
+        if getattr(growth_fn, "demand", None) is None:
+            # Bare CWLimitedGrowth (non-FA stem) — leave per-rank empty so
+            # CWLimitedGrowth::getLength routes through the per-organ path.
+            growth_fn.CW_Gr_per_n = {}
+            continue
+        # PiafMunch-style: same per-rank map shared across all FA stem
+        # subTypes (mainstem, branches, ...). Filter by stem-orgIDs that
+        # actually appear in the map; orgIDs are unique per-organ so the
+        # filter is a no-op when the map already only contains stem ids.
+        growth_fn.CW_Gr_per_n = {oid: vec for oid, vec in per_rank_map.items()}
 
 
 def step_plant_carbon(plant, An_leaf, sim_day, tair_c=25.0, dt=1.0,
@@ -129,8 +165,14 @@ def step_plant_carbon(plant, An_leaf, sim_day, tair_c=25.0, dt=1.0,
     result = solver.solve(An_leaf, Tair_C=tair_c, sim_day=sim_day,
                           warm_start=warm_start)
 
-    growth_map = solver.compute_organ_growth_map(result['Rg_node'])
-    inject_cw_gr(plant, growth_map)
+    # PLAN_PER_RANK_CARBON_FA_2026-05-03 §S5: route the per-rank map
+    # through inject_cw_gr so FA-on stems get the sub-organ supply
+    # dispatch. Non-FA stems and leaves/roots stay on the per-organ path
+    # (per_rank_map keyed by stem orgID only; non-stem RPs untouched).
+    growth_map, per_rank_map = solver.compute_organ_growth_map(
+        result['Rg_node'], return_per_rank=True
+    )
+    inject_cw_gr(plant, growth_map, per_rank_map=per_rank_map)
 
     # Step with error recovery (same pattern as grow.py:140-153)
     try:
