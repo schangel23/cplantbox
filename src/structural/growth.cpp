@@ -61,6 +61,88 @@ namespace CPlantBox {
 double CWLimitedGrowth::getLength(double t, double r, double k,
                                   std::shared_ptr<Organ> o) const
 {
+    // -------------------------------------------------------------------
+    // §P1.S3 per-rank dispatch (PLAN_PER_RANK_CARBON_FA_2026-05-03).
+    // Triggered only when CW_Gr_per_n[org_id] is populated AND demand_ is
+    // a MultiPhaseStemGrowth (FA-on stem). Falls through to the per-organ
+    // Lock #6 path below for everything else (leaves, non-FA stems,
+    // roots, and FA stems whose per-rank vector hasn't been injected).
+    //
+    // Semantics under well-watered (supply >> demand):
+    //   effective_n = min(driver_n, allocated_n + supply_n) = driver_n
+    //   effective_total = Σ driver_n = MPSG fa_sum
+    //   return p.lb + min(effective_total, ln_sum)
+    //          == MPSG::getLength's well-watered return → §G3 bit-identical.
+    //
+    // Semantics under per-rank stress (supply_n=0 on some ranks):
+    //   starved ranks freeze at allocated_n; their unmet (driver_n -
+    //   allocated_n) accumulates in dl_backlog_per_n[n]. Cessation-latched
+    //   ranks have backlog dropped to 0 (D3) regardless.
+    // -------------------------------------------------------------------
+    auto rit = CW_Gr_per_n.find(o->getId());
+    auto* mpsg = (rit != CW_Gr_per_n.end() && demand_)
+                  ? dynamic_cast<MultiPhaseStemGrowth*>(demand_.get())
+                  : nullptr;
+    if (mpsg) {
+        // Drive MPSG state updates (cessation latches + plastochron seed)
+        // by calling getLength once. Idempotent. We discard its scalar
+        // return; we'll re-compute the total below from per-rank slices.
+        (void) demand_->getLength(t, r, k, o);
+
+        auto stem = std::static_pointer_cast<const Stem>(o);
+        // Honor global cessation gate (mirrors MPSG::getLength Block 5).
+        if (stem->cessation_age_ >= 0.0) {
+            auto cwit = CW_Gr.find(o->getId());
+            if (cwit != CW_Gr.end()) {
+                const_cast<double&>(cwit->second) = -1.0;
+            }
+            return o->getLength(true);
+        }
+
+        const auto& st = mpsg->per_organ_state.at(o->getId());
+        const auto& supply_per_n = rit->second;
+        const auto& cessation_per_n = st.cessation_age_per_n;
+        // Lazily size dl_backlog_per_n to track per_organ_state.
+        if (o->dl_backlog_per_n.size() < st.length_per_n.size()) {
+            o->dl_backlog_per_n.resize(st.length_per_n.size(), 0.0);
+        }
+        double effective_total = 0.0;
+        for (std::size_t n = 1; n < st.length_per_n.size(); ++n) {
+            const double allocated_n = st.length_per_n[n];
+            const double target_n = mpsg->calcLengthPerPhytomer(static_cast<int>(n), o);
+            // Mirror MPSG Block 3: driver = max(target, allocated). Keeps
+            // post-cessation ranks contributing their latched length even
+            // if calcLengthPerPhytomer returns a smaller value transiently.
+            const double driver_n = (target_n > allocated_n) ? target_n : allocated_n;
+            const double supply_n = (n < supply_per_n.size()) ? supply_per_n[n] : 0.0;
+            const double cap_n = allocated_n + supply_n;
+            const double effective_n = (driver_n < cap_n) ? driver_n : cap_n;
+            effective_total += effective_n;
+            const bool latched = (n < cessation_per_n.size())
+                                 && (cessation_per_n[n] >= 0.0);
+            if (latched) {
+                // §D3: drop backlog to 0 on cessation regardless of unmet.
+                o->dl_backlog_per_n[n] = 0.0;
+            } else {
+                o->dl_backlog_per_n[n] = (driver_n > effective_n) ? (driver_n - effective_n) : 0.0;
+            }
+        }
+        // Branching cap (mirrors MPSG Block 4).
+        auto sp = std::static_pointer_cast<const StemSpecificParameter>(stem->param());
+        double ln_sum = 0.0;
+        for (double v : sp->ln) ln_sum += v;
+        const double clamped = (effective_total < ln_sum) ? effective_total : ln_sum;
+        // Mark per-organ CW_Gr supply spent (mirrors per-organ contract).
+        auto cwit = CW_Gr.find(o->getId());
+        if (cwit != CW_Gr.end()) {
+            const_cast<double&>(cwit->second) = -1.0;
+        }
+        return sp->lb + clamped;
+    }
+
+    // -------------------------------------------------------------------
+    // Per-organ Lock #6 path (verbatim from S5).
+    // -------------------------------------------------------------------
     if (CW_Gr.empty()) {
         return ExponentialGrowth::getLength(t, r, k, o);
     }
@@ -110,6 +192,7 @@ std::shared_ptr<GrowthFunction> CWLimitedGrowth::copy() const
 {
     auto c = std::make_shared<CWLimitedGrowth>();
     c->CW_Gr = this->CW_Gr;
+    c->CW_Gr_per_n = this->CW_Gr_per_n;
     c->demand_ = this->demand_ ? this->demand_->copy() : nullptr;
     return c;
 }

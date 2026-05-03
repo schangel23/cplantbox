@@ -116,6 +116,16 @@ class CWLimitedGrowth : public ExponentialGrowth
 public:
 	std::shared_ptr<GrowthFunction> demand_ = nullptr;  ///< Lock #6 demand-side cap (null → bare CW supply growth)
 
+	/// PLAN_PER_RANK_CARBON_FA_2026-05-03 §S3: per-rank supply override.
+	/// Keyed by orgID; each entry is an index-1-based vector of per-rank
+	/// supply [cm] (index 0 unused, mirrors the Stem length_per_n
+	/// convention). When the entry exists for an organ AND demand_ is a
+	/// MultiPhaseStemGrowth, getLength dispatches through the per-rank
+	/// branch (cap_n = length_per_n[n] + supply_n; backlog accumulates
+	/// per-rank). Empty entries fall back to the per-organ Lock #6 path,
+	/// preserving §G3 parity for non-FA stems and roots.
+	std::map<int, std::vector<double>> CW_Gr_per_n;
+
 	CWLimitedGrowth() = default;
 	explicit CWLimitedGrowth(std::shared_ptr<GrowthFunction> demand) : demand_(std::move(demand)) {}
 

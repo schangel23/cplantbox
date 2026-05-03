@@ -136,8 +136,14 @@ public:
 	 * unused (matches the existing length_per_n / cessation_age_per_n
 	 * convention). Lazily sized by MultiPhaseStemGrowth::ensureState
 	 * (or staying empty for non-FA stems / leaves / roots, which use the
-	 * scalar dl_backlog above). */
-	std::vector<double> dl_backlog_per_n;
+	 * scalar dl_backlog above).
+	 *
+	 * PLAN_PER_RANK_CARBON_FA_2026-05-03 §S3 const-correctness: marked
+	 * `mutable` so CWLimitedGrowth::getLength (a const method inherited
+	 * from GrowthFunction) can write per-rank backlog without const_cast.
+	 * Same intent as scalar dl_backlog — supply-deficit carry, not part
+	 * of the organ's logical state. */
+	mutable std::vector<double> dl_backlog_per_n;
 
     virtual Vector3d heading(int n)  const ; ///< current (absolute) heading of the organs at node n
     Vector3d getiHeading0() const ;///< the initial coordinate system of the root, when it was created

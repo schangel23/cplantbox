@@ -1204,8 +1204,8 @@ class QuasiSteadyPhloem:
             # D2 fallback: zero-Rg ranks with FA target > allocated length
             # receive a tiny FA-weighted seed so they aren't frozen.
             rp = org.getOrganRandomParameter()
-            f_gf = getattr(rp, "f_gf", None)
-            demand_gf = getattr(f_gf, "demand", None)
+            growth_fn = getattr(rp, "f_gf", None)
+            demand_gf = getattr(growth_fn, "demand", None)
             if demand_gf is not None and hasattr(demand_gf, "per_organ_state"):
                 state_map = demand_gf.per_organ_state
                 if org_id in state_map:
