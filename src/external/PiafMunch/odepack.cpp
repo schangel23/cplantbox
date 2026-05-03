@@ -23,8 +23,10 @@
 *
 -----------------------------------------------------------------------------------------------------------------------------------*/
 
-#include <PiafMunch/odepack.h>
+#include <PiafMunch/runPM.h>
 #include <time.h>
+#include <map>
+#include <set>
 
 // La fonction suivante "habille" un Fortran_vector en N_Vector, i.e. "cree" un N_Vector
 // qui PARTAGE LES MEMES DONNEES (atributs v_ et NV_DATA_S, resp.)  que le Fortran_vector d'origine.
@@ -59,131 +61,269 @@ inline int gg(realtype t, N_Vector yy, realtype *g, void *g_data) {  // Idem pou
 }
 
 SUNLinearSolver LS(NULL);
+extern int Nt, Nc;
+extern vector<int> I_Upflow, I_Downflow;
+extern std::weak_ptr<PhloemFlux> phloem_;
+extern double T;
+extern Fortran_vector vol_ST, vol_ParApo, r_ST, r_ST_ref, Q_Grmax, Q_Rmmax, Q_Exudmax, krm2, len_leaf;
+extern Fortran_vector Psi_Xyl;
+
+static inline sunindextype PM_state_index(int group, int node) {
+	return (sunindextype)(group * Nt + node - 1);
+}
+
+static void PM_add_entry(vector<set<sunindextype> > &rows_by_col, sunindextype row, sunindextype col) {
+	if ((col >= 0) && (col < (sunindextype)rows_by_col.size()) && (row >= 0) && (row < (sunindextype)rows_by_col.size())) {
+		rows_by_col[col].insert(row);
+	}
+}
+
+static bool PM_build_sparse_jacobian_pattern(sunindextype neq, vector<set<sunindextype> > &rows_by_col) {
+	if ((Nt <= 0) || (neq <= 0) || (neq % Nt != 0)) return false;
+	const int ng = (int)(neq / Nt);
+	if (ng < 10) return false;
+
+	rows_by_col.assign((size_t)neq, set<sunindextype>());
+	for (sunindextype col = 0; col < neq; col++) PM_add_entry(rows_by_col, col, col);
+
+	for (int node = 1; node <= Nt; node++) {
+		const sunindextype qst_col = PM_state_index(0, node);
+		PM_add_entry(rows_by_col, PM_state_index(0, node), qst_col);
+		PM_add_entry(rows_by_col, PM_state_index(1, node), qst_col);
+		PM_add_entry(rows_by_col, PM_state_index(2, node), qst_col);
+		PM_add_entry(rows_by_col, PM_state_index(3, node), qst_col);
+		PM_add_entry(rows_by_col, PM_state_index(4, node), qst_col);
+		PM_add_entry(rows_by_col, PM_state_index(5, node), qst_col);
+		PM_add_entry(rows_by_col, PM_state_index(8, node), qst_col);
+
+		const sunindextype qmeso_col = PM_state_index(1, node);
+		PM_add_entry(rows_by_col, PM_state_index(0, node), qmeso_col);
+		PM_add_entry(rows_by_col, PM_state_index(1, node), qmeso_col);
+		PM_add_entry(rows_by_col, PM_state_index(7, node), qmeso_col);
+
+		const sunindextype q_s_meso_col = PM_state_index(7, node);
+		PM_add_entry(rows_by_col, PM_state_index(1, node), q_s_meso_col);
+		PM_add_entry(rows_by_col, PM_state_index(7, node), q_s_meso_col);
+
+		const sunindextype q_s_st_col = PM_state_index(8, node);
+		PM_add_entry(rows_by_col, PM_state_index(0, node), q_s_st_col);
+		PM_add_entry(rows_by_col, PM_state_index(8, node), q_s_st_col);
+		PM_add_entry(rows_by_col, PM_state_index(9, node), q_s_st_col);
+	}
+
+	for (int edge = 1; edge <= Nc; edge++) {
+		const int up = I_Upflow[edge];
+		const int down = I_Downflow[edge];
+		const sunindextype up_row = PM_state_index(0, up);
+		const sunindextype down_row = PM_state_index(0, down);
+		const sunindextype up_col = PM_state_index(0, up);
+		const sunindextype down_col = PM_state_index(0, down);
+		PM_add_entry(rows_by_col, up_row, up_col);
+		PM_add_entry(rows_by_col, down_row, up_col);
+		PM_add_entry(rows_by_col, up_row, down_col);
+		PM_add_entry(rows_by_col, down_row, down_col);
+	}
+	return true;
+}
+
+static sunindextype PM_sparse_jacobian_nnz(sunindextype neq) {
+	vector<set<sunindextype> > rows_by_col;
+	if (!PM_build_sparse_jacobian_pattern(neq, rows_by_col)) return neq;
+	sunindextype ntnz = 0;
+	for (size_t col = 0; col < rows_by_col.size(); col++) ntnz += (sunindextype)rows_by_col[col].size();
+	return ntnz;
+}
+
+static inline double PM_pos_deriv(double value, double scale) {
+	return (value > 0.) ? scale : 0.;
+}
+
+static inline void PM_add_value(map<pair<sunindextype, sunindextype>, realtype> &values, sunindextype row, sunindextype col, realtype value) {
+	values[pair<sunindextype, sunindextype>(row, col)] += value;
+}
+
+static double PM_viscosity_resistance_deriv(double c, double r_ref, const shared_ptr<PhloemFlux> &phloem) {
+	if (!phloem || !phloem->update_viscosity_ || c <= 0.) return 0.;
+	const double tdc = T - 273.15;
+	const double d_eau = (999.83952 + tdc * (16.952577 + tdc * (-0.0079905127 + tdc * (-0.000046241757 + tdc * (0.00000010584601 + tdc * (-0.00000000028103006)))))) / (1 + 0.016887236 * tdc);
+	const double si_phi = (30 - tdc) / (91 + tdc);
+	const double d = c * 342.3 + d_eau;
+	const double dd_dc = 342.3;
+	const double s0 = (100. * 342.30 * c) / d;
+	const double ds0_dc = (100. * 342.30 * (d - c * dd_dc)) / (d * d);
+	const double denom = 1900. - 18. * s0;
+	const double si = s0 / denom;
+	const double dsi_dc = (ds0_dc * denom + 18. * s0 * ds0_dc) / (denom * denom);
+	const double exponent = (22.46 * si) - 0.114 + (si_phi * (1.1 + 43.1 * pow(si, 1.25)));
+	const double mu = pow(10., exponent) / (24. * 60. * 60.) / 100. / 1000.;
+	const double dexponent_dc = (22.46 + si_phi * 43.1 * 1.25 * pow(si, 0.25)) * dsi_dc;
+	return r_ref * mu * log(10.) * dexponent_dc;
+}
+
+static void PM_build_analytic_jacobian_values(realtype *y_data, map<pair<sunindextype, sunindextype>, realtype> &values) {
+	shared_ptr<PhloemFlux> phloem = phloem_.lock();
+	if (!phloem) return;
+	const double RT = 83.14 * T;
+	const double q10fac = pow(phloem->Q10, (T - 273.15 - phloem->TrefQ10) / 10.);
+
+	for (int i = 1; i <= Nt; i++) {
+		const int zi = i - 1;
+		const double qst = y_data[PM_state_index(0, i)];
+		const double qmeso = y_data[PM_state_index(1, i)];
+		const double q_s_meso = y_data[PM_state_index(7, i)];
+		const double q_s_st = y_data[PM_state_index(8, i)];
+		const double vol_st = vol_ST[i];
+		const double vol_meso = vol_ParApo[i];
+		const double c0 = std::max(0., qst / vol_st);
+		const double dc0 = PM_pos_deriv(qst, 1. / vol_st);
+		const double cmeso_raw = qmeso / vol_meso;
+		const double cmeso = std::max(0., cmeso_raw);
+		const double dcmeso = PM_pos_deriv(cmeso_raw, 1. / vol_meso);
+
+		const double den_st = phloem->kM_S_ST + c0;
+		double dstarch_st_dqst = 0.;
+		if (den_st != 0. && qst > 0.) dstarch_st_dqst += phloem->Vmax_S_ST * (den_st - qst * dc0) / (den_st * den_st);
+		dstarch_st_dqst += phloem->k_S_ST * vol_st * dc0;
+		double dstarch_st_dqsst = (q_s_st > 0.) ? -phloem->kHyd_S_ST : 0.;
+		double mucil = std::max(0., phloem->k_mucil_[zi] * q_s_st);
+		double dmucil_dqsst = (phloem->k_mucil_[zi] * q_s_st > 0.) ? phloem->k_mucil_[zi] : 0.;
+		double starch_st = 0.;
+		if (den_st != 0.) starch_st += phloem->Vmax_S_ST * std::max(0., qst) / den_st;
+		starch_st += phloem->k_S_ST * (c0 - phloem->C_targ) * vol_st - phloem->kHyd_S_ST * std::max(0., q_s_st);
+		if ((q_s_st <= 0.) && (starch_st < 0.)) {
+			dstarch_st_dqst = 0.;
+			dstarch_st_dqsst = 0.;
+			dmucil_dqsst = 0.;
+			mucil = 0.;
+		}
+
+		const double den_meso = phloem->kM_S_Mesophyll + cmeso;
+		double dstarch_meso_dqmeso = 0.;
+		double dstarch_meso_dqsmeso = 0.;
+		double starch_meso = 0.;
+		if (vol_meso > 0.) {
+			if (den_meso != 0. && qmeso > 0.) dstarch_meso_dqmeso += phloem->Vmax_S_Mesophyll * (den_meso - qmeso * dcmeso) / (den_meso * den_meso);
+			dstarch_meso_dqmeso += phloem->k_S_Mesophyll * vol_meso * dcmeso;
+			dstarch_meso_dqsmeso = -phloem->kHyd_S_Mesophyll;
+			if (den_meso != 0.) starch_meso += phloem->Vmax_S_Mesophyll * std::max(0., qmeso) / den_meso;
+			starch_meso += -phloem->kHyd_S_Mesophyll * q_s_meso + phloem->k_S_Mesophyll * (cmeso - phloem->C_targMesophyll) * vol_meso;
+			if ((q_s_meso <= 0.) && (starch_meso < 0.)) {
+				dstarch_meso_dqmeso = 0.;
+				dstarch_meso_dqsmeso = 0.;
+			}
+		}
+
+		const double load_den = phloem->Mloading + cmeso;
+		const double exp_load = exp(-c0 * phloem->beta_loading);
+		const double load_a = phloem->Vmaxloading * len_leaf[i];
+		const double fl = (load_den != 0.) ? load_a * cmeso / load_den * exp_load : 0.;
+		const double dfl_dqmeso = (load_den != 0.) ? load_a * phloem->Mloading / (load_den * load_den) * exp_load * dcmeso : 0.;
+		const double dfl_dqst = -phloem->beta_loading * fl * dc0;
+		const double cuse = std::max(0., c0 - phloem->CSTimin);
+		const double dcuse = (c0 > phloem->CSTimin) ? dc0 : 0.;
+		const double csoil = (zi < (int)phloem->Csoil_node.size()) ? phloem->Csoil_node[zi] : phloem->CsoilDefault;
+		const double dc_delta = (cuse > csoil) ? dcuse : 0.;
+		const double drmmax = krm2[i] * q10fac * dcuse;
+		const double rmmax = (Q_Rmmax[i] + krm2[i] * cuse) * q10fac;
+		const double dexud = Q_Exudmax[i] * dc_delta;
+		const double fu_den = cuse + phloem->KMfu;
+		const double fu_base = rmmax + Q_Grmax[i];
+		const double fu = (fu_den != 0.) ? fu_base * cuse / fu_den : 0.;
+		const double dfu = (fu_den != 0.) ? (drmmax * cuse / fu_den + fu_base * phloem->KMfu * dcuse / (fu_den * fu_den)) : 0.;
+		const double drm = (fu <= rmmax) ? dfu : drmmax;
+		const double growth_raw = fu - std::min(fu, rmmax);
+		const double dgrowth = ((growth_raw > 0.) && (growth_raw < Q_Grmax[i])) ? (dfu - drm) : 0.;
+
+		PM_add_value(values, PM_state_index(0, i), PM_state_index(0, i), dfl_dqst - dfu - dexud - dstarch_st_dqst);
+		PM_add_value(values, PM_state_index(0, i), PM_state_index(1, i), dfl_dqmeso);
+		PM_add_value(values, PM_state_index(0, i), PM_state_index(8, i), -dstarch_st_dqsst);
+		PM_add_value(values, PM_state_index(1, i), PM_state_index(0, i), -dfl_dqst);
+		PM_add_value(values, PM_state_index(1, i), PM_state_index(1, i), -dfl_dqmeso - dstarch_meso_dqmeso);
+		PM_add_value(values, PM_state_index(1, i), PM_state_index(7, i), -dstarch_meso_dqsmeso);
+		PM_add_value(values, PM_state_index(2, i), PM_state_index(0, i), drm);
+		PM_add_value(values, PM_state_index(3, i), PM_state_index(0, i), dexud);
+		PM_add_value(values, PM_state_index(4, i), PM_state_index(0, i), dgrowth);
+		PM_add_value(values, PM_state_index(5, i), PM_state_index(0, i), drmmax);
+		PM_add_value(values, PM_state_index(7, i), PM_state_index(1, i), dstarch_meso_dqmeso);
+		PM_add_value(values, PM_state_index(7, i), PM_state_index(7, i), dstarch_meso_dqsmeso);
+		PM_add_value(values, PM_state_index(8, i), PM_state_index(0, i), dstarch_st_dqst);
+		PM_add_value(values, PM_state_index(8, i), PM_state_index(8, i), dstarch_st_dqsst - dmucil_dqsst);
+		PM_add_value(values, PM_state_index(9, i), PM_state_index(8, i), dmucil_dqsst);
+	}
+
+	for (int edge = 1; edge <= Nc; edge++) {
+		const int up = I_Upflow[edge];
+		const int down = I_Downflow[edge];
+		const double cup = std::max(0., y_data[PM_state_index(0, up)] / vol_ST[up]);
+		const double cdown = std::max(0., y_data[PM_state_index(0, down)] / vol_ST[down]);
+		const double dcup = PM_pos_deriv(y_data[PM_state_index(0, up)], 1. / vol_ST[up]);
+		const double dcdown = PM_pos_deriv(y_data[PM_state_index(0, down)], 1. / vol_ST[down]);
+		const double pup = RT * cup + (phloem->usePsiXyl ? Psi_Xyl[up] : 0.);
+		const double pdown = RT * cdown + (phloem->usePsiXyl ? Psi_Xyl[down] : 0.);
+		const double w = pup - pdown;
+		const bool from_up = (w > 0.);
+		const double ca = from_up ? cup : cdown;
+		const double r = r_ST[edge];
+		// Viscosity residue: r_ST = mu(C_amont) * r_ST_ref is frozen in the Jacobian.
+		// Including dmu/dC made the maize KLU path leave the empirical 1 h baseline;
+		// with C_ST < 0.3 mmol cm-3 here this bounded lagged coefficient keeps Newton stable.
+		const double dr_dca = 0.; // PM_viscosity_resistance_deriv(ca, r_ST_ref[edge], phloem)
+		const double common = (r != 0.) ? ca / r : 0.;
+		const double adv = (r != 0.) ? w / r : 0.;
+		const double visc = (r != 0.) ? -w * ca / (r * r) * dr_dca : 0.;
+		const double djs_dqup = common * RT * dcup + (from_up ? (adv + visc) * dcup : 0.);
+		const double djs_dqdown = -common * RT * dcdown + (!from_up ? (adv + visc) * dcdown : 0.);
+		PM_add_value(values, PM_state_index(0, up), PM_state_index(0, up), -djs_dqup);
+		PM_add_value(values, PM_state_index(0, down), PM_state_index(0, up), djs_dqup);
+		PM_add_value(values, PM_state_index(0, up), PM_state_index(0, down), -djs_dqdown);
+		PM_add_value(values, PM_state_index(0, down), PM_state_index(0, down), djs_dqdown);
+	}
+}
+
 /* Other Constants pour calcul KLU_DQ_Jac : */
 #define MIN_INC_MULT RCONST(1000.0)
 #define ZERO         RCONST(0.0)
 #define ONE          RCONST(1.0)
 #define TWO          RCONST(2.0)
 
-static int Jac_(realtype t, N_Vector y, N_Vector fy, SUNMatrix J, void *user_data, N_Vector tmp1, N_Vector tmp2, N_Vector tmp3) {
-	CVodeMem cv_mem;
+int Jac_(realtype t, N_Vector y, N_Vector fy, SUNMatrix J, void *user_data, N_Vector tmp1, N_Vector tmp2, N_Vector tmp3) {
 	sunindextype *colptrs = SUNSparseMatrix_IndexPointers(J);
 	sunindextype *rowvals = SUNSparseMatrix_IndexValues(J);
 	realtype *data = SUNSparseMatrix_Data(J);
-	N_Vector  ftemp; // stockera temporairement  f(y + inc) = f(y) + (df/dy[j]) * dy[j] = valeur de f quand y[j] est decale de inc=dy[j]
-	realtype fnorm, minInc, inc, yjsaved, srur, conj;
-	realtype *y_data, *fy_data, *ftemp_data, *ewt_data, *cns_data;
-	sunindextype i, j, N, NNZ, NNZ0, retval, npnz, ntnz = 0; // ntnz sera le nombre de NZ effectivement trouve, y compris les elements diagonaux meme si nuls
-	realtype J_ij ; bool nnz_str_changed(false) ;
-	cv_mem = (CVodeMem)cvode_mem;
+	realtype *y_data = N_VGetArrayPointer(y);
+	sunindextype j, N, ntnz = 0;
+	vector<set<sunindextype> > rows_by_col;
+	map<pair<sunindextype, sunindextype>, realtype> values;
+
 	SUNMatZero(J);
-	y_data = N_VGetArrayPointer(y);
-	retval = 0;
-	npnz = NNZ = NNZ0 = SM_NNZ_S(J);// npnz de Sparse_matrix
-	// access matrix dimension  et  verif. coherence J, y, fy :
 	N = SM_COLUMNS_S(J);
 	assert(SM_ROWS_S(J) == N);
 	assert(NV_LENGTH_S(y) == N);
 	assert(NV_LENGTH_S(fy) == N);
-	sunindextype** KLU_Ai = NULL; realtype ** KLU_Ax = NULL; // serviront eventuellement de tampon de stockage si nnz_eff depasse NNZ
-	sunindextype n_KLU_ptrs_1(-1), n_KLU_ptrs_2(N - 1); //   n_KLU_ptrs_1 =  nombre de tampons de taille N deja utilises  - 1
-	/* Rename work vector for readibility */
-	ftemp = tmp1;
-	/* Obtain pointers to the data for ewt, y */
-	ftemp_data = N_VGetArrayPointer(ftemp);
-	ewt_data = N_VGetArrayPointer(cv_mem->cv_ewt);
-	y_data = N_VGetArrayPointer(y);
-	fy_data = N_VGetArrayPointer(fy);
-	if (cv_mem->cv_constraints != NULL)
-		cns_data = N_VGetArrayPointer(cv_mem->cv_constraints);
-	/* Set minimum increment based on uround and norm of f */
-	srur = SUNRsqrt(cv_mem->cv_uround);
-	fnorm = N_VWrmsNorm(fy, cv_mem->cv_ewt);
-	minInc = (fnorm != ZERO) ?
-		(MIN_INC_MULT * SUNRabs(cv_mem->cv_h) * cv_mem->cv_uround * N * fnorm) : ONE;
-	for (j = 0; j < N; j++) { // Generate the jth col of J(tn,y)
-		if (colptrs[j] != ntnz) {
-			colptrs[j] = ntnz;
-			nnz_str_changed = true;
-		}
-		yjsaved = y_data[j];
-		inc = SUNMAX(srur*SUNRabs(yjsaved), minInc / ewt_data[j]); // inc = dy[j]
-		// Adjust sign(inc) if y_j has an inequality constraint :
-		if (cv_mem->cv_constraints != NULL) {
-			conj = cns_data[j];
-			if (SUNRabs(conj) == ONE) { if ((yjsaved + inc)*conj < ZERO)  inc = -inc; }
-			else if (SUNRabs(conj) == TWO) { if ((yjsaved + inc)*conj <= ZERO) inc = -inc; }
-		}
-		y_data[j] += inc; // = y[j] + dy[j]
-		retval = cv_mem->cv_f(t, y, ftemp, cv_mem->cv_user_data); // ftemp = y_dot(t, y + inc)     (y+inc ne differe de y qu par sa jeme composante)
-		if (retval != 0) break;
-		y_data[j] = yjsaved; // restaure y
-		for (i = 0; i < N; i++) { // ligne i de la colonne j
-			if ((ftemp_data[i] != fy_data[i]) || (i == j)) {
-				if (ftemp_data[i] != fy_data[i])   J_ij = (ftemp_data[i] - fy_data[i]) / inc;   else  J_ij = ZERO;
-				if (ntnz >= NNZ0) { // avec celui-ci en plus, on va depasser l'espace reserve pour J
-					if (ntnz == NNZ0) cout << "ntnz = "  << ntnz << " va depasser NNZ = " << NNZ0 << " => creation des tampons :" << endl;
-					if (!KLU_Ai) {
-						assert(!KLU_Ax);
-						KLU_Ai = new sunindextype*[N]; KLU_Ax = new realtype*[N];
-//						cout << "KLU_Ai , _Ax = new ...type*[N]" << endl ;
-					}
-					n_KLU_ptrs_2++;
-					if (n_KLU_ptrs_2 == N) {
-						n_KLU_ptrs_2 = 0; // de la ligne KLU_Ai[1 + n_KLU_ptrs_1], qui n'est pas encore utilisee, et donc n'a pas encore ete initialisee :
-						n_KLU_ptrs_1++; assert(n_KLU_ptrs_1 < N);
-						KLU_Ai[n_KLU_ptrs_1] = new sunindextype[N]; KLU_Ax[n_KLU_ptrs_1] = new realtype[N];
-	//					cout << "KLU_Ai[...ptrs1] , _Ax[...ptrs1] = new ...type[N]" << endl;
-					}
-					KLU_Ai[n_KLU_ptrs_1][n_KLU_ptrs_2] = i; KLU_Ax[n_KLU_ptrs_1][n_KLU_ptrs_2] = J_ij;
-				}
-				else {
-					if (rowvals[ntnz] != i) {
-						rowvals[ntnz] = i;
-						nnz_str_changed = true;
-					}
-					data[ntnz] = J_ij;
-				}
-				ntnz++;
-			}
-		}
-	}
-	if (ntnz > NNZ0) { // on a du stocker des valeurs dans les tampons KLU_A.[0 .. n_KLU_ptrs_1 ][ ]
-//		cout << "ntnz > NNZ : reallocation matrice J ; utilisation et destruction des tampons :" << endl;
-		npnz = ntnz / N ; // (provisoirement) nombre de lignes  pleines de longueur N, pouvant contenir tous les ntnz 'zeros'
-		assert(npnz * N <= ntnz) ;
-		if (npnz * N < ntnz) npnz ++ ; // on dimensionne le nouveau 'NNZ' = npnz  en multiples entiers de N :
-		npnz = N * npnz ; assert(npnz >= ntnz) ; // le vrai nouveau npnz a reserver
-		SUNSparseMatrix_Reallocate(J, npnz) ;	// nouveau NNZ officiel = SM_NNZ_S(J) = npnz de Sparse_matrix ; conserve les valeurs d'index < NNZ
+	if (!PM_build_sparse_jacobian_pattern(N, rows_by_col)) return -1;
+
+	const sunindextype structural_nnz = PM_sparse_jacobian_nnz(N);
+	if (SM_NNZ_S(J) < structural_nnz) {
+		SUNSparseMatrix_Reallocate(J, structural_nnz);
+		colptrs = SUNSparseMatrix_IndexPointers(J);
 		rowvals = SUNSparseMatrix_IndexValues(J);
 		data = SUNSparseMatrix_Data(J);
-		colptrs = SUNSparseMatrix_IndexPointers(J); // n'a pas du changer...
-		for (i = 0; i < n_KLU_ptrs_1; i++) { // recopie les lignes KLU_A.[ ] completes a coup sur (s'il y en a, i.e. si n_KLU_ptrs_1 >= 1)
-			for (j = 0; j < N; j++) {
-				rowvals[NNZ] = KLU_Ai[i][j]; data[NNZ] = KLU_Ax[i][j];
-				NNZ++;
-			}
-			delete[] KLU_Ai[i]; delete[] KLU_Ax[i];
-//			cout << "delete[] KLU_Ai[i] , _Ax[i] ; " ;
-		}
-		for (j = 0; j <= n_KLU_ptrs_2; j++) { // la derniere ligne, eventuellement incomplete
-			rowvals[NNZ] = KLU_Ai[n_KLU_ptrs_1][j]; data[NNZ] = KLU_Ax[n_KLU_ptrs_1][j];
-			NNZ++;
-		}
-		delete[] KLU_Ai[n_KLU_ptrs_1]; delete[] KLU_Ax[n_KLU_ptrs_1];
-//		cout << "delete[] KLU_Ai[...ptrs1] , _Ax[...ptrs1] ; " ;
-		delete[] KLU_Ai; delete[] KLU_Ax;
-//		cout << "delete[] KLU_Ai , _Ax" << endl;
-		assert(NNZ == ntnz); // attention, ce n'est plus le NNZ officiel ! -- qui reste stocke en NNZ0
 	}
-	if (colptrs[N] != ntnz) {
-		colptrs[N] = ntnz;
-		nnz_str_changed = true;
-	}
-	if (nnz_str_changed) {
-		if (LS) { // le solveur a deja ete initialise par cvode_direct( ), donc une reinit. PARTIAL suffit :
-			SUNLinSol_KLUReInit(LS, J, ntnz, SUNKLU_REINIT_PARTIAL);
+
+	PM_build_analytic_jacobian_values(y_data, values);
+
+	for (j = 0; j < N; j++) {
+		colptrs[j] = ntnz;
+		for (set<sunindextype>::const_iterator row = rows_by_col[j].begin(); row != rows_by_col[j].end(); ++row) {
+			map<pair<sunindextype, sunindextype>, realtype>::const_iterator value = values.find(pair<sunindextype, sunindextype>(*row, j));
+			rowvals[ntnz] = *row;
+			data[ntnz] = (value == values.end()) ? ZERO : value->second;
+			ntnz++;
 		}
+	}
+	colptrs[N] = ntnz;
+	if (LS) {
+		SUNLinSol_KLUReInit(LS, J, ntnz, SUNKLU_REINIT_PARTIAL);
 	}
 	return(0);
 }
@@ -263,8 +403,8 @@ int cvode_direct(void(*f)(double,double*,double*), Fortran_vector& y, Fortran_ve
 			  LS = SUNLinSol_Band(yy, A);
 			  if (!LS) { _LogMessage("erreur SUNLinSol_Band"); return -1; }
 		  } else {
-				if (solver == KLU) {// cree les 3 espaces memoire (KLU::Ax, Ai, Ap) dimensionnes ; on pourra les redimensionner ulterieurement...
-					A = SUNSparseMatrix(neq, neq, neq, CSC_MAT);// 3eme arg : nnz = neq = le + petit a priori (la diag.)
+					if (solver == KLU) {// cree les 3 espaces memoire (KLU::Ax, Ai, Ap) dimensionnes ; on pourra les redimensionner ulterieurement...
+						A = SUNSparseMatrix(neq, neq, PM_sparse_jacobian_nnz(neq), CSC_MAT);// 3eme arg : structural nnz for the PiafMunch sparse Jacobian
 					if (check_flag((void *)A, "SUNSparseMatrix", 0)) return(1);
 					/* Create KLU solver object for use by CVode */
 					LS = SUNLinSol_KLU(yy, A);
@@ -280,9 +420,12 @@ int cvode_direct(void(*f)(double,double*,double*), Fortran_vector& y, Fortran_ve
 		  flag = CVodeSetJacFn(cvode_mem, Jac_);
 		  if (check_flag(&flag, "CVodeSetJacFn", 1)) return(1); // Non-zero = erreur
 	  }
-  }
-  flag = CVodeSetMaxConvFails(cvode_mem, 100) ; // pour prevenir l'erreur de non-convergence (error code = -4), sauf si la convergence n'est effectivement jamais atteinte !
-  for (i = 2 ; i <= nbt ; i++) {						// pour chaque instant ou l'on souhaite la solution
+	  }
+	  flag = CVodeSetMaxConvFails(cvode_mem, 100) ; // pour prevenir l'erreur de non-convergence (error code = -4), sauf si la convergence n'est effectivement jamais atteinte !
+	  if (check_flag(&flag, "CVodeSetMaxConvFails", 1)) return(1);
+	  flag = CVodeSetMaxNumSteps(cvode_mem, 10000);
+	  if (check_flag(&flag, "CVodeSetMaxNumSteps", 1)) return(1);
+	  for (i = 2 ; i <= nbt ; i++) {						// pour chaque instant ou l'on souhaite la solution
 	tout=T[i];
 	if (verbose) {
 			strftime(message, 50, "%H:%M:%S", localtime(&current)) ; cout <<  "at " << message << " :  starting step n#" << i-1 << " (tf = " << tout << ")" << endl ;
@@ -471,8 +614,11 @@ int cvode_spils(void(*f)(double, double*, double*), Fortran_vector &y, Fortran_v
 		cout << "CVBandPrecInit flag = " << flag << endl;
 		if (check_flag(&flag, "CVBandPrecInit", 1)) { _LogMessage("erreur CVBandPrecInit"); return -1; }
 	}
-  flag = CVodeSetMaxConvFails(cvode_mem, 100) ; // pour prevenir l'erreur de non-convergence (error code = -4), sauf si la convergence n'est effectivement jamais atteinte !
-  for (i = 2 ; i <= nbt ; i++) {						// pour chaque instant ou l'on souhaite la solution
+	  flag = CVodeSetMaxConvFails(cvode_mem, 100) ; // pour prevenir l'erreur de non-convergence (error code = -4), sauf si la convergence n'est effectivement jamais atteinte !
+	  if (check_flag(&flag, "CVodeSetMaxConvFails", 1)) return(1);
+	  flag = CVodeSetMaxNumSteps(cvode_mem, 10000);
+	  if (check_flag(&flag, "CVodeSetMaxNumSteps", 1)) return(1);
+	  for (i = 2 ; i <= nbt ; i++) {						// pour chaque instant ou l'on souhaite la solution
 	tout=T[i];
 	if (verbose) {
 			strftime(message, 50, "%H:%M:%S", localtime(&current)) ; cout <<  "at " << message << " :  starting step n#" << i-1 << " (tf = " << tout << ")" << endl ;
