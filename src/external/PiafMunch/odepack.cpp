@@ -137,7 +137,12 @@ static sunindextype PM_sparse_jacobian_nnz(sunindextype neq) {
 }
 
 static inline double PM_pos_deriv(double value, double scale) {
-	return (value > 0.) ? scale : 0.;
+	// Right-derivative at the max(0, value) clipping boundary: include value=0
+	// in the active branch so the Jacobian sees what Newton sees when it probes
+	// y from 0 into y>0. Strict ">" gave a wrong (zero) slope at y=0 while the
+	// RHS exposed the Vmax/kM, kHyd, k_mucil contributions on the y>0 side,
+	// causing CVODE BDF h-collapse on non-uniform restart states (step-2 hang).
+	return (value >= 0.) ? scale : 0.;
 }
 
 static inline void PM_add_value(map<pair<sunindextype, sunindextype>, realtype> &values, sunindextype row, sunindextype col, realtype value) {
@@ -184,15 +189,15 @@ static void PM_build_analytic_jacobian_values(realtype *y_data, map<pair<suninde
 
 		const double den_st = phloem->kM_S_ST + c0;
 		double dstarch_st_dqst = 0.;
-		if (den_st != 0. && qst > 0.) dstarch_st_dqst += phloem->Vmax_S_ST * (den_st - qst * dc0) / (den_st * den_st);
+		if (den_st != 0. && qst >= 0.) dstarch_st_dqst += phloem->Vmax_S_ST * (den_st - qst * dc0) / (den_st * den_st);
 		dstarch_st_dqst += phloem->k_S_ST * vol_st * dc0;
-		double dstarch_st_dqsst = (q_s_st > 0.) ? -phloem->kHyd_S_ST : 0.;
+		double dstarch_st_dqsst = (q_s_st >= 0.) ? -phloem->kHyd_S_ST : 0.;
 		double mucil = std::max(0., phloem->k_mucil_[zi] * q_s_st);
-		double dmucil_dqsst = (phloem->k_mucil_[zi] * q_s_st > 0.) ? phloem->k_mucil_[zi] : 0.;
+		double dmucil_dqsst = ((q_s_st >= 0.) && (phloem->k_mucil_[zi] > 0.)) ? phloem->k_mucil_[zi] : 0.;
 		double starch_st = 0.;
 		if (den_st != 0.) starch_st += phloem->Vmax_S_ST * std::max(0., qst) / den_st;
 		starch_st += phloem->k_S_ST * (c0 - phloem->C_targ) * vol_st - phloem->kHyd_S_ST * std::max(0., q_s_st);
-		if ((q_s_st <= 0.) && (starch_st < 0.)) {
+		if ((q_s_st < 0.) && (starch_st < 0.)) {
 			dstarch_st_dqst = 0.;
 			dstarch_st_dqsst = 0.;
 			dmucil_dqsst = 0.;
@@ -204,12 +209,12 @@ static void PM_build_analytic_jacobian_values(realtype *y_data, map<pair<suninde
 		double dstarch_meso_dqsmeso = 0.;
 		double starch_meso = 0.;
 		if (vol_meso > 0.) {
-			if (den_meso != 0. && qmeso > 0.) dstarch_meso_dqmeso += phloem->Vmax_S_Mesophyll * (den_meso - qmeso * dcmeso) / (den_meso * den_meso);
+			if (den_meso != 0. && qmeso >= 0.) dstarch_meso_dqmeso += phloem->Vmax_S_Mesophyll * (den_meso - qmeso * dcmeso) / (den_meso * den_meso);
 			dstarch_meso_dqmeso += phloem->k_S_Mesophyll * vol_meso * dcmeso;
 			dstarch_meso_dqsmeso = -phloem->kHyd_S_Mesophyll;
 			if (den_meso != 0.) starch_meso += phloem->Vmax_S_Mesophyll * std::max(0., qmeso) / den_meso;
 			starch_meso += -phloem->kHyd_S_Mesophyll * q_s_meso + phloem->k_S_Mesophyll * (cmeso - phloem->C_targMesophyll) * vol_meso;
-			if ((q_s_meso <= 0.) && (starch_meso < 0.)) {
+			if ((q_s_meso < 0.) && (starch_meso < 0.)) {
 				dstarch_meso_dqmeso = 0.;
 				dstarch_meso_dqsmeso = 0.;
 			}
