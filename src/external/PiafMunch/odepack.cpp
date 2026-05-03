@@ -502,6 +502,12 @@ int cvode_direct(void(*f)(double,double*,double*), Fortran_vector& y, Fortran_ve
     if (check_flag(cvode_mem, "CVodeCreate", 0)) {_LogMessage("erreur CVodeCreate") ; return -1 ; }
   flag = CVodeInit(cvode_mem, ffff, T[1], yy); // alloue l'espace de travail du solveur
     if (check_flag(&flag, "CVodeInit", 1)) {_LogMessage("erreur CVodeInit") ; return -1 ; }
+  N_Vector constraints = N_VNew_Serial(neq);
+  realtype *c = NV_DATA_S(constraints);
+  for (sunindextype k = 0; k < neq; k++) c[k] = 1.0;
+  flag = CVodeSetConstraints(cvode_mem, constraints);
+  N_VDestroy(constraints);
+    if (check_flag(&flag, "CVodeSetConstraints", 1)) return(1);
 
 /* Call CVodeSVtolerances to specify the scalar relative tolerance
 * and vector absolute tolerances */
