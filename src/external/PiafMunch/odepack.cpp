@@ -227,9 +227,9 @@ static void PM_build_analytic_jacobian_values(realtype *y_data, map<pair<suninde
 		const double dfl_dqmeso = (load_den != 0.) ? load_a * phloem->Mloading / (load_den * load_den) * exp_load * dcmeso : 0.;
 		const double dfl_dqst = -phloem->beta_loading * fl * dc0;
 		const double cuse = std::max(0., c0 - phloem->CSTimin);
-		const double dcuse = (c0 > phloem->CSTimin) ? dc0 : 0.;
+		const double dcuse = (c0 >= phloem->CSTimin) ? dc0 : 0.;
 		const double csoil = (zi < (int)phloem->Csoil_node.size()) ? phloem->Csoil_node[zi] : phloem->CsoilDefault;
-		const double dc_delta = (cuse > csoil) ? dcuse : 0.;
+		const double dc_delta = (cuse >= csoil) ? dcuse : 0.;
 		const double drmmax = krm2[i] * q10fac * dcuse;
 		const double rmmax = (Q_Rmmax[i] + krm2[i] * cuse) * q10fac;
 		const double dexud = Q_Exudmax[i] * dc_delta;
@@ -239,7 +239,7 @@ static void PM_build_analytic_jacobian_values(realtype *y_data, map<pair<suninde
 		const double dfu = (fu_den != 0.) ? (drmmax * cuse / fu_den + fu_base * phloem->KMfu * dcuse / (fu_den * fu_den)) : 0.;
 		const double drm = (fu <= rmmax) ? dfu : drmmax;
 		const double growth_raw = fu - std::min(fu, rmmax);
-		const double dgrowth = ((growth_raw > 0.) && (growth_raw < Q_Grmax[i])) ? (dfu - drm) : 0.;
+		const double dgrowth = ((growth_raw >= 0.) && (growth_raw <= Q_Grmax[i])) ? (dfu - drm) : 0.;
 
 		PM_add_value(values, PM_state_index(0, i), PM_state_index(0, i), dfl_dqst - dfu - dexud - dstarch_st_dqst);
 		PM_add_value(values, PM_state_index(0, i), PM_state_index(1, i), dfl_dqmeso);
