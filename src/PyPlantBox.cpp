@@ -346,7 +346,11 @@ PYBIND11_MODULE(plantbox, m) {
     py::class_<CWLimitedGrowth, GrowthFunction, std::shared_ptr<CWLimitedGrowth>>(m, "CWLimitedGrowth")
         .def(py::init<>())
         .def(py::init<std::shared_ptr<GrowthFunction>>(), py::arg("demand"))
-        .def_readwrite("demand", &CWLimitedGrowth::demand_);
+        .def_readwrite("demand", &CWLimitedGrowth::demand_)
+        // PLAN_PER_RANK_CARBON_FA_2026-05-03 §S4: per-rank supply override.
+        // Keyed by orgID; each entry is index-1-based per-rank supply [cm].
+        // Empty entries fall back to the per-organ Lock #6 path.
+        .def_readwrite("CW_Gr_per_n", &CWLimitedGrowth::CW_Gr_per_n);
 
     py::class_<MultiPhaseStemGrowth::PerOrganFAState>(m, "PerOrganFAState")
         .def(py::init<>())
