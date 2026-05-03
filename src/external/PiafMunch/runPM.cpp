@@ -24,6 +24,17 @@
 -----------------------------------------------------------------------------------------------------------------------------------*/
 
 #include <PiafMunch/runPM.h>
+#include <chrono>
+
+// init-phase instrumentation: emits [INIT-PROBE T+Xs] markers so we can localise
+// where startPM hangs before CVODE starts integrating. Removable.
+static auto _ip_t0 = std::chrono::steady_clock::now();
+static void _ip_reset() { _ip_t0 = std::chrono::steady_clock::now(); }
+static double _ip_dt() {
+    auto now = std::chrono::steady_clock::now();
+    return std::chrono::duration<double>(now - _ip_t0).count();
+}
+#define IP_MARK(msg) do { std::cout << "[INIT-PROBE T+" << _ip_dt() << "s] " << msg << std::endl << std::flush; } while(0)
 
 vector<int> I_Upflow, I_Downflow ; //  I_Upflow(resp.I_Downflow)[jf=1..Nc] = id# of conv. upflow (resp. conv. downflow) node of internode flux #jf
 int i,j;
@@ -173,6 +184,8 @@ bool AutoQuit(false); // will be TRUEd if launched with '-q' (which will also di
 
 
 int PhloemFlux::startPM(double StartTime, double EndTime, int OutputStep,double TairK, bool verbose, std::string filename) {
+	_ip_reset();
+	IP_MARK("startPM enter");
 	//std::string nametroubleshootingfile = "outputPM"+"_"+ std::to_string(simTime)+".txt"
 	std::ofstream out(filename);
 	std::streambuf *coutbuf = std::cout.rdbuf(); //save old buf
@@ -187,9 +200,13 @@ int PhloemFlux::startPM(double StartTime, double EndTime, int OutputStep,double 
 	if(doTroubleshooting){
 		std::cout <<"set out put vec "<<t0<<" "<<t1<<" "<<tf<<" "<<nbv<<std::endl;
 	}
+	IP_MARK("before initializePM_");
 	initializePM_(tf-t0, TairK);
+	IP_MARK("after initializePM_");
 	initialize_carbon(this->Q_outv) ;		// sizes C-fluxes-related variable vectors
+	IP_MARK("after initialize_carbon");
     initialize_hydric() ;		// sizes water-fluxes-related variable vectors and sets up hydric system
+	IP_MARK("after initialize_hydric");
 	
 	// building up output times vector OutputTimes according to GUI seetings :
     pas = (tf-t0)/double(nbv);
@@ -220,7 +237,9 @@ int PhloemFlux::startPM(double StartTime, double EndTime, int OutputStep,double 
 		std::cout <<"add pointer "<<std::endl;
 	}
 	phloem_ = this->Phloem();
+	IP_MARK("startPM: entering CVODE dispatch loop, neq=" << neq << " solver=" << solver);
     for(is = 1 ; is < Breakpoint_index.size() ; is ++) { // allows several integration segments in relation to breakpoints (if any -- OK if none)
+		IP_MARK("startPM: CVODE dispatch case=" << solver << " is=" << is);
         SegmentTimes = subvector(OutputTimes, Breakpoint_index(is), Breakpoint_index(is+1))  ; // time segment between 2 breakpoints (Breakpoint_index(1) = 1 ; Breakpoint_index(Breakpoint_index.size()) = 1 + nbv)
         if(doTroubleshooting){
 			cout << endl << "starting integration on time segment #" << is << " = [" << SegmentTimes[1] << ", " << SegmentTimes[SegmentTimes.size()] << "] "<< Breakpoint_index.size()<<" "<<SegmentTimes.size()<< endl ;
@@ -375,7 +394,9 @@ void PhloemFlux::initializePM_(double dt, double TairK){
 	exud_k=Fortran_vector(Nt, 0.);
 	krm2=Fortran_vector(Nt, 0.);
 	Csoil_node.resize(Nt,0.);
+	IP_MARK("initializePM_: before waterLimitedGrowth, Nt=" << Nt << " Nc=" << Nc);
 	deltaSucOrgNode_ = waterLimitedGrowth(dt);//water limited growth
+	IP_MARK("initializePM_: after waterLimitedGrowth");
 	if(doTroubleshooting){cout<<"initializePM_new "<<Nc<<" "<<Nt<<endl;}
 	int nodeID;
 	double StructSucrose;//double deltaStructSucrose;
@@ -406,12 +427,17 @@ void PhloemFlux::initializePM_(double dt, double TairK){
 		
 	}
 	
+	IP_MARK("initializePM_: segment-init loop start, Nc=" << Nc);
+	std::size_t _ip_seg_step = (Nc > 10) ? (Nc / 10) : 1;
 	for ( std::size_t k=1 ;k <= Nc;k++ ) // seg id. == node.y id
 	{
+			if (_ip_seg_step > 0 && (k % _ip_seg_step) == 0) {
+				IP_MARK("initializePM_: segment-init k=" << k << "/" << Nc);
+			}
 			//the PiafMunch Fortran_vector are numbered from 1 (and not from 0)
 			//so we need to account for that...
 			// element 0 contains the vector size i think
-			ot = orgTypes[k-1]; 
+			ot = orgTypes[k-1];
 			st = plant->st2newst[std::make_tuple(ot,subTypes[k-1])];
 			a_seg = Radii[k-1];
 			l = Lengthvec[k-1];
@@ -515,6 +541,7 @@ void PhloemFlux::initializePM_(double dt, double TairK){
 			//
 		}
 		
+	IP_MARK("initializePM_: segment-init loop end");
 	//for seed node:
 	a_STv.at(0) = a_STv.at(1);
 	len_leaf[1] = len_leaf[2];
