@@ -753,15 +753,24 @@ def run_photosynthesis(plant, sim_time, output_prefix,
     return hm
 
 
-def export_mesh(mesh, output_prefix):
-    """Export G3 mesh to OBJ + JSON mapping files."""
+def export_mesh(mesh, output_prefix, compact_obj=True):
+    """Export G3 mesh to OBJ + JSON mapping files.
+
+    With ``compact_obj=True`` (default) the OBJ omits per-vertex normals
+    and UVs and uses 4-decimal float precision — DART/Baleno don't read
+    either field, and the saving is ~65 % file size with no geometry
+    change. Pass ``compact_obj=False`` for the full-fat encoding (kept
+    for debugging / external tools that want vertex normals).
+    """
+    from ..geometry.g1_to_g3 import COMPACT_OBJ_KWARGS
     output_dir = Path(output_prefix).parent
     output_dir.mkdir(parents=True, exist_ok=True)
 
     obj_path = Path(output_prefix).with_suffix('.obj')
     json_path = Path(output_prefix).with_suffix('.json')
 
-    mesh.to_obj(str(obj_path), group_by_organ=True)
+    obj_kwargs = COMPACT_OBJ_KWARGS if compact_obj else {}
+    mesh.to_obj(str(obj_path), group_by_organ=True, **obj_kwargs)
     mesh.to_mapping_json(str(json_path))
 
     print(f"\n=== Exported ===")
@@ -783,7 +792,8 @@ def export_g1_skeleton(plant, output_prefix):
     g1_path = Path(output_prefix).with_name(
         Path(output_prefix).stem + '_g1'
     ).with_suffix('.obj')
-    g1_mesh.to_obj(str(g1_path), group_by_organ=True)
+    from ..geometry.g1_to_g3 import COMPACT_OBJ_KWARGS
+    g1_mesh.to_obj(str(g1_path), group_by_organ=True, **COMPACT_OBJ_KWARGS)
 
     print(f"  G1 OBJ: {g1_path} ({g1_mesh.n_triangles} triangles)")
     return g1_path
@@ -838,6 +848,11 @@ def main():
                        help='Disable automatic V-stage label appending to '
                             'output prefix (default: append _V<n> or '
                             '_VT_emerging|_VT_mature|_VT_senescent).')
+    parser.add_argument('--no-compact-obj', action='store_true',
+                       help='Emit full-fat OBJ (per-vertex normals + UVs, '
+                            '6-decimal precision). Default is compact: '
+                            'no vn/vt, 4-decimal — DART/Baleno consume '
+                            'this identically and files are ~65%% smaller.')
     args = parser.parse_args()
 
     resolution_presets = {
@@ -884,7 +899,7 @@ def main():
     )
 
     # Export OBJ + JSON
-    export_mesh(mesh, args.output)
+    export_mesh(mesh, args.output, compact_obj=not args.no_compact_obj)
 
     # Optional: G1 skeleton OBJ
     if args.export_g1:

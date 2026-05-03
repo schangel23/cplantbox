@@ -14,6 +14,9 @@ from scipy.interpolate import CubicSpline
 from pathlib import Path
 
 
+COMPACT_OBJ_KWARGS = {"write_normals": False, "write_uvs": False, "precision": 4}
+
+
 class G3Mesh:
     """Triangle mesh produced by G1-to-G3 lofting.
 
@@ -73,7 +76,8 @@ class G3Mesh:
         return len(self.quad_indices) if self.quad_indices is not None else 0
 
     def to_obj(self, filepath, group_by_organ=True, group_prefix="",
-               prefer_quads=False, write_materials=False):
+               prefer_quads=False, write_materials=False,
+               write_normals=True, write_uvs=True, precision=6):
         """Export mesh to Wavefront OBJ format.
 
         Args:
@@ -84,6 +88,16 @@ class G3Mesh:
                 instead of triangles for organs that have them.
             write_materials: If True, emit 'usemtl <part_type>' lines
                 before each organ group (reads part_type from organ_meta).
+            write_normals: If False, skip ``vn`` lines and the ``/n`` face
+                index. Normals are recoverable from triangles, so this is a
+                lossless size reduction for downstream tools that recompute
+                them (DART, Blender, MeshLab).
+            write_uvs: If False, skip ``vt`` lines and the ``/uv`` face
+                index. Drop only when no per-vertex property mapping is
+                consumed downstream.
+            precision: Decimal places for ``v``/``vn``/``vt`` floats.
+                Default 6 (=10 nm in cm). 4 (=1 µm) is well below any
+                DART/RT-relevant scale and ~25 % smaller.
         """
         filepath = Path(filepath)
         use_quads = prefer_quads and self.quad_indices is not None
@@ -115,19 +129,34 @@ class G3Mesh:
                 fmtl.write("newmtl tassel\nKa 0.10 0.07 0.02\n"
                            "Kd 0.70 0.55 0.20\nKs 0.10 0.10 0.05\nNs 16\n")
 
+        p = int(precision)
+        v_fmt = f"v {{0:.{p}f}} {{1:.{p}f}} {{2:.{p}f}}\n"
+        vn_fmt = f"vn {{0:.{p}f}} {{1:.{p}f}} {{2:.{p}f}}\n"
+        vt_fmt = f"vt {{0:.{p}f}} {{1:.{p}f}}\n"
+        if write_uvs and write_normals:
+            _idx_fmt = "{0}/{0}/{0}"
+        elif write_normals:
+            _idx_fmt = "{0}//{0}"
+        elif write_uvs:
+            _idx_fmt = "{0}/{0}"
+        else:
+            _idx_fmt = "{0}"
+
         with open(filepath, "w") as f:
             f.write("# G1-to-G3 lofted mesh\n")
             if mtl_path is not None:
                 f.write(f"mtllib {mtl_path.name}\n")
             for v in self.vertices:
-                f.write(f"v {v[0]:.6f} {v[1]:.6f} {v[2]:.6f}\n")
-            for n in self.normals:
-                f.write(f"vn {n[0]:.6f} {n[1]:.6f} {n[2]:.6f}\n")
-            for uv in self.uvs:
-                f.write(f"vt {uv[0]:.6f} {uv[1]:.6f}\n")
+                f.write(v_fmt.format(v[0], v[1], v[2]))
+            if write_normals:
+                for n in self.normals:
+                    f.write(vn_fmt.format(n[0], n[1], n[2]))
+            if write_uvs:
+                for uv in self.uvs:
+                    f.write(vt_fmt.format(uv[0], uv[1]))
 
             def _write_face(face):
-                parts = " ".join(f"{v+1}/{v+1}/{v+1}" for v in face)
+                parts = " ".join(_idx_fmt.format(v + 1) for v in face)
                 f.write(f"f {parts}\n")
 
             if group_by_organ:

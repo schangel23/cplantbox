@@ -53,9 +53,13 @@ def step1_generate_test_plant():
     mesh, organ_dicts = extract_g3_mesh(plant, min_stem_nodes=30,
                                          min_leaf_nodes=15, stem_res=12)
 
-    # Export standard OBJ
+    # Export standard OBJ (compact encoding — DART/Baleno don't read vn/vt).
+    import os as _os
+    from ..geometry.g1_to_g3 import COMPACT_OBJ_KWARGS
+    obj_kwargs = ({} if _os.environ.get("COUPLING_OBJ_FAT") == "1"
+                  else COMPACT_OBJ_KWARGS)
     obj_path = OUTPUT_DIR / 'test_plant.obj'
-    mesh.to_obj(str(obj_path), group_by_organ=True)
+    mesh.to_obj(str(obj_path), group_by_organ=True, **obj_kwargs)
     print(f"\n  Standard OBJ: {obj_path}")
     print(f"    Vertices: {mesh.n_vertices}, Triangles: {mesh.n_triangles}")
 

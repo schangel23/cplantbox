@@ -33,6 +33,7 @@ Usage:
   python CPlantBox/dart/coupling/run_diurnal.py --days 55 --timestep-min 60
 """
 
+import os
 import json
 import shutil
 import argparse
@@ -173,9 +174,16 @@ def setup_plants_and_meshes(sim_day, output_subdir, plants=None):
 
         mesh = loft_organs(organ_dicts, stem_sides=16)
 
-        # Export OBJ with plant-prefixed group names
+        # Export OBJ with plant-prefixed group names. Compact encoding
+        # (no per-vertex normals or UVs, 4-decimal precision) — DART/Baleno
+        # don't read either field and the saving is ~65 % file size with
+        # no geometry change. Set COUPLING_OBJ_FAT=1 to force full-fat.
+        from ..geometry.g1_to_g3 import COMPACT_OBJ_KWARGS
+        obj_kwargs = ({} if os.environ.get("COUPLING_OBJ_FAT") == "1"
+                      else COMPACT_OBJ_KWARGS)
         obj_path = out / f'maize_day{sim_day}_p{i}.obj'
-        mesh.to_obj(str(obj_path), group_by_organ=True, group_prefix=prefix)
+        mesh.to_obj(str(obj_path), group_by_organ=True, group_prefix=prefix,
+                    **obj_kwargs)
 
         # Export mapping JSON
         json_path = out / f'maize_day{sim_day}_p{i}_mapping.json'

@@ -152,9 +152,15 @@ def step1_grow_and_export():
     mesh, organ_dicts = extract_g3_mesh(plant, min_stem_nodes=50,
                                          min_leaf_nodes=20, stem_res=16)
 
-    # Export standard OBJ
+    # Export standard OBJ. Compact encoding (no vn/vt, 4-decimal) — DART
+    # doesn't read vn/vt and the file is ~65 % smaller with no geometry
+    # change. Set COUPLING_OBJ_FAT=1 to force the full-fat encoding.
+    import os as _os
+    from ..geometry.g1_to_g3 import COMPACT_OBJ_KWARGS
+    obj_kwargs = ({} if _os.environ.get("COUPLING_OBJ_FAT") == "1"
+                  else COMPACT_OBJ_KWARGS)
     obj_path = OUTPUT_DIR / 'maize_day55.obj'
-    mesh.to_obj(str(obj_path), group_by_organ=True)
+    mesh.to_obj(str(obj_path), group_by_organ=True, **obj_kwargs)
     print(f"\n  OBJ: {obj_path}")
     print(f"    Vertices: {mesh.n_vertices}, Triangles: {mesh.n_triangles}")
 
