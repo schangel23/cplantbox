@@ -25,8 +25,10 @@
 
 #include <PiafMunch/runPM.h>
 #include <time.h>
+#include <cstdlib>
 #include <map>
 #include <set>
+#include <vector>
 
 // La fonction suivante "habille" un Fortran_vector en N_Vector, i.e. "cree" un N_Vector
 // qui PARTAGE LES MEMES DONNEES (atributs v_ et NV_DATA_S, resp.)  que le Fortran_vector d'origine.
@@ -280,6 +282,112 @@ static void PM_build_analytic_jacobian_values(realtype *y_data, map<pair<suninde
 	}
 }
 
+// FD-vs-analytic Jacobian audit. Fires once when PM_AUDIT_AFTER=N is set and the
+// jac_call_count reaches N. Compares analytic columns from PM_build_analytic_jacobian_values
+// against finite-difference RHS columns on a deterministic 12-column sample (3 nodes
+// from each of 4 active groups: Q_ST, Q_M, Q_S_M, Q_S_ST). Reports per-column
+// max-rel-err inside the structural pattern and max-abs FD outside the pattern.
+static void PM_jacobian_audit(realtype t, realtype *y_data, sunindextype neq,
+                               const map<pair<sunindextype, sunindextype>, realtype> &values,
+                               const vector<set<sunindextype> > &rows_by_col) {
+	if (Nt < 3) return;
+	int nodes[3] = {1, std::max(1, Nt / 2), Nt};
+	int groups[4] = {0, 1, 7, 8};
+	const char *group_names[4] = {"Q_ST", "Q_M", "Q_S_M", "Q_S_ST"};
+
+	vector<double> y_local((size_t)neq);
+	vector<double> f0((size_t)neq, 0.), f1((size_t)neq, 0.);
+
+	if (!ff) { cout << "[JAC-AUDIT] ff is NULL — skipping" << endl; return; }
+	for (sunindextype k = 0; k < neq; k++) y_local[(size_t)k] = y_data[k];
+	ff(t, &y_local[0] - 1, &f0[0] - 1);
+
+	double max_rel_err_grp[4] = {0., 0., 0., 0.};
+	double max_abs_oop_grp[4] = {0., 0., 0., 0.};
+	int    oop_count_grp[4]   = {0, 0, 0, 0};
+
+	cout << "[JAC-AUDIT] t=" << t << " neq=" << neq << " Nt=" << Nt << endl;
+
+	for (int gi = 0; gi < 4; gi++) {
+		const int g = groups[gi];
+		for (int ni = 0; ni < 3; ni++) {
+			const int node = nodes[ni];
+			const sunindextype col = PM_state_index(g, node);
+			if (col < 0 || col >= neq) continue;
+			for (sunindextype k = 0; k < neq; k++) y_local[(size_t)k] = y_data[k];
+			const double y_orig = y_local[(size_t)col];
+			const double eps = 1e-7 * std::max(1e-3, std::abs(y_orig));
+			y_local[(size_t)col] = y_orig + eps;
+			ff(t, &y_local[0] - 1, &f1[0] - 1);
+
+			const int in_pattern_n = (col < (sunindextype)rows_by_col.size()) ? (int)rows_by_col[(size_t)col].size() : 0;
+			double max_abs_err_col = 0., max_rel_err_col = 0.;
+			sunindextype worst_row = -1;
+			int oop_n = 0;
+			double max_abs_oop = 0.;
+			sunindextype worst_oop_row = -1;
+			double worst_pair_an = 0., worst_pair_fd = 0.;
+
+			for (sunindextype row = 0; row < neq; row++) {
+				const double fd = (f1[(size_t)row] - f0[(size_t)row]) / eps;
+				const bool in_pattern = (col < (sunindextype)rows_by_col.size()) && (rows_by_col[(size_t)col].count(row) > 0);
+				if (in_pattern) {
+					map<pair<sunindextype, sunindextype>, realtype>::const_iterator it = values.find(pair<sunindextype, sunindextype>(row, col));
+					const double analytic = (it == values.end()) ? 0. : (double)it->second;
+					const double abs_err = std::abs(analytic - fd);
+					const double scale = std::max(std::abs(analytic), std::abs(fd));
+					const double rel_err = (scale > 1e-30) ? (abs_err / scale) : 0.;
+					if (abs_err > max_abs_err_col) {
+						max_abs_err_col = abs_err;
+						worst_row = row;
+						worst_pair_an = analytic;
+						worst_pair_fd = fd;
+					}
+					if (rel_err > max_rel_err_col) max_rel_err_col = rel_err;
+				} else {
+					if (std::abs(fd) > 1e-12) {
+						oop_n++;
+						if (std::abs(fd) > max_abs_oop) {
+							max_abs_oop = std::abs(fd);
+							worst_oop_row = row;
+						}
+					}
+				}
+			}
+			if (max_rel_err_col > max_rel_err_grp[gi]) max_rel_err_grp[gi] = max_rel_err_col;
+			if (max_abs_oop > max_abs_oop_grp[gi]) max_abs_oop_grp[gi] = max_abs_oop;
+			oop_count_grp[gi] += oop_n;
+			cout << "[JAC-AUDIT col=" << col << " grp=" << group_names[gi] << " node=" << node
+			     << " y=" << y_orig << " eps=" << eps
+			     << "] pattern_n=" << in_pattern_n
+			     << " max_abs_err=" << max_abs_err_col
+			     << " max_rel_err=" << max_rel_err_col
+			     << " worst_row=" << worst_row
+			     << " an=" << worst_pair_an << " fd=" << worst_pair_fd
+			     << " oop_n=" << oop_n
+			     << " max_abs_oop=" << max_abs_oop
+			     << " oop_row=" << worst_oop_row << endl;
+		}
+	}
+
+	cout << "[JAC-AUDIT SUMMARY] grouped_max_rel_err"
+	     << " Q_ST=" << max_rel_err_grp[0]
+	     << " Q_M=" << max_rel_err_grp[1]
+	     << " Q_S_M=" << max_rel_err_grp[2]
+	     << " Q_S_ST=" << max_rel_err_grp[3] << endl;
+	cout << "[JAC-AUDIT SUMMARY] grouped_max_abs_oop"
+	     << " Q_ST=" << max_abs_oop_grp[0]
+	     << " Q_M=" << max_abs_oop_grp[1]
+	     << " Q_S_M=" << max_abs_oop_grp[2]
+	     << " Q_S_ST=" << max_abs_oop_grp[3] << endl;
+	cout << "[JAC-AUDIT SUMMARY] grouped_oop_count"
+	     << " Q_ST=" << oop_count_grp[0]
+	     << " Q_M=" << oop_count_grp[1]
+	     << " Q_S_M=" << oop_count_grp[2]
+	     << " Q_S_ST=" << oop_count_grp[3] << endl;
+	cout.flush();
+}
+
 /* Other Constants pour calcul KLU_DQ_Jac : */
 #define MIN_INC_MULT RCONST(1000.0)
 #define ZERO         RCONST(0.0)
@@ -311,6 +419,28 @@ int Jac_(realtype t, N_Vector y, N_Vector fy, SUNMatrix J, void *user_data, N_Ve
 	}
 
 	PM_build_analytic_jacobian_values(y_data, values);
+
+	{
+		static int jac_call_count = 0;
+		static bool audit_done = false;
+		jac_call_count++;
+		const char *log_every_s = std::getenv("PM_JAC_LOG_EVERY");
+		if (log_every_s) {
+			const int log_every = std::atoi(log_every_s);
+			if (log_every > 0 && (jac_call_count % log_every) == 0) {
+				cout << "[JAC-COUNT] n=" << jac_call_count << " t=" << t << endl;
+				cout.flush();
+			}
+		}
+		const char *audit_after_s = std::getenv("PM_AUDIT_AFTER");
+		if (audit_after_s && !audit_done) {
+			const int audit_after = std::atoi(audit_after_s);
+			if (audit_after > 0 && jac_call_count >= audit_after) {
+				PM_jacobian_audit(t, y_data, N, values, rows_by_col);
+				audit_done = true;
+			}
+		}
+	}
 
 	for (j = 0; j < N; j++) {
 		colptrs[j] = ntnz;
