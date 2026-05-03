@@ -1,0 +1,8581 @@
+{
+  "meta": {
+    "big_supply_cm": 100.0,
+    "bootstrap_day": 30,
+    "carbon_feedback": true,
+    "fingerprint_sha256": "538eca17929fa28c715a3568774975c4813ef0929bd8e3be6c4cfb99c8897073",
+    "n_organs": 1352,
+    "seeds": [
+      7
+    ],
+    "sim_days": 130,
+    "slug": "oracle_p1_per_rank_well_watered_day130",
+    "supply_mode": "synthetic_big_supply",
+    "wrap_policy": "Lock #9 (S5)",
+    "xml": "dart/coupling/data/maize_calibrated.xml"
+  },
+  "plants": {
+    "7": {
+      "1": {
+        "organ_type": 2,
+        "realised_length": 155.420451,
+        "subType": 1
+      },
+      "10": {
+        "organ_type": 2,
+        "realised_length": 6.007479,
+        "subType": 3
+      },
+      "100": {
+        "organ_type": 2,
+        "realised_length": 6.006361,
+        "subType": 3
+      },
+      "1000": {
+        "organ_type": 2,
+        "realised_length": 5.999201,
+        "subType": 3
+      },
+      "1001": {
+        "organ_type": 2,
+        "realised_length": 1.76,
+        "subType": 2
+      },
+      "1002": {
+        "organ_type": 2,
+        "realised_length": 5.964767,
+        "subType": 3
+      },
+      "1003": {
+        "organ_type": 2,
+        "realised_length": 5.983608,
+        "subType": 3
+      },
+      "1004": {
+        "organ_type": 2,
+        "realised_length": 1.76,
+        "subType": 2
+      },
+      "1005": {
+        "organ_type": 2,
+        "realised_length": 5.980345,
+        "subType": 3
+      },
+      "1006": {
+        "organ_type": 2,
+        "realised_length": 5.971774,
+        "subType": 3
+      },
+      "1007": {
+        "organ_type": 2,
+        "realised_length": 1.759999,
+        "subType": 2
+      },
+      "1008": {
+        "organ_type": 2,
+        "realised_length": 5.993424,
+        "subType": 3
+      },
+      "1009": {
+        "organ_type": 2,
+        "realised_length": 5.995998,
+        "subType": 3
+      },
+      "101": {
+        "organ_type": 2,
+        "realised_length": 6.0087,
+        "subType": 3
+      },
+      "1010": {
+        "organ_type": 2,
+        "realised_length": 1.759999,
+        "subType": 2
+      },
+      "1011": {
+        "organ_type": 2,
+        "realised_length": 1.76,
+        "subType": 2
+      },
+      "1012": {
+        "organ_type": 2,
+        "realised_length": 5.995278,
+        "subType": 3
+      },
+      "1013": {
+        "organ_type": 2,
+        "realised_length": 5.973559,
+        "subType": 3
+      },
+      "1014": {
+        "organ_type": 2,
+        "realised_length": 1.76,
+        "subType": 2
+      },
+      "1015": {
+        "organ_type": 2,
+        "realised_length": 1.759992,
+        "subType": 2
+      },
+      "1016": {
+        "organ_type": 2,
+        "realised_length": 1.76,
+        "subType": 2
+      },
+      "1017": {
+        "organ_type": 2,
+        "realised_length": 6.001833,
+        "subType": 3
+      },
+      "1018": {
+        "organ_type": 2,
+        "realised_length": 5.979229,
+        "subType": 3
+      },
+      "1019": {
+        "organ_type": 2,
+        "realised_length": 1.76,
+        "subType": 2
+      },
+      "102": {
+        "organ_type": 2,
+        "realised_length": 6.007137,
+        "subType": 3
+      },
+      "1020": {
+        "organ_type": 2,
+        "realised_length": 5.982939,
+        "subType": 3
+      },
+      "1021": {
+        "organ_type": 2,
+        "realised_length": 5.995416,
+        "subType": 3
+      },
+      "1022": {
+        "organ_type": 2,
+        "realised_length": 1.759999,
+        "subType": 2
+      },
+      "1023": {
+        "organ_type": 4,
+        "realised_length": 70.4,
+        "subType": 10
+      },
+      "1024": {
+        "organ_type": 2,
+        "realised_length": 5.990628,
+        "subType": 3
+      },
+      "1025": {
+        "organ_type": 2,
+        "realised_length": 1.76,
+        "subType": 2
+      },
+      "1026": {
+        "organ_type": 2,
+        "realised_length": 1.76,
+        "subType": 2
+      },
+      "1027": {
+        "organ_type": 2,
+        "realised_length": 5.979863,
+        "subType": 3
+      },
+      "1028": {
+        "organ_type": 2,
+        "realised_length": 1.76,
+        "subType": 2
+      },
+      "1029": {
+        "organ_type": 2,
+        "realised_length": 5.982546,
+        "subType": 3
+      },
+      "103": {
+        "organ_type": 2,
+        "realised_length": 6.008022,
+        "subType": 3
+      },
+      "1030": {
+        "organ_type": 2,
+        "realised_length": 1.76,
+        "subType": 2
+      },
+      "1031": {
+        "organ_type": 2,
+        "realised_length": 5.988716,
+        "subType": 3
+      },
+      "1032": {
+        "organ_type": 2,
+        "realised_length": 1.76,
+        "subType": 2
+      },
+      "1033": {
+        "organ_type": 2,
+        "realised_length": 5.946039,
+        "subType": 3
+      },
+      "1034": {
+        "organ_type": 2,
+        "realised_length": 1.76,
+        "subType": 2
+      },
+      "1035": {
+        "organ_type": 2,
+        "realised_length": 5.97442,
+        "subType": 3
+      },
+      "1036": {
+        "organ_type": 2,
+        "realised_length": 1.76,
+        "subType": 2
+      },
+      "1037": {
+        "organ_type": 2,
+        "realised_length": 5.980139,
+        "subType": 3
+      },
+      "1038": {
+        "organ_type": 2,
+        "realised_length": 5.95496,
+        "subType": 3
+      },
+      "1039": {
+        "organ_type": 2,
+        "realised_length": 1.76,
+        "subType": 2
+      },
+      "104": {
+        "organ_type": 2,
+        "realised_length": 6.009237,
+        "subType": 3
+      },
+      "1040": {
+        "organ_type": 2,
+        "realised_length": 5.998636,
+        "subType": 3
+      },
+      "1041": {
+        "organ_type": 2,
+        "realised_length": 1.76,
+        "subType": 2
+      },
+      "1042": {
+        "organ_type": 2,
+        "realised_length": 5.984385,
+        "subType": 3
+      },
+      "1043": {
+        "organ_type": 2,
+        "realised_length": 1.759999,
+        "subType": 2
+      },
+      "1044": {
+        "organ_type": 2,
+        "realised_length": 5.995042,
+        "subType": 3
+      },
+      "1045": {
+        "organ_type": 2,
+        "realised_length": 1.76,
+        "subType": 2
+      },
+      "1046": {
+        "organ_type": 2,
+        "realised_length": 5.992334,
+        "subType": 3
+      },
+      "1047": {
+        "organ_type": 2,
+        "realised_length": 1.76,
+        "subType": 2
+      },
+      "1048": {
+        "organ_type": 2,
+        "realised_length": 5.968267,
+        "subType": 3
+      },
+      "1049": {
+        "organ_type": 2,
+        "realised_length": 5.985658,
+        "subType": 3
+      },
+      "105": {
+        "organ_type": 2,
+        "realised_length": 1.76,
+        "subType": 2
+      },
+      "1050": {
+        "organ_type": 2,
+        "realised_length": 1.76,
+        "subType": 2
+      },
+      "1051": {
+        "organ_type": 2,
+        "realised_length": 5.979432,
+        "subType": 3
+      },
+      "1052": {
+        "organ_type": 2,
+        "realised_length": 5.972567,
+        "subType": 3
+      },
+      "1053": {
+        "organ_type": 2,
+        "realised_length": 5.988176,
+        "subType": 3
+      },
+      "1054": {
+        "organ_type": 2,
+        "realised_length": 1.76,
+        "subType": 2
+      },
+      "1055": {
+        "organ_type": 2,
+        "realised_length": 5.984801,
+        "subType": 3
+      },
+      "1056": {
+        "organ_type": 2,
+        "realised_length": 5.933805,
+        "subType": 3
+      },
+      "1057": {
+        "organ_type": 2,
+        "realised_length": 5.981262,
+        "subType": 3
+      },
+      "1058": {
+        "organ_type": 2,
+        "realised_length": 5.975489,
+        "subType": 3
+      },
+      "1059": {
+        "organ_type": 2,
+        "realised_length": 1.76,
+        "subType": 2
+      },
+      "106": {
+        "organ_type": 2,
+        "realised_length": 1.76,
+        "subType": 2
+      },
+      "1060": {
+        "organ_type": 2,
+        "realised_length": 5.93697,
+        "subType": 3
+      },
+      "1061": {
+        "organ_type": 2,
+        "realised_length": 1.76,
+        "subType": 2
+      },
+      "1062": {
+        "organ_type": 2,
+        "realised_length": 5.94394,
+        "subType": 3
+      },
+      "1063": {
+        "organ_type": 2,
+        "realised_length": 5.936677,
+        "subType": 3
+      },
+      "1064": {
+        "organ_type": 2,
+        "realised_length": 1.759992,
+        "subType": 2
+      },
+      "1065": {
+        "organ_type": 2,
+        "realised_length": 1.759999,
+        "subType": 2
+      },
+      "1066": {
+        "organ_type": 2,
+        "realised_length": 5.970744,
+        "subType": 3
+      },
+      "1067": {
+        "organ_type": 2,
+        "realised_length": 5.981009,
+        "subType": 3
+      },
+      "1068": {
+        "organ_type": 2,
+        "realised_length": 1.76,
+        "subType": 2
+      },
+      "1069": {
+        "organ_type": 2,
+        "realised_length": 5.955266,
+        "subType": 3
+      },
+      "107": {
+        "organ_type": 2,
+        "realised_length": 1.76,
+        "subType": 2
+      },
+      "1070": {
+        "organ_type": 2,
+        "realised_length": 1.759999,
+        "subType": 2
+      },
+      "1071": {
+        "organ_type": 2,
+        "realised_length": 5.987388,
+        "subType": 3
+      },
+      "1072": {
+        "organ_type": 2,
+        "realised_length": 1.76,
+        "subType": 2
+      },
+      "1073": {
+        "organ_type": 2,
+        "realised_length": 5.995571,
+        "subType": 3
+      },
+      "1074": {
+        "organ_type": 2,
+        "realised_length": 1.759999,
+        "subType": 2
+      },
+      "1075": {
+        "organ_type": 2,
+        "realised_length": 5.984978,
+        "subType": 3
+      },
+      "1076": {
+        "organ_type": 2,
+        "realised_length": 1.76,
+        "subType": 2
+      },
+      "1077": {
+        "organ_type": 2,
+        "realised_length": 5.986593,
+        "subType": 3
+      },
+      "1078": {
+        "organ_type": 2,
+        "realised_length": 1.76,
+        "subType": 2
+      },
+      "1079": {
+        "organ_type": 4,
+        "realised_length": 63.6,
+        "subType": 11
+      },
+      "108": {
+        "organ_type": 2,
+        "realised_length": 1.76,
+        "subType": 2
+      },
+      "1080": {
+        "organ_type": 2,
+        "realised_length": 5.991425,
+        "subType": 3
+      },
+      "1081": {
+        "organ_type": 2,
+        "realised_length": 5.992466,
+        "subType": 3
+      },
+      "1082": {
+        "organ_type": 2,
+        "realised_length": 5.955866,
+        "subType": 3
+      },
+      "1083": {
+        "organ_type": 2,
+        "realised_length": 1.759997,
+        "subType": 2
+      },
+      "1084": {
+        "organ_type": 2,
+        "realised_length": 5.966681,
+        "subType": 3
+      },
+      "1085": {
+        "organ_type": 2,
+        "realised_length": 1.76,
+        "subType": 2
+      },
+      "1086": {
+        "organ_type": 2,
+        "realised_length": 1.76,
+        "subType": 2
+      },
+      "1087": {
+        "organ_type": 2,
+        "realised_length": 5.938351,
+        "subType": 3
+      },
+      "1088": {
+        "organ_type": 2,
+        "realised_length": 5.982579,
+        "subType": 3
+      },
+      "1089": {
+        "organ_type": 2,
+        "realised_length": 1.759999,
+        "subType": 2
+      },
+      "109": {
+        "organ_type": 2,
+        "realised_length": 6.008561,
+        "subType": 3
+      },
+      "1090": {
+        "organ_type": 2,
+        "realised_length": 5.941915,
+        "subType": 3
+      },
+      "1091": {
+        "organ_type": 2,
+        "realised_length": 5.988543,
+        "subType": 3
+      },
+      "1092": {
+        "organ_type": 2,
+        "realised_length": 1.759998,
+        "subType": 2
+      },
+      "1093": {
+        "organ_type": 2,
+        "realised_length": 1.759997,
+        "subType": 2
+      },
+      "1094": {
+        "organ_type": 2,
+        "realised_length": 5.955283,
+        "subType": 3
+      },
+      "1095": {
+        "organ_type": 2,
+        "realised_length": 1.759967,
+        "subType": 2
+      },
+      "1096": {
+        "organ_type": 2,
+        "realised_length": 5.939765,
+        "subType": 3
+      },
+      "1097": {
+        "organ_type": 2,
+        "realised_length": 1.759999,
+        "subType": 2
+      },
+      "1098": {
+        "organ_type": 2,
+        "realised_length": 5.871815,
+        "subType": 3
+      },
+      "1099": {
+        "organ_type": 2,
+        "realised_length": 1.759999,
+        "subType": 2
+      },
+      "11": {
+        "organ_type": 2,
+        "realised_length": 1.76,
+        "subType": 2
+      },
+      "110": {
+        "organ_type": 2,
+        "realised_length": 1.76,
+        "subType": 2
+      },
+      "1100": {
+        "organ_type": 2,
+        "realised_length": 5.941869,
+        "subType": 3
+      },
+      "1101": {
+        "organ_type": 2,
+        "realised_length": 5.951178,
+        "subType": 3
+      },
+      "1102": {
+        "organ_type": 2,
+        "realised_length": 1.759996,
+        "subType": 2
+      },
+      "1103": {
+        "organ_type": 2,
+        "realised_length": 5.972074,
+        "subType": 3
+      },
+      "1104": {
+        "organ_type": 2,
+        "realised_length": 5.951559,
+        "subType": 3
+      },
+      "1105": {
+        "organ_type": 2,
+        "realised_length": 1.759992,
+        "subType": 2
+      },
+      "1106": {
+        "organ_type": 2,
+        "realised_length": 5.984425,
+        "subType": 3
+      },
+      "1107": {
+        "organ_type": 2,
+        "realised_length": 1.759999,
+        "subType": 2
+      },
+      "1108": {
+        "organ_type": 4,
+        "realised_length": 59.2,
+        "subType": 12
+      },
+      "1109": {
+        "organ_type": 2,
+        "realised_length": 5.982533,
+        "subType": 3
+      },
+      "111": {
+        "organ_type": 2,
+        "realised_length": 6.009653,
+        "subType": 3
+      },
+      "1110": {
+        "organ_type": 2,
+        "realised_length": 1.759997,
+        "subType": 2
+      },
+      "1111": {
+        "organ_type": 2,
+        "realised_length": 5.957602,
+        "subType": 3
+      },
+      "1112": {
+        "organ_type": 2,
+        "realised_length": 1.759999,
+        "subType": 2
+      },
+      "1113": {
+        "organ_type": 2,
+        "realised_length": 5.990531,
+        "subType": 3
+      },
+      "1114": {
+        "organ_type": 2,
+        "realised_length": 1.76,
+        "subType": 2
+      },
+      "1115": {
+        "organ_type": 2,
+        "realised_length": 1.759999,
+        "subType": 2
+      },
+      "1116": {
+        "organ_type": 2,
+        "realised_length": 1.759998,
+        "subType": 2
+      },
+      "1117": {
+        "organ_type": 2,
+        "realised_length": 5.965801,
+        "subType": 3
+      },
+      "1118": {
+        "organ_type": 2,
+        "realised_length": 1.76,
+        "subType": 2
+      },
+      "1119": {
+        "organ_type": 2,
+        "realised_length": 5.926839,
+        "subType": 3
+      },
+      "112": {
+        "organ_type": 2,
+        "realised_length": 6.00987,
+        "subType": 3
+      },
+      "1120": {
+        "organ_type": 2,
+        "realised_length": 1.759996,
+        "subType": 2
+      },
+      "1121": {
+        "organ_type": 2,
+        "realised_length": 5.972131,
+        "subType": 3
+      },
+      "1122": {
+        "organ_type": 2,
+        "realised_length": 1.76,
+        "subType": 2
+      },
+      "1123": {
+        "organ_type": 2,
+        "realised_length": 5.977707,
+        "subType": 3
+      },
+      "1124": {
+        "organ_type": 2,
+        "realised_length": 1.759994,
+        "subType": 2
+      },
+      "1125": {
+        "organ_type": 2,
+        "realised_length": 1.76,
+        "subType": 2
+      },
+      "1126": {
+        "organ_type": 2,
+        "realised_length": 5.962897,
+        "subType": 3
+      },
+      "1127": {
+        "organ_type": 2,
+        "realised_length": 1.76,
+        "subType": 2
+      },
+      "1128": {
+        "organ_type": 2,
+        "realised_length": 5.938229,
+        "subType": 3
+      },
+      "1129": {
+        "organ_type": 2,
+        "realised_length": 1.759999,
+        "subType": 2
+      },
+      "113": {
+        "organ_type": 2,
+        "realised_length": 1.76,
+        "subType": 2
+      },
+      "1130": {
+        "organ_type": 2,
+        "realised_length": 5.927137,
+        "subType": 3
+      },
+      "1131": {
+        "organ_type": 2,
+        "realised_length": 1.759995,
+        "subType": 2
+      },
+      "1132": {
+        "organ_type": 2,
+        "realised_length": 1.759996,
+        "subType": 2
+      },
+      "1133": {
+        "organ_type": 2,
+        "realised_length": 5.953086,
+        "subType": 3
+      },
+      "1134": {
+        "organ_type": 2,
+        "realised_length": 5.921077,
+        "subType": 3
+      },
+      "1135": {
+        "organ_type": 2,
+        "realised_length": 1.76,
+        "subType": 2
+      },
+      "1136": {
+        "organ_type": 2,
+        "realised_length": 5.877157,
+        "subType": 3
+      },
+      "1137": {
+        "organ_type": 2,
+        "realised_length": 1.759987,
+        "subType": 2
+      },
+      "1138": {
+        "organ_type": 2,
+        "realised_length": 5.944501,
+        "subType": 3
+      },
+      "1139": {
+        "organ_type": 2,
+        "realised_length": 5.884816,
+        "subType": 3
+      },
+      "114": {
+        "organ_type": 2,
+        "realised_length": 1.76,
+        "subType": 2
+      },
+      "1140": {
+        "organ_type": 2,
+        "realised_length": 1.759999,
+        "subType": 2
+      },
+      "1141": {
+        "organ_type": 2,
+        "realised_length": 5.970279,
+        "subType": 3
+      },
+      "1142": {
+        "organ_type": 4,
+        "realised_length": 54.1,
+        "subType": 13
+      },
+      "1143": {
+        "organ_type": 2,
+        "realised_length": 1.75999,
+        "subType": 2
+      },
+      "1144": {
+        "organ_type": 2,
+        "realised_length": 1.759986,
+        "subType": 2
+      },
+      "1145": {
+        "organ_type": 2,
+        "realised_length": 5.965875,
+        "subType": 3
+      },
+      "1146": {
+        "organ_type": 2,
+        "realised_length": 1.759999,
+        "subType": 2
+      },
+      "1147": {
+        "organ_type": 2,
+        "realised_length": 5.952113,
+        "subType": 3
+      },
+      "1148": {
+        "organ_type": 2,
+        "realised_length": 1.759992,
+        "subType": 2
+      },
+      "1149": {
+        "organ_type": 2,
+        "realised_length": 5.929058,
+        "subType": 3
+      },
+      "115": {
+        "organ_type": 2,
+        "realised_length": 1.76,
+        "subType": 2
+      },
+      "1150": {
+        "organ_type": 2,
+        "realised_length": 1.759999,
+        "subType": 2
+      },
+      "1151": {
+        "organ_type": 2,
+        "realised_length": 1.759995,
+        "subType": 2
+      },
+      "1152": {
+        "organ_type": 2,
+        "realised_length": 5.923148,
+        "subType": 3
+      },
+      "1153": {
+        "organ_type": 2,
+        "realised_length": 1.759999,
+        "subType": 2
+      },
+      "1154": {
+        "organ_type": 2,
+        "realised_length": 5.93203,
+        "subType": 3
+      },
+      "1155": {
+        "organ_type": 2,
+        "realised_length": 5.949373,
+        "subType": 3
+      },
+      "1156": {
+        "organ_type": 2,
+        "realised_length": 5.938506,
+        "subType": 3
+      },
+      "1157": {
+        "organ_type": 2,
+        "realised_length": 5.967414,
+        "subType": 3
+      },
+      "1158": {
+        "organ_type": 2,
+        "realised_length": 5.958413,
+        "subType": 3
+      },
+      "1159": {
+        "organ_type": 4,
+        "realised_length": 51.2,
+        "subType": 14
+      },
+      "116": {
+        "organ_type": 2,
+        "realised_length": 1.76,
+        "subType": 2
+      },
+      "1160": {
+        "organ_type": 2,
+        "realised_length": 1.759999,
+        "subType": 2
+      },
+      "1161": {
+        "organ_type": 2,
+        "realised_length": 1.759997,
+        "subType": 2
+      },
+      "1162": {
+        "organ_type": 2,
+        "realised_length": 5.896208,
+        "subType": 3
+      },
+      "1163": {
+        "organ_type": 2,
+        "realised_length": 1.759993,
+        "subType": 2
+      },
+      "1164": {
+        "organ_type": 2,
+        "realised_length": 5.949991,
+        "subType": 3
+      },
+      "1165": {
+        "organ_type": 2,
+        "realised_length": 1.759998,
+        "subType": 2
+      },
+      "1166": {
+        "organ_type": 2,
+        "realised_length": 5.879648,
+        "subType": 3
+      },
+      "1167": {
+        "organ_type": 2,
+        "realised_length": 1.759999,
+        "subType": 2
+      },
+      "1168": {
+        "organ_type": 2,
+        "realised_length": 1.759988,
+        "subType": 2
+      },
+      "1169": {
+        "organ_type": 2,
+        "realised_length": 5.931424,
+        "subType": 3
+      },
+      "117": {
+        "organ_type": 2,
+        "realised_length": 1.76,
+        "subType": 2
+      },
+      "1170": {
+        "organ_type": 2,
+        "realised_length": 5.949697,
+        "subType": 3
+      },
+      "1171": {
+        "organ_type": 2,
+        "realised_length": 1.759989,
+        "subType": 2
+      },
+      "1172": {
+        "organ_type": 2,
+        "realised_length": 1.759998,
+        "subType": 2
+      },
+      "1173": {
+        "organ_type": 2,
+        "realised_length": 1.759989,
+        "subType": 2
+      },
+      "1174": {
+        "organ_type": 2,
+        "realised_length": 5.862738,
+        "subType": 3
+      },
+      "1175": {
+        "organ_type": 2,
+        "realised_length": 1.759951,
+        "subType": 2
+      },
+      "1176": {
+        "organ_type": 2,
+        "realised_length": 5.954455,
+        "subType": 3
+      },
+      "1177": {
+        "organ_type": 2,
+        "realised_length": 1.759992,
+        "subType": 2
+      },
+      "1178": {
+        "organ_type": 4,
+        "realised_length": 50.1,
+        "subType": 15
+      },
+      "1179": {
+        "organ_type": 2,
+        "realised_length": 1.759989,
+        "subType": 2
+      },
+      "118": {
+        "organ_type": 2,
+        "realised_length": 1.76,
+        "subType": 2
+      },
+      "1180": {
+        "organ_type": 2,
+        "realised_length": 5.920063,
+        "subType": 3
+      },
+      "1181": {
+        "organ_type": 2,
+        "realised_length": 1.759989,
+        "subType": 2
+      },
+      "1182": {
+        "organ_type": 2,
+        "realised_length": 1.75997,
+        "subType": 2
+      },
+      "1183": {
+        "organ_type": 2,
+        "realised_length": 5.961084,
+        "subType": 3
+      },
+      "1184": {
+        "organ_type": 2,
+        "realised_length": 1.759984,
+        "subType": 2
+      },
+      "1185": {
+        "organ_type": 2,
+        "realised_length": 5.922589,
+        "subType": 3
+      },
+      "1186": {
+        "organ_type": 2,
+        "realised_length": 1.75999,
+        "subType": 2
+      },
+      "1187": {
+        "organ_type": 2,
+        "realised_length": 5.911364,
+        "subType": 3
+      },
+      "1188": {
+        "organ_type": 2,
+        "realised_length": 5.900057,
+        "subType": 3
+      },
+      "1189": {
+        "organ_type": 2,
+        "realised_length": 1.759982,
+        "subType": 2
+      },
+      "119": {
+        "organ_type": 2,
+        "realised_length": 1.76,
+        "subType": 2
+      },
+      "1190": {
+        "organ_type": 2,
+        "realised_length": 5.903167,
+        "subType": 3
+      },
+      "1191": {
+        "organ_type": 2,
+        "realised_length": 1.759959,
+        "subType": 2
+      },
+      "1192": {
+        "organ_type": 2,
+        "realised_length": 5.915052,
+        "subType": 3
+      },
+      "1193": {
+        "organ_type": 2,
+        "realised_length": 1.759994,
+        "subType": 2
+      },
+      "1194": {
+        "organ_type": 2,
+        "realised_length": 5.909979,
+        "subType": 3
+      },
+      "1195": {
+        "organ_type": 2,
+        "realised_length": 1.759991,
+        "subType": 2
+      },
+      "1196": {
+        "organ_type": 4,
+        "realised_length": 50.0,
+        "subType": 16
+      },
+      "1197": {
+        "organ_type": 2,
+        "realised_length": 5.832827,
+        "subType": 3
+      },
+      "1198": {
+        "organ_type": 2,
+        "realised_length": 1.759996,
+        "subType": 2
+      },
+      "1199": {
+        "organ_type": 2,
+        "realised_length": 5.905956,
+        "subType": 3
+      },
+      "12": {
+        "organ_type": 2,
+        "realised_length": 6.009214,
+        "subType": 3
+      },
+      "120": {
+        "organ_type": 2,
+        "realised_length": 1.76,
+        "subType": 2
+      },
+      "1200": {
+        "organ_type": 2,
+        "realised_length": 1.759992,
+        "subType": 2
+      },
+      "1201": {
+        "organ_type": 2,
+        "realised_length": 1.759988,
+        "subType": 2
+      },
+      "1202": {
+        "organ_type": 2,
+        "realised_length": 5.895325,
+        "subType": 3
+      },
+      "1203": {
+        "organ_type": 2,
+        "realised_length": 5.911587,
+        "subType": 3
+      },
+      "1204": {
+        "organ_type": 2,
+        "realised_length": 1.759971,
+        "subType": 2
+      },
+      "1205": {
+        "organ_type": 2,
+        "realised_length": 5.916281,
+        "subType": 3
+      },
+      "1206": {
+        "organ_type": 2,
+        "realised_length": 5.858767,
+        "subType": 3
+      },
+      "1207": {
+        "organ_type": 2,
+        "realised_length": 1.759959,
+        "subType": 2
+      },
+      "1208": {
+        "organ_type": 2,
+        "realised_length": 1.759993,
+        "subType": 2
+      },
+      "1209": {
+        "organ_type": 2,
+        "realised_length": 5.854809,
+        "subType": 3
+      },
+      "121": {
+        "organ_type": 2,
+        "realised_length": 6.004766,
+        "subType": 3
+      },
+      "1210": {
+        "organ_type": 2,
+        "realised_length": 5.934683,
+        "subType": 3
+      },
+      "1211": {
+        "organ_type": 2,
+        "realised_length": 1.759899,
+        "subType": 2
+      },
+      "1212": {
+        "organ_type": 2,
+        "realised_length": 5.862716,
+        "subType": 3
+      },
+      "1213": {
+        "organ_type": 2,
+        "realised_length": 1.759986,
+        "subType": 2
+      },
+      "1214": {
+        "organ_type": 2,
+        "realised_length": 1.759937,
+        "subType": 2
+      },
+      "1215": {
+        "organ_type": 2,
+        "realised_length": 5.896752,
+        "subType": 3
+      },
+      "1216": {
+        "organ_type": 2,
+        "realised_length": 5.834799,
+        "subType": 3
+      },
+      "1217": {
+        "organ_type": 2,
+        "realised_length": 1.759983,
+        "subType": 2
+      },
+      "1218": {
+        "organ_type": 2,
+        "realised_length": 5.912987,
+        "subType": 3
+      },
+      "1219": {
+        "organ_type": 2,
+        "realised_length": 1.7598,
+        "subType": 2
+      },
+      "122": {
+        "organ_type": 2,
+        "realised_length": 1.76,
+        "subType": 2
+      },
+      "1220": {
+        "organ_type": 2,
+        "realised_length": 5.890944,
+        "subType": 3
+      },
+      "1221": {
+        "organ_type": 2,
+        "realised_length": 1.759978,
+        "subType": 2
+      },
+      "1222": {
+        "organ_type": 2,
+        "realised_length": 5.88399,
+        "subType": 3
+      },
+      "1223": {
+        "organ_type": 2,
+        "realised_length": 5.866715,
+        "subType": 3
+      },
+      "1224": {
+        "organ_type": 2,
+        "realised_length": 1.759967,
+        "subType": 2
+      },
+      "1225": {
+        "organ_type": 2,
+        "realised_length": 5.768511,
+        "subType": 3
+      },
+      "1226": {
+        "organ_type": 2,
+        "realised_length": 1.759989,
+        "subType": 2
+      },
+      "1227": {
+        "organ_type": 2,
+        "realised_length": 5.849155,
+        "subType": 3
+      },
+      "1228": {
+        "organ_type": 2,
+        "realised_length": 5.918711,
+        "subType": 3
+      },
+      "1229": {
+        "cessation_age_global": -1.0,
+        "cessation_age_per_n": [],
+        "length_per_n": [],
+        "node_to_phytomer": [],
+        "organ_type": 3,
+        "realised_length": 0.0,
+        "subType": 20
+      },
+      "123": {
+        "organ_type": 2,
+        "realised_length": 6.00881,
+        "subType": 3
+      },
+      "1230": {
+        "organ_type": 2,
+        "realised_length": 5.725665,
+        "subType": 3
+      },
+      "1231": {
+        "organ_type": 2,
+        "realised_length": 5.737109,
+        "subType": 3
+      },
+      "1232": {
+        "organ_type": 2,
+        "realised_length": 1.759797,
+        "subType": 2
+      },
+      "1233": {
+        "organ_type": 2,
+        "realised_length": 5.837182,
+        "subType": 3
+      },
+      "1234": {
+        "organ_type": 2,
+        "realised_length": 1.759979,
+        "subType": 2
+      },
+      "1235": {
+        "organ_type": 2,
+        "realised_length": 5.881633,
+        "subType": 3
+      },
+      "1236": {
+        "organ_type": 2,
+        "realised_length": 1.759766,
+        "subType": 2
+      },
+      "1237": {
+        "organ_type": 2,
+        "realised_length": 5.755549,
+        "subType": 3
+      },
+      "1238": {
+        "organ_type": 2,
+        "realised_length": 1.759818,
+        "subType": 2
+      },
+      "1239": {
+        "organ_type": 2,
+        "realised_length": 1.75995,
+        "subType": 2
+      },
+      "124": {
+        "organ_type": 2,
+        "realised_length": 1.76,
+        "subType": 2
+      },
+      "1240": {
+        "organ_type": 2,
+        "realised_length": 5.746364,
+        "subType": 3
+      },
+      "1241": {
+        "organ_type": 2,
+        "realised_length": 1.759935,
+        "subType": 2
+      },
+      "1242": {
+        "organ_type": 2,
+        "realised_length": 1.759931,
+        "subType": 2
+      },
+      "1243": {
+        "organ_type": 2,
+        "realised_length": 1.759811,
+        "subType": 2
+      },
+      "1244": {
+        "organ_type": 2,
+        "realised_length": 5.737126,
+        "subType": 3
+      },
+      "1245": {
+        "organ_type": 2,
+        "realised_length": 1.759924,
+        "subType": 2
+      },
+      "1246": {
+        "organ_type": 2,
+        "realised_length": 5.840473,
+        "subType": 3
+      },
+      "1247": {
+        "organ_type": 2,
+        "realised_length": 1.759931,
+        "subType": 2
+      },
+      "1248": {
+        "organ_type": 2,
+        "realised_length": 1.759846,
+        "subType": 2
+      },
+      "1249": {
+        "organ_type": 2,
+        "realised_length": 5.788139,
+        "subType": 3
+      },
+      "125": {
+        "organ_type": 2,
+        "realised_length": 1.76,
+        "subType": 2
+      },
+      "1250": {
+        "organ_type": 2,
+        "realised_length": 5.705289,
+        "subType": 3
+      },
+      "1251": {
+        "organ_type": 2,
+        "realised_length": 1.759741,
+        "subType": 2
+      },
+      "1252": {
+        "organ_type": 2,
+        "realised_length": 1.759783,
+        "subType": 2
+      },
+      "1253": {
+        "organ_type": 2,
+        "realised_length": 5.821759,
+        "subType": 3
+      },
+      "1254": {
+        "organ_type": 2,
+        "realised_length": 1.75957,
+        "subType": 2
+      },
+      "1255": {
+        "organ_type": 2,
+        "realised_length": 5.669063,
+        "subType": 3
+      },
+      "1256": {
+        "organ_type": 2,
+        "realised_length": 5.81031,
+        "subType": 3
+      },
+      "1257": {
+        "organ_type": 2,
+        "realised_length": 1.75996,
+        "subType": 2
+      },
+      "1258": {
+        "organ_type": 2,
+        "realised_length": 1.759934,
+        "subType": 2
+      },
+      "1259": {
+        "organ_type": 2,
+        "realised_length": 1.759794,
+        "subType": 2
+      },
+      "126": {
+        "organ_type": 2,
+        "realised_length": 6.009369,
+        "subType": 3
+      },
+      "1260": {
+        "organ_type": 2,
+        "realised_length": 5.790839,
+        "subType": 3
+      },
+      "1261": {
+        "organ_type": 2,
+        "realised_length": 1.759774,
+        "subType": 2
+      },
+      "1262": {
+        "organ_type": 2,
+        "realised_length": 5.600171,
+        "subType": 3
+      },
+      "1263": {
+        "organ_type": 2,
+        "realised_length": 1.759577,
+        "subType": 2
+      },
+      "1264": {
+        "organ_type": 2,
+        "realised_length": 5.453503,
+        "subType": 3
+      },
+      "1265": {
+        "organ_type": 2,
+        "realised_length": 1.759433,
+        "subType": 2
+      },
+      "1266": {
+        "organ_type": 2,
+        "realised_length": 5.579927,
+        "subType": 3
+      },
+      "1267": {
+        "organ_type": 2,
+        "realised_length": 1.759744,
+        "subType": 2
+      },
+      "1268": {
+        "organ_type": 2,
+        "realised_length": 5.607915,
+        "subType": 3
+      },
+      "1269": {
+        "organ_type": 2,
+        "realised_length": 1.75932,
+        "subType": 2
+      },
+      "127": {
+        "organ_type": 2,
+        "realised_length": 1.76,
+        "subType": 2
+      },
+      "1270": {
+        "organ_type": 2,
+        "realised_length": 5.709026,
+        "subType": 3
+      },
+      "1271": {
+        "organ_type": 2,
+        "realised_length": 1.759728,
+        "subType": 2
+      },
+      "1272": {
+        "organ_type": 2,
+        "realised_length": 5.671169,
+        "subType": 3
+      },
+      "1273": {
+        "organ_type": 2,
+        "realised_length": 1.759278,
+        "subType": 2
+      },
+      "1274": {
+        "organ_type": 2,
+        "realised_length": 1.758336,
+        "subType": 2
+      },
+      "1275": {
+        "organ_type": 2,
+        "realised_length": 1.759098,
+        "subType": 2
+      },
+      "1276": {
+        "organ_type": 2,
+        "realised_length": 5.334492,
+        "subType": 3
+      },
+      "1277": {
+        "organ_type": 2,
+        "realised_length": 1.758814,
+        "subType": 2
+      },
+      "1278": {
+        "organ_type": 2,
+        "realised_length": 5.577732,
+        "subType": 3
+      },
+      "1279": {
+        "organ_type": 2,
+        "realised_length": 5.630259,
+        "subType": 3
+      },
+      "128": {
+        "organ_type": 2,
+        "realised_length": 1.76,
+        "subType": 2
+      },
+      "1280": {
+        "organ_type": 2,
+        "realised_length": 5.408131,
+        "subType": 3
+      },
+      "1281": {
+        "organ_type": 2,
+        "realised_length": 5.665274,
+        "subType": 3
+      },
+      "1282": {
+        "organ_type": 2,
+        "realised_length": 1.758598,
+        "subType": 2
+      },
+      "1283": {
+        "organ_type": 2,
+        "realised_length": 5.537473,
+        "subType": 3
+      },
+      "1284": {
+        "organ_type": 2,
+        "realised_length": 1.758469,
+        "subType": 2
+      },
+      "1285": {
+        "organ_type": 2,
+        "realised_length": 1.757743,
+        "subType": 2
+      },
+      "1286": {
+        "organ_type": 2,
+        "realised_length": 5.626671,
+        "subType": 3
+      },
+      "1287": {
+        "organ_type": 2,
+        "realised_length": 5.428084,
+        "subType": 3
+      },
+      "1288": {
+        "organ_type": 2,
+        "realised_length": 1.757222,
+        "subType": 2
+      },
+      "1289": {
+        "organ_type": 2,
+        "realised_length": 4.937222,
+        "subType": 3
+      },
+      "129": {
+        "organ_type": 2,
+        "realised_length": 6.009273,
+        "subType": 3
+      },
+      "1290": {
+        "organ_type": 2,
+        "realised_length": 1.758644,
+        "subType": 2
+      },
+      "1291": {
+        "organ_type": 2,
+        "realised_length": 5.638932,
+        "subType": 3
+      },
+      "1292": {
+        "organ_type": 2,
+        "realised_length": 1.759723,
+        "subType": 2
+      },
+      "1293": {
+        "organ_type": 2,
+        "realised_length": 5.625558,
+        "subType": 3
+      },
+      "1294": {
+        "organ_type": 2,
+        "realised_length": 1.758717,
+        "subType": 2
+      },
+      "1295": {
+        "organ_type": 2,
+        "realised_length": 5.229514,
+        "subType": 3
+      },
+      "1296": {
+        "organ_type": 2,
+        "realised_length": 5.324623,
+        "subType": 3
+      },
+      "1297": {
+        "organ_type": 2,
+        "realised_length": 1.759336,
+        "subType": 2
+      },
+      "1298": {
+        "organ_type": 2,
+        "realised_length": 1.756577,
+        "subType": 2
+      },
+      "1299": {
+        "organ_type": 2,
+        "realised_length": 1.758889,
+        "subType": 2
+      },
+      "13": {
+        "organ_type": 2,
+        "realised_length": 1.76,
+        "subType": 2
+      },
+      "130": {
+        "organ_type": 2,
+        "realised_length": 1.76,
+        "subType": 2
+      },
+      "1300": {
+        "organ_type": 2,
+        "realised_length": 5.4786,
+        "subType": 3
+      },
+      "1301": {
+        "organ_type": 2,
+        "realised_length": 1.752299,
+        "subType": 2
+      },
+      "1302": {
+        "organ_type": 2,
+        "realised_length": 1.752274,
+        "subType": 2
+      },
+      "1303": {
+        "organ_type": 2,
+        "realised_length": 5.047805,
+        "subType": 3
+      },
+      "1304": {
+        "organ_type": 2,
+        "realised_length": 1.75727,
+        "subType": 2
+      },
+      "1305": {
+        "organ_type": 2,
+        "realised_length": 1.751778,
+        "subType": 2
+      },
+      "1306": {
+        "organ_type": 2,
+        "realised_length": 4.889117,
+        "subType": 3
+      },
+      "1307": {
+        "organ_type": 2,
+        "realised_length": 1.75227,
+        "subType": 2
+      },
+      "1308": {
+        "organ_type": 2,
+        "realised_length": 1.758888,
+        "subType": 2
+      },
+      "1309": {
+        "organ_type": 2,
+        "realised_length": 1.752731,
+        "subType": 2
+      },
+      "131": {
+        "organ_type": 2,
+        "realised_length": 6.005637,
+        "subType": 3
+      },
+      "1310": {
+        "organ_type": 2,
+        "realised_length": 4.587155,
+        "subType": 3
+      },
+      "1311": {
+        "organ_type": 2,
+        "realised_length": 4.443387,
+        "subType": 3
+      },
+      "1312": {
+        "organ_type": 2,
+        "realised_length": 1.747901,
+        "subType": 2
+      },
+      "1313": {
+        "organ_type": 2,
+        "realised_length": 5.173114,
+        "subType": 3
+      },
+      "1314": {
+        "organ_type": 2,
+        "realised_length": 4.893611,
+        "subType": 3
+      },
+      "1315": {
+        "organ_type": 2,
+        "realised_length": 4.291515,
+        "subType": 3
+      },
+      "1316": {
+        "organ_type": 2,
+        "realised_length": 1.749309,
+        "subType": 2
+      },
+      "1317": {
+        "organ_type": 2,
+        "realised_length": 4.999308,
+        "subType": 3
+      },
+      "1318": {
+        "organ_type": 2,
+        "realised_length": 5.158138,
+        "subType": 3
+      },
+      "1319": {
+        "organ_type": 2,
+        "realised_length": 1.744698,
+        "subType": 2
+      },
+      "132": {
+        "organ_type": 2,
+        "realised_length": 6.009212,
+        "subType": 3
+      },
+      "1320": {
+        "organ_type": 2,
+        "realised_length": 4.807941,
+        "subType": 3
+      },
+      "1321": {
+        "organ_type": 2,
+        "realised_length": 1.724325,
+        "subType": 2
+      },
+      "1322": {
+        "organ_type": 2,
+        "realised_length": 4.255549,
+        "subType": 3
+      },
+      "1323": {
+        "organ_type": 2,
+        "realised_length": 1.750837,
+        "subType": 2
+      },
+      "1324": {
+        "organ_type": 2,
+        "realised_length": 5.278082,
+        "subType": 3
+      },
+      "1325": {
+        "organ_type": 2,
+        "realised_length": 4.038908,
+        "subType": 3
+      },
+      "1326": {
+        "organ_type": 2,
+        "realised_length": 1.734454,
+        "subType": 2
+      },
+      "1327": {
+        "organ_type": 2,
+        "realised_length": 4.655611,
+        "subType": 3
+      },
+      "1328": {
+        "organ_type": 2,
+        "realised_length": 3.975769,
+        "subType": 3
+      },
+      "1329": {
+        "organ_type": 2,
+        "realised_length": 4.913689,
+        "subType": 3
+      },
+      "133": {
+        "organ_type": 2,
+        "realised_length": 1.76,
+        "subType": 2
+      },
+      "1330": {
+        "organ_type": 2,
+        "realised_length": 1.654358,
+        "subType": 2
+      },
+      "1331": {
+        "organ_type": 2,
+        "realised_length": 3.047168,
+        "subType": 3
+      },
+      "1332": {
+        "organ_type": 2,
+        "realised_length": 3.038384,
+        "subType": 3
+      },
+      "1333": {
+        "organ_type": 2,
+        "realised_length": 1.167812,
+        "subType": 2
+      },
+      "1334": {
+        "organ_type": 2,
+        "realised_length": 0.168269,
+        "subType": 2
+      },
+      "1335": {
+        "organ_type": 2,
+        "realised_length": 4.326858,
+        "subType": 3
+      },
+      "1336": {
+        "organ_type": 2,
+        "realised_length": 1.523391,
+        "subType": 2
+      },
+      "1337": {
+        "organ_type": 2,
+        "realised_length": 3.10409,
+        "subType": 3
+      },
+      "1338": {
+        "organ_type": 2,
+        "realised_length": 4.188036,
+        "subType": 3
+      },
+      "1339": {
+        "organ_type": 2,
+        "realised_length": 1.73665,
+        "subType": 3
+      },
+      "134": {
+        "organ_type": 2,
+        "realised_length": 6.009439,
+        "subType": 3
+      },
+      "1340": {
+        "organ_type": 2,
+        "realised_length": 3.44417,
+        "subType": 3
+      },
+      "1341": {
+        "organ_type": 2,
+        "realised_length": 1.589411,
+        "subType": 2
+      },
+      "1342": {
+        "organ_type": 2,
+        "realised_length": 3.574623,
+        "subType": 3
+      },
+      "1346": {
+        "organ_type": 2,
+        "realised_length": 0.440169,
+        "subType": 2
+      },
+      "1347": {
+        "organ_type": 2,
+        "realised_length": 0.659931,
+        "subType": 3
+      },
+      "1348": {
+        "organ_type": 2,
+        "realised_length": 1.431896,
+        "subType": 2
+      },
+      "1349": {
+        "organ_type": 2,
+        "realised_length": 1.043947,
+        "subType": 2
+      },
+      "135": {
+        "organ_type": 2,
+        "realised_length": 1.76,
+        "subType": 2
+      },
+      "1350": {
+        "organ_type": 2,
+        "realised_length": 1.853601,
+        "subType": 3
+      },
+      "1351": {
+        "organ_type": 2,
+        "realised_length": 1.058522,
+        "subType": 2
+      },
+      "1353": {
+        "organ_type": 2,
+        "realised_length": 2.820368,
+        "subType": 3
+      },
+      "1357": {
+        "organ_type": 2,
+        "realised_length": 0.591368,
+        "subType": 2
+      },
+      "1358": {
+        "organ_type": 2,
+        "realised_length": 0.785996,
+        "subType": 3
+      },
+      "136": {
+        "organ_type": 2,
+        "realised_length": 1.76,
+        "subType": 2
+      },
+      "1363": {
+        "organ_type": 2,
+        "realised_length": 0.426742,
+        "subType": 2
+      },
+      "137": {
+        "organ_type": 2,
+        "realised_length": 6.007555,
+        "subType": 3
+      },
+      "138": {
+        "organ_type": 2,
+        "realised_length": 1.76,
+        "subType": 2
+      },
+      "139": {
+        "organ_type": 2,
+        "realised_length": 6.007837,
+        "subType": 3
+      },
+      "14": {
+        "organ_type": 2,
+        "realised_length": 6.008676,
+        "subType": 3
+      },
+      "140": {
+        "organ_type": 2,
+        "realised_length": 6.009125,
+        "subType": 3
+      },
+      "141": {
+        "organ_type": 2,
+        "realised_length": 1.76,
+        "subType": 2
+      },
+      "142": {
+        "organ_type": 2,
+        "realised_length": 6.009854,
+        "subType": 3
+      },
+      "143": {
+        "organ_type": 2,
+        "realised_length": 6.008955,
+        "subType": 3
+      },
+      "144": {
+        "organ_type": 2,
+        "realised_length": 1.76,
+        "subType": 2
+      },
+      "145": {
+        "organ_type": 2,
+        "realised_length": 6.008711,
+        "subType": 3
+      },
+      "146": {
+        "organ_type": 2,
+        "realised_length": 1.76,
+        "subType": 2
+      },
+      "147": {
+        "organ_type": 2,
+        "realised_length": 6.007971,
+        "subType": 3
+      },
+      "148": {
+        "organ_type": 2,
+        "realised_length": 6.008235,
+        "subType": 3
+      },
+      "149": {
+        "organ_type": 2,
+        "realised_length": 1.76,
+        "subType": 2
+      },
+      "15": {
+        "organ_type": 2,
+        "realised_length": 1.76,
+        "subType": 2
+      },
+      "150": {
+        "organ_type": 2,
+        "realised_length": 6.008477,
+        "subType": 3
+      },
+      "151": {
+        "organ_type": 2,
+        "realised_length": 1.76,
+        "subType": 2
+      },
+      "152": {
+        "organ_type": 2,
+        "realised_length": 1.76,
+        "subType": 2
+      },
+      "153": {
+        "organ_type": 2,
+        "realised_length": 6.008654,
+        "subType": 3
+      },
+      "154": {
+        "organ_type": 2,
+        "realised_length": 6.00828,
+        "subType": 3
+      },
+      "155": {
+        "organ_type": 2,
+        "realised_length": 6.00813,
+        "subType": 3
+      },
+      "156": {
+        "organ_type": 2,
+        "realised_length": 1.76,
+        "subType": 2
+      },
+      "157": {
+        "organ_type": 2,
+        "realised_length": 6.00814,
+        "subType": 3
+      },
+      "158": {
+        "organ_type": 2,
+        "realised_length": 1.76,
+        "subType": 2
+      },
+      "159": {
+        "organ_type": 2,
+        "realised_length": 6.006758,
+        "subType": 3
+      },
+      "16": {
+        "organ_type": 2,
+        "realised_length": 6.006823,
+        "subType": 3
+      },
+      "160": {
+        "organ_type": 2,
+        "realised_length": 1.76,
+        "subType": 2
+      },
+      "161": {
+        "organ_type": 2,
+        "realised_length": 1.76,
+        "subType": 2
+      },
+      "162": {
+        "organ_type": 2,
+        "realised_length": 1.76,
+        "subType": 2
+      },
+      "163": {
+        "organ_type": 2,
+        "realised_length": 6.008848,
+        "subType": 3
+      },
+      "164": {
+        "organ_type": 2,
+        "realised_length": 1.76,
+        "subType": 2
+      },
+      "165": {
+        "organ_type": 2,
+        "realised_length": 1.76,
+        "subType": 2
+      },
+      "166": {
+        "organ_type": 2,
+        "realised_length": 1.76,
+        "subType": 2
+      },
+      "167": {
+        "organ_type": 2,
+        "realised_length": 1.76,
+        "subType": 2
+      },
+      "168": {
+        "organ_type": 2,
+        "realised_length": 6.00191,
+        "subType": 3
+      },
+      "169": {
+        "organ_type": 2,
+        "realised_length": 6.008292,
+        "subType": 3
+      },
+      "17": {
+        "organ_type": 2,
+        "realised_length": 1.76,
+        "subType": 2
+      },
+      "170": {
+        "organ_type": 2,
+        "realised_length": 6.00932,
+        "subType": 3
+      },
+      "171": {
+        "organ_type": 2,
+        "realised_length": 6.00688,
+        "subType": 3
+      },
+      "172": {
+        "organ_type": 2,
+        "realised_length": 6.009192,
+        "subType": 3
+      },
+      "173": {
+        "organ_type": 2,
+        "realised_length": 1.76,
+        "subType": 2
+      },
+      "174": {
+        "organ_type": 2,
+        "realised_length": 6.008614,
+        "subType": 3
+      },
+      "175": {
+        "organ_type": 2,
+        "realised_length": 1.76,
+        "subType": 2
+      },
+      "176": {
+        "organ_type": 2,
+        "realised_length": 1.76,
+        "subType": 2
+      },
+      "177": {
+        "organ_type": 2,
+        "realised_length": 6.00883,
+        "subType": 3
+      },
+      "178": {
+        "organ_type": 2,
+        "realised_length": 1.76,
+        "subType": 2
+      },
+      "179": {
+        "organ_type": 2,
+        "realised_length": 6.005866,
+        "subType": 3
+      },
+      "18": {
+        "organ_type": 2,
+        "realised_length": 1.76,
+        "subType": 2
+      },
+      "180": {
+        "organ_type": 2,
+        "realised_length": 1.76,
+        "subType": 2
+      },
+      "181": {
+        "organ_type": 2,
+        "realised_length": 6.008404,
+        "subType": 3
+      },
+      "182": {
+        "organ_type": 2,
+        "realised_length": 1.76,
+        "subType": 2
+      },
+      "183": {
+        "organ_type": 2,
+        "realised_length": 1.76,
+        "subType": 2
+      },
+      "184": {
+        "organ_type": 2,
+        "realised_length": 6.008822,
+        "subType": 3
+      },
+      "185": {
+        "organ_type": 2,
+        "realised_length": 1.76,
+        "subType": 2
+      },
+      "186": {
+        "organ_type": 2,
+        "realised_length": 6.009049,
+        "subType": 3
+      },
+      "187": {
+        "organ_type": 2,
+        "realised_length": 1.76,
+        "subType": 2
+      },
+      "188": {
+        "organ_type": 2,
+        "realised_length": 1.76,
+        "subType": 2
+      },
+      "189": {
+        "organ_type": 2,
+        "realised_length": 1.76,
+        "subType": 2
+      },
+      "19": {
+        "organ_type": 2,
+        "realised_length": 1.76,
+        "subType": 2
+      },
+      "190": {
+        "organ_type": 2,
+        "realised_length": 5.998598,
+        "subType": 3
+      },
+      "191": {
+        "organ_type": 2,
+        "realised_length": 1.76,
+        "subType": 2
+      },
+      "192": {
+        "organ_type": 2,
+        "realised_length": 6.004705,
+        "subType": 3
+      },
+      "193": {
+        "organ_type": 2,
+        "realised_length": 1.76,
+        "subType": 2
+      },
+      "194": {
+        "organ_type": 2,
+        "realised_length": 1.76,
+        "subType": 2
+      },
+      "195": {
+        "organ_type": 2,
+        "realised_length": 6.007776,
+        "subType": 3
+      },
+      "196": {
+        "organ_type": 2,
+        "realised_length": 6.009855,
+        "subType": 3
+      },
+      "197": {
+        "organ_type": 2,
+        "realised_length": 1.76,
+        "subType": 2
+      },
+      "198": {
+        "organ_type": 2,
+        "realised_length": 1.76,
+        "subType": 2
+      },
+      "199": {
+        "organ_type": 2,
+        "realised_length": 6.007939,
+        "subType": 3
+      },
+      "2": {
+        "organ_type": 2,
+        "realised_length": 155.48575,
+        "subType": 4
+      },
+      "20": {
+        "organ_type": 2,
+        "realised_length": 6.009176,
+        "subType": 3
+      },
+      "200": {
+        "organ_type": 2,
+        "realised_length": 1.76,
+        "subType": 2
+      },
+      "201": {
+        "organ_type": 2,
+        "realised_length": 6.009276,
+        "subType": 3
+      },
+      "202": {
+        "organ_type": 2,
+        "realised_length": 6.009249,
+        "subType": 3
+      },
+      "203": {
+        "organ_type": 2,
+        "realised_length": 1.76,
+        "subType": 2
+      },
+      "204": {
+        "organ_type": 2,
+        "realised_length": 6.009402,
+        "subType": 3
+      },
+      "205": {
+        "organ_type": 2,
+        "realised_length": 6.008016,
+        "subType": 3
+      },
+      "206": {
+        "organ_type": 2,
+        "realised_length": 1.76,
+        "subType": 2
+      },
+      "207": {
+        "organ_type": 2,
+        "realised_length": 6.009077,
+        "subType": 3
+      },
+      "208": {
+        "organ_type": 2,
+        "realised_length": 1.76,
+        "subType": 2
+      },
+      "209": {
+        "organ_type": 2,
+        "realised_length": 6.00785,
+        "subType": 3
+      },
+      "21": {
+        "organ_type": 2,
+        "realised_length": 6.008294,
+        "subType": 3
+      },
+      "210": {
+        "organ_type": 2,
+        "realised_length": 1.76,
+        "subType": 2
+      },
+      "211": {
+        "organ_type": 2,
+        "realised_length": 1.76,
+        "subType": 2
+      },
+      "212": {
+        "organ_type": 2,
+        "realised_length": 1.76,
+        "subType": 2
+      },
+      "213": {
+        "organ_type": 2,
+        "realised_length": 6.008758,
+        "subType": 3
+      },
+      "214": {
+        "organ_type": 2,
+        "realised_length": 1.76,
+        "subType": 2
+      },
+      "215": {
+        "organ_type": 2,
+        "realised_length": 6.009068,
+        "subType": 3
+      },
+      "216": {
+        "organ_type": 2,
+        "realised_length": 1.76,
+        "subType": 2
+      },
+      "217": {
+        "organ_type": 2,
+        "realised_length": 1.76,
+        "subType": 2
+      },
+      "218": {
+        "organ_type": 2,
+        "realised_length": 1.76,
+        "subType": 2
+      },
+      "219": {
+        "organ_type": 2,
+        "realised_length": 6.008587,
+        "subType": 3
+      },
+      "22": {
+        "organ_type": 2,
+        "realised_length": 1.76,
+        "subType": 2
+      },
+      "220": {
+        "organ_type": 2,
+        "realised_length": 6.007874,
+        "subType": 3
+      },
+      "221": {
+        "organ_type": 4,
+        "realised_length": 23.939302,
+        "subType": 2
+      },
+      "222": {
+        "organ_type": 2,
+        "realised_length": 6.003653,
+        "subType": 3
+      },
+      "223": {
+        "organ_type": 2,
+        "realised_length": 1.76,
+        "subType": 2
+      },
+      "224": {
+        "organ_type": 2,
+        "realised_length": 6.006803,
+        "subType": 3
+      },
+      "225": {
+        "organ_type": 2,
+        "realised_length": 1.76,
+        "subType": 2
+      },
+      "226": {
+        "organ_type": 2,
+        "realised_length": 6.006348,
+        "subType": 3
+      },
+      "227": {
+        "organ_type": 2,
+        "realised_length": 1.76,
+        "subType": 2
+      },
+      "228": {
+        "organ_type": 2,
+        "realised_length": 1.76,
+        "subType": 2
+      },
+      "229": {
+        "organ_type": 2,
+        "realised_length": 1.76,
+        "subType": 2
+      },
+      "23": {
+        "organ_type": 2,
+        "realised_length": 6.009546,
+        "subType": 3
+      },
+      "230": {
+        "organ_type": 2,
+        "realised_length": 6.009595,
+        "subType": 3
+      },
+      "231": {
+        "organ_type": 2,
+        "realised_length": 1.76,
+        "subType": 2
+      },
+      "232": {
+        "organ_type": 2,
+        "realised_length": 6.009648,
+        "subType": 3
+      },
+      "233": {
+        "organ_type": 2,
+        "realised_length": 6.008002,
+        "subType": 3
+      },
+      "234": {
+        "organ_type": 2,
+        "realised_length": 1.76,
+        "subType": 2
+      },
+      "235": {
+        "organ_type": 2,
+        "realised_length": 6.007078,
+        "subType": 3
+      },
+      "236": {
+        "organ_type": 2,
+        "realised_length": 1.76,
+        "subType": 2
+      },
+      "237": {
+        "organ_type": 2,
+        "realised_length": 6.009738,
+        "subType": 3
+      },
+      "238": {
+        "organ_type": 2,
+        "realised_length": 1.76,
+        "subType": 2
+      },
+      "239": {
+        "organ_type": 2,
+        "realised_length": 6.006949,
+        "subType": 3
+      },
+      "24": {
+        "organ_type": 2,
+        "realised_length": 6.006105,
+        "subType": 3
+      },
+      "240": {
+        "organ_type": 2,
+        "realised_length": 1.76,
+        "subType": 2
+      },
+      "241": {
+        "organ_type": 2,
+        "realised_length": 6.008802,
+        "subType": 3
+      },
+      "242": {
+        "organ_type": 2,
+        "realised_length": 6.00888,
+        "subType": 3
+      },
+      "243": {
+        "organ_type": 2,
+        "realised_length": 1.76,
+        "subType": 2
+      },
+      "244": {
+        "organ_type": 2,
+        "realised_length": 6.005445,
+        "subType": 3
+      },
+      "245": {
+        "organ_type": 2,
+        "realised_length": 1.76,
+        "subType": 2
+      },
+      "246": {
+        "organ_type": 2,
+        "realised_length": 6.009253,
+        "subType": 3
+      },
+      "247": {
+        "organ_type": 2,
+        "realised_length": 1.76,
+        "subType": 2
+      },
+      "248": {
+        "organ_type": 2,
+        "realised_length": 6.008578,
+        "subType": 3
+      },
+      "249": {
+        "organ_type": 2,
+        "realised_length": 1.76,
+        "subType": 2
+      },
+      "25": {
+        "organ_type": 2,
+        "realised_length": 6.008747,
+        "subType": 3
+      },
+      "250": {
+        "organ_type": 2,
+        "realised_length": 1.76,
+        "subType": 2
+      },
+      "251": {
+        "organ_type": 2,
+        "realised_length": 6.007246,
+        "subType": 3
+      },
+      "252": {
+        "organ_type": 2,
+        "realised_length": 6.007357,
+        "subType": 3
+      },
+      "253": {
+        "organ_type": 2,
+        "realised_length": 1.76,
+        "subType": 2
+      },
+      "254": {
+        "organ_type": 2,
+        "realised_length": 1.76,
+        "subType": 2
+      },
+      "255": {
+        "organ_type": 2,
+        "realised_length": 1.76,
+        "subType": 2
+      },
+      "256": {
+        "organ_type": 2,
+        "realised_length": 6.001576,
+        "subType": 3
+      },
+      "257": {
+        "organ_type": 2,
+        "realised_length": 6.007692,
+        "subType": 3
+      },
+      "258": {
+        "organ_type": 2,
+        "realised_length": 1.76,
+        "subType": 2
+      },
+      "259": {
+        "organ_type": 2,
+        "realised_length": 6.008963,
+        "subType": 3
+      },
+      "26": {
+        "organ_type": 2,
+        "realised_length": 6.00976,
+        "subType": 3
+      },
+      "260": {
+        "organ_type": 2,
+        "realised_length": 6.00853,
+        "subType": 3
+      },
+      "261": {
+        "organ_type": 2,
+        "realised_length": 6.009594,
+        "subType": 3
+      },
+      "262": {
+        "organ_type": 2,
+        "realised_length": 6.007782,
+        "subType": 3
+      },
+      "263": {
+        "organ_type": 2,
+        "realised_length": 6.00761,
+        "subType": 3
+      },
+      "264": {
+        "organ_type": 2,
+        "realised_length": 6.002563,
+        "subType": 3
+      },
+      "265": {
+        "organ_type": 2,
+        "realised_length": 1.76,
+        "subType": 2
+      },
+      "266": {
+        "organ_type": 2,
+        "realised_length": 1.76,
+        "subType": 2
+      },
+      "267": {
+        "organ_type": 2,
+        "realised_length": 6.00951,
+        "subType": 3
+      },
+      "268": {
+        "organ_type": 2,
+        "realised_length": 6.00736,
+        "subType": 3
+      },
+      "269": {
+        "organ_type": 2,
+        "realised_length": 1.76,
+        "subType": 2
+      },
+      "27": {
+        "organ_type": 2,
+        "realised_length": 1.76,
+        "subType": 2
+      },
+      "270": {
+        "organ_type": 2,
+        "realised_length": 6.006729,
+        "subType": 3
+      },
+      "271": {
+        "organ_type": 2,
+        "realised_length": 1.76,
+        "subType": 2
+      },
+      "272": {
+        "organ_type": 2,
+        "realised_length": 6.007613,
+        "subType": 3
+      },
+      "273": {
+        "organ_type": 2,
+        "realised_length": 1.76,
+        "subType": 2
+      },
+      "274": {
+        "organ_type": 2,
+        "realised_length": 1.76,
+        "subType": 2
+      },
+      "275": {
+        "organ_type": 2,
+        "realised_length": 6.007058,
+        "subType": 3
+      },
+      "276": {
+        "organ_type": 2,
+        "realised_length": 6.006765,
+        "subType": 3
+      },
+      "277": {
+        "organ_type": 2,
+        "realised_length": 6.008952,
+        "subType": 3
+      },
+      "278": {
+        "organ_type": 2,
+        "realised_length": 1.76,
+        "subType": 2
+      },
+      "279": {
+        "organ_type": 2,
+        "realised_length": 6.006719,
+        "subType": 3
+      },
+      "28": {
+        "organ_type": 2,
+        "realised_length": 6.009453,
+        "subType": 3
+      },
+      "280": {
+        "organ_type": 2,
+        "realised_length": 1.76,
+        "subType": 2
+      },
+      "281": {
+        "organ_type": 2,
+        "realised_length": 1.76,
+        "subType": 2
+      },
+      "282": {
+        "organ_type": 2,
+        "realised_length": 6.002902,
+        "subType": 3
+      },
+      "283": {
+        "organ_type": 2,
+        "realised_length": 1.76,
+        "subType": 2
+      },
+      "284": {
+        "organ_type": 2,
+        "realised_length": 6.006754,
+        "subType": 3
+      },
+      "285": {
+        "organ_type": 2,
+        "realised_length": 6.008107,
+        "subType": 3
+      },
+      "286": {
+        "organ_type": 2,
+        "realised_length": 1.76,
+        "subType": 2
+      },
+      "287": {
+        "organ_type": 2,
+        "realised_length": 6.007267,
+        "subType": 3
+      },
+      "288": {
+        "organ_type": 2,
+        "realised_length": 1.76,
+        "subType": 2
+      },
+      "289": {
+        "organ_type": 2,
+        "realised_length": 5.997265,
+        "subType": 3
+      },
+      "29": {
+        "organ_type": 2,
+        "realised_length": 6.008279,
+        "subType": 3
+      },
+      "290": {
+        "organ_type": 2,
+        "realised_length": 1.76,
+        "subType": 2
+      },
+      "291": {
+        "organ_type": 2,
+        "realised_length": 6.009417,
+        "subType": 3
+      },
+      "292": {
+        "organ_type": 2,
+        "realised_length": 6.006264,
+        "subType": 3
+      },
+      "293": {
+        "organ_type": 2,
+        "realised_length": 1.76,
+        "subType": 2
+      },
+      "294": {
+        "organ_type": 2,
+        "realised_length": 1.76,
+        "subType": 2
+      },
+      "295": {
+        "organ_type": 2,
+        "realised_length": 1.76,
+        "subType": 2
+      },
+      "296": {
+        "organ_type": 2,
+        "realised_length": 6.007198,
+        "subType": 3
+      },
+      "297": {
+        "organ_type": 2,
+        "realised_length": 1.76,
+        "subType": 2
+      },
+      "298": {
+        "organ_type": 2,
+        "realised_length": 6.007914,
+        "subType": 3
+      },
+      "299": {
+        "organ_type": 2,
+        "realised_length": 1.76,
+        "subType": 2
+      },
+      "3": {
+        "organ_type": 2,
+        "realised_length": 154.654026,
+        "subType": 4
+      },
+      "30": {
+        "organ_type": 2,
+        "realised_length": 1.76,
+        "subType": 2
+      },
+      "300": {
+        "organ_type": 2,
+        "realised_length": 1.76,
+        "subType": 2
+      },
+      "301": {
+        "organ_type": 2,
+        "realised_length": 1.76,
+        "subType": 2
+      },
+      "302": {
+        "organ_type": 2,
+        "realised_length": 1.76,
+        "subType": 2
+      },
+      "303": {
+        "organ_type": 2,
+        "realised_length": 6.008118,
+        "subType": 3
+      },
+      "304": {
+        "organ_type": 2,
+        "realised_length": 6.004326,
+        "subType": 3
+      },
+      "305": {
+        "organ_type": 2,
+        "realised_length": 1.76,
+        "subType": 2
+      },
+      "306": {
+        "organ_type": 2,
+        "realised_length": 1.76,
+        "subType": 2
+      },
+      "307": {
+        "organ_type": 2,
+        "realised_length": 6.007598,
+        "subType": 3
+      },
+      "308": {
+        "organ_type": 2,
+        "realised_length": 1.76,
+        "subType": 2
+      },
+      "309": {
+        "organ_type": 2,
+        "realised_length": 1.76,
+        "subType": 2
+      },
+      "31": {
+        "organ_type": 2,
+        "realised_length": 6.008407,
+        "subType": 3
+      },
+      "310": {
+        "organ_type": 2,
+        "realised_length": 1.76,
+        "subType": 2
+      },
+      "311": {
+        "organ_type": 2,
+        "realised_length": 1.76,
+        "subType": 2
+      },
+      "312": {
+        "organ_type": 2,
+        "realised_length": 1.76,
+        "subType": 2
+      },
+      "313": {
+        "organ_type": 2,
+        "realised_length": 6.006963,
+        "subType": 3
+      },
+      "314": {
+        "organ_type": 2,
+        "realised_length": 6.00751,
+        "subType": 3
+      },
+      "315": {
+        "organ_type": 2,
+        "realised_length": 1.76,
+        "subType": 2
+      },
+      "316": {
+        "organ_type": 2,
+        "realised_length": 1.76,
+        "subType": 2
+      },
+      "317": {
+        "organ_type": 2,
+        "realised_length": 6.006355,
+        "subType": 3
+      },
+      "318": {
+        "organ_type": 2,
+        "realised_length": 1.76,
+        "subType": 2
+      },
+      "319": {
+        "organ_type": 2,
+        "realised_length": 1.76,
+        "subType": 2
+      },
+      "32": {
+        "organ_type": 2,
+        "realised_length": 6.008959,
+        "subType": 3
+      },
+      "320": {
+        "organ_type": 2,
+        "realised_length": 1.76,
+        "subType": 2
+      },
+      "321": {
+        "organ_type": 2,
+        "realised_length": 6.008211,
+        "subType": 3
+      },
+      "322": {
+        "organ_type": 2,
+        "realised_length": 1.76,
+        "subType": 2
+      },
+      "323": {
+        "organ_type": 2,
+        "realised_length": 6.008436,
+        "subType": 3
+      },
+      "324": {
+        "organ_type": 2,
+        "realised_length": 6.008804,
+        "subType": 3
+      },
+      "325": {
+        "organ_type": 2,
+        "realised_length": 1.76,
+        "subType": 2
+      },
+      "326": {
+        "organ_type": 2,
+        "realised_length": 6.001992,
+        "subType": 3
+      },
+      "327": {
+        "organ_type": 2,
+        "realised_length": 6.008682,
+        "subType": 3
+      },
+      "328": {
+        "organ_type": 2,
+        "realised_length": 1.76,
+        "subType": 2
+      },
+      "329": {
+        "organ_type": 2,
+        "realised_length": 1.76,
+        "subType": 2
+      },
+      "33": {
+        "organ_type": 2,
+        "realised_length": 6.009211,
+        "subType": 3
+      },
+      "330": {
+        "organ_type": 2,
+        "realised_length": 6.00923,
+        "subType": 3
+      },
+      "331": {
+        "organ_type": 2,
+        "realised_length": 1.76,
+        "subType": 2
+      },
+      "332": {
+        "organ_type": 2,
+        "realised_length": 6.009487,
+        "subType": 3
+      },
+      "333": {
+        "organ_type": 2,
+        "realised_length": 1.76,
+        "subType": 2
+      },
+      "334": {
+        "organ_type": 2,
+        "realised_length": 6.009484,
+        "subType": 3
+      },
+      "335": {
+        "organ_type": 2,
+        "realised_length": 1.76,
+        "subType": 2
+      },
+      "336": {
+        "organ_type": 2,
+        "realised_length": 6.006447,
+        "subType": 3
+      },
+      "337": {
+        "organ_type": 2,
+        "realised_length": 1.76,
+        "subType": 2
+      },
+      "338": {
+        "organ_type": 2,
+        "realised_length": 6.007124,
+        "subType": 3
+      },
+      "339": {
+        "organ_type": 2,
+        "realised_length": 1.76,
+        "subType": 2
+      },
+      "34": {
+        "organ_type": 2,
+        "realised_length": 1.76,
+        "subType": 2
+      },
+      "340": {
+        "organ_type": 2,
+        "realised_length": 1.76,
+        "subType": 2
+      },
+      "341": {
+        "organ_type": 2,
+        "realised_length": 1.76,
+        "subType": 2
+      },
+      "342": {
+        "organ_type": 2,
+        "realised_length": 1.76,
+        "subType": 2
+      },
+      "343": {
+        "organ_type": 2,
+        "realised_length": 1.76,
+        "subType": 2
+      },
+      "344": {
+        "organ_type": 2,
+        "realised_length": 6.005369,
+        "subType": 3
+      },
+      "345": {
+        "organ_type": 2,
+        "realised_length": 1.76,
+        "subType": 2
+      },
+      "346": {
+        "organ_type": 2,
+        "realised_length": 6.00561,
+        "subType": 3
+      },
+      "347": {
+        "organ_type": 2,
+        "realised_length": 1.76,
+        "subType": 2
+      },
+      "348": {
+        "organ_type": 2,
+        "realised_length": 1.76,
+        "subType": 2
+      },
+      "349": {
+        "organ_type": 2,
+        "realised_length": 6.006285,
+        "subType": 3
+      },
+      "35": {
+        "organ_type": 2,
+        "realised_length": 1.76,
+        "subType": 2
+      },
+      "350": {
+        "organ_type": 2,
+        "realised_length": 1.76,
+        "subType": 2
+      },
+      "351": {
+        "organ_type": 2,
+        "realised_length": 6.006559,
+        "subType": 3
+      },
+      "352": {
+        "organ_type": 2,
+        "realised_length": 1.76,
+        "subType": 2
+      },
+      "353": {
+        "organ_type": 2,
+        "realised_length": 6.009126,
+        "subType": 3
+      },
+      "354": {
+        "organ_type": 2,
+        "realised_length": 1.76,
+        "subType": 2
+      },
+      "355": {
+        "organ_type": 2,
+        "realised_length": 1.76,
+        "subType": 2
+      },
+      "356": {
+        "organ_type": 2,
+        "realised_length": 6.007689,
+        "subType": 3
+      },
+      "357": {
+        "organ_type": 2,
+        "realised_length": 6.006776,
+        "subType": 3
+      },
+      "358": {
+        "organ_type": 2,
+        "realised_length": 1.76,
+        "subType": 2
+      },
+      "359": {
+        "organ_type": 2,
+        "realised_length": 5.997981,
+        "subType": 3
+      },
+      "36": {
+        "organ_type": 2,
+        "realised_length": 6.008812,
+        "subType": 3
+      },
+      "360": {
+        "organ_type": 2,
+        "realised_length": 1.76,
+        "subType": 2
+      },
+      "361": {
+        "organ_type": 2,
+        "realised_length": 6.008259,
+        "subType": 3
+      },
+      "362": {
+        "organ_type": 2,
+        "realised_length": 1.76,
+        "subType": 2
+      },
+      "363": {
+        "organ_type": 2,
+        "realised_length": 6.006243,
+        "subType": 3
+      },
+      "364": {
+        "organ_type": 2,
+        "realised_length": 1.76,
+        "subType": 2
+      },
+      "365": {
+        "organ_type": 2,
+        "realised_length": 6.009382,
+        "subType": 3
+      },
+      "366": {
+        "organ_type": 2,
+        "realised_length": 6.007095,
+        "subType": 3
+      },
+      "367": {
+        "organ_type": 2,
+        "realised_length": 1.76,
+        "subType": 2
+      },
+      "368": {
+        "organ_type": 2,
+        "realised_length": 6.008609,
+        "subType": 3
+      },
+      "369": {
+        "organ_type": 2,
+        "realised_length": 1.76,
+        "subType": 2
+      },
+      "37": {
+        "organ_type": 2,
+        "realised_length": 1.76,
+        "subType": 2
+      },
+      "370": {
+        "organ_type": 2,
+        "realised_length": 1.76,
+        "subType": 2
+      },
+      "371": {
+        "organ_type": 2,
+        "realised_length": 1.76,
+        "subType": 2
+      },
+      "372": {
+        "organ_type": 2,
+        "realised_length": 6.009259,
+        "subType": 3
+      },
+      "373": {
+        "organ_type": 2,
+        "realised_length": 1.76,
+        "subType": 2
+      },
+      "374": {
+        "organ_type": 4,
+        "realised_length": 34.546532,
+        "subType": 3
+      },
+      "375": {
+        "organ_type": 2,
+        "realised_length": 1.76,
+        "subType": 2
+      },
+      "376": {
+        "organ_type": 2,
+        "realised_length": 1.76,
+        "subType": 2
+      },
+      "377": {
+        "organ_type": 2,
+        "realised_length": 6.008142,
+        "subType": 3
+      },
+      "378": {
+        "organ_type": 2,
+        "realised_length": 1.76,
+        "subType": 2
+      },
+      "379": {
+        "organ_type": 2,
+        "realised_length": 6.007404,
+        "subType": 3
+      },
+      "38": {
+        "organ_type": 2,
+        "realised_length": 6.008329,
+        "subType": 3
+      },
+      "380": {
+        "organ_type": 2,
+        "realised_length": 6.007969,
+        "subType": 3
+      },
+      "381": {
+        "organ_type": 2,
+        "realised_length": 1.76,
+        "subType": 2
+      },
+      "382": {
+        "organ_type": 2,
+        "realised_length": 6.008924,
+        "subType": 3
+      },
+      "383": {
+        "organ_type": 2,
+        "realised_length": 6.00679,
+        "subType": 3
+      },
+      "384": {
+        "organ_type": 2,
+        "realised_length": 1.76,
+        "subType": 2
+      },
+      "385": {
+        "organ_type": 2,
+        "realised_length": 6.008785,
+        "subType": 3
+      },
+      "386": {
+        "organ_type": 2,
+        "realised_length": 6.009132,
+        "subType": 3
+      },
+      "387": {
+        "organ_type": 2,
+        "realised_length": 1.76,
+        "subType": 2
+      },
+      "388": {
+        "organ_type": 2,
+        "realised_length": 1.76,
+        "subType": 2
+      },
+      "389": {
+        "organ_type": 2,
+        "realised_length": 6.007431,
+        "subType": 3
+      },
+      "39": {
+        "organ_type": 2,
+        "realised_length": 6.008551,
+        "subType": 3
+      },
+      "390": {
+        "organ_type": 2,
+        "realised_length": 1.76,
+        "subType": 2
+      },
+      "391": {
+        "organ_type": 2,
+        "realised_length": 6.005883,
+        "subType": 3
+      },
+      "392": {
+        "organ_type": 2,
+        "realised_length": 1.76,
+        "subType": 2
+      },
+      "393": {
+        "organ_type": 2,
+        "realised_length": 1.76,
+        "subType": 2
+      },
+      "394": {
+        "organ_type": 2,
+        "realised_length": 6.008548,
+        "subType": 3
+      },
+      "395": {
+        "organ_type": 2,
+        "realised_length": 1.76,
+        "subType": 2
+      },
+      "396": {
+        "organ_type": 2,
+        "realised_length": 6.007735,
+        "subType": 3
+      },
+      "397": {
+        "organ_type": 2,
+        "realised_length": 1.76,
+        "subType": 2
+      },
+      "398": {
+        "organ_type": 2,
+        "realised_length": 1.76,
+        "subType": 2
+      },
+      "399": {
+        "organ_type": 2,
+        "realised_length": 1.76,
+        "subType": 2
+      },
+      "4": {
+        "organ_type": 2,
+        "realised_length": 154.095125,
+        "subType": 4
+      },
+      "40": {
+        "organ_type": 2,
+        "realised_length": 6.009519,
+        "subType": 3
+      },
+      "400": {
+        "organ_type": 2,
+        "realised_length": 6.007828,
+        "subType": 3
+      },
+      "401": {
+        "organ_type": 2,
+        "realised_length": 6.000222,
+        "subType": 3
+      },
+      "402": {
+        "organ_type": 2,
+        "realised_length": 6.005903,
+        "subType": 3
+      },
+      "403": {
+        "organ_type": 2,
+        "realised_length": 1.76,
+        "subType": 2
+      },
+      "404": {
+        "organ_type": 2,
+        "realised_length": 1.76,
+        "subType": 2
+      },
+      "405": {
+        "organ_type": 2,
+        "realised_length": 6.007684,
+        "subType": 3
+      },
+      "406": {
+        "organ_type": 2,
+        "realised_length": 1.76,
+        "subType": 2
+      },
+      "407": {
+        "organ_type": 2,
+        "realised_length": 6.00737,
+        "subType": 3
+      },
+      "408": {
+        "organ_type": 2,
+        "realised_length": 6.002855,
+        "subType": 3
+      },
+      "409": {
+        "organ_type": 2,
+        "realised_length": 1.76,
+        "subType": 2
+      },
+      "41": {
+        "organ_type": 2,
+        "realised_length": 6.009804,
+        "subType": 3
+      },
+      "410": {
+        "organ_type": 2,
+        "realised_length": 6.007799,
+        "subType": 3
+      },
+      "411": {
+        "organ_type": 2,
+        "realised_length": 1.76,
+        "subType": 2
+      },
+      "412": {
+        "organ_type": 2,
+        "realised_length": 6.007627,
+        "subType": 3
+      },
+      "413": {
+        "organ_type": 2,
+        "realised_length": 1.76,
+        "subType": 2
+      },
+      "414": {
+        "organ_type": 2,
+        "realised_length": 6.004995,
+        "subType": 3
+      },
+      "415": {
+        "organ_type": 2,
+        "realised_length": 6.007067,
+        "subType": 3
+      },
+      "416": {
+        "organ_type": 2,
+        "realised_length": 1.76,
+        "subType": 2
+      },
+      "417": {
+        "organ_type": 2,
+        "realised_length": 6.006868,
+        "subType": 3
+      },
+      "418": {
+        "organ_type": 2,
+        "realised_length": 1.76,
+        "subType": 2
+      },
+      "419": {
+        "organ_type": 2,
+        "realised_length": 6.003562,
+        "subType": 3
+      },
+      "42": {
+        "organ_type": 2,
+        "realised_length": 6.00911,
+        "subType": 3
+      },
+      "420": {
+        "organ_type": 2,
+        "realised_length": 6.008649,
+        "subType": 3
+      },
+      "421": {
+        "organ_type": 2,
+        "realised_length": 6.006765,
+        "subType": 3
+      },
+      "422": {
+        "organ_type": 2,
+        "realised_length": 1.76,
+        "subType": 2
+      },
+      "423": {
+        "organ_type": 2,
+        "realised_length": 1.76,
+        "subType": 2
+      },
+      "424": {
+        "organ_type": 2,
+        "realised_length": 6.007994,
+        "subType": 3
+      },
+      "425": {
+        "organ_type": 2,
+        "realised_length": 6.009029,
+        "subType": 3
+      },
+      "426": {
+        "organ_type": 2,
+        "realised_length": 1.76,
+        "subType": 2
+      },
+      "427": {
+        "organ_type": 2,
+        "realised_length": 6.005188,
+        "subType": 3
+      },
+      "428": {
+        "organ_type": 2,
+        "realised_length": 1.76,
+        "subType": 2
+      },
+      "429": {
+        "organ_type": 2,
+        "realised_length": 6.007253,
+        "subType": 3
+      },
+      "43": {
+        "organ_type": 2,
+        "realised_length": 1.76,
+        "subType": 2
+      },
+      "430": {
+        "organ_type": 2,
+        "realised_length": 6.00452,
+        "subType": 3
+      },
+      "431": {
+        "organ_type": 2,
+        "realised_length": 6.008764,
+        "subType": 3
+      },
+      "432": {
+        "organ_type": 2,
+        "realised_length": 1.76,
+        "subType": 2
+      },
+      "433": {
+        "organ_type": 2,
+        "realised_length": 6.000421,
+        "subType": 3
+      },
+      "434": {
+        "organ_type": 2,
+        "realised_length": 6.005102,
+        "subType": 3
+      },
+      "435": {
+        "organ_type": 2,
+        "realised_length": 6.008431,
+        "subType": 3
+      },
+      "436": {
+        "organ_type": 2,
+        "realised_length": 6.008342,
+        "subType": 3
+      },
+      "437": {
+        "organ_type": 2,
+        "realised_length": 1.76,
+        "subType": 2
+      },
+      "438": {
+        "organ_type": 2,
+        "realised_length": 6.003477,
+        "subType": 3
+      },
+      "439": {
+        "organ_type": 2,
+        "realised_length": 1.76,
+        "subType": 2
+      },
+      "44": {
+        "organ_type": 2,
+        "realised_length": 1.76,
+        "subType": 2
+      },
+      "440": {
+        "organ_type": 2,
+        "realised_length": 1.76,
+        "subType": 2
+      },
+      "441": {
+        "organ_type": 2,
+        "realised_length": 1.76,
+        "subType": 2
+      },
+      "442": {
+        "organ_type": 2,
+        "realised_length": 6.008392,
+        "subType": 3
+      },
+      "443": {
+        "organ_type": 2,
+        "realised_length": 1.76,
+        "subType": 2
+      },
+      "444": {
+        "organ_type": 2,
+        "realised_length": 6.007509,
+        "subType": 3
+      },
+      "445": {
+        "organ_type": 2,
+        "realised_length": 1.76,
+        "subType": 2
+      },
+      "446": {
+        "organ_type": 2,
+        "realised_length": 1.76,
+        "subType": 2
+      },
+      "447": {
+        "organ_type": 2,
+        "realised_length": 6.007131,
+        "subType": 3
+      },
+      "448": {
+        "organ_type": 2,
+        "realised_length": 6.008074,
+        "subType": 3
+      },
+      "449": {
+        "organ_type": 2,
+        "realised_length": 6.004262,
+        "subType": 3
+      },
+      "45": {
+        "organ_type": 2,
+        "realised_length": 6.006189,
+        "subType": 3
+      },
+      "450": {
+        "organ_type": 2,
+        "realised_length": 1.76,
+        "subType": 2
+      },
+      "451": {
+        "organ_type": 2,
+        "realised_length": 1.76,
+        "subType": 2
+      },
+      "452": {
+        "organ_type": 2,
+        "realised_length": 6.008641,
+        "subType": 3
+      },
+      "453": {
+        "organ_type": 2,
+        "realised_length": 1.76,
+        "subType": 2
+      },
+      "454": {
+        "organ_type": 2,
+        "realised_length": 1.76,
+        "subType": 2
+      },
+      "455": {
+        "organ_type": 2,
+        "realised_length": 1.76,
+        "subType": 2
+      },
+      "456": {
+        "organ_type": 2,
+        "realised_length": 1.76,
+        "subType": 2
+      },
+      "457": {
+        "organ_type": 2,
+        "realised_length": 6.007526,
+        "subType": 3
+      },
+      "458": {
+        "organ_type": 2,
+        "realised_length": 1.76,
+        "subType": 2
+      },
+      "459": {
+        "organ_type": 2,
+        "realised_length": 1.76,
+        "subType": 2
+      },
+      "46": {
+        "organ_type": 2,
+        "realised_length": 1.76,
+        "subType": 2
+      },
+      "460": {
+        "organ_type": 2,
+        "realised_length": 6.006758,
+        "subType": 3
+      },
+      "461": {
+        "organ_type": 2,
+        "realised_length": 1.76,
+        "subType": 2
+      },
+      "462": {
+        "organ_type": 2,
+        "realised_length": 6.003522,
+        "subType": 3
+      },
+      "463": {
+        "organ_type": 2,
+        "realised_length": 6.009303,
+        "subType": 3
+      },
+      "464": {
+        "organ_type": 2,
+        "realised_length": 1.76,
+        "subType": 2
+      },
+      "465": {
+        "organ_type": 2,
+        "realised_length": 6.000396,
+        "subType": 3
+      },
+      "466": {
+        "organ_type": 4,
+        "realised_length": 45.22,
+        "subType": 4
+      },
+      "467": {
+        "organ_type": 2,
+        "realised_length": 6.005925,
+        "subType": 3
+      },
+      "468": {
+        "organ_type": 2,
+        "realised_length": 1.76,
+        "subType": 2
+      },
+      "469": {
+        "organ_type": 2,
+        "realised_length": 6.007489,
+        "subType": 3
+      },
+      "47": {
+        "organ_type": 2,
+        "realised_length": 6.009567,
+        "subType": 3
+      },
+      "470": {
+        "organ_type": 2,
+        "realised_length": 1.76,
+        "subType": 2
+      },
+      "471": {
+        "organ_type": 2,
+        "realised_length": 6.002906,
+        "subType": 3
+      },
+      "472": {
+        "organ_type": 2,
+        "realised_length": 5.999803,
+        "subType": 3
+      },
+      "473": {
+        "organ_type": 2,
+        "realised_length": 1.76,
+        "subType": 2
+      },
+      "474": {
+        "organ_type": 2,
+        "realised_length": 6.004957,
+        "subType": 3
+      },
+      "475": {
+        "organ_type": 2,
+        "realised_length": 1.76,
+        "subType": 2
+      },
+      "476": {
+        "organ_type": 2,
+        "realised_length": 6.006848,
+        "subType": 3
+      },
+      "477": {
+        "organ_type": 2,
+        "realised_length": 1.76,
+        "subType": 2
+      },
+      "478": {
+        "organ_type": 2,
+        "realised_length": 1.76,
+        "subType": 2
+      },
+      "479": {
+        "organ_type": 2,
+        "realised_length": 6.008942,
+        "subType": 3
+      },
+      "48": {
+        "organ_type": 2,
+        "realised_length": 1.76,
+        "subType": 2
+      },
+      "480": {
+        "organ_type": 2,
+        "realised_length": 1.76,
+        "subType": 2
+      },
+      "481": {
+        "organ_type": 2,
+        "realised_length": 6.007269,
+        "subType": 3
+      },
+      "482": {
+        "organ_type": 2,
+        "realised_length": 1.76,
+        "subType": 2
+      },
+      "483": {
+        "organ_type": 2,
+        "realised_length": 6.007511,
+        "subType": 3
+      },
+      "484": {
+        "organ_type": 2,
+        "realised_length": 1.76,
+        "subType": 2
+      },
+      "485": {
+        "organ_type": 2,
+        "realised_length": 6.005144,
+        "subType": 3
+      },
+      "486": {
+        "organ_type": 2,
+        "realised_length": 1.76,
+        "subType": 2
+      },
+      "487": {
+        "organ_type": 2,
+        "realised_length": 1.76,
+        "subType": 2
+      },
+      "488": {
+        "organ_type": 2,
+        "realised_length": 6.00757,
+        "subType": 3
+      },
+      "489": {
+        "organ_type": 2,
+        "realised_length": 1.76,
+        "subType": 2
+      },
+      "49": {
+        "organ_type": 2,
+        "realised_length": 6.009167,
+        "subType": 3
+      },
+      "490": {
+        "organ_type": 2,
+        "realised_length": 6.006738,
+        "subType": 3
+      },
+      "491": {
+        "organ_type": 2,
+        "realised_length": 1.76,
+        "subType": 2
+      },
+      "492": {
+        "organ_type": 2,
+        "realised_length": 6.006739,
+        "subType": 3
+      },
+      "493": {
+        "organ_type": 2,
+        "realised_length": 1.76,
+        "subType": 2
+      },
+      "494": {
+        "organ_type": 2,
+        "realised_length": 6.005454,
+        "subType": 3
+      },
+      "495": {
+        "organ_type": 2,
+        "realised_length": 1.76,
+        "subType": 2
+      },
+      "496": {
+        "organ_type": 2,
+        "realised_length": 1.76,
+        "subType": 2
+      },
+      "497": {
+        "organ_type": 2,
+        "realised_length": 6.007863,
+        "subType": 3
+      },
+      "498": {
+        "organ_type": 2,
+        "realised_length": 1.76,
+        "subType": 2
+      },
+      "499": {
+        "organ_type": 2,
+        "realised_length": 6.005975,
+        "subType": 3
+      },
+      "5": {
+        "organ_type": 2,
+        "realised_length": 158.720236,
+        "subType": 4
+      },
+      "50": {
+        "organ_type": 2,
+        "realised_length": 1.76,
+        "subType": 2
+      },
+      "500": {
+        "organ_type": 2,
+        "realised_length": 1.76,
+        "subType": 2
+      },
+      "501": {
+        "organ_type": 2,
+        "realised_length": 6.00715,
+        "subType": 3
+      },
+      "502": {
+        "organ_type": 2,
+        "realised_length": 1.76,
+        "subType": 2
+      },
+      "503": {
+        "organ_type": 2,
+        "realised_length": 6.002932,
+        "subType": 3
+      },
+      "504": {
+        "organ_type": 2,
+        "realised_length": 6.004032,
+        "subType": 3
+      },
+      "505": {
+        "organ_type": 2,
+        "realised_length": 1.76,
+        "subType": 2
+      },
+      "506": {
+        "organ_type": 2,
+        "realised_length": 1.76,
+        "subType": 2
+      },
+      "507": {
+        "organ_type": 2,
+        "realised_length": 6.005149,
+        "subType": 3
+      },
+      "508": {
+        "organ_type": 2,
+        "realised_length": 1.76,
+        "subType": 2
+      },
+      "509": {
+        "organ_type": 2,
+        "realised_length": 6.000341,
+        "subType": 3
+      },
+      "51": {
+        "organ_type": 2,
+        "realised_length": 6.009199,
+        "subType": 3
+      },
+      "510": {
+        "organ_type": 2,
+        "realised_length": 1.76,
+        "subType": 2
+      },
+      "511": {
+        "organ_type": 2,
+        "realised_length": 6.008252,
+        "subType": 3
+      },
+      "512": {
+        "organ_type": 2,
+        "realised_length": 1.76,
+        "subType": 2
+      },
+      "513": {
+        "organ_type": 2,
+        "realised_length": 6.005341,
+        "subType": 3
+      },
+      "514": {
+        "organ_type": 2,
+        "realised_length": 1.76,
+        "subType": 2
+      },
+      "515": {
+        "organ_type": 2,
+        "realised_length": 1.76,
+        "subType": 2
+      },
+      "516": {
+        "organ_type": 2,
+        "realised_length": 6.005425,
+        "subType": 3
+      },
+      "517": {
+        "organ_type": 2,
+        "realised_length": 1.76,
+        "subType": 2
+      },
+      "518": {
+        "organ_type": 2,
+        "realised_length": 6.001484,
+        "subType": 3
+      },
+      "519": {
+        "organ_type": 2,
+        "realised_length": 6.004108,
+        "subType": 3
+      },
+      "52": {
+        "organ_type": 2,
+        "realised_length": 6.008157,
+        "subType": 3
+      },
+      "520": {
+        "organ_type": 2,
+        "realised_length": 1.76,
+        "subType": 2
+      },
+      "521": {
+        "organ_type": 2,
+        "realised_length": 1.76,
+        "subType": 2
+      },
+      "522": {
+        "organ_type": 2,
+        "realised_length": 6.00333,
+        "subType": 3
+      },
+      "523": {
+        "organ_type": 2,
+        "realised_length": 1.76,
+        "subType": 2
+      },
+      "524": {
+        "organ_type": 2,
+        "realised_length": 6.009422,
+        "subType": 3
+      },
+      "525": {
+        "organ_type": 2,
+        "realised_length": 1.76,
+        "subType": 2
+      },
+      "526": {
+        "organ_type": 2,
+        "realised_length": 6.008365,
+        "subType": 3
+      },
+      "527": {
+        "organ_type": 2,
+        "realised_length": 1.76,
+        "subType": 2
+      },
+      "528": {
+        "organ_type": 2,
+        "realised_length": 6.007659,
+        "subType": 3
+      },
+      "529": {
+        "organ_type": 2,
+        "realised_length": 1.76,
+        "subType": 2
+      },
+      "53": {
+        "organ_type": 2,
+        "realised_length": 1.76,
+        "subType": 2
+      },
+      "530": {
+        "organ_type": 2,
+        "realised_length": 6.005187,
+        "subType": 3
+      },
+      "531": {
+        "organ_type": 2,
+        "realised_length": 6.006707,
+        "subType": 3
+      },
+      "532": {
+        "organ_type": 2,
+        "realised_length": 6.001878,
+        "subType": 3
+      },
+      "533": {
+        "organ_type": 2,
+        "realised_length": 5.99233,
+        "subType": 3
+      },
+      "534": {
+        "organ_type": 2,
+        "realised_length": 6.00733,
+        "subType": 3
+      },
+      "535": {
+        "organ_type": 2,
+        "realised_length": 1.76,
+        "subType": 2
+      },
+      "536": {
+        "organ_type": 2,
+        "realised_length": 6.008132,
+        "subType": 3
+      },
+      "537": {
+        "organ_type": 2,
+        "realised_length": 1.76,
+        "subType": 2
+      },
+      "538": {
+        "organ_type": 2,
+        "realised_length": 6.008543,
+        "subType": 3
+      },
+      "539": {
+        "organ_type": 2,
+        "realised_length": 1.76,
+        "subType": 2
+      },
+      "54": {
+        "organ_type": 2,
+        "realised_length": 6.00828,
+        "subType": 3
+      },
+      "540": {
+        "organ_type": 2,
+        "realised_length": 6.003529,
+        "subType": 3
+      },
+      "541": {
+        "organ_type": 2,
+        "realised_length": 1.76,
+        "subType": 2
+      },
+      "542": {
+        "organ_type": 2,
+        "realised_length": 6.00691,
+        "subType": 3
+      },
+      "543": {
+        "organ_type": 2,
+        "realised_length": 1.76,
+        "subType": 2
+      },
+      "544": {
+        "organ_type": 2,
+        "realised_length": 6.005458,
+        "subType": 3
+      },
+      "545": {
+        "organ_type": 2,
+        "realised_length": 6.009086,
+        "subType": 3
+      },
+      "546": {
+        "organ_type": 2,
+        "realised_length": 6.003109,
+        "subType": 3
+      },
+      "547": {
+        "organ_type": 2,
+        "realised_length": 1.76,
+        "subType": 2
+      },
+      "548": {
+        "organ_type": 2,
+        "realised_length": 6.007502,
+        "subType": 3
+      },
+      "549": {
+        "organ_type": 2,
+        "realised_length": 1.76,
+        "subType": 2
+      },
+      "55": {
+        "organ_type": 2,
+        "realised_length": 1.76,
+        "subType": 2
+      },
+      "550": {
+        "organ_type": 2,
+        "realised_length": 6.003836,
+        "subType": 3
+      },
+      "551": {
+        "organ_type": 2,
+        "realised_length": 1.76,
+        "subType": 2
+      },
+      "552": {
+        "organ_type": 2,
+        "realised_length": 5.998646,
+        "subType": 3
+      },
+      "553": {
+        "organ_type": 2,
+        "realised_length": 1.76,
+        "subType": 2
+      },
+      "554": {
+        "organ_type": 2,
+        "realised_length": 6.006439,
+        "subType": 3
+      },
+      "555": {
+        "organ_type": 2,
+        "realised_length": 1.76,
+        "subType": 2
+      },
+      "556": {
+        "organ_type": 2,
+        "realised_length": 5.999939,
+        "subType": 3
+      },
+      "557": {
+        "organ_type": 2,
+        "realised_length": 6.008858,
+        "subType": 3
+      },
+      "558": {
+        "organ_type": 2,
+        "realised_length": 1.76,
+        "subType": 2
+      },
+      "559": {
+        "organ_type": 2,
+        "realised_length": 6.006502,
+        "subType": 3
+      },
+      "56": {
+        "organ_type": 2,
+        "realised_length": 6.0079,
+        "subType": 3
+      },
+      "560": {
+        "organ_type": 2,
+        "realised_length": 5.992598,
+        "subType": 3
+      },
+      "561": {
+        "organ_type": 2,
+        "realised_length": 1.76,
+        "subType": 2
+      },
+      "562": {
+        "organ_type": 2,
+        "realised_length": 1.76,
+        "subType": 2
+      },
+      "563": {
+        "organ_type": 2,
+        "realised_length": 1.76,
+        "subType": 2
+      },
+      "564": {
+        "organ_type": 2,
+        "realised_length": 6.000946,
+        "subType": 3
+      },
+      "565": {
+        "organ_type": 2,
+        "realised_length": 6.007928,
+        "subType": 3
+      },
+      "566": {
+        "organ_type": 2,
+        "realised_length": 1.76,
+        "subType": 2
+      },
+      "567": {
+        "organ_type": 2,
+        "realised_length": 1.76,
+        "subType": 2
+      },
+      "568": {
+        "organ_type": 4,
+        "realised_length": 50.0,
+        "subType": 5
+      },
+      "569": {
+        "organ_type": 2,
+        "realised_length": 1.76,
+        "subType": 2
+      },
+      "57": {
+        "organ_type": 2,
+        "realised_length": 1.76,
+        "subType": 2
+      },
+      "570": {
+        "organ_type": 2,
+        "realised_length": 6.007987,
+        "subType": 3
+      },
+      "571": {
+        "organ_type": 2,
+        "realised_length": 1.76,
+        "subType": 2
+      },
+      "572": {
+        "organ_type": 2,
+        "realised_length": 5.997737,
+        "subType": 3
+      },
+      "573": {
+        "organ_type": 2,
+        "realised_length": 1.76,
+        "subType": 2
+      },
+      "574": {
+        "organ_type": 2,
+        "realised_length": 6.007292,
+        "subType": 3
+      },
+      "575": {
+        "organ_type": 2,
+        "realised_length": 1.76,
+        "subType": 2
+      },
+      "576": {
+        "organ_type": 2,
+        "realised_length": 1.76,
+        "subType": 2
+      },
+      "577": {
+        "organ_type": 2,
+        "realised_length": 6.003569,
+        "subType": 3
+      },
+      "578": {
+        "organ_type": 2,
+        "realised_length": 6.00784,
+        "subType": 3
+      },
+      "579": {
+        "organ_type": 2,
+        "realised_length": 1.76,
+        "subType": 2
+      },
+      "58": {
+        "organ_type": 2,
+        "realised_length": 6.009089,
+        "subType": 3
+      },
+      "580": {
+        "organ_type": 2,
+        "realised_length": 1.76,
+        "subType": 2
+      },
+      "581": {
+        "organ_type": 2,
+        "realised_length": 6.00801,
+        "subType": 3
+      },
+      "582": {
+        "organ_type": 2,
+        "realised_length": 1.76,
+        "subType": 2
+      },
+      "583": {
+        "organ_type": 2,
+        "realised_length": 6.008013,
+        "subType": 3
+      },
+      "584": {
+        "organ_type": 2,
+        "realised_length": 1.76,
+        "subType": 2
+      },
+      "585": {
+        "organ_type": 2,
+        "realised_length": 6.007958,
+        "subType": 3
+      },
+      "586": {
+        "organ_type": 2,
+        "realised_length": 1.76,
+        "subType": 2
+      },
+      "587": {
+        "organ_type": 2,
+        "realised_length": 6.001935,
+        "subType": 3
+      },
+      "588": {
+        "organ_type": 2,
+        "realised_length": 5.989782,
+        "subType": 3
+      },
+      "589": {
+        "organ_type": 2,
+        "realised_length": 1.76,
+        "subType": 2
+      },
+      "59": {
+        "organ_type": 2,
+        "realised_length": 1.76,
+        "subType": 2
+      },
+      "590": {
+        "organ_type": 2,
+        "realised_length": 6.006477,
+        "subType": 3
+      },
+      "591": {
+        "organ_type": 2,
+        "realised_length": 1.76,
+        "subType": 2
+      },
+      "592": {
+        "organ_type": 2,
+        "realised_length": 6.007993,
+        "subType": 3
+      },
+      "593": {
+        "organ_type": 2,
+        "realised_length": 6.003489,
+        "subType": 3
+      },
+      "594": {
+        "organ_type": 2,
+        "realised_length": 6.008317,
+        "subType": 3
+      },
+      "595": {
+        "organ_type": 2,
+        "realised_length": 1.76,
+        "subType": 2
+      },
+      "596": {
+        "organ_type": 2,
+        "realised_length": 6.007675,
+        "subType": 3
+      },
+      "597": {
+        "organ_type": 2,
+        "realised_length": 1.76,
+        "subType": 2
+      },
+      "598": {
+        "organ_type": 2,
+        "realised_length": 5.99667,
+        "subType": 3
+      },
+      "599": {
+        "organ_type": 2,
+        "realised_length": 1.76,
+        "subType": 2
+      },
+      "6": {
+        "organ_type": 2,
+        "realised_length": 155.698896,
+        "subType": 4
+      },
+      "60": {
+        "organ_type": 2,
+        "realised_length": 1.76,
+        "subType": 2
+      },
+      "600": {
+        "organ_type": 2,
+        "realised_length": 1.76,
+        "subType": 2
+      },
+      "601": {
+        "organ_type": 2,
+        "realised_length": 5.987874,
+        "subType": 3
+      },
+      "602": {
+        "organ_type": 2,
+        "realised_length": 1.76,
+        "subType": 2
+      },
+      "603": {
+        "organ_type": 2,
+        "realised_length": 6.004102,
+        "subType": 3
+      },
+      "604": {
+        "organ_type": 2,
+        "realised_length": 6.00226,
+        "subType": 3
+      },
+      "605": {
+        "organ_type": 2,
+        "realised_length": 1.76,
+        "subType": 2
+      },
+      "606": {
+        "organ_type": 2,
+        "realised_length": 6.007926,
+        "subType": 3
+      },
+      "607": {
+        "organ_type": 2,
+        "realised_length": 1.76,
+        "subType": 2
+      },
+      "608": {
+        "organ_type": 2,
+        "realised_length": 5.98976,
+        "subType": 3
+      },
+      "609": {
+        "organ_type": 2,
+        "realised_length": 6.004557,
+        "subType": 3
+      },
+      "61": {
+        "organ_type": 2,
+        "realised_length": 6.008653,
+        "subType": 3
+      },
+      "610": {
+        "organ_type": 2,
+        "realised_length": 1.76,
+        "subType": 2
+      },
+      "611": {
+        "organ_type": 2,
+        "realised_length": 1.76,
+        "subType": 2
+      },
+      "612": {
+        "organ_type": 2,
+        "realised_length": 6.006672,
+        "subType": 3
+      },
+      "613": {
+        "organ_type": 2,
+        "realised_length": 1.76,
+        "subType": 2
+      },
+      "614": {
+        "organ_type": 2,
+        "realised_length": 6.003669,
+        "subType": 3
+      },
+      "615": {
+        "organ_type": 2,
+        "realised_length": 1.76,
+        "subType": 2
+      },
+      "616": {
+        "organ_type": 2,
+        "realised_length": 1.76,
+        "subType": 2
+      },
+      "617": {
+        "organ_type": 2,
+        "realised_length": 1.76,
+        "subType": 2
+      },
+      "618": {
+        "organ_type": 2,
+        "realised_length": 6.007549,
+        "subType": 3
+      },
+      "619": {
+        "organ_type": 2,
+        "realised_length": 1.76,
+        "subType": 2
+      },
+      "62": {
+        "organ_type": 2,
+        "realised_length": 1.76,
+        "subType": 2
+      },
+      "620": {
+        "organ_type": 2,
+        "realised_length": 5.998503,
+        "subType": 3
+      },
+      "621": {
+        "organ_type": 2,
+        "realised_length": 1.76,
+        "subType": 2
+      },
+      "622": {
+        "organ_type": 2,
+        "realised_length": 5.99962,
+        "subType": 3
+      },
+      "623": {
+        "organ_type": 2,
+        "realised_length": 1.76,
+        "subType": 2
+      },
+      "624": {
+        "organ_type": 2,
+        "realised_length": 1.76,
+        "subType": 2
+      },
+      "625": {
+        "organ_type": 2,
+        "realised_length": 1.76,
+        "subType": 2
+      },
+      "626": {
+        "organ_type": 2,
+        "realised_length": 6.003713,
+        "subType": 3
+      },
+      "627": {
+        "organ_type": 2,
+        "realised_length": 1.76,
+        "subType": 2
+      },
+      "628": {
+        "organ_type": 2,
+        "realised_length": 1.76,
+        "subType": 2
+      },
+      "629": {
+        "organ_type": 2,
+        "realised_length": 6.004302,
+        "subType": 3
+      },
+      "63": {
+        "organ_type": 2,
+        "realised_length": 6.009845,
+        "subType": 3
+      },
+      "630": {
+        "organ_type": 2,
+        "realised_length": 6.008947,
+        "subType": 3
+      },
+      "631": {
+        "organ_type": 2,
+        "realised_length": 1.76,
+        "subType": 2
+      },
+      "632": {
+        "organ_type": 2,
+        "realised_length": 6.006296,
+        "subType": 3
+      },
+      "633": {
+        "organ_type": 2,
+        "realised_length": 6.004691,
+        "subType": 3
+      },
+      "634": {
+        "organ_type": 2,
+        "realised_length": 1.76,
+        "subType": 2
+      },
+      "635": {
+        "organ_type": 2,
+        "realised_length": 6.002554,
+        "subType": 3
+      },
+      "636": {
+        "organ_type": 2,
+        "realised_length": 6.006637,
+        "subType": 3
+      },
+      "637": {
+        "organ_type": 2,
+        "realised_length": 1.76,
+        "subType": 2
+      },
+      "638": {
+        "organ_type": 2,
+        "realised_length": 6.002817,
+        "subType": 3
+      },
+      "639": {
+        "organ_type": 2,
+        "realised_length": 1.76,
+        "subType": 2
+      },
+      "64": {
+        "organ_type": 2,
+        "realised_length": 1.76,
+        "subType": 2
+      },
+      "640": {
+        "organ_type": 2,
+        "realised_length": 6.006324,
+        "subType": 3
+      },
+      "641": {
+        "organ_type": 2,
+        "realised_length": 1.76,
+        "subType": 2
+      },
+      "642": {
+        "organ_type": 2,
+        "realised_length": 6.001564,
+        "subType": 3
+      },
+      "643": {
+        "organ_type": 2,
+        "realised_length": 6.005291,
+        "subType": 3
+      },
+      "644": {
+        "organ_type": 2,
+        "realised_length": 1.76,
+        "subType": 2
+      },
+      "645": {
+        "organ_type": 2,
+        "realised_length": 6.007963,
+        "subType": 3
+      },
+      "646": {
+        "organ_type": 2,
+        "realised_length": 1.76,
+        "subType": 2
+      },
+      "647": {
+        "organ_type": 2,
+        "realised_length": 1.76,
+        "subType": 2
+      },
+      "648": {
+        "organ_type": 2,
+        "realised_length": 5.98172,
+        "subType": 3
+      },
+      "649": {
+        "organ_type": 2,
+        "realised_length": 6.001899,
+        "subType": 3
+      },
+      "65": {
+        "organ_type": 2,
+        "realised_length": 6.008154,
+        "subType": 3
+      },
+      "650": {
+        "organ_type": 2,
+        "realised_length": 1.76,
+        "subType": 2
+      },
+      "651": {
+        "organ_type": 2,
+        "realised_length": 6.007617,
+        "subType": 3
+      },
+      "652": {
+        "organ_type": 2,
+        "realised_length": 5.989055,
+        "subType": 3
+      },
+      "653": {
+        "organ_type": 2,
+        "realised_length": 6.00537,
+        "subType": 3
+      },
+      "654": {
+        "organ_type": 2,
+        "realised_length": 1.76,
+        "subType": 2
+      },
+      "655": {
+        "organ_type": 2,
+        "realised_length": 1.76,
+        "subType": 2
+      },
+      "656": {
+        "organ_type": 2,
+        "realised_length": 6.005555,
+        "subType": 3
+      },
+      "657": {
+        "organ_type": 2,
+        "realised_length": 1.76,
+        "subType": 2
+      },
+      "658": {
+        "organ_type": 2,
+        "realised_length": 5.999644,
+        "subType": 3
+      },
+      "659": {
+        "organ_type": 2,
+        "realised_length": 1.76,
+        "subType": 2
+      },
+      "66": {
+        "organ_type": 2,
+        "realised_length": 6.008,
+        "subType": 3
+      },
+      "660": {
+        "organ_type": 2,
+        "realised_length": 5.994711,
+        "subType": 3
+      },
+      "661": {
+        "organ_type": 2,
+        "realised_length": 5.995783,
+        "subType": 3
+      },
+      "662": {
+        "organ_type": 2,
+        "realised_length": 6.002712,
+        "subType": 3
+      },
+      "663": {
+        "organ_type": 2,
+        "realised_length": 1.76,
+        "subType": 2
+      },
+      "664": {
+        "organ_type": 2,
+        "realised_length": 6.008034,
+        "subType": 3
+      },
+      "665": {
+        "organ_type": 2,
+        "realised_length": 1.76,
+        "subType": 2
+      },
+      "666": {
+        "organ_type": 2,
+        "realised_length": 1.76,
+        "subType": 2
+      },
+      "667": {
+        "organ_type": 2,
+        "realised_length": 1.76,
+        "subType": 2
+      },
+      "668": {
+        "organ_type": 4,
+        "realised_length": 73.8,
+        "subType": 6
+      },
+      "669": {
+        "organ_type": 2,
+        "realised_length": 6.006805,
+        "subType": 3
+      },
+      "67": {
+        "organ_type": 2,
+        "realised_length": 1.76,
+        "subType": 2
+      },
+      "670": {
+        "organ_type": 2,
+        "realised_length": 1.76,
+        "subType": 2
+      },
+      "671": {
+        "organ_type": 2,
+        "realised_length": 6.000267,
+        "subType": 3
+      },
+      "672": {
+        "organ_type": 2,
+        "realised_length": 5.99904,
+        "subType": 3
+      },
+      "673": {
+        "organ_type": 2,
+        "realised_length": 6.003361,
+        "subType": 3
+      },
+      "674": {
+        "organ_type": 2,
+        "realised_length": 1.76,
+        "subType": 2
+      },
+      "675": {
+        "organ_type": 2,
+        "realised_length": 6.003923,
+        "subType": 3
+      },
+      "676": {
+        "organ_type": 2,
+        "realised_length": 6.006651,
+        "subType": 3
+      },
+      "677": {
+        "organ_type": 2,
+        "realised_length": 6.005026,
+        "subType": 3
+      },
+      "678": {
+        "organ_type": 2,
+        "realised_length": 1.76,
+        "subType": 2
+      },
+      "679": {
+        "organ_type": 2,
+        "realised_length": 6.008945,
+        "subType": 3
+      },
+      "68": {
+        "organ_type": 2,
+        "realised_length": 6.007242,
+        "subType": 3
+      },
+      "680": {
+        "organ_type": 2,
+        "realised_length": 1.76,
+        "subType": 2
+      },
+      "681": {
+        "organ_type": 2,
+        "realised_length": 6.007244,
+        "subType": 3
+      },
+      "682": {
+        "organ_type": 2,
+        "realised_length": 1.76,
+        "subType": 2
+      },
+      "683": {
+        "organ_type": 2,
+        "realised_length": 6.003595,
+        "subType": 3
+      },
+      "684": {
+        "organ_type": 2,
+        "realised_length": 1.76,
+        "subType": 2
+      },
+      "685": {
+        "organ_type": 2,
+        "realised_length": 6.000934,
+        "subType": 3
+      },
+      "686": {
+        "organ_type": 2,
+        "realised_length": 1.76,
+        "subType": 2
+      },
+      "687": {
+        "organ_type": 2,
+        "realised_length": 6.003473,
+        "subType": 3
+      },
+      "688": {
+        "organ_type": 2,
+        "realised_length": 1.76,
+        "subType": 2
+      },
+      "689": {
+        "organ_type": 2,
+        "realised_length": 1.76,
+        "subType": 2
+      },
+      "69": {
+        "organ_type": 2,
+        "realised_length": 5.999856,
+        "subType": 3
+      },
+      "690": {
+        "organ_type": 2,
+        "realised_length": 1.76,
+        "subType": 2
+      },
+      "691": {
+        "organ_type": 2,
+        "realised_length": 6.004949,
+        "subType": 3
+      },
+      "692": {
+        "organ_type": 2,
+        "realised_length": 5.997902,
+        "subType": 3
+      },
+      "693": {
+        "organ_type": 2,
+        "realised_length": 1.76,
+        "subType": 2
+      },
+      "694": {
+        "organ_type": 2,
+        "realised_length": 6.006503,
+        "subType": 3
+      },
+      "695": {
+        "organ_type": 2,
+        "realised_length": 6.005014,
+        "subType": 3
+      },
+      "696": {
+        "organ_type": 2,
+        "realised_length": 1.76,
+        "subType": 2
+      },
+      "697": {
+        "organ_type": 2,
+        "realised_length": 6.005366,
+        "subType": 3
+      },
+      "698": {
+        "organ_type": 2,
+        "realised_length": 5.997949,
+        "subType": 3
+      },
+      "699": {
+        "organ_type": 2,
+        "realised_length": 6.002423,
+        "subType": 3
+      },
+      "7": {
+        "organ_type": 2,
+        "realised_length": 156.742851,
+        "subType": 4
+      },
+      "70": {
+        "organ_type": 2,
+        "realised_length": 1.76,
+        "subType": 2
+      },
+      "700": {
+        "organ_type": 2,
+        "realised_length": 6.004293,
+        "subType": 3
+      },
+      "701": {
+        "organ_type": 2,
+        "realised_length": 1.76,
+        "subType": 2
+      },
+      "702": {
+        "organ_type": 2,
+        "realised_length": 1.76,
+        "subType": 2
+      },
+      "703": {
+        "organ_type": 2,
+        "realised_length": 6.001744,
+        "subType": 3
+      },
+      "704": {
+        "organ_type": 2,
+        "realised_length": 6.004784,
+        "subType": 3
+      },
+      "705": {
+        "organ_type": 2,
+        "realised_length": 1.76,
+        "subType": 2
+      },
+      "706": {
+        "organ_type": 2,
+        "realised_length": 1.76,
+        "subType": 2
+      },
+      "707": {
+        "organ_type": 2,
+        "realised_length": 1.76,
+        "subType": 2
+      },
+      "708": {
+        "organ_type": 2,
+        "realised_length": 6.006251,
+        "subType": 3
+      },
+      "709": {
+        "organ_type": 2,
+        "realised_length": 1.76,
+        "subType": 2
+      },
+      "71": {
+        "organ_type": 2,
+        "realised_length": 1.76,
+        "subType": 2
+      },
+      "710": {
+        "organ_type": 2,
+        "realised_length": 6.00355,
+        "subType": 3
+      },
+      "711": {
+        "organ_type": 2,
+        "realised_length": 5.998564,
+        "subType": 3
+      },
+      "712": {
+        "organ_type": 2,
+        "realised_length": 5.999109,
+        "subType": 3
+      },
+      "713": {
+        "organ_type": 2,
+        "realised_length": 1.76,
+        "subType": 2
+      },
+      "714": {
+        "organ_type": 2,
+        "realised_length": 1.76,
+        "subType": 2
+      },
+      "715": {
+        "organ_type": 2,
+        "realised_length": 6.003022,
+        "subType": 3
+      },
+      "716": {
+        "organ_type": 2,
+        "realised_length": 1.76,
+        "subType": 2
+      },
+      "717": {
+        "organ_type": 2,
+        "realised_length": 6.006817,
+        "subType": 3
+      },
+      "718": {
+        "organ_type": 2,
+        "realised_length": 6.005862,
+        "subType": 3
+      },
+      "719": {
+        "organ_type": 2,
+        "realised_length": 6.000299,
+        "subType": 3
+      },
+      "72": {
+        "organ_type": 2,
+        "realised_length": 6.008981,
+        "subType": 3
+      },
+      "720": {
+        "organ_type": 2,
+        "realised_length": 1.76,
+        "subType": 2
+      },
+      "721": {
+        "organ_type": 2,
+        "realised_length": 1.76,
+        "subType": 2
+      },
+      "722": {
+        "organ_type": 2,
+        "realised_length": 6.0,
+        "subType": 3
+      },
+      "723": {
+        "organ_type": 2,
+        "realised_length": 1.76,
+        "subType": 2
+      },
+      "724": {
+        "organ_type": 2,
+        "realised_length": 6.005281,
+        "subType": 3
+      },
+      "725": {
+        "organ_type": 2,
+        "realised_length": 6.000903,
+        "subType": 3
+      },
+      "726": {
+        "organ_type": 2,
+        "realised_length": 6.005283,
+        "subType": 3
+      },
+      "727": {
+        "organ_type": 2,
+        "realised_length": 1.76,
+        "subType": 2
+      },
+      "728": {
+        "organ_type": 2,
+        "realised_length": 6.005521,
+        "subType": 3
+      },
+      "729": {
+        "organ_type": 2,
+        "realised_length": 6.006737,
+        "subType": 3
+      },
+      "73": {
+        "organ_type": 2,
+        "realised_length": 1.76,
+        "subType": 2
+      },
+      "730": {
+        "organ_type": 2,
+        "realised_length": 1.76,
+        "subType": 2
+      },
+      "731": {
+        "organ_type": 2,
+        "realised_length": 5.992265,
+        "subType": 3
+      },
+      "732": {
+        "organ_type": 2,
+        "realised_length": 6.00152,
+        "subType": 3
+      },
+      "733": {
+        "organ_type": 2,
+        "realised_length": 6.006698,
+        "subType": 3
+      },
+      "734": {
+        "organ_type": 2,
+        "realised_length": 5.996349,
+        "subType": 3
+      },
+      "735": {
+        "organ_type": 2,
+        "realised_length": 1.76,
+        "subType": 2
+      },
+      "736": {
+        "organ_type": 2,
+        "realised_length": 1.76,
+        "subType": 2
+      },
+      "737": {
+        "organ_type": 2,
+        "realised_length": 6.003064,
+        "subType": 3
+      },
+      "738": {
+        "organ_type": 2,
+        "realised_length": 1.76,
+        "subType": 2
+      },
+      "739": {
+        "organ_type": 2,
+        "realised_length": 5.995222,
+        "subType": 3
+      },
+      "74": {
+        "organ_type": 2,
+        "realised_length": 1.76,
+        "subType": 2
+      },
+      "740": {
+        "organ_type": 2,
+        "realised_length": 1.76,
+        "subType": 2
+      },
+      "741": {
+        "organ_type": 2,
+        "realised_length": 6.006287,
+        "subType": 3
+      },
+      "742": {
+        "organ_type": 2,
+        "realised_length": 1.76,
+        "subType": 2
+      },
+      "743": {
+        "organ_type": 2,
+        "realised_length": 5.995924,
+        "subType": 3
+      },
+      "744": {
+        "organ_type": 2,
+        "realised_length": 1.76,
+        "subType": 2
+      },
+      "745": {
+        "organ_type": 2,
+        "realised_length": 1.76,
+        "subType": 2
+      },
+      "746": {
+        "organ_type": 2,
+        "realised_length": 6.005317,
+        "subType": 3
+      },
+      "747": {
+        "organ_type": 2,
+        "realised_length": 6.007721,
+        "subType": 3
+      },
+      "748": {
+        "organ_type": 2,
+        "realised_length": 5.992289,
+        "subType": 3
+      },
+      "749": {
+        "organ_type": 2,
+        "realised_length": 1.76,
+        "subType": 2
+      },
+      "75": {
+        "organ_type": 2,
+        "realised_length": 6.009082,
+        "subType": 3
+      },
+      "750": {
+        "organ_type": 2,
+        "realised_length": 1.76,
+        "subType": 2
+      },
+      "751": {
+        "organ_type": 2,
+        "realised_length": 5.999761,
+        "subType": 3
+      },
+      "752": {
+        "organ_type": 2,
+        "realised_length": 1.76,
+        "subType": 2
+      },
+      "753": {
+        "organ_type": 2,
+        "realised_length": 1.76,
+        "subType": 2
+      },
+      "754": {
+        "organ_type": 2,
+        "realised_length": 6.005508,
+        "subType": 3
+      },
+      "755": {
+        "organ_type": 2,
+        "realised_length": 1.76,
+        "subType": 2
+      },
+      "756": {
+        "organ_type": 2,
+        "realised_length": 5.989002,
+        "subType": 3
+      },
+      "757": {
+        "organ_type": 2,
+        "realised_length": 1.76,
+        "subType": 2
+      },
+      "758": {
+        "organ_type": 2,
+        "realised_length": 1.76,
+        "subType": 2
+      },
+      "759": {
+        "organ_type": 2,
+        "realised_length": 5.979446,
+        "subType": 3
+      },
+      "76": {
+        "organ_type": 2,
+        "realised_length": 6.008603,
+        "subType": 3
+      },
+      "760": {
+        "organ_type": 2,
+        "realised_length": 1.76,
+        "subType": 2
+      },
+      "761": {
+        "organ_type": 2,
+        "realised_length": 6.006777,
+        "subType": 3
+      },
+      "762": {
+        "organ_type": 2,
+        "realised_length": 1.76,
+        "subType": 2
+      },
+      "763": {
+        "organ_type": 2,
+        "realised_length": 1.76,
+        "subType": 2
+      },
+      "764": {
+        "organ_type": 2,
+        "realised_length": 6.002247,
+        "subType": 3
+      },
+      "765": {
+        "organ_type": 2,
+        "realised_length": 1.76,
+        "subType": 2
+      },
+      "766": {
+        "organ_type": 4,
+        "realised_length": 77.4,
+        "subType": 7
+      },
+      "767": {
+        "organ_type": 2,
+        "realised_length": 1.76,
+        "subType": 2
+      },
+      "768": {
+        "organ_type": 2,
+        "realised_length": 6.006692,
+        "subType": 3
+      },
+      "769": {
+        "organ_type": 2,
+        "realised_length": 1.76,
+        "subType": 2
+      },
+      "77": {
+        "organ_type": 2,
+        "realised_length": 1.76,
+        "subType": 2
+      },
+      "770": {
+        "organ_type": 2,
+        "realised_length": 5.992397,
+        "subType": 3
+      },
+      "771": {
+        "organ_type": 2,
+        "realised_length": 5.997475,
+        "subType": 3
+      },
+      "772": {
+        "organ_type": 2,
+        "realised_length": 1.76,
+        "subType": 2
+      },
+      "773": {
+        "organ_type": 2,
+        "realised_length": 6.001456,
+        "subType": 3
+      },
+      "774": {
+        "organ_type": 2,
+        "realised_length": 1.76,
+        "subType": 2
+      },
+      "775": {
+        "organ_type": 2,
+        "realised_length": 1.76,
+        "subType": 2
+      },
+      "776": {
+        "organ_type": 2,
+        "realised_length": 5.998274,
+        "subType": 3
+      },
+      "777": {
+        "organ_type": 2,
+        "realised_length": 5.997545,
+        "subType": 3
+      },
+      "778": {
+        "organ_type": 2,
+        "realised_length": 1.76,
+        "subType": 2
+      },
+      "779": {
+        "organ_type": 2,
+        "realised_length": 5.984163,
+        "subType": 3
+      },
+      "78": {
+        "organ_type": 2,
+        "realised_length": 6.007774,
+        "subType": 3
+      },
+      "780": {
+        "organ_type": 2,
+        "realised_length": 1.76,
+        "subType": 2
+      },
+      "781": {
+        "organ_type": 2,
+        "realised_length": 6.001475,
+        "subType": 3
+      },
+      "782": {
+        "organ_type": 2,
+        "realised_length": 1.76,
+        "subType": 2
+      },
+      "783": {
+        "organ_type": 2,
+        "realised_length": 6.00369,
+        "subType": 3
+      },
+      "784": {
+        "organ_type": 2,
+        "realised_length": 1.76,
+        "subType": 2
+      },
+      "785": {
+        "organ_type": 2,
+        "realised_length": 1.76,
+        "subType": 2
+      },
+      "786": {
+        "organ_type": 2,
+        "realised_length": 5.973274,
+        "subType": 3
+      },
+      "787": {
+        "organ_type": 2,
+        "realised_length": 6.004154,
+        "subType": 3
+      },
+      "788": {
+        "organ_type": 2,
+        "realised_length": 1.76,
+        "subType": 2
+      },
+      "789": {
+        "organ_type": 2,
+        "realised_length": 5.994322,
+        "subType": 3
+      },
+      "79": {
+        "organ_type": 2,
+        "realised_length": 1.76,
+        "subType": 2
+      },
+      "790": {
+        "organ_type": 2,
+        "realised_length": 1.76,
+        "subType": 2
+      },
+      "791": {
+        "organ_type": 2,
+        "realised_length": 6.002142,
+        "subType": 3
+      },
+      "792": {
+        "organ_type": 2,
+        "realised_length": 5.999164,
+        "subType": 3
+      },
+      "793": {
+        "organ_type": 2,
+        "realised_length": 1.76,
+        "subType": 2
+      },
+      "794": {
+        "organ_type": 2,
+        "realised_length": 5.979806,
+        "subType": 3
+      },
+      "795": {
+        "organ_type": 2,
+        "realised_length": 6.004345,
+        "subType": 3
+      },
+      "796": {
+        "organ_type": 2,
+        "realised_length": 1.76,
+        "subType": 2
+      },
+      "797": {
+        "organ_type": 2,
+        "realised_length": 6.00489,
+        "subType": 3
+      },
+      "798": {
+        "organ_type": 2,
+        "realised_length": 1.76,
+        "subType": 2
+      },
+      "799": {
+        "organ_type": 2,
+        "realised_length": 1.76,
+        "subType": 2
+      },
+      "8": {
+        "organ_type": 2,
+        "realised_length": 155.023208,
+        "subType": 4
+      },
+      "80": {
+        "organ_type": 2,
+        "realised_length": 1.76,
+        "subType": 2
+      },
+      "800": {
+        "organ_type": 2,
+        "realised_length": 5.994689,
+        "subType": 3
+      },
+      "801": {
+        "organ_type": 2,
+        "realised_length": 1.76,
+        "subType": 2
+      },
+      "802": {
+        "organ_type": 2,
+        "realised_length": 5.996523,
+        "subType": 3
+      },
+      "803": {
+        "organ_type": 2,
+        "realised_length": 6.001881,
+        "subType": 3
+      },
+      "804": {
+        "organ_type": 2,
+        "realised_length": 1.76,
+        "subType": 2
+      },
+      "805": {
+        "organ_type": 2,
+        "realised_length": 5.997668,
+        "subType": 3
+      },
+      "806": {
+        "organ_type": 2,
+        "realised_length": 1.76,
+        "subType": 2
+      },
+      "807": {
+        "organ_type": 2,
+        "realised_length": 6.000841,
+        "subType": 3
+      },
+      "808": {
+        "organ_type": 2,
+        "realised_length": 1.76,
+        "subType": 2
+      },
+      "809": {
+        "organ_type": 2,
+        "realised_length": 6.003264,
+        "subType": 3
+      },
+      "81": {
+        "organ_type": 2,
+        "realised_length": 1.76,
+        "subType": 2
+      },
+      "810": {
+        "organ_type": 2,
+        "realised_length": 1.76,
+        "subType": 2
+      },
+      "811": {
+        "organ_type": 2,
+        "realised_length": 1.76,
+        "subType": 2
+      },
+      "812": {
+        "organ_type": 2,
+        "realised_length": 6.000327,
+        "subType": 3
+      },
+      "813": {
+        "organ_type": 2,
+        "realised_length": 1.76,
+        "subType": 2
+      },
+      "814": {
+        "organ_type": 2,
+        "realised_length": 1.76,
+        "subType": 2
+      },
+      "815": {
+        "organ_type": 2,
+        "realised_length": 5.986038,
+        "subType": 3
+      },
+      "816": {
+        "organ_type": 2,
+        "realised_length": 5.99817,
+        "subType": 3
+      },
+      "817": {
+        "organ_type": 2,
+        "realised_length": 1.76,
+        "subType": 2
+      },
+      "818": {
+        "organ_type": 2,
+        "realised_length": 6.000985,
+        "subType": 3
+      },
+      "819": {
+        "organ_type": 2,
+        "realised_length": 6.002582,
+        "subType": 3
+      },
+      "82": {
+        "organ_type": 2,
+        "realised_length": 1.76,
+        "subType": 2
+      },
+      "820": {
+        "organ_type": 2,
+        "realised_length": 1.76,
+        "subType": 2
+      },
+      "821": {
+        "organ_type": 2,
+        "realised_length": 6.005905,
+        "subType": 3
+      },
+      "822": {
+        "organ_type": 2,
+        "realised_length": 1.76,
+        "subType": 2
+      },
+      "823": {
+        "organ_type": 2,
+        "realised_length": 5.993677,
+        "subType": 3
+      },
+      "824": {
+        "organ_type": 2,
+        "realised_length": 1.76,
+        "subType": 2
+      },
+      "825": {
+        "organ_type": 2,
+        "realised_length": 1.76,
+        "subType": 2
+      },
+      "826": {
+        "organ_type": 2,
+        "realised_length": 5.99246,
+        "subType": 3
+      },
+      "827": {
+        "organ_type": 2,
+        "realised_length": 5.987408,
+        "subType": 3
+      },
+      "828": {
+        "organ_type": 2,
+        "realised_length": 1.76,
+        "subType": 2
+      },
+      "829": {
+        "organ_type": 2,
+        "realised_length": 1.76,
+        "subType": 2
+      },
+      "83": {
+        "organ_type": 2,
+        "realised_length": 6.008404,
+        "subType": 3
+      },
+      "830": {
+        "organ_type": 2,
+        "realised_length": 1.76,
+        "subType": 2
+      },
+      "831": {
+        "organ_type": 2,
+        "realised_length": 5.996396,
+        "subType": 3
+      },
+      "832": {
+        "organ_type": 2,
+        "realised_length": 1.76,
+        "subType": 2
+      },
+      "833": {
+        "organ_type": 2,
+        "realised_length": 6.002471,
+        "subType": 3
+      },
+      "834": {
+        "organ_type": 2,
+        "realised_length": 1.76,
+        "subType": 2
+      },
+      "835": {
+        "organ_type": 2,
+        "realised_length": 5.999012,
+        "subType": 3
+      },
+      "836": {
+        "organ_type": 2,
+        "realised_length": 1.76,
+        "subType": 2
+      },
+      "837": {
+        "organ_type": 2,
+        "realised_length": 5.993541,
+        "subType": 3
+      },
+      "838": {
+        "organ_type": 2,
+        "realised_length": 6.000708,
+        "subType": 3
+      },
+      "839": {
+        "organ_type": 2,
+        "realised_length": 1.76,
+        "subType": 2
+      },
+      "84": {
+        "organ_type": 2,
+        "realised_length": 6.009345,
+        "subType": 3
+      },
+      "840": {
+        "organ_type": 2,
+        "realised_length": 5.997385,
+        "subType": 3
+      },
+      "841": {
+        "organ_type": 2,
+        "realised_length": 1.76,
+        "subType": 2
+      },
+      "842": {
+        "organ_type": 2,
+        "realised_length": 5.995052,
+        "subType": 3
+      },
+      "843": {
+        "organ_type": 2,
+        "realised_length": 1.76,
+        "subType": 2
+      },
+      "844": {
+        "organ_type": 2,
+        "realised_length": 6.002928,
+        "subType": 3
+      },
+      "845": {
+        "organ_type": 2,
+        "realised_length": 1.76,
+        "subType": 2
+      },
+      "846": {
+        "organ_type": 2,
+        "realised_length": 5.996296,
+        "subType": 3
+      },
+      "847": {
+        "organ_type": 2,
+        "realised_length": 6.003124,
+        "subType": 3
+      },
+      "848": {
+        "organ_type": 2,
+        "realised_length": 1.76,
+        "subType": 2
+      },
+      "849": {
+        "organ_type": 2,
+        "realised_length": 1.76,
+        "subType": 2
+      },
+      "85": {
+        "organ_type": 2,
+        "realised_length": 1.76,
+        "subType": 2
+      },
+      "850": {
+        "organ_type": 4,
+        "realised_length": 78.9,
+        "subType": 8
+      },
+      "851": {
+        "organ_type": 2,
+        "realised_length": 5.992742,
+        "subType": 3
+      },
+      "852": {
+        "organ_type": 2,
+        "realised_length": 1.76,
+        "subType": 2
+      },
+      "853": {
+        "organ_type": 2,
+        "realised_length": 1.76,
+        "subType": 2
+      },
+      "854": {
+        "organ_type": 2,
+        "realised_length": 5.995743,
+        "subType": 3
+      },
+      "855": {
+        "organ_type": 2,
+        "realised_length": 1.76,
+        "subType": 2
+      },
+      "856": {
+        "organ_type": 2,
+        "realised_length": 1.76,
+        "subType": 2
+      },
+      "857": {
+        "organ_type": 2,
+        "realised_length": 1.759997,
+        "subType": 2
+      },
+      "858": {
+        "organ_type": 2,
+        "realised_length": 6.002946,
+        "subType": 3
+      },
+      "859": {
+        "organ_type": 2,
+        "realised_length": 1.76,
+        "subType": 2
+      },
+      "86": {
+        "organ_type": 2,
+        "realised_length": 6.00835,
+        "subType": 3
+      },
+      "860": {
+        "organ_type": 2,
+        "realised_length": 1.76,
+        "subType": 2
+      },
+      "861": {
+        "organ_type": 2,
+        "realised_length": 6.001561,
+        "subType": 3
+      },
+      "862": {
+        "organ_type": 2,
+        "realised_length": 5.99437,
+        "subType": 3
+      },
+      "863": {
+        "organ_type": 2,
+        "realised_length": 1.76,
+        "subType": 2
+      },
+      "864": {
+        "organ_type": 2,
+        "realised_length": 5.999339,
+        "subType": 3
+      },
+      "865": {
+        "organ_type": 2,
+        "realised_length": 1.76,
+        "subType": 2
+      },
+      "866": {
+        "organ_type": 2,
+        "realised_length": 1.76,
+        "subType": 2
+      },
+      "867": {
+        "organ_type": 2,
+        "realised_length": 6.00507,
+        "subType": 3
+      },
+      "868": {
+        "organ_type": 2,
+        "realised_length": 1.76,
+        "subType": 2
+      },
+      "869": {
+        "organ_type": 2,
+        "realised_length": 1.76,
+        "subType": 2
+      },
+      "87": {
+        "organ_type": 2,
+        "realised_length": 1.76,
+        "subType": 2
+      },
+      "870": {
+        "organ_type": 2,
+        "realised_length": 1.76,
+        "subType": 2
+      },
+      "871": {
+        "organ_type": 2,
+        "realised_length": 5.999124,
+        "subType": 3
+      },
+      "872": {
+        "organ_type": 2,
+        "realised_length": 1.76,
+        "subType": 2
+      },
+      "873": {
+        "organ_type": 2,
+        "realised_length": 5.991667,
+        "subType": 3
+      },
+      "874": {
+        "organ_type": 2,
+        "realised_length": 1.76,
+        "subType": 2
+      },
+      "875": {
+        "organ_type": 2,
+        "realised_length": 1.76,
+        "subType": 2
+      },
+      "876": {
+        "organ_type": 2,
+        "realised_length": 5.969157,
+        "subType": 3
+      },
+      "877": {
+        "organ_type": 2,
+        "realised_length": 1.759995,
+        "subType": 2
+      },
+      "878": {
+        "organ_type": 2,
+        "realised_length": 6.005825,
+        "subType": 3
+      },
+      "879": {
+        "organ_type": 2,
+        "realised_length": 1.76,
+        "subType": 2
+      },
+      "88": {
+        "organ_type": 2,
+        "realised_length": 6.009184,
+        "subType": 3
+      },
+      "880": {
+        "organ_type": 2,
+        "realised_length": 6.002497,
+        "subType": 3
+      },
+      "881": {
+        "organ_type": 2,
+        "realised_length": 1.76,
+        "subType": 2
+      },
+      "882": {
+        "organ_type": 2,
+        "realised_length": 6.002559,
+        "subType": 3
+      },
+      "883": {
+        "organ_type": 2,
+        "realised_length": 1.76,
+        "subType": 2
+      },
+      "884": {
+        "organ_type": 2,
+        "realised_length": 6.001146,
+        "subType": 3
+      },
+      "885": {
+        "organ_type": 2,
+        "realised_length": 6.00534,
+        "subType": 3
+      },
+      "886": {
+        "organ_type": 2,
+        "realised_length": 1.76,
+        "subType": 2
+      },
+      "887": {
+        "organ_type": 2,
+        "realised_length": 5.984953,
+        "subType": 3
+      },
+      "888": {
+        "organ_type": 2,
+        "realised_length": 5.991849,
+        "subType": 3
+      },
+      "889": {
+        "organ_type": 2,
+        "realised_length": 1.76,
+        "subType": 2
+      },
+      "89": {
+        "organ_type": 2,
+        "realised_length": 6.009227,
+        "subType": 3
+      },
+      "890": {
+        "organ_type": 2,
+        "realised_length": 5.99711,
+        "subType": 3
+      },
+      "891": {
+        "organ_type": 2,
+        "realised_length": 1.76,
+        "subType": 2
+      },
+      "892": {
+        "organ_type": 2,
+        "realised_length": 6.001066,
+        "subType": 3
+      },
+      "893": {
+        "organ_type": 2,
+        "realised_length": 1.76,
+        "subType": 2
+      },
+      "894": {
+        "organ_type": 2,
+        "realised_length": 1.76,
+        "subType": 2
+      },
+      "895": {
+        "organ_type": 2,
+        "realised_length": 5.997043,
+        "subType": 3
+      },
+      "896": {
+        "organ_type": 2,
+        "realised_length": 1.76,
+        "subType": 2
+      },
+      "897": {
+        "organ_type": 2,
+        "realised_length": 5.997937,
+        "subType": 3
+      },
+      "898": {
+        "organ_type": 2,
+        "realised_length": 1.759999,
+        "subType": 2
+      },
+      "899": {
+        "organ_type": 2,
+        "realised_length": 6.00039,
+        "subType": 3
+      },
+      "9": {
+        "cessation_age_global": 114.0,
+        "cessation_age_per_n": [
+          -1.0,
+          77.0,
+          79.0,
+          73.0,
+          75.0,
+          80.0,
+          81.0,
+          89.0,
+          92.0,
+          95.0,
+          100.0,
+          103.0,
+          106.0,
+          108.0,
+          110.0,
+          114.0,
+          -1.0
+        ],
+        "length_per_n": [
+          0.0,
+          1.0,
+          1.0,
+          1.0,
+          1.0,
+          1.0,
+          7.0,
+          14.0,
+          21.996989,
+          22.936575,
+          16.992,
+          3.914685,
+          1.119336,
+          1.0,
+          1.692725,
+          6.313982,
+          71.033708
+        ],
+        "node_to_phytomer": [
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          1,
+          1,
+          1,
+          1,
+          1,
+          1,
+          1,
+          1,
+          1,
+          1,
+          2,
+          2,
+          2,
+          2,
+          2,
+          2,
+          2,
+          2,
+          2,
+          2,
+          3,
+          3,
+          3,
+          3,
+          3,
+          3,
+          3,
+          3,
+          3,
+          3,
+          4,
+          4,
+          4,
+          4,
+          4,
+          4,
+          4,
+          4,
+          4,
+          4,
+          5,
+          5,
+          5,
+          5,
+          5,
+          5,
+          5,
+          5,
+          5,
+          5,
+          6,
+          6,
+          6,
+          6,
+          6,
+          6,
+          6,
+          6,
+          6,
+          6,
+          6,
+          6,
+          6,
+          6,
+          6,
+          6,
+          6,
+          6,
+          6,
+          6,
+          6,
+          6,
+          6,
+          6,
+          6,
+          6,
+          6,
+          6,
+          6,
+          6,
+          6,
+          6,
+          6,
+          6,
+          6,
+          6,
+          6,
+          6,
+          6,
+          6,
+          6,
+          6,
+          6,
+          6,
+          6,
+          6,
+          6,
+          6,
+          6,
+          6,
+          6,
+          6,
+          6,
+          6,
+          6,
+          6,
+          6,
+          6,
+          6,
+          6,
+          6,
+          6,
+          6,
+          6,
+          6,
+          6,
+          6,
+          6,
+          6,
+          6,
+          7,
+          7,
+          7,
+          7,
+          7,
+          7,
+          7,
+          7,
+          7,
+          7,
+          7,
+          7,
+          7,
+          7,
+          7,
+          7,
+          7,
+          7,
+          7,
+          7,
+          7,
+          7,
+          7,
+          7,
+          7,
+          7,
+          7,
+          7,
+          7,
+          7,
+          7,
+          7,
+          7,
+          7,
+          7,
+          7,
+          7,
+          7,
+          7,
+          7,
+          7,
+          7,
+          7,
+          7,
+          7,
+          7,
+          7,
+          7,
+          7,
+          7,
+          7,
+          7,
+          7,
+          7,
+          7,
+          7,
+          7,
+          7,
+          7,
+          7,
+          7,
+          7,
+          7,
+          7,
+          7,
+          7,
+          7,
+          7,
+          7,
+          7,
+          7,
+          7,
+          7,
+          7,
+          7,
+          7,
+          7,
+          7,
+          7,
+          7,
+          7,
+          7,
+          7,
+          7,
+          7,
+          7,
+          7,
+          7,
+          7,
+          7,
+          7,
+          7,
+          7,
+          7,
+          7,
+          7,
+          7,
+          7,
+          7,
+          7,
+          7,
+          7,
+          7,
+          7,
+          7,
+          7,
+          7,
+          7,
+          7,
+          7,
+          7,
+          7,
+          7,
+          7,
+          7,
+          7,
+          7,
+          7,
+          7,
+          7,
+          7,
+          7,
+          7,
+          7,
+          7,
+          7,
+          7,
+          7,
+          7,
+          7,
+          7,
+          7,
+          7,
+          7,
+          7,
+          7,
+          7,
+          7,
+          7,
+          7,
+          8,
+          8,
+          8,
+          8,
+          8,
+          8,
+          8,
+          8,
+          8,
+          8,
+          8,
+          8,
+          8,
+          8,
+          8,
+          8,
+          8,
+          8,
+          8,
+          8,
+          8,
+          8,
+          8,
+          8,
+          8,
+          8,
+          8,
+          8,
+          8,
+          8,
+          8,
+          8,
+          8,
+          8,
+          8,
+          8,
+          8,
+          8,
+          8,
+          8,
+          8,
+          8,
+          8,
+          8,
+          8,
+          8,
+          8,
+          8,
+          8,
+          8,
+          8,
+          8,
+          8,
+          8,
+          8,
+          8,
+          8,
+          8,
+          8,
+          8,
+          8,
+          8,
+          8,
+          8,
+          8,
+          8,
+          8,
+          8,
+          8,
+          8,
+          8,
+          8,
+          8,
+          8,
+          8,
+          8,
+          8,
+          8,
+          8,
+          8,
+          8,
+          8,
+          8,
+          8,
+          8,
+          8,
+          8,
+          8,
+          8,
+          8,
+          8,
+          8,
+          8,
+          8,
+          8,
+          8,
+          8,
+          8,
+          8,
+          8,
+          8,
+          8,
+          8,
+          8,
+          8,
+          8,
+          8,
+          8,
+          8,
+          8,
+          8,
+          8,
+          8,
+          8,
+          8,
+          8,
+          8,
+          8,
+          8,
+          8,
+          8,
+          8,
+          8,
+          8,
+          8,
+          8,
+          8,
+          8,
+          8,
+          8,
+          8,
+          8,
+          8,
+          8,
+          8,
+          8,
+          8,
+          8,
+          8,
+          8,
+          8,
+          8,
+          8,
+          8,
+          8,
+          8,
+          8,
+          8,
+          8,
+          8,
+          8,
+          8,
+          8,
+          8,
+          8,
+          8,
+          8,
+          8,
+          8,
+          8,
+          8,
+          8,
+          8,
+          8,
+          8,
+          8,
+          8,
+          8,
+          8,
+          8,
+          8,
+          8,
+          8,
+          8,
+          8,
+          8,
+          8,
+          8,
+          8,
+          8,
+          8,
+          8,
+          8,
+          8,
+          8,
+          8,
+          8,
+          8,
+          8,
+          8,
+          8,
+          8,
+          8,
+          8,
+          8,
+          8,
+          8,
+          8,
+          8,
+          8,
+          8,
+          8,
+          8,
+          8,
+          8,
+          8,
+          8,
+          8,
+          8,
+          8,
+          8,
+          8,
+          8,
+          8,
+          8,
+          8,
+          8,
+          8,
+          8,
+          8,
+          9,
+          9,
+          9,
+          9,
+          9,
+          9,
+          9,
+          9,
+          9,
+          9,
+          9,
+          9,
+          9,
+          9,
+          9,
+          9,
+          9,
+          9,
+          9,
+          9,
+          9,
+          9,
+          9,
+          9,
+          9,
+          9,
+          9,
+          9,
+          9,
+          9,
+          9,
+          9,
+          9,
+          9,
+          9,
+          9,
+          9,
+          9,
+          9,
+          9,
+          9,
+          9,
+          9,
+          9,
+          9,
+          9,
+          9,
+          9,
+          9,
+          9,
+          9,
+          9,
+          9,
+          9,
+          9,
+          9,
+          9,
+          9,
+          9,
+          9,
+          9,
+          9,
+          9,
+          9,
+          9,
+          9,
+          9,
+          9,
+          9,
+          9,
+          9,
+          9,
+          9,
+          9,
+          9,
+          9,
+          9,
+          9,
+          9,
+          9,
+          9,
+          9,
+          9,
+          9,
+          9,
+          9,
+          9,
+          9,
+          9,
+          9,
+          9,
+          9,
+          9,
+          9,
+          9,
+          9,
+          9,
+          9,
+          9,
+          9,
+          9,
+          9,
+          9,
+          9,
+          9,
+          9,
+          9,
+          9,
+          9,
+          9,
+          9,
+          9,
+          9,
+          9,
+          9,
+          9,
+          9,
+          9,
+          9,
+          9,
+          9,
+          9,
+          9,
+          9,
+          9,
+          9,
+          9,
+          9,
+          9,
+          9,
+          9,
+          9,
+          9,
+          9,
+          9,
+          9,
+          9,
+          9,
+          9,
+          9,
+          9,
+          9,
+          9,
+          9,
+          9,
+          9,
+          9,
+          9,
+          9,
+          9,
+          9,
+          9,
+          9,
+          9,
+          9,
+          9,
+          9,
+          9,
+          9,
+          9,
+          9,
+          9,
+          9,
+          9,
+          9,
+          9,
+          9,
+          9,
+          9,
+          9,
+          9,
+          9,
+          9,
+          9,
+          9,
+          9,
+          9,
+          9,
+          9,
+          9,
+          9,
+          9,
+          9,
+          9,
+          9,
+          9,
+          9,
+          9,
+          9,
+          9,
+          9,
+          9,
+          9,
+          9,
+          9,
+          9,
+          9,
+          9,
+          9,
+          9,
+          9,
+          9,
+          9,
+          9,
+          9,
+          9,
+          9,
+          9,
+          9,
+          9,
+          9,
+          9,
+          9,
+          9,
+          9,
+          9,
+          9,
+          9,
+          9,
+          9,
+          9,
+          9,
+          9,
+          9,
+          9,
+          9,
+          9,
+          9,
+          9,
+          9,
+          10,
+          10,
+          10,
+          10,
+          10,
+          10,
+          10,
+          10,
+          10,
+          10,
+          10,
+          10,
+          10,
+          10,
+          10,
+          10,
+          10,
+          10,
+          10,
+          10,
+          10,
+          10,
+          10,
+          10,
+          10,
+          10,
+          10,
+          10,
+          10,
+          10,
+          10,
+          10,
+          10,
+          10,
+          10,
+          10,
+          10,
+          10,
+          10,
+          10,
+          10,
+          10,
+          10,
+          10,
+          10,
+          10,
+          10,
+          10,
+          10,
+          10,
+          10,
+          10,
+          10,
+          10,
+          10,
+          10,
+          10,
+          10,
+          10,
+          10,
+          10,
+          10,
+          10,
+          10,
+          10,
+          10,
+          10,
+          10,
+          10,
+          10,
+          10,
+          10,
+          10,
+          10,
+          10,
+          10,
+          10,
+          10,
+          10,
+          10,
+          10,
+          10,
+          10,
+          10,
+          10,
+          10,
+          10,
+          10,
+          10,
+          10,
+          10,
+          10,
+          10,
+          10,
+          10,
+          10,
+          10,
+          10,
+          10,
+          10,
+          10,
+          10,
+          10,
+          10,
+          10,
+          10,
+          10,
+          10,
+          10,
+          10,
+          10,
+          10,
+          10,
+          10,
+          10,
+          10,
+          10,
+          10,
+          10,
+          10,
+          10,
+          10,
+          10,
+          10,
+          10,
+          10,
+          10,
+          10,
+          10,
+          10,
+          10,
+          10,
+          10,
+          10,
+          10,
+          10,
+          10,
+          10,
+          10,
+          10,
+          10,
+          10,
+          10,
+          10,
+          10,
+          10,
+          10,
+          10,
+          10,
+          10,
+          10,
+          10,
+          10,
+          10,
+          10,
+          10,
+          10,
+          10,
+          10,
+          10,
+          10,
+          10,
+          10,
+          10,
+          10,
+          10,
+          10,
+          10,
+          10,
+          10,
+          11,
+          11,
+          11,
+          11,
+          11,
+          11,
+          11,
+          11,
+          11,
+          11,
+          11,
+          11,
+          11,
+          11,
+          11,
+          11,
+          11,
+          11,
+          11,
+          11,
+          11,
+          11,
+          11,
+          11,
+          11,
+          11,
+          11,
+          11,
+          11,
+          11,
+          11,
+          11,
+          11,
+          11,
+          11,
+          11,
+          11,
+          11,
+          11,
+          11,
+          12,
+          12,
+          12,
+          12,
+          12,
+          12,
+          12,
+          12,
+          12,
+          12,
+          12,
+          12,
+          13,
+          13,
+          13,
+          13,
+          13,
+          13,
+          13,
+          13,
+          13,
+          13,
+          14,
+          14,
+          14,
+          14,
+          14,
+          14,
+          14,
+          14,
+          14,
+          14,
+          14,
+          14,
+          14,
+          14,
+          14,
+          14,
+          14,
+          15,
+          15,
+          15,
+          15,
+          15,
+          15,
+          15,
+          15,
+          15,
+          15,
+          15,
+          15,
+          15,
+          15,
+          15,
+          15,
+          15,
+          15,
+          15,
+          15,
+          15,
+          15,
+          15,
+          15,
+          15,
+          15,
+          15,
+          15,
+          15,
+          15,
+          15,
+          15,
+          15,
+          15,
+          15,
+          15,
+          15,
+          15,
+          15,
+          15,
+          15,
+          15,
+          15,
+          15,
+          15,
+          15,
+          15,
+          15,
+          15,
+          15,
+          15,
+          15,
+          15,
+          15,
+          15,
+          15,
+          15,
+          15,
+          15,
+          15,
+          15,
+          15,
+          15,
+          15,
+          16,
+          16,
+          16,
+          16,
+          16,
+          16,
+          16,
+          16,
+          16,
+          16,
+          16,
+          16,
+          16,
+          16,
+          16,
+          16,
+          16,
+          16,
+          16,
+          16,
+          16,
+          16,
+          16,
+          16,
+          16,
+          16,
+          16,
+          16,
+          16,
+          16,
+          16,
+          16,
+          16,
+          16,
+          16,
+          16,
+          16,
+          16,
+          16,
+          16,
+          16,
+          16,
+          16,
+          16,
+          16,
+          16,
+          16,
+          16,
+          16,
+          16,
+          16,
+          16,
+          16,
+          16,
+          16,
+          16,
+          16,
+          16,
+          16,
+          16,
+          16,
+          16,
+          16,
+          16,
+          16,
+          16,
+          16,
+          16,
+          16,
+          16,
+          16,
+          16,
+          16,
+          16,
+          16,
+          16,
+          16,
+          16,
+          16,
+          16,
+          16,
+          16,
+          16,
+          16,
+          16,
+          16,
+          16,
+          16,
+          16,
+          16,
+          16,
+          16,
+          16,
+          16,
+          16,
+          16,
+          16,
+          16,
+          16,
+          16,
+          16,
+          16,
+          16,
+          16,
+          16,
+          16,
+          16,
+          16,
+          16,
+          16,
+          16,
+          16,
+          16,
+          16,
+          16,
+          16,
+          16,
+          16,
+          16,
+          16,
+          16,
+          16,
+          16,
+          16,
+          16,
+          16,
+          16,
+          16,
+          16,
+          16,
+          16,
+          16,
+          16,
+          16,
+          16,
+          16,
+          16,
+          16,
+          16,
+          16,
+          16,
+          16,
+          16,
+          16,
+          16,
+          16,
+          16,
+          16,
+          16,
+          16,
+          16,
+          16,
+          16,
+          16,
+          16,
+          16,
+          16,
+          16,
+          16,
+          16,
+          16,
+          16,
+          16,
+          16,
+          16,
+          16,
+          16,
+          16,
+          16,
+          16,
+          16,
+          16,
+          16,
+          16,
+          16,
+          16,
+          16,
+          16,
+          16,
+          16,
+          16,
+          16,
+          16,
+          16,
+          16,
+          16,
+          16,
+          16,
+          16,
+          16,
+          16,
+          16,
+          16,
+          16,
+          16,
+          16,
+          16,
+          16,
+          16,
+          16,
+          16,
+          16,
+          16,
+          16,
+          16,
+          16,
+          16,
+          16,
+          16,
+          16,
+          16,
+          16,
+          16,
+          16,
+          16,
+          16,
+          16,
+          16,
+          16,
+          16,
+          16,
+          16,
+          16,
+          16,
+          16,
+          16,
+          16,
+          16,
+          16,
+          16,
+          16,
+          16,
+          16,
+          16,
+          16,
+          16,
+          16,
+          16,
+          16,
+          16,
+          16,
+          16,
+          16,
+          16,
+          16,
+          16,
+          16,
+          16,
+          16,
+          16,
+          16,
+          16,
+          16,
+          16,
+          16,
+          16,
+          16,
+          16,
+          16,
+          16,
+          16,
+          16,
+          16,
+          16,
+          16,
+          16,
+          16,
+          16,
+          16,
+          16,
+          16,
+          16,
+          16,
+          16,
+          16,
+          16,
+          16,
+          16,
+          16,
+          16,
+          16,
+          16,
+          16,
+          16,
+          16,
+          16,
+          16,
+          16,
+          16,
+          16,
+          16,
+          16,
+          16,
+          16,
+          16,
+          16,
+          16,
+          16,
+          16,
+          16,
+          16,
+          16,
+          16,
+          16,
+          16,
+          16,
+          16,
+          16,
+          16,
+          16,
+          16,
+          16,
+          16,
+          16,
+          16,
+          16,
+          16,
+          16,
+          16,
+          16,
+          16,
+          16,
+          16,
+          16,
+          16,
+          16,
+          16,
+          16,
+          16,
+          16,
+          16,
+          16,
+          16,
+          16,
+          16,
+          16,
+          16,
+          16,
+          16,
+          16,
+          16,
+          16,
+          16,
+          16,
+          16,
+          16,
+          16,
+          16,
+          16,
+          16,
+          16,
+          16,
+          16,
+          16,
+          16,
+          16,
+          16,
+          16,
+          16,
+          16,
+          16,
+          16,
+          16,
+          16,
+          16,
+          16,
+          16,
+          16,
+          16,
+          16,
+          16,
+          16,
+          16,
+          16,
+          16,
+          16,
+          16,
+          16,
+          16,
+          16,
+          16,
+          16,
+          16,
+          16,
+          16,
+          16,
+          16,
+          16,
+          16,
+          16,
+          16,
+          16,
+          16,
+          16,
+          16,
+          16,
+          16,
+          16,
+          16,
+          16,
+          16,
+          16,
+          16,
+          16,
+          16,
+          16,
+          16,
+          16,
+          16,
+          16,
+          16,
+          16,
+          16,
+          16,
+          16,
+          16,
+          16,
+          16,
+          16,
+          16,
+          16,
+          16,
+          16,
+          16,
+          16,
+          16,
+          16,
+          16,
+          16,
+          16,
+          16,
+          16,
+          16,
+          16,
+          16,
+          16,
+          16,
+          16,
+          16,
+          16,
+          16,
+          16,
+          16,
+          16,
+          16,
+          16,
+          16,
+          16,
+          16,
+          16,
+          16,
+          16,
+          16,
+          16,
+          16,
+          16,
+          16,
+          16,
+          16,
+          16,
+          16,
+          16,
+          16,
+          16,
+          16,
+          16,
+          16,
+          16,
+          16,
+          16,
+          16,
+          16,
+          16,
+          16,
+          16,
+          16,
+          16,
+          16,
+          16,
+          16,
+          16,
+          16,
+          16,
+          16,
+          16,
+          16,
+          16,
+          16,
+          16,
+          16,
+          16,
+          16,
+          16,
+          16,
+          16,
+          16,
+          16,
+          16,
+          16,
+          16,
+          16,
+          16,
+          16,
+          16,
+          16,
+          16,
+          16,
+          16,
+          16,
+          16,
+          16,
+          16,
+          16,
+          16,
+          16,
+          16,
+          16,
+          16,
+          16,
+          16,
+          16,
+          16,
+          16,
+          16,
+          16,
+          16,
+          16,
+          16,
+          16,
+          16,
+          16,
+          16,
+          16,
+          16,
+          16,
+          16,
+          16,
+          16,
+          16,
+          16,
+          16,
+          16,
+          16,
+          16,
+          16,
+          16,
+          16,
+          16,
+          16,
+          16,
+          16,
+          16,
+          16,
+          16,
+          16,
+          16,
+          16,
+          16,
+          16,
+          16,
+          16,
+          16,
+          16,
+          16,
+          16,
+          16,
+          16,
+          16,
+          16,
+          16,
+          16,
+          16,
+          16,
+          16,
+          16,
+          16,
+          16,
+          16,
+          16,
+          16,
+          16,
+          16,
+          16,
+          16,
+          16,
+          16,
+          16,
+          16,
+          16,
+          16,
+          16,
+          16,
+          16,
+          16,
+          16,
+          16,
+          16,
+          16,
+          16,
+          16,
+          16,
+          16,
+          16,
+          16,
+          16,
+          16,
+          16,
+          16,
+          16,
+          16,
+          16,
+          16,
+          16,
+          16,
+          16,
+          16,
+          16,
+          16,
+          16,
+          16,
+          16,
+          16,
+          16,
+          16,
+          16,
+          16,
+          16,
+          16,
+          16,
+          16,
+          16,
+          16,
+          16,
+          16,
+          16,
+          16,
+          16,
+          16,
+          16,
+          16,
+          16,
+          16,
+          16,
+          16,
+          16,
+          16,
+          16,
+          16,
+          16,
+          16,
+          16,
+          16,
+          16,
+          16,
+          16,
+          16,
+          16,
+          16,
+          16,
+          16,
+          16,
+          16,
+          16,
+          16,
+          16,
+          16,
+          16,
+          16,
+          16,
+          16,
+          16,
+          16,
+          16,
+          16,
+          16,
+          16,
+          16,
+          16,
+          16,
+          16,
+          16,
+          16,
+          16,
+          16,
+          16,
+          16,
+          16,
+          16,
+          16,
+          16,
+          16,
+          16,
+          16,
+          16,
+          16,
+          16,
+          16,
+          16,
+          16,
+          16,
+          16,
+          16,
+          16,
+          16,
+          16,
+          16,
+          16,
+          16,
+          16,
+          16,
+          16
+        ],
+        "organ_type": 3,
+        "realised_length": 175.0,
+        "subType": 1
+      },
+      "90": {
+        "organ_type": 2,
+        "realised_length": 6.004893,
+        "subType": 3
+      },
+      "900": {
+        "organ_type": 2,
+        "realised_length": 1.76,
+        "subType": 2
+      },
+      "901": {
+        "organ_type": 2,
+        "realised_length": 1.76,
+        "subType": 2
+      },
+      "902": {
+        "organ_type": 2,
+        "realised_length": 1.76,
+        "subType": 2
+      },
+      "903": {
+        "organ_type": 2,
+        "realised_length": 5.996493,
+        "subType": 3
+      },
+      "904": {
+        "organ_type": 2,
+        "realised_length": 5.988535,
+        "subType": 3
+      },
+      "905": {
+        "organ_type": 2,
+        "realised_length": 5.972196,
+        "subType": 3
+      },
+      "906": {
+        "organ_type": 2,
+        "realised_length": 1.76,
+        "subType": 2
+      },
+      "907": {
+        "organ_type": 2,
+        "realised_length": 1.76,
+        "subType": 2
+      },
+      "908": {
+        "organ_type": 2,
+        "realised_length": 5.9975,
+        "subType": 3
+      },
+      "909": {
+        "organ_type": 2,
+        "realised_length": 1.76,
+        "subType": 2
+      },
+      "91": {
+        "organ_type": 2,
+        "realised_length": 1.76,
+        "subType": 2
+      },
+      "910": {
+        "organ_type": 2,
+        "realised_length": 1.76,
+        "subType": 2
+      },
+      "911": {
+        "organ_type": 2,
+        "realised_length": 5.997634,
+        "subType": 3
+      },
+      "912": {
+        "organ_type": 2,
+        "realised_length": 1.76,
+        "subType": 2
+      },
+      "913": {
+        "organ_type": 2,
+        "realised_length": 5.991102,
+        "subType": 3
+      },
+      "914": {
+        "organ_type": 2,
+        "realised_length": 5.997489,
+        "subType": 3
+      },
+      "915": {
+        "organ_type": 2,
+        "realised_length": 5.994653,
+        "subType": 3
+      },
+      "916": {
+        "organ_type": 2,
+        "realised_length": 1.76,
+        "subType": 2
+      },
+      "917": {
+        "organ_type": 2,
+        "realised_length": 1.76,
+        "subType": 2
+      },
+      "918": {
+        "organ_type": 2,
+        "realised_length": 5.995714,
+        "subType": 3
+      },
+      "919": {
+        "organ_type": 2,
+        "realised_length": 1.76,
+        "subType": 2
+      },
+      "92": {
+        "organ_type": 2,
+        "realised_length": 6.007576,
+        "subType": 3
+      },
+      "920": {
+        "organ_type": 2,
+        "realised_length": 5.995142,
+        "subType": 3
+      },
+      "921": {
+        "organ_type": 2,
+        "realised_length": 6.005951,
+        "subType": 3
+      },
+      "922": {
+        "organ_type": 2,
+        "realised_length": 1.76,
+        "subType": 2
+      },
+      "923": {
+        "organ_type": 2,
+        "realised_length": 1.759999,
+        "subType": 2
+      },
+      "924": {
+        "organ_type": 2,
+        "realised_length": 5.986782,
+        "subType": 3
+      },
+      "925": {
+        "organ_type": 2,
+        "realised_length": 1.76,
+        "subType": 2
+      },
+      "926": {
+        "organ_type": 2,
+        "realised_length": 5.998188,
+        "subType": 3
+      },
+      "927": {
+        "organ_type": 2,
+        "realised_length": 1.76,
+        "subType": 2
+      },
+      "928": {
+        "organ_type": 2,
+        "realised_length": 5.986052,
+        "subType": 3
+      },
+      "929": {
+        "organ_type": 2,
+        "realised_length": 5.992137,
+        "subType": 3
+      },
+      "93": {
+        "organ_type": 2,
+        "realised_length": 6.008682,
+        "subType": 3
+      },
+      "930": {
+        "organ_type": 2,
+        "realised_length": 1.76,
+        "subType": 2
+      },
+      "931": {
+        "organ_type": 2,
+        "realised_length": 5.99902,
+        "subType": 3
+      },
+      "932": {
+        "organ_type": 2,
+        "realised_length": 6.000199,
+        "subType": 3
+      },
+      "933": {
+        "organ_type": 2,
+        "realised_length": 1.76,
+        "subType": 2
+      },
+      "934": {
+        "organ_type": 2,
+        "realised_length": 5.992893,
+        "subType": 3
+      },
+      "935": {
+        "organ_type": 2,
+        "realised_length": 5.995243,
+        "subType": 3
+      },
+      "936": {
+        "organ_type": 2,
+        "realised_length": 1.76,
+        "subType": 2
+      },
+      "937": {
+        "organ_type": 2,
+        "realised_length": 1.76,
+        "subType": 2
+      },
+      "938": {
+        "organ_type": 2,
+        "realised_length": 5.992561,
+        "subType": 3
+      },
+      "939": {
+        "organ_type": 2,
+        "realised_length": 5.994633,
+        "subType": 3
+      },
+      "94": {
+        "organ_type": 2,
+        "realised_length": 1.76,
+        "subType": 2
+      },
+      "940": {
+        "organ_type": 4,
+        "realised_length": 75.7,
+        "subType": 9
+      },
+      "941": {
+        "organ_type": 2,
+        "realised_length": 1.76,
+        "subType": 2
+      },
+      "942": {
+        "organ_type": 2,
+        "realised_length": 1.76,
+        "subType": 2
+      },
+      "943": {
+        "organ_type": 2,
+        "realised_length": 1.76,
+        "subType": 2
+      },
+      "944": {
+        "organ_type": 2,
+        "realised_length": 5.983012,
+        "subType": 3
+      },
+      "945": {
+        "organ_type": 2,
+        "realised_length": 1.76,
+        "subType": 2
+      },
+      "946": {
+        "organ_type": 2,
+        "realised_length": 5.989019,
+        "subType": 3
+      },
+      "947": {
+        "organ_type": 2,
+        "realised_length": 1.76,
+        "subType": 2
+      },
+      "948": {
+        "organ_type": 2,
+        "realised_length": 1.76,
+        "subType": 2
+      },
+      "949": {
+        "organ_type": 2,
+        "realised_length": 5.989731,
+        "subType": 3
+      },
+      "95": {
+        "organ_type": 2,
+        "realised_length": 6.009012,
+        "subType": 3
+      },
+      "950": {
+        "organ_type": 2,
+        "realised_length": 1.76,
+        "subType": 2
+      },
+      "951": {
+        "organ_type": 2,
+        "realised_length": 5.991687,
+        "subType": 3
+      },
+      "952": {
+        "organ_type": 2,
+        "realised_length": 1.76,
+        "subType": 2
+      },
+      "953": {
+        "organ_type": 2,
+        "realised_length": 1.76,
+        "subType": 2
+      },
+      "954": {
+        "organ_type": 2,
+        "realised_length": 5.970412,
+        "subType": 3
+      },
+      "955": {
+        "organ_type": 2,
+        "realised_length": 1.76,
+        "subType": 2
+      },
+      "956": {
+        "organ_type": 2,
+        "realised_length": 1.76,
+        "subType": 2
+      },
+      "957": {
+        "organ_type": 2,
+        "realised_length": 5.961706,
+        "subType": 3
+      },
+      "958": {
+        "organ_type": 2,
+        "realised_length": 5.997456,
+        "subType": 3
+      },
+      "959": {
+        "organ_type": 2,
+        "realised_length": 1.76,
+        "subType": 2
+      },
+      "96": {
+        "organ_type": 2,
+        "realised_length": 6.009476,
+        "subType": 3
+      },
+      "960": {
+        "organ_type": 2,
+        "realised_length": 1.76,
+        "subType": 2
+      },
+      "961": {
+        "organ_type": 2,
+        "realised_length": 5.978705,
+        "subType": 3
+      },
+      "962": {
+        "organ_type": 2,
+        "realised_length": 1.759999,
+        "subType": 2
+      },
+      "963": {
+        "organ_type": 2,
+        "realised_length": 5.984589,
+        "subType": 3
+      },
+      "964": {
+        "organ_type": 2,
+        "realised_length": 1.76,
+        "subType": 2
+      },
+      "965": {
+        "organ_type": 2,
+        "realised_length": 1.76,
+        "subType": 2
+      },
+      "966": {
+        "organ_type": 2,
+        "realised_length": 1.76,
+        "subType": 2
+      },
+      "967": {
+        "organ_type": 2,
+        "realised_length": 5.970475,
+        "subType": 3
+      },
+      "968": {
+        "organ_type": 2,
+        "realised_length": 5.988757,
+        "subType": 3
+      },
+      "969": {
+        "organ_type": 2,
+        "realised_length": 1.76,
+        "subType": 2
+      },
+      "97": {
+        "organ_type": 2,
+        "realised_length": 1.76,
+        "subType": 2
+      },
+      "970": {
+        "organ_type": 2,
+        "realised_length": 5.998685,
+        "subType": 3
+      },
+      "971": {
+        "organ_type": 2,
+        "realised_length": 1.76,
+        "subType": 2
+      },
+      "972": {
+        "organ_type": 2,
+        "realised_length": 5.991456,
+        "subType": 3
+      },
+      "973": {
+        "organ_type": 2,
+        "realised_length": 5.996378,
+        "subType": 3
+      },
+      "974": {
+        "organ_type": 2,
+        "realised_length": 1.76,
+        "subType": 2
+      },
+      "975": {
+        "organ_type": 2,
+        "realised_length": 1.759999,
+        "subType": 2
+      },
+      "976": {
+        "organ_type": 2,
+        "realised_length": 1.76,
+        "subType": 2
+      },
+      "977": {
+        "organ_type": 2,
+        "realised_length": 1.76,
+        "subType": 2
+      },
+      "978": {
+        "organ_type": 2,
+        "realised_length": 1.76,
+        "subType": 2
+      },
+      "979": {
+        "organ_type": 2,
+        "realised_length": 1.759999,
+        "subType": 2
+      },
+      "98": {
+        "organ_type": 2,
+        "realised_length": 6.007532,
+        "subType": 3
+      },
+      "980": {
+        "organ_type": 2,
+        "realised_length": 1.76,
+        "subType": 2
+      },
+      "981": {
+        "organ_type": 2,
+        "realised_length": 5.996686,
+        "subType": 3
+      },
+      "982": {
+        "organ_type": 2,
+        "realised_length": 1.76,
+        "subType": 2
+      },
+      "983": {
+        "organ_type": 2,
+        "realised_length": 6.000199,
+        "subType": 3
+      },
+      "984": {
+        "organ_type": 2,
+        "realised_length": 5.994194,
+        "subType": 3
+      },
+      "985": {
+        "organ_type": 2,
+        "realised_length": 5.985365,
+        "subType": 3
+      },
+      "986": {
+        "organ_type": 2,
+        "realised_length": 5.9984,
+        "subType": 3
+      },
+      "987": {
+        "organ_type": 2,
+        "realised_length": 5.986675,
+        "subType": 3
+      },
+      "988": {
+        "organ_type": 2,
+        "realised_length": 1.759999,
+        "subType": 2
+      },
+      "989": {
+        "organ_type": 2,
+        "realised_length": 1.759999,
+        "subType": 2
+      },
+      "99": {
+        "organ_type": 2,
+        "realised_length": 1.76,
+        "subType": 2
+      },
+      "990": {
+        "organ_type": 2,
+        "realised_length": 5.957186,
+        "subType": 3
+      },
+      "991": {
+        "organ_type": 2,
+        "realised_length": 1.759999,
+        "subType": 2
+      },
+      "992": {
+        "organ_type": 2,
+        "realised_length": 1.76,
+        "subType": 2
+      },
+      "993": {
+        "organ_type": 2,
+        "realised_length": 5.970401,
+        "subType": 3
+      },
+      "994": {
+        "organ_type": 2,
+        "realised_length": 1.76,
+        "subType": 2
+      },
+      "995": {
+        "organ_type": 2,
+        "realised_length": 1.759999,
+        "subType": 2
+      },
+      "996": {
+        "organ_type": 2,
+        "realised_length": 5.983727,
+        "subType": 3
+      },
+      "997": {
+        "organ_type": 2,
+        "realised_length": 1.76,
+        "subType": 2
+      },
+      "998": {
+        "organ_type": 2,
+        "realised_length": 1.76,
+        "subType": 2
+      },
+      "999": {
+        "organ_type": 2,
+        "realised_length": 6.000611,
+        "subType": 3
+      }
+    }
+  }
+}
