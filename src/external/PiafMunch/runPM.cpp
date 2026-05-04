@@ -742,7 +742,10 @@ double PhloemFlux::getMaxVolumicGrowth(std::shared_ptr<CPlantBox::Organ> org, do
 		do_gf_warning = false;
 	}
 	
-	auto f_gf =  plant->createGrowthFunction(1);
+	auto f_gf = org->getOrganRandomParameter()->f_gf;
+	if (!f_gf) {
+		f_gf = plant->createGrowthFunction(1);
+	}
 	double age_ = f_gf->getAge(Linit, rmax, org->getParameter("k"), org->shared_from_this());			
 	assertUsedCReserves(org);			
 	double dt = adaptDt(org, t);				
