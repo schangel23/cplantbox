@@ -11,6 +11,7 @@ Reads OBJs from ``dart/coupling/output/vr_stages/*.obj`` (paired with sidecar
 from __future__ import annotations
 
 import re
+import xml.etree.ElementTree as ET
 from pathlib import Path
 
 import bpy
@@ -21,6 +22,7 @@ HERE = Path(__file__).resolve()
 PROJECT_ROOT = HERE.parents[3]
 OUT_DIR = PROJECT_ROOT / "dart" / "coupling" / "output" / "vr_stages"
 BLEND_PATH = OUT_DIR / "vr_stages_row.blend"
+DEFAULT_XML = PROJECT_ROOT / "dart" / "coupling" / "data" / "maize_calibrated.xml"
 
 # Row spacing (Blender meters). Mature maize ≈ 1.5 m wide leaf spread, so
 # 1.6 m keeps neighbouring plants from clipping and matches a realistic field
@@ -43,6 +45,24 @@ def parse_stem(stem: str) -> tuple[int, str]:
     return (int(m.group(1)), m.group(2)) if m else (9999, stem)
 
 
+def read_seed_pos_cm(xml_path: Path) -> tuple[float, float]:
+    """Pull seedPos.x / seedPos.y (cm) out of a CPlantBox parameter XML.
+
+    Falls back to (0, 0) if the params can't be parsed — matches pre-2026
+    XMLs that emerged at world origin.
+    """
+    try:
+        root = ET.parse(xml_path).getroot()
+        xy = {"x": 0.0, "y": 0.0}
+        for p in root.iter("parameter"):
+            name = p.get("name", "")
+            if name in ("seedPos.x", "seedPos.y"):
+                xy[name[-1]] = float(p.get("value", "0"))
+        return xy["x"], xy["y"]
+    except (ET.ParseError, OSError, ValueError):
+        return 0.0, 0.0
+
+
 def clear_scene() -> None:
     """Remove default cube/camera/light so we start clean."""
     for obj in list(bpy.data.objects):
@@ -55,15 +75,19 @@ def clear_scene() -> None:
         bpy.data.cameras.remove(cam)
 
 
-def import_and_join(obj_path: Path, name: str):
+def import_and_join(obj_path: Path, name: str, seed_xy_m: tuple[float, float]):
     """Import OBJ + MTL, join all parts into one object, return the joined obj.
 
     CPlantBox emits world-space vertex coords with the stem base at the XML's
     ``seedPos`` (currently (200, 200, -3) cm in maize_calibrated.xml — non-zero
     so DuMux-Rosi / AgroC voxel grids can centre on the plant). We scale verts
-    cm→m on import, then translate mesh data so stem-base xy sits at local
-    (0, 0) — that way ``object.location`` coincides with the stem base and the
-    row + label placement code stays simple.
+    cm→m on import, then translate mesh data by ``-seed_xy_m`` so the stem
+    base sits at local (0, 0) — that way ``object.location`` coincides with
+    the stem base and the row + label placement code stays simple.
+
+    A whole-plant translation preserves all relative geometry, so senescent
+    leaves drooping below z=0 and tassel billboards above the canopy stay
+    rigidly attached to the stem.
     """
     bpy.ops.object.select_all(action="DESELECT")
     bpy.ops.wm.obj_import(filepath=str(obj_path), global_scale=CM_TO_M)
@@ -77,18 +101,13 @@ def import_and_join(obj_path: Path, name: str):
     joined = bpy.context.active_object
     joined.name = name
 
-    # Re-centre mesh data: translate xy so the lowest-z vertex (stem base
-    # sits underground at seedPos.z) ends up at local (0, 0). Preserve z so
-    # the seed-depth offset is kept.
-    mesh = joined.data
-    if mesh.vertices:
-        min_v = min(mesh.vertices, key=lambda v: v.co.z)
-        dx, dy = min_v.co.x, min_v.co.y
-        if abs(dx) > 1e-6 or abs(dy) > 1e-6:
-            for v in mesh.vertices:
-                v.co.x -= dx
-                v.co.y -= dy
-            mesh.update()
+    dx, dy = seed_xy_m
+    if abs(dx) > 1e-6 or abs(dy) > 1e-6:
+        mesh = joined.data
+        for v in mesh.vertices:
+            v.co.x -= dx
+            v.co.y -= dy
+        mesh.update()
     return joined
 
 
@@ -148,6 +167,11 @@ def main() -> int:
         return 1
     print(f"Found {len(objs)} OBJ files in {OUT_DIR}")
 
+    seed_x_cm, seed_y_cm = read_seed_pos_cm(DEFAULT_XML)
+    seed_xy_m = (seed_x_cm * CM_TO_M, seed_y_cm * CM_TO_M)
+    print(f"seedPos (cm) = ({seed_x_cm:.1f}, {seed_y_cm:.1f}) "
+          f"→ recentre offset (m) = ({seed_xy_m[0]:.2f}, {seed_xy_m[1]:.2f})")
+
     clear_scene()
 
     for i, obj_path in enumerate(objs):
@@ -156,7 +180,7 @@ def main() -> int:
         name = f"day{day:03d}_{label}"
         print(f"  [{i:2d}] x={x:5.2f}m  {obj_path.name}")
 
-        plant = import_and_join(obj_path, name)
+        plant = import_and_join(obj_path, name, seed_xy_m)
         if plant is None:
             print(f"    SKIP: import returned no objects")
             continue
