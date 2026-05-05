@@ -43,7 +43,10 @@ def _summarise(label: str, result: dict) -> dict:
 
 def main() -> int:
     print(f"Growing maize to day {SIM_DAY}...")
-    plant = grow_plant(str(XML_PATH), simulation_time=SIM_DAY, seed=42)
+    # enable_photosynthesis=True wires setSoilGrid() so the C++ solve
+    # actually reads rsx via seg2cell — without it psi_s defaults to 0.
+    plant = grow_plant(str(XML_PATH), simulation_time=SIM_DAY, seed=42,
+                       enable_photosynthesis=True)
     print(f"  plant: {len(plant.getSegments())} segments")
 
     print("\n[1] Legacy fall-through: soil_psi_cm=-500, no provider")

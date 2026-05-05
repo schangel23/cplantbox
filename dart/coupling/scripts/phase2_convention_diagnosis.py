@@ -87,7 +87,12 @@ def _solve(plant, provider, label):
 
 def main() -> int:
     print(f"Growing maize to day {SIM_DAY}...")
-    plant = grow_plant(str(XML_PATH), simulation_time=SIM_DAY, seed=42)
+    # NB: enable_photosynthesis=True is REQUIRED — without it grow_plant
+    # skips setSoilGrid() so seg2cell stays empty and Photosynthesis.cpp
+    # silently substitutes psi_s=0 for every root segment regardless of rsx.
+    # That bug invalidated the previous diagnosis (Codex rescue 2026-05-05).
+    plant = grow_plant(str(XML_PATH), simulation_time=SIM_DAY, seed=42,
+                       enable_photosynthesis=True)
     print(f"  plant: {len(plant.getSegments())} segments")
     print(f"  leaf segments: {len(plant.getSegmentIds(4))}")
 
