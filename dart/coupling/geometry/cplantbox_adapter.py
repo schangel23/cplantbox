@@ -1033,14 +1033,14 @@ SENESCENCE_DROOP_PROGRESS_DEG = 90.0   # ρ=1 → 90° pitch (a +60° leaf reach
 # 0.0 = keep natural arch; 1.0 = fully flatten at ρ=1.
 SENESCENCE_ARCH_FLATTEN = 1.0
 # Wilting strength: factor on wave/curl/ruffle/fold amps vs. mature
-# baseline, scaled (1 + BOOST·ρ). With BOOST=1.5 + RHO_CEILING=1.0 the
-# effective max is 2.5×. Softened from 3.0 (which combined with
-# RHO_CEILING=1.0 gave 4× and produced origami-shard tips at high ρ).
+# baseline, scaled (1 + BOOST·ρ). With BOOST=0.5 + RHO_CEILING=1.0 the
+# effective max is 1.5×. Softened from 1.5 (which gave 2.5× and still
+# produced visible crinkle on the half-shrunk senescent ribbons at ρ=1).
 # ``twist_max`` is intentionally excluded from this loop because it is
 # an angular quantity and the lofter rotates the cross-section frame
 # globally — boosting past ~70° flips the blade on its side and yields
 # a midrib ridge with flat triangulated cheeks.
-SENESCENCE_WILT_BOOST = 1.5
+SENESCENCE_WILT_BOOST = 0.5
 # Width/size collapse (Item 6, PLAN_GEOMETRY_FIDELITY_2026-04-22). At ρ=1 the
 # blade shrinks to the floor. Width shrink applied to cps_local x-axis
 # (lateral) and to the legacy widths array. Length shrink applied to cps_local
@@ -1060,15 +1060,18 @@ SENESCENCE_LENGTH_FLOOR = 0.20
 SENESCENCE_GROUND_Z = -200.0
 # Wave-frequency boost for senescent blades. The NURBS lofter reads
 # ``wave_normal_freq`` (default 3.5) and ``curl_freq`` (default 2.0). Scale
-# by (1 + BOOST·ρ). At BOOST=1.5 + RHO_CEILING=0.55 the effective max
-# becomes 1 + 1.5·0.55 = 1.83× → wave freq ~6.4, curl freq ~3.7. Softened
-# from the v3-aggressive 5.0 (which hit 14×/8× and produced fractal-crinkling).
-SENESCENCE_FREQ_BOOST = 1.5
+# by (1 + BOOST·ρ). At BOOST=0.5 + RHO_CEILING=1.0 the effective max is
+# 1.5× → wave freq ~5.3, curl freq ~3.0. Softened from 1.5 (which hit
+# 2.5× = ~9 cycles/blade and produced fractal crinkle the n_cross=5–7
+# tessellation couldn't resolve, surfacing as triangulated shards).
+SENESCENCE_FREQ_BOOST = 0.5
 # Baseline wave mute applied to NURBS-backend leaves (even mature/turgid).
 # Original value 0.35 was calibrated when the library CPs were assumed to
 # carry most of the surface detail, but mature blades looked glassy-smooth.
 # Bumped to 0.85 so mature leaves display most of their natural wave /
-# twist baseline; senescent leaves then lerp toward 1.0 with ρ.
+# twist baseline. The earlier ρ-lerp toward 1.0 was removed because
+# stacked on top of WILT_BOOST it pushed senescent amps to ~3× mature —
+# senescent leaves should not get *more* wave than mature ones.
 NURBS_WAVE_MUTE_BASELINE = 0.85
 NURBS_CURL_MUTE_BASELINE = 0.85
 
@@ -2128,12 +2131,8 @@ def extract_organs_for_lofter(plant, min_stem_nodes=50, min_leaf_nodes=20,
                 rho_senesce = _senescence_progress(
                     leaf_position, plant_tt, species=species,
                 )
-                mute = NURBS_WAVE_MUTE_BASELINE + (
-                    1.0 - NURBS_WAVE_MUTE_BASELINE
-                ) * rho_senesce
-                curl_mute = NURBS_CURL_MUTE_BASELINE + (
-                    1.0 - NURBS_CURL_MUTE_BASELINE
-                ) * rho_senesce
+                mute = NURBS_WAVE_MUTE_BASELINE
+                curl_mute = NURBS_CURL_MUTE_BASELINE
                 wave_params["wave_normal_amp"] *= mute
                 wave_params["twist_max"] *= mute
                 wave_params["curl_amp"] *= curl_mute
