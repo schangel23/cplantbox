@@ -296,7 +296,7 @@ def run_photosynthesis_solve(plant, sim_time, par, tleaf, label,
     seg_nodes = plant.getSegments()
     leaf_tip_nodes = [seg_nodes[i].y for i in seg_leaves_idx]
     psi_leaf = psi_xyl[leaf_tip_nodes]                     # per-leaf-segment [cm]
-    psi_leaf_MPa = psi_leaf * 1e-4 * 0.0980665             # cm → MPa
+    psi_leaf_MPa = psi_leaf * 1e-3 * 0.0980665             # cm → MPa  (1 cm H2O = 9.81e-5 MPa)
 
     print(f"\n  --- Results ({label}) ---")
     print(f"  Total An:      {An_total_mmol:.3f} mmol CO2/d")
