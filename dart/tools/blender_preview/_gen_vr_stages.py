@@ -20,6 +20,9 @@ from pathlib import Path
 
 from dart.coupling.config import DEFAULT_XML
 from dart.coupling.geometry import extract_organs_for_lofter, loft_organs
+from dart.coupling.geometry.cplantbox_adapter import (
+    get_plantsim_feature_kwargs_from_env,
+)
 from dart.coupling.growth.grow import grow_plant
 from dart.coupling.growth.phenology import (
     count_visible_leaves,
@@ -74,7 +77,10 @@ def grow_one(day: int) -> dict | None:
     out_path = OUT_DIR / f"maize_day{day:03d}_{label}.obj"
     OUT_DIR.mkdir(parents=True, exist_ok=True)
 
-    organs = extract_organs_for_lofter(plant, species="maize", skip_roots=True)
+    organs = extract_organs_for_lofter(
+        plant, species="maize", skip_roots=True,
+        **get_plantsim_feature_kwargs_from_env(),
+    )
     mesh = loft_organs(organs, stem_sides=8, use_nurbs_backend=True)
     # write_materials=True ships the sidecar .mtl with default colours
     # (blade, blade_senescent, midrib, stem, tassel) — Blender picks it up
