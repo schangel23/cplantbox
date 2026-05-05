@@ -1032,11 +1032,15 @@ SENESCENCE_DROOP_PROGRESS_DEG = 90.0   # ρ=1 → 90° pitch (a +60° leaf reach
 # keep most of their arch so they still look alive-ish.
 # 0.0 = keep natural arch; 1.0 = fully flatten at ρ=1.
 SENESCENCE_ARCH_FLATTEN = 1.0
-# Wilting strength: factor on wave/curl/ruffle amps vs. mature baseline,
-# scaled (1 + BOOST·ρ). With BOOST=3.0 + RHO_CEILING=0.55 the effective max
-# is 1 + 3·0.55 = 2.65×. Softened from the v3-aggressive 10.0 (which gave
-# 11×) so blades age visibly without fractal-crinkling.
-SENESCENCE_WILT_BOOST = 3.0
+# Wilting strength: factor on wave/curl/ruffle/fold amps vs. mature
+# baseline, scaled (1 + BOOST·ρ). With BOOST=1.5 + RHO_CEILING=1.0 the
+# effective max is 2.5×. Softened from 3.0 (which combined with
+# RHO_CEILING=1.0 gave 4× and produced origami-shard tips at high ρ).
+# ``twist_max`` is intentionally excluded from this loop because it is
+# an angular quantity and the lofter rotates the cross-section frame
+# globally — boosting past ~70° flips the blade on its side and yields
+# a midrib ridge with flat triangulated cheeks.
+SENESCENCE_WILT_BOOST = 1.5
 # Width/size collapse (Item 6, PLAN_GEOMETRY_FIDELITY_2026-04-22). At ρ=1 the
 # blade shrinks to the floor. Width shrink applied to cps_local x-axis
 # (lateral) and to the legacy widths array. Length shrink applied to cps_local
@@ -2336,8 +2340,7 @@ def extract_organs_for_lofter(plant, min_stem_nodes=50, min_leaf_nodes=20,
                     wilt_boost = 1.0 + SENESCENCE_WILT_BOOST * rho_senesce
                     freq_boost = 1.0 + SENESCENCE_FREQ_BOOST * rho_senesce
                     for _k in ('wave_normal_amp', 'wave_lateral_amp',
-                               'curl_amp', 'edge_ruffle_amp', 'fold_amp',
-                               'twist_max'):
+                               'curl_amp', 'edge_ruffle_amp', 'fold_amp'):
                         if _k in wave_params:
                             wave_params[_k] = wave_params[_k] * wilt_boost
                     # NURBS lofter reads these as cycles along the midrib —
@@ -2831,7 +2834,7 @@ def extract_organs_for_lofter(plant, min_stem_nodes=50, min_leaf_nodes=20,
             _boost = 1.0 + SENESCENCE_WILT_BOOST * rho_senesce
             _freq = 1.0 + SENESCENCE_FREQ_BOOST * rho_senesce
             for k in ('wave_normal_amp', 'wave_lateral_amp', 'curl_amp',
-                      'edge_ruffle_amp', 'fold_amp', 'twist_max'):
+                      'edge_ruffle_amp', 'fold_amp'):
                 if k in wave_params:
                     wave_params[k] *= _boost
             for k in ('wave_normal_freq', 'wave_lateral_freq', 'curl_freq',
