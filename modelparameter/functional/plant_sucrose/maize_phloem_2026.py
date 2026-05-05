@@ -126,10 +126,9 @@ r_SE_root_small = 4.5e-4   # 4.5 um  — lateral roots, narrower
 # Q1 FIX: The previous 83x stem/leaf kx ratio was biologically indefensible.
 # Two key corrections:
 #
-# STEM: Keep Babst et al. (2022) measured k (includes sieve plates), but
-#   reduce effective bundle count from 250 to 175 (not all are through-
-#   conducting; Huang et al. 2016).
-#   kz_stem = N_bundles * N_SE * k * pi * r_SE^2
+# STEM: Hagen-Poiseuille with Thompson sieve plate correction and the same
+#   effective bundle count from Q1 (175 through-conducting bundles).
+#   kz_stem = N_bundles * N_SE * (r^4 * pi / 8) * beta_stem
 #
 # LEAF: Switch from Babst k to Hagen-Poiseuille with sieve plate correction.
 #   Babst's leaf k=0.23 um^2 was measured across ALL veins including minor
@@ -142,7 +141,7 @@ r_SE_root_small = 4.5e-4   # 4.5 um  — lateral roots, narrower
 # Target ratio: ~10x (was 83x).  Physiologically sensible: stem serves as
 # shared conduit for 15-20 leaves (Jensen et al. 2012).
 
-k_stem_cm2 = 0.91e-8   # 0.91 um^2 -> cm^2, Babst et al. (2022) — includes sieve plates
+beta_stem = 0.9        # Thompson 2003a sieve plate correction
 beta_plate = 0.5        # Jensen et al. 2012; Thompson & Holbrook 2003 (range 0.3-0.5)
 beta_root = 0.7         # Jensen et al. (2012), angiosperm median
 
@@ -154,19 +153,14 @@ def _hp_kz(n_bundles, n_se, r_se, beta=None):
     return n_bundles * n_se * (r_se ** 4) * np.pi / 8 * beta
 
 
-def _babst_kz(n_bundles, n_se, k_cm2, r_se):
-    """Babst-derived kz for stem [cm^4].  k already includes plates."""
-    return n_bundles * n_se * k_cm2 * np.pi * r_se ** 2
-
-
 # --- Per-leaf kz (HP with plate correction, scaled by blade width) ---
 kz_per_leaf = {}
 for _st, _w in LEAF_WIDTHS.items():
     _n_bun = VascBundle_leaf_ref * (_w / REF_WIDTH)
     kz_per_leaf[_st] = _hp_kz(_n_bun, numSE_leaf, r_SE_leaf, beta=beta_plate)
 
-# --- Stem (Babst measured k, reduced bundle count) ---
-kz_stem = _babst_kz(VascBundle_stem, numSE_stem, k_stem_cm2, r_SE_stem)
+# --- Stem (HP with Thompson sieve plate correction) ---
+kz_stem = _hp_kz(VascBundle_stem, numSE_stem, r_SE_stem, beta=beta_stem)
 
 # --- Roots (Hagen-Poiseuille, no measured k) ---
 kz_taproot = _hp_kz(VascBundle_taproot, numSE_root_large, r_SE_root_large)
