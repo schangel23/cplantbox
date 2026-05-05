@@ -23,6 +23,7 @@ from dart.coupling.geometry import extract_organs_for_lofter, loft_organs
 from dart.coupling.geometry.cplantbox_adapter import (
     get_plantsim_feature_kwargs_from_env,
 )
+from dart.coupling.geometry.obj_dart_converter import convert_obj_to_dart
 from dart.coupling.growth.grow import grow_plant
 from dart.coupling.growth.phenology import (
     count_visible_leaves,
@@ -86,6 +87,13 @@ def grow_one(day: int) -> dict | None:
     # (blade, blade_senescent, midrib, stem, tassel) — Blender picks it up
     # automatically on OBJ import.
     mesh.to_obj(str(out_path), group_by_organ=True, write_materials=True)
+
+    # Sibling DART-ready OBJ: cm->m + X-forward->Y-up swizzle + zero-padded
+    # group names so simulation.py / baleno.py routing dispatchers correctly
+    # tag organ_00 (stem) with maize_stem optics. Same MTL is reused — the
+    # mtllib reference passes through unchanged.
+    dart_path = out_path.with_name(f"{out_path.stem}_dart.obj")
+    convert_obj_to_dart(out_path, dart_path)
 
     elapsed = time.time() - t0
     print(

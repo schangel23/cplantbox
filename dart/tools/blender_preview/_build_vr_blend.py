@@ -160,8 +160,13 @@ def main() -> int:
         print(f"ERROR: {OUT_DIR} not found — run _gen_vr_stages.py first")
         return 1
 
-    objs = sorted(OUT_DIR.glob("maize_day*.obj"),
-                  key=lambda p: parse_stem(p.stem))
+    # Skip the *_dart.obj siblings (DART coord swizzle + cm→m scaling already
+    # applied; Blender preview wants the raw cm/CPlantBox-coord OBJs).
+    objs = sorted(
+        (p for p in OUT_DIR.glob("maize_day*.obj")
+         if not p.stem.endswith("_dart")),
+        key=lambda p: parse_stem(p.stem),
+    )
     if not objs:
         print(f"ERROR: no OBJs in {OUT_DIR}")
         return 1
