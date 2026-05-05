@@ -58,9 +58,12 @@ def clear_scene() -> None:
 def import_and_join(obj_path: Path, name: str):
     """Import OBJ + MTL, join all parts into one object, return the joined obj.
 
-    OBJ comes in with stem base at world (0, 0, 0) — CPlantBox plants emerge
-    from z=0. We scale verts cm→m globally so the imported mesh is at meter
-    scale, then position via ``object.location`` later.
+    CPlantBox emits world-space vertex coords with the stem base at the XML's
+    ``seedPos`` (currently (200, 200, -3) cm in maize_calibrated.xml — non-zero
+    so DuMux-Rosi / AgroC voxel grids can centre on the plant). We scale verts
+    cm→m on import, then translate mesh data so stem-base xy sits at local
+    (0, 0) — that way ``object.location`` coincides with the stem base and the
+    row + label placement code stays simple.
     """
     bpy.ops.object.select_all(action="DESELECT")
     bpy.ops.wm.obj_import(filepath=str(obj_path), global_scale=CM_TO_M)
@@ -73,9 +76,19 @@ def import_and_join(obj_path: Path, name: str):
         bpy.ops.object.join()
     joined = bpy.context.active_object
     joined.name = name
-    # Mesh data already has stem base at local (0, 0, 0) since CPlantBox
-    # plants emerge from z=0 and OBJ vertex coords are world-space.
-    # ``object.location`` therefore coincides with the stem base.
+
+    # Re-centre mesh data: translate xy so the lowest-z vertex (stem base
+    # sits underground at seedPos.z) ends up at local (0, 0). Preserve z so
+    # the seed-depth offset is kept.
+    mesh = joined.data
+    if mesh.vertices:
+        min_v = min(mesh.vertices, key=lambda v: v.co.z)
+        dx, dy = min_v.co.x, min_v.co.y
+        if abs(dx) > 1e-6 or abs(dy) > 1e-6:
+            for v in mesh.vertices:
+                v.co.x -= dx
+                v.co.y -= dy
+            mesh.update()
     return joined
 
 
