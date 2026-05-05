@@ -561,7 +561,8 @@ def extract_root_dicts(plant, min_root_nodes=20):
 
 def run_photosynthesis(plant, sim_time, output_prefix,
                        par_umol=1000.0, tair_c=25.0, rh=0.7,
-                       soil_psi_cm=-500.0):
+                       soil_psi_cm=-500.0,
+                       soil_psi_provider=None):
     """Set up hydraulics + C4 photosynthesis and run a single solve.
 
     Uses:
@@ -610,7 +611,10 @@ def run_photosynthesis(plant, sim_time, output_prefix,
 
     # --- Soil water potential vector ---
     depth = 100  # must match setSoilGrid depth in grow_plant()
-    p_s = np.linspace(soil_psi_cm, soil_psi_cm - depth, depth)
+    if soil_psi_provider is None:
+        from ..hydraulics.soil_psi import FixedSoilPsi
+        soil_psi_provider = FixedSoilPsi(psi_cm=soil_psi_cm)
+    p_s = soil_psi_provider.get_profile(t_days=float(sim_time), depth_cm=depth)
 
     # --- Weather ---
     es = hm.get_es(tair_c)

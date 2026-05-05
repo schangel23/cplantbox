@@ -142,6 +142,7 @@ def run_iterative_coupling(
     max_iterations=6, gs_tolerance=0.05,
     damping_alpha=0.6,
     soil_psi_cm=-500.0,
+    soil_psi_provider=None,
     tair_c=25.0, rh=0.6,
     initial_tleaf=None,
 ):
@@ -222,6 +223,7 @@ def run_iterative_coupling(
             par=par_umol, tleaf=tleaf,
             label=f"iter_{iteration+1}",
             rh=rh, soil_psi_cm=soil_psi_cm,
+            soil_psi_provider=soil_psi_provider,
         )
         if result is None:
             print(f"  ERROR: photosynthesis solve failed at iteration {iteration+1}")
@@ -235,7 +237,8 @@ def run_iterative_coupling(
         #   gs_co2 = An / (Ca - Ci)  where Ci ~ 0.7*Ca for C4
         # But better: re-run with access to hm object.
         gs_tuzet = _extract_gs_from_solve(
-            plant, sim_time, par_umol, tleaf, rh, soil_psi_cm)
+            plant, sim_time, par_umol, tleaf, rh, soil_psi_cm,
+            soil_psi_provider=soil_psi_provider)
 
         if gs_tuzet is None:
             print(f"  ERROR: gs extraction failed at iteration {iteration+1}")
@@ -421,10 +424,14 @@ def run_iterative_coupling(
     }
 
 
-def _extract_gs_from_solve(plant, sim_time, par_umol, tleaf, rh, soil_psi_cm):
+def _extract_gs_from_solve(plant, sim_time, par_umol, tleaf, rh, soil_psi_cm,
+                           soil_psi_provider=None):
     """Run CPlantBox photosynthesis and extract per-segment gs (gco2).
 
     Returns array of gs [mol CO2/m²/s] per leaf segment, or None on failure.
+
+    soil_psi_provider takes precedence over soil_psi_cm; if None, falls back
+    to FixedSoilPsi(soil_psi_cm) (legacy linspace).
     """
     from plantbox.functional.phloem_flux import PhloemFluxPython
     from plantbox.functional.PlantHydraulicParameters import PlantHydraulicParameters
@@ -447,7 +454,10 @@ def _extract_gs_from_solve(plant, sim_time, par_umol, tleaf, rh, soil_psi_cm):
 
     # Soil water potential
     depth = 100
-    p_s = np.linspace(soil_psi_cm, soil_psi_cm - depth, depth)
+    if soil_psi_provider is None:
+        from ..hydraulics.soil_psi import FixedSoilPsi
+        soil_psi_provider = FixedSoilPsi(psi_cm=soil_psi_cm)
+    p_s = soil_psi_provider.get_profile(t_days=float(sim_time), depth_cm=depth)
 
     # Vapour pressure
     if np.isscalar(tleaf):
@@ -652,6 +662,7 @@ def run_iterative_coupling_multi(
     max_iterations=6, gs_tolerance=0.05,
     damping_alpha=0.6,
     soil_psi_cm=-500.0,
+    soil_psi_provider=None,
     tair_c=25.0, rh=0.6,
     initial_tleaf=None,
     with_sif=False,
@@ -803,6 +814,7 @@ def run_iterative_coupling_multi(
                 par=par_umol_per_plant[pi], tleaf=tleaf[pi],
                 label=f"iter_{iteration+1}_p{pi}",
                 rh=rh, soil_psi_cm=soil_psi_cm,
+                soil_psi_provider=soil_psi_provider,
             )
             if result is None:
                 print(f"  Plant {pi}: photosynthesis solve FAILED")
@@ -813,7 +825,8 @@ def run_iterative_coupling_multi(
 
             gs = _extract_gs_from_solve(
                 plants[pi], sim_time, par_umol_per_plant[pi],
-                tleaf[pi], rh, soil_psi_cm)
+                tleaf[pi], rh, soil_psi_cm,
+                soil_psi_provider=soil_psi_provider)
             if gs is None:
                 gs = np.zeros(n_leaf_segs[pi])
             all_gs_tuzet.append(gs)

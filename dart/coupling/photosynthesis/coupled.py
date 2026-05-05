@@ -177,7 +177,8 @@ def build_tleaf_array(csv_data):
 # Steps 5/6: Run photosynthesis solve
 # ============================================================================
 def run_photosynthesis_solve(plant, sim_time, par, tleaf, label,
-                             rh=0.7, soil_psi_cm=-500.0):
+                             rh=0.7, soil_psi_cm=-500.0,
+                             soil_psi_provider=None):
     """Setup hydraulics + FvCB photosynthesis and run hm.solve().
 
     Args:
@@ -187,7 +188,10 @@ def run_photosynthesis_solve(plant, sim_time, par, tleaf, label,
         tleaf: scalar or array of leaf temperature [°C].
         label: string label for logging.
         rh: relative humidity [0–1].
-        soil_psi_cm: uniform soil water potential [cm].
+        soil_psi_cm: uniform soil water potential [cm]; ignored when
+            soil_psi_provider is given.
+        soil_psi_provider: optional SoilPsiProvider; if None, falls back to
+            FixedSoilPsi(soil_psi_cm) (legacy linspace behaviour).
 
     Returns dict with An_leaf, An_per_umol, An_total_mmol, transp_mmol.
     """
@@ -223,7 +227,10 @@ def run_photosynthesis_solve(plant, sim_time, par, tleaf, label,
 
     # --- Soil water potential ---
     depth = 100
-    p_s = np.linspace(soil_psi_cm, soil_psi_cm - depth, depth)
+    if soil_psi_provider is None:
+        from ..hydraulics.soil_psi import FixedSoilPsi
+        soil_psi_provider = FixedSoilPsi(psi_cm=soil_psi_cm)
+    p_s = soil_psi_provider.get_profile(t_days=float(sim_time), depth_cm=depth)
 
     # --- Vapour pressure ---
     if np.isscalar(tleaf):

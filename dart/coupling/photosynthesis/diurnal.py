@@ -249,7 +249,8 @@ def run_single_day(sim_day, use_dart=True, timestep_min=30,
                    skip_photosynthesis=False, iterate_gs=False,
                    gs_max_iterations=6, gs_tolerance=0.05,
                    gs_damping_alpha=0.6, with_sif=False,
-                   with_dart_f=False, sif_triangles=False):
+                   with_dart_f=False, sif_triangles=False,
+                   soil_psi_provider=None):
     """Run full diurnal coupling for a single day with 9 unique plants.
 
     Args:
@@ -610,6 +611,7 @@ def run_single_day(sim_day, use_dart=True, timestep_min=30,
                     gs_tolerance=gs_tolerance,
                     damping_alpha=gs_damping_alpha,
                     soil_psi_cm=-500.0,
+                    soil_psi_provider=soil_psi_provider,
                     tair_c=T_air_C, rh=rh,
                     initial_tleaf=all_tleaf,
                     with_sif=with_sif,
@@ -634,6 +636,7 @@ def run_single_day(sim_day, use_dart=True, timestep_min=30,
                         par=all_par_umol[pi], tleaf=all_tleaf[pi],
                         label=ps_label,
                         rh=rh, soil_psi_cm=-500.0,
+                        soil_psi_provider=soil_psi_provider,
                     )
                     if result is not None:
                         per_plant_An[pi] = result['An_total_mmol']
@@ -981,7 +984,8 @@ def run_single_day_with_carbon(sim_day, use_dart=True, timestep_min=30,
                                carbon_method='auto', warm_start=None,
                                gdd_accumulated=None,
                                with_sif=False, with_dart_f=False,
-                               sif_triangles=False):
+                               sif_triangles=False,
+                               soil_psi_provider=None):
     """Run diurnal loop + per-plant carbon partitioning and AgroC export.
 
     Wraps run_single_day() and appends:
@@ -1021,6 +1025,7 @@ def run_single_day_with_carbon(sim_day, use_dart=True, timestep_min=30,
         gs_damping_alpha=gs_damping_alpha,
         with_sif=with_sif, with_dart_f=with_dart_f,
         sif_triangles=sif_triangles,
+        soil_psi_provider=soil_psi_provider,
     )
 
     daily_An_per_plant = result.get('daily_An_mol_per_plant', [])
@@ -1239,7 +1244,8 @@ def run_production_series(growth_days, use_dart=True, timestep_min=60,
                           gs_damping_alpha=0.6, carbon_method='auto',
                           run_agroc_fortran=False, resume=False,
                           with_sif=False, with_dart_f=False,
-                          sif_triangles=False):
+                          sif_triangles=False,
+                          soil_psi_provider=None):
     """Run full production diurnal campaign with carbon + AgroC.
 
     Calls run_single_day_with_carbon() per day, supports checkpointing/resume
@@ -1348,6 +1354,7 @@ def run_production_series(growth_days, use_dart=True, timestep_min=60,
             gdd_accumulated=gdd_accumulated,
             with_sif=with_sif, with_dart_f=with_dart_f,
             sif_triangles=sif_triangles,
+            soil_psi_provider=soil_psi_provider,
         )
         series_results[day] = result
 
@@ -1548,7 +1555,8 @@ def run_production_series_carbon(growth_days, timestep_min=60,
                                   carbon_method='auto',
                                   run_agroc_fortran=False, resume=False,
                                   with_sif=False, with_dart_f=False,
-                                  sif_triangles=False):
+                                  sif_triangles=False,
+                                  soil_psi_provider=None):
     """Production series with carbon-feedback growth.
 
     Flow:
@@ -1902,6 +1910,7 @@ def run_production_series_carbon(growth_days, timestep_min=60,
                         gs_tolerance=gs_tolerance,
                         damping_alpha=gs_damping_alpha,
                         soil_psi_cm=-500.0,
+                        soil_psi_provider=soil_psi_provider,
                         tair_c=T_air_C, rh=rh,
                         initial_tleaf=None,
                         with_sif=with_sif,
@@ -2047,6 +2056,7 @@ def run_production_series_carbon(growth_days, timestep_min=60,
                         par=all_par_umol[pi], tleaf=tleaf_pi,
                         label=f"carbon_ts_{ts_label}_p{pi}",
                         rh=rh, soil_psi_cm=-500.0,
+                        soil_psi_provider=soil_psi_provider,
                     )
                     if result is not None:
                         per_plant_An_ts[pi] = result['An_total_mmol']
@@ -2477,6 +2487,18 @@ Examples:
                         help='Run DART fluorescence RT for TOC SIF radiance '
                              '(requires --with-sif)')
 
+    # Soil-water provider (Phase 2 of DuMux integration)
+    parser.add_argument('--soil-mode', type=str, default='fixed',
+                        choices=['fixed', 'bucket', 'dumux'],
+                        help="Soil water provider: 'fixed' (legacy uniform "
+                             "psi, default — bit-identical with prior runs), "
+                             "'bucket' (lumped exponential drying fallback), "
+                             "'dumux' (1D Richards via rosi_richards.so)")
+    parser.add_argument('--soil-psi-cm', type=float, default=-500.0,
+                        help='Initial soil pressure head [cm] (default -500). '
+                             'Used as initial condition by all soil-mode '
+                             'providers')
+
     # Site and FLUXNET forcing
     parser.add_argument('--site', type=str, default=None,
                         help='Site name (e.g. us-ne1). Overrides location/sowing defaults.')
@@ -2518,6 +2540,13 @@ Examples:
 
     enable_baleno = not args.no_baleno
 
+    # Build soil-ψ provider once and thread through all invocation paths.
+    # 'fixed' is bit-identical with the legacy hardcoded -500 cm path.
+    from ..hydraulics.soil_psi import make_provider
+    soil_psi_provider = make_provider(args.soil_mode,
+                                      soil_psi_cm=args.soil_psi_cm)
+    print(f"  soil_mode={args.soil_mode}  psi_init={args.soil_psi_cm} cm")
+
     if args.uniform:
         # Uniform baseline: skip DART/Baleno, use clearsky PAR + Tair
         if args.days is not None:
@@ -2525,6 +2554,7 @@ Examples:
                 args.days, use_dart=False,
                 timestep_min=args.timestep_min,
                 met_csv=args.met_csv,
+                soil_psi_provider=soil_psi_provider,
             )
         else:
             growth_days = [int(d.strip()) for d in args.growth_days.split(',')]
@@ -2537,6 +2567,7 @@ Examples:
                     resume=args.resume,
                     with_sif=args.with_sif, with_dart_f=args.with_dart_f,
                     sif_triangles=args.sif_triangles,
+                    soil_psi_provider=soil_psi_provider,
                 )
             else:
                 raise ValueError(
@@ -2555,6 +2586,7 @@ Examples:
             gs_damping_alpha=args.gs_damping,
             with_sif=args.with_sif, with_dart_f=args.with_dart_f,
             sif_triangles=args.sif_triangles,
+            soil_psi_provider=soil_psi_provider,
         )
     else:
         # Mode B: growth series
@@ -2574,6 +2606,7 @@ Examples:
                 resume=args.resume,
                 with_sif=args.with_sif, with_dart_f=args.with_dart_f,
                 sif_triangles=args.sif_triangles,
+                soil_psi_provider=soil_psi_provider,
             )
         elif args.with_carbon:
             # Production mode: full carbon + AgroC pipeline (parametric growth)
@@ -2590,6 +2623,7 @@ Examples:
                 resume=args.resume,
                 with_sif=args.with_sif, with_dart_f=args.with_dart_f,
                 sif_triangles=args.sif_triangles,
+                soil_psi_provider=soil_psi_provider,
             )
         else:
             raise ValueError(
