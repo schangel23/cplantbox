@@ -14,6 +14,51 @@ review (see Maize phloem transport model parameterization and validation.md):
   Q6: kr_st stem 0.0 -> 0.015 (transport phloem leakage-retrieval)
   +   C_targ 0.4 -> 0.8 (maize phloem 844-1400 mM, Ohshima 1990)
 
+v3 (2026-05-05): Stem kx_st bug fix + V3 Babst 2022 falsification diagnostic.
+  Audit chain (six PiafMunch sweeps + two anatomy audits, scripts in
+  dart/coupling/scripts/pm_*) ran end-to-end against the Babst 2022 V3 maize
+  measurement suite (T_chamber=20.75 C, DLI=30 mol/m2/d, 14:10 PP). Falsified
+  five wrong hypotheses (385 mmol/d Q_Rmmax was a cumulative-integral misread;
+  Krm1/Rho_s/StructSucrose unit chain clean; CSTimin lowering breaks V3 + wheat-55;
+  Vmaxloading sweep saturates; Across_st audit clean) before isolating one bug:
+
+  R1: Stem kx_st underspecified by 4.83x. The Babst k=0.91 um2 stem path bypassed
+      the (N_bundles x numSE) anatomical multiplier that the file header
+      documents (lines 99-110). Fix: apply full Hagen-Poiseuille per-SE x N_anatomy
+      to stem only. Leaf left untouched (Babst's leaf k=0.23 um2 already
+      averages across minor non-conducting veins; matches HP literal within 2x).
+      JSON kx_st_stem: 5.86e-12 -> 2.83e-11 cm3 hPa-1 day-1.
+
+  V3 outcome at corrected baseline (Vmaxloading=0.20 mmol cm-1 d-1 runtime override,
+  CSTimin=0.20 unchanged, kx_st_stem corrected): 2/3 PASS vs Babst Table A1.
+    [PASS] dP source-sink:   0.58 MPa (Babst 1.39 +/- 0.44, 2 sigma window)
+    [PASS] C_ST_source:      0.45 mmol/cm3 (Babst 0.285 +/- 0.090, 2 sigma window)
+    [FAIL] v sap basal:      0.14 m/hr (Babst 0.95 +/- 0.20, 2 sigma window)
+
+  GATE checks all clean: wheat day-7.3 Lacointe regression ret=1, no C_ST blow-up;
+  maize day-55 24h transient ret=1, Q_Rmmax=16 mmol/d stable, no regression.
+
+  v shortfall is a methodological mismatch, not a parameter bug:
+    - PiafMunch v probe = JW_ST / total_anatomical_Across_st at basal mainstem.
+    - Babst v measurement = 11C tracer travel time / detector spacing at leaf
+      base, sensitive only to actively-flowing SE at that moment.
+    - Even with correct physics, the two probes report different observables:
+      Jensen 2012 (line 41-43 below) gives effective transport area as 0.3-0.5x
+      of anatomical sum; correcting for it symmetrically (both JW_ST and
+      Across_st) cancels in v = JW_ST/Across_st. No clean single-knob fix exists.
+    - Across_st audit confirmed clean (all ratios = 1.000 vs HP literal); v is
+      structurally insensitive to all physiological parameters tested.
+    - For absolute v matching: requires probe-method matching in PiafMunch output
+      instrumentation (simulated tracer dispersion at leaf base), not parameter
+      tuning. Deferred to Ch2 if needed; Ch1 transient-diagnostic use cases are
+      insensitive to absolute v.
+
+  Plant-size sanity check (V21d under Babst chamber proxy):
+    mainstem 11 cm, 3 collared leaves, 8426 nodes, 548 root organs, 1690 cm root.
+    Smaller than Babst V3 reference (30-50 cm, 4-6 leaves) -- L-mismatch is NOT
+    the v shortfall explanation. Anomalous root:shoot ratio 150:1 flagged for
+    separate investigation (likely XML calibration drift at young stages).
+
 Key sources:
   Babst et al. (2022) Nature Plants 8:171-180
     — Sieve tube specific conductivity: k = 0.23 um2 (leaf), 0.91 um2 (stem)
