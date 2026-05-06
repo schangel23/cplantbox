@@ -144,6 +144,7 @@ class DumuxSoilPsi:
         vg_params: Tuple[float, float, float, float, float] = _LOAM_VG,
         top_bc: Tuple[int, float] = (BC_CONSTANT_FLUX, 0.0),
         bot_bc: Tuple[int, float] = (BC_FREE_DRAINAGE, 0.0),
+        col_half_width_cm: float = 5.0,
         dumux_binding_path: Path = _DEFAULT_DUMUX_BIND,
         verbose: bool = False,
     ):
@@ -174,16 +175,31 @@ class DumuxSoilPsi:
         s.setParameter("Soil.BC.Bot.Type", str(int(bot_bc[0])))
         s.setParameter("Soil.BC.Bot.Value", str(float(bot_bc[1])))
 
-        s.createGrid([-5.0, -5.0, -self.depth_cm], [5.0, 5.0, 0.0],
-                     [1, 1, self.n_cells_z], False)
+        # DuMux uses SI units internally — coordinates in metres. The
+        # richards.py Python wrapper converts cm → m via /100 (richards.py:80
+        # and 92); we bypass the wrapper, so do the conversion here. Pressure
+        # heads, however, remain in cm throughout (Soil.IC.P, Soil.BC.*.Value,
+        # getSolutionHead all cm; richardsproblem.hh:395 converts internal Pa
+        # → cm head via toHead_). Volumes therefore are also in m³, which is
+        # what scv.volume() returns at richardsproblem.hh:391 to convert
+        # source_ [kg/s per element] → [kg/(m³·s)].
+        w = float(col_half_width_cm)
+        s.createGrid(
+            [-w / 100.0, -w / 100.0, -self.depth_cm / 100.0],
+            [w / 100.0, w / 100.0, 0.0],
+            [1, 1, self.n_cells_z], False,
+        )
+        self.col_half_width_cm = w
         s.initializeProblem(-1.0)
 
         self._s = s
 
         coords = np.asarray(s.getDofCoordinates(), dtype=float)
-        self._z_cm = coords[:, 2]
+        # getDofCoordinates returns metres (DuMux SI). Multiply by 100 if
+        # callers want cm; here we only need ordering so units cancel.
+        self._z_m = coords[:, 2]
         # Sort top→bottom: top of column (z = 0) is element 0, bottom (z = -depth) is last.
-        self._order_top_first = np.argsort(self._z_cm)[::-1]
+        self._order_top_first = np.argsort(self._z_m)[::-1]
 
         self._t_last_days = 0.0
         self._pending_sink: Optional[dict] = None
@@ -215,8 +231,16 @@ class DumuxSoilPsi:
             )
         sink_in_solver_order = np.empty_like(sink)
         sink_in_solver_order[self._order_top_first] = sink
+        # Sink is delivered in cm³/d (CPlantBox convention). The C++
+        # RichardsSP::setSource expects kg/s (richardsproblem.hh:479). The
+        # Python wrapper richards.py:setSource performs this conversion
+        # (value / 86400 / 1000), but the cpbenv wrapper layer is broken
+        # so we call the raw C++ binding — replicate the conversion here.
+        # 1 cm³ water = 1 g = 1e-3 kg; 1 day = 86400 s.
+        cm3_per_day_to_kg_per_s = 1.0 / 86400.0 / 1000.0
         self._pending_sink = {
-            i: float(v) for i, v in enumerate(sink_in_solver_order) if v != 0.0
+            i: float(v) * cm3_per_day_to_kg_per_s
+            for i, v in enumerate(sink_in_solver_order) if v != 0.0
         }
 
 
