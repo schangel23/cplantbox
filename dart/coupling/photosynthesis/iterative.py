@@ -481,6 +481,14 @@ def _extract_gs_from_solve(plant, sim_time, par_umol, tleaf, rh, soil_psi_cm,
         print(f"  gs extraction solve error: {e}")
         return None
 
+    # Close the soil↔plant water loop. This solve fires once per Tuzet
+    # iteration; DumuxSoilPsi.update overwrites the queued sink each call,
+    # so the sink advanced into DuMux on next get_profile is the converged
+    # one, not an intermediate. No-op for static providers.
+    from ..hydraulics.soil_psi import push_rwu_sink_to_provider
+    push_rwu_sink_to_provider(hm, sim_time, p_s, soil_psi_provider,
+                              depth_cm=depth, verbose=False)
+
     # Extract gs (gco2) from the solved hydraulic model
     try:
         gco2 = np.array(hm.gco2)

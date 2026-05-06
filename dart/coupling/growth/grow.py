@@ -639,6 +639,13 @@ def run_photosynthesis(plant, sim_time, output_prefix,
         print(f"  ERROR in hm.solve(): {e}")
         return None
 
+    # Close the soil↔plant water loop: aggregate per-segment radial fluxes
+    # into a per-cell sink and feed it back to the provider. No-op for
+    # FixedSoilPsi/BucketSoilPsi.
+    from ..hydraulics.soil_psi import push_rwu_sink_to_provider
+    push_rwu_sink_to_provider(hm, sim_time, p_s, soil_psi_provider,
+                              depth_cm=depth, verbose=False)
+
     # --- Results ---
     # NB: get_net_assimilation() returns per-leaf-segment (size = n_leaf_segs),
     # NOT per-all-segments.  Indexed 0..n_leaf-1, matching seg_leaves_idx order.

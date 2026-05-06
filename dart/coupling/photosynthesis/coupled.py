@@ -283,6 +283,13 @@ def run_photosynthesis_solve(plant, sim_time, par, tleaf, label,
         print(f"  ERROR in hm.solve(): {e}")
         return None
 
+    # Close the soil↔plant water loop: aggregate per-segment radial fluxes
+    # into a per-cell sink and feed it back to the provider. No-op for
+    # FixedSoilPsi/BucketSoilPsi, so legacy --soil-mode fixed is bit-identical.
+    from ..hydraulics.soil_psi import push_rwu_sink_to_provider
+    push_rwu_sink_to_provider(hm, sim_time, p_s, soil_psi_provider,
+                              depth_cm=depth, verbose=False)
+
     # --- Extract results ---
     An_leaf = np.array(hm.get_net_assimilation())         # mol CO2/d per segment
     An_per = np.array(hm.get_net_assimilation_perleafBladeArea())  # mol CO2/cm²/d

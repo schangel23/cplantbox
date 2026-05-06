@@ -41,8 +41,17 @@ class SoilPsiProvider(Protocol):
     def update(self, t_days: float, sink_per_cell: np.ndarray) -> None:
         """Register plant water-uptake (sink) for the next solver step.
 
-        ``sink_per_cell`` is in cm³/d per cell, sign convention "positive
-        out of soil into roots" (i.e. uptake).  Static providers no-op.
+        ``sink_per_cell`` is in cm³/d per cell, **negative = water leaving
+        soil into roots** — same sign convention as
+        ``RichardsSP.setSource()`` and as the dumux-rosi benchmark
+        ``coupled_c11.py``: ``sum(sink_per_cell) ≈ -transpiration``.
+
+        Element 0 = top of column (z ∈ (-1, 0]), element [-1] = bottom,
+        matching the ``_picker`` convention in
+        ``dart.coupling.growth.grow._picker`` and
+        ``FixedSoilPsi.get_profile``.
+
+        Static providers no-op.
         """
         ...
 
@@ -225,3 +234,70 @@ def make_provider(
     if mode == "dumux":
         return DumuxSoilPsi(psi_init_cm=soil_psi_cm, **kwargs)
     raise ValueError(f"Unknown soil_mode={mode!r}; use fixed/bucket/dumux")
+
+
+def push_rwu_sink_to_provider(
+    hm,
+    sim_time: float,
+    p_s: np.ndarray,
+    provider: SoilPsiProvider,
+    depth_cm: int = 100,
+    verbose: bool = False,
+) -> dict:
+    """Aggregate per-segment radial fluxes after ``hm.solve(...)`` and
+    push them to the soil provider as a per-cell sink.
+
+    Closes the soil↔plant water loop. Mirrors the canonical pattern in
+    ``dumux-rosi/python/coupled/coupled_c11.py:81-103``: read xylem
+    pressures, call ``hm.soil_fluxes`` for the seg→cell aggregation,
+    feed the resulting ``{cell_idx: cm³/d}`` dict (negative = uptake)
+    to the provider's ``update``.
+
+    Static providers (``FixedSoilPsi``, ``BucketSoilPsi``) ignore sinks,
+    so the aggregation is skipped for them — both for performance and
+    to keep ``--soil-mode fixed`` runs bit-identical with pre-RWU code.
+
+    Returns the raw fluxes dict for diagnostics (empty dict for static
+    providers).
+    """
+    if isinstance(provider, (FixedSoilPsi, BucketSoilPsi)):
+        return {}
+
+    # PhotosynthesisPython overrides radial_fluxes() to a no-arg accessor for
+    # the cached self.outputFlux (per-segment cm³/d, including leaf
+    # transpiration). The parent HydraulicModel.soil_fluxes(t, rx, rsx)
+    # breaks against that override. Detect the case and aggregate manually:
+    # only root segments (organType == 2) with cellIdx >= 0 contribute to
+    # the soil sink; the C++ sumSegFluxes guards against non-root segments
+    # spuriously mapped into a soil cell (e.g. a basal stem at z ≈ 0), so
+    # we mirror that filter in Python.
+    try:
+        rx = np.asarray(hm.get_water_potential(), dtype=float)
+        fluxes = hm.soil_fluxes(float(sim_time), rx, p_s)  # {cell_idx: cm³/d}
+    except TypeError:
+        fluxes_per_seg = np.asarray(hm.radial_fluxes(), dtype=float)
+        organ_types = np.asarray(hm.ms.organTypes, dtype=int)
+        seg2cell = hm.ms.seg2cell
+        fluxes = {}
+        for seg_idx, cell_idx in seg2cell.items():
+            if cell_idx < 0 or int(organ_types[seg_idx]) != 2:
+                continue
+            fluxes[cell_idx] = fluxes.get(cell_idx, 0.0) + float(fluxes_per_seg[seg_idx])
+
+    if verbose:
+        sum_flux = sum(fluxes.values())
+        try:
+            transp = float(np.sum(hm.get_transpiration()))  # cm³/d
+            off_pct = 100.0 * abs(sum_flux + transp) / max(abs(transp), 1e-12)
+            print(f"  RWU sink: ∑fluxes={sum_flux:.4g}, "
+                  f"-transp={-transp:.4g} cm³/d, off={off_pct:.2f}%")
+        except Exception:
+            print(f"  RWU sink: ∑fluxes={sum_flux:.4g} cm³/d "
+                  f"(transp readback failed)")
+
+    sink = np.zeros(depth_cm, dtype=float)
+    for cell_idx, f in fluxes.items():
+        if 0 <= cell_idx < depth_cm:
+            sink[cell_idx] += float(f)
+    provider.update(float(sim_time), sink)
+    return fluxes
