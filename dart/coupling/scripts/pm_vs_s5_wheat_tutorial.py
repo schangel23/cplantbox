@@ -300,7 +300,7 @@ def run_piafmunch(plant, an_leaf, sx, weather_init):
     hm = PhloemFluxPython(plant, params, psiXylInit=min(sx), ciInit=weather_init["cs"] * 0.5)
     hm = configure_tutorial_phloem(hm, weather_init)
     _ = solve_tutorial_photosynthesis(hm, SIM_INIT, sx, weather_init)
-    hm.useCWGr = False
+    hm.useCWGr = True
     hm.solver = 32
 
     dt_days = 1.0 / 24.0
