@@ -148,6 +148,7 @@
         <parameter name="a" value="0.20000000000000001" dev="0.02"/>
         <parameter name="basal_internode_cm" value="1"/>
         <parameter name="collar_frac_of_dlin" value="1"/>
+        <parameter name="cultivar_height_factor" value="1.34" dev="0.092"/>
         <parameter name="delayNGEnd" value="0"/>
         <parameter name="delayNGStart" value="0"/>
         <parameter name="dx" value="0.10000000000000001"/>
