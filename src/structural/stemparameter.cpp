@@ -374,6 +374,19 @@ default:
     sp->internode_v_n = this->internode_v_n;
     sp->internode_D_n = this->internode_D_n;
     sp->internode_IL_final = this->internode_IL_final;
+
+    // Genotypic FA-asymptote scale factor H (PLAN_CULTIVAR_HEIGHT_FACTOR_2026-05-07
+    // §S1). Gate the randn() pull on cultivar_height_factor_s > 0 so the RNG
+    // state is bit-identical to pre-S1 HEAD when an XML omits the field
+    // (D3 / D.0 6-XML invariance). With default _s=0.0 we skip randn()
+    // entirely and write H=cultivar_height_factor literally. The 0.1 floor
+    // prevents pathologically small / negative draws under wide _s.
+    double H_draw = this->cultivar_height_factor;
+    if (this->cultivar_height_factor_s > 0.0) {
+        H_draw = std::max(0.1, this->cultivar_height_factor
+                               + p->randn() * this->cultivar_height_factor_s);
+    }
+    sp->cultivar_height_factor = H_draw;
     return sp;
 }
 
@@ -446,6 +459,9 @@ void StemRandomParameter::bindParameters()
     bindParameter("il_at_end_phase_II_cm", &il_at_end_phase_II_cm, "FA IL at end of Phase II [cm] (FA 2000 line 223 default 4.5)");
     bindParameter("half_plastochron_lag_degCd", &half_plastochron_lag_degCd, "FA lag between leaf primordium and internode init [degCd] (FA 2000 line 207 default 9.6)");
     bindParameter("collar_frac_of_dlin", &collar_frac_of_dlin, "FA α in collar_TT = T0 + lag_exp + α·D_lin (FA 2005 / AHB 2006 literal default 1.0)");
+    bindParameter("cultivar_height_factor", &cultivar_height_factor,
+                  "Genotypic FA Phase III/IV asymptote scale (default 1.0); active only with use_fournier_andrieu_kinetics=1",
+                  &cultivar_height_factor_s);
 }
 
 /**

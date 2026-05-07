@@ -42,6 +42,14 @@ public:
     std::vector<double> internode_D_n;       ///< per-rank Phase III duration [degCd], empty unless flag is true
     std::vector<double> internode_IL_final;  ///< per-rank Phase IV asymptote [cm], empty unless flag is true (indexed 1-based by rank)
 
+    /* Genotypic height factor — single output multiplier on FA Phase III/IV
+     * targets (PLAN_CULTIVAR_HEIGHT_FACTOR_2026-05-07 §S1). Default 1.0 →
+     * `MultiPhaseStemGrowth::calcLengthPerPhytomer` returns its FA target
+     * unchanged (Hard Invariant #5 preserved for every existing XML).
+     * Drawn from `StemRandomParameter::cultivar_height_factor` ± `_s` in
+     * realize(); only the realised draw on this struct is read at runtime. */
+    double cultivar_height_factor = 1.0;
+
     /*
      * Stem parameters per single stem
      */
@@ -162,6 +170,18 @@ public:
     std::vector<double> internode_v_n;                 ///< per-rank Phase III rate [cm/degCd] (FA 2000 Fig 12A); empty→disabled
     std::vector<double> internode_D_n;                 ///< per-rank Phase III duration [degCd] (FA 2000 Fig 12B); empty→disabled
     std::vector<double> internode_IL_final;            ///< per-rank Phase IV asymptote [cm] (FA 2000 Fig 13 / MF3D); empty→disabled
+
+    /* Genotypic FA-asymptote scale factor H (PLAN_CULTIVAR_HEIGHT_FACTOR_2026-05-07
+     * §D1, §D2). Single output multiplier applied at the end of
+     * MultiPhaseStemGrowth::calcLengthPerPhytomer (`return target * H`).
+     * Default 1.0 makes the multiplier a literal no-op for every existing
+     * XML (Hard Invariant #5 / D.0 6-XML invariance). Active only when the
+     * stem is wrapped by MultiPhaseStemGrowth — under FA-off the field is
+     * read but never multiplied with anything. cultivar_height_factor_s is
+     * the per-plant std-dev for genotypic variation (drawn once in realize()
+     * via randn()*_s, floored at 0.1 to prevent pathological negative draws). */
+    double cultivar_height_factor = 1.0;               ///< genotypic FA Phase III/IV asymptote scale (default 1.0 = no-op)
+    double cultivar_height_factor_s = 0.0;             ///< std-dev for plant-to-plant H variation
 
     /* S3b.7 — Plastochron-driven rank initiation (plan §E.b).
      * Under use_fournier_andrieu_kinetics=true the scalar branching-zone burst
