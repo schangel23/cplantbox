@@ -1,0 +1,63 @@
+{
+  "config": {
+    "Vmaxloading": 0.2,
+    "beta_loading": 2.0,
+    "n_substeps": 12,
+    "age": 21
+  },
+  "babst_v_window": [
+    0.55,
+    1.35
+  ],
+  "jensen_factor": 0.4,
+  "groups": [
+    {
+      "label": "leaf source (active loader)",
+      "n_segs": 753,
+      "v_h_med": 99.73520614186519,
+      "v_h_jensen": 249.33801535466296,
+      "v_d_med": 4.155633589244383,
+      "v_d_jensen": 10.389083973110957,
+      "pass_h_anat": false,
+      "pass_h_jensen": false,
+      "pass_d_anat": false,
+      "pass_d_jensen": false
+    },
+    {
+      "label": "leaf petiole (z-bottom 10%)",
+      "n_segs": 100,
+      "v_h_med": 141.64377861339858,
+      "v_h_jensen": 354.10944653349645,
+      "v_d_med": 5.901824108891608,
+      "v_d_jensen": 14.75456027222902,
+      "pass_h_anat": false,
+      "pass_h_jensen": false,
+      "pass_d_anat": false,
+      "pass_d_jensen": false
+    },
+    {
+      "label": "stem mid",
+      "n_segs": 6,
+      "v_h_med": 40.27630178399768,
+      "v_h_jensen": 100.6907544599942,
+      "v_d_med": 1.6781792409999032,
+      "v_d_jensen": 4.195448102499758,
+      "pass_h_anat": false,
+      "pass_h_jensen": false,
+      "pass_d_anat": false,
+      "pass_d_jensen": false
+    },
+    {
+      "label": "stem basal (legacy probe)",
+      "n_segs": 6,
+      "v_h_med": 1.2998668977100634,
+      "v_h_jensen": 3.2496672442751584,
+      "v_d_med": 0.05416112073791931,
+      "v_d_jensen": 0.13540280184479828,
+      "pass_h_anat": true,
+      "pass_h_jensen": false,
+      "pass_d_anat": false,
+      "pass_d_jensen": false
+    }
+  ]
+}
