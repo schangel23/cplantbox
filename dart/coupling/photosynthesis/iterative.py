@@ -453,11 +453,11 @@ def _extract_gs_from_solve(plant, sim_time, par_umol, tleaf, rh, soil_psi_cm,
         hm.Chl = [get_chl_for_photosynthesis(sim_time)]
 
     # Soil water potential
-    depth = 100
     if soil_psi_provider is None:
         from ..hydraulics.soil_psi import FixedSoilPsi
         soil_psi_provider = FixedSoilPsi(psi_cm=soil_psi_cm)
-    p_s = soil_psi_provider.get_profile(t_days=float(sim_time), depth_cm=depth)
+    n_cells = int(soil_psi_provider.n_cells_total)
+    p_s = soil_psi_provider.get_profile(t_days=float(sim_time), depth_cm=n_cells)
 
     # Vapour pressure
     if np.isscalar(tleaf):
@@ -487,7 +487,7 @@ def _extract_gs_from_solve(plant, sim_time, par_umol, tleaf, rh, soil_psi_cm,
     # one, not an intermediate. No-op for static providers.
     from ..hydraulics.soil_psi import push_rwu_sink_to_provider
     push_rwu_sink_to_provider(hm, sim_time, p_s, soil_psi_provider,
-                              depth_cm=depth, verbose=False)
+                              n_cells=n_cells, verbose=False)
 
     # Extract gs (gco2) from the solved hydraulic model
     try:

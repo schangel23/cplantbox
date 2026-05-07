@@ -330,7 +330,10 @@ def setup_successor_where(plant):
 
 
 def init_plant(xml_path=None, seed=None, enable_photosynthesis=True,
-               cp_donor_seed=None, cp_donor_mode="draw_coherent"):
+               cp_donor_seed=None, cp_donor_mode="draw_coherent",
+               soil_min_b=(-50.0, -50.0, -150.0),
+               soil_max_b=(50.0, 50.0, 0.0),
+               soil_cell_number=(1, 1, 150)):
     """Create and initialize a plant without growing. For carbon-limited mode.
 
     Same setup as grow_plant() but stops after initialize().
@@ -347,6 +350,14 @@ def init_plant(xml_path=None, seed=None, enable_photosynthesis=True,
         cp_donor_mode: Reducer for the donor draw. ``"draw_coherent"`` (default)
             picks a single MF3D plant covering all positions; ``"draw"`` draws
             independently per position; ``"median"`` uses the pool median.
+        soil_min_b, soil_max_b, soil_cell_number: 3D rectangular grid for the
+            soil seg→cell mapping (cm, cm, ints). Defaults to a 1×1×100
+            vertical column with **±50 cm lateral OOD bounds** (Phase 3.5):
+            cellidx only depends on z when ``cell_number_xy = 1``, so the
+            lateral box just controls which roots are eligible for RWU.
+            ±50 cm captures a single maize plant's root spread; the legacy
+            ``_picker`` was lateral-blind, and ±5 cm cropped most roots out.
+            Pass ``(8, 8, 25)`` etc. to opt into true 3D heterogeneity.
 
     Returns:
         pb.MappedPlant at day 0, initialized and ready for simulate().
@@ -365,13 +376,34 @@ def init_plant(xml_path=None, seed=None, enable_photosynthesis=True,
                         verbose=False)
 
     if enable_photosynthesis:
-        depth = 100
+        depth = float(soil_max_b[2] - soil_min_b[2])
         soil_domain = pb.SDF_PlantContainer(np.inf, np.inf, depth, True)
         plant.setGeometry(soil_domain)
 
-        def _picker(_x, _y, z):
-            return max(min(int(np.floor(-z)), depth - 1), -1)
-        plant.setSoilGrid(_picker)
+        # Shift the soil grid so it's centered on the plant's XY seed
+        # position. Maize calibrated XML places seedPos at (200, 200, -3)
+        # for field-coordinate compatibility; soil_min_b/max_b describe the
+        # box *relative to the seed*. Without this shift the entire root
+        # system maps to cellidx=-1 (out-of-domain) and RWU silently falls
+        # to zero — symptom Phase 3.5 hit when first replacing the legacy
+        # _picker (which was lateral-blind) with setRectangularGrid.
+        srp = plant.getOrganRandomParameter(pb.OrganTypes.seed, 0)
+        sx, sy = float(srp.seedPos.x), float(srp.seedPos.y)
+        shifted_min = (soil_min_b[0] + sx, soil_min_b[1] + sy, soil_min_b[2])
+        shifted_max = (soil_max_b[0] + sx, soil_max_b[1] + sy, soil_max_b[2])
+
+        # Upstream-canonical 3D pattern: setRectangularGrid delegates the
+        # seg→cell mapping to MappedSegments::soil_index_, replacing the
+        # hand-rolled _picker lambda + setSoilGrid pair retired in Phase 3.5
+        # (PLAN_DUMUX_INTEGRATION_2026-05-05.md §"Phase 3.5").
+        plant.setRectangularGrid(
+            pb.Vector3d(*shifted_min),
+            pb.Vector3d(*shifted_max),
+            pb.Vector3d(*soil_cell_number),
+            False,  # cut=False: no segment splitting at cell boundaries (preserves
+                    # legacy graph for parity; flip to True only when per-cell
+                    # uptake granularity at sub-segment scale matters)
+        )
 
     plant.initialize()
     return plant
@@ -381,7 +413,10 @@ def grow_plant(xml_path, simulation_time, min_stem_nodes=50, min_leaf_nodes=20,
                enable_photosynthesis=False, seed=None,
                cp_donor_seed=None, cp_donor_mode="draw_coherent",
                daily_met=None, T_air_default=25.0,
-               mutate_lrp_pre_init=None):
+               mutate_lrp_pre_init=None,
+               soil_min_b=(-50.0, -50.0, -150.0),
+               soil_max_b=(50.0, 50.0, 0.0),
+               soil_cell_number=(1, 1, 150)):
     """Grow a CPlantBox plant from calibrated XML.
 
     Args:
@@ -401,6 +436,15 @@ def grow_plant(xml_path, simulation_time, min_stem_nodes=50, min_leaf_nodes=20,
             day that has no met entry.
         T_air_default: Fallback air temperature (°C) for days with no met
             data. Also used when no met source is available at all.
+        soil_min_b, soil_max_b, soil_cell_number: 3D rectangular grid for the
+            soil seg→cell mapping (cm, cm, ints). Defaults to a 1×1×100
+            vertical column with **±50 cm lateral OOD bounds** (Phase 3.5):
+            cellidx only depends on z when ``cell_number_xy = 1``, so the
+            lateral box just controls which roots are eligible for RWU.
+            ±50 cm captures a single maize plant's root spread; the legacy
+            ``_picker`` was lateral-blind, and ±5 cm cropped most roots out.
+            Pass e.g. ``(-50,-50,-150)/(50,50,0)/(8,8,25)`` for true 3D
+            heterogeneity. Phase 3.5+ canonical pattern.
     """
     print(f"=== Growing Plant ===")
     print(f"  XML: {xml_path}")
@@ -433,15 +477,32 @@ def grow_plant(xml_path, simulation_time, min_stem_nodes=50, min_leaf_nodes=20,
     # Roots are excluded from the G3 mesh (skip_roots=True in adapter) but kept in
     # the simulation for water uptake.
     if enable_photosynthesis:
-        depth = 100  # cm — covers full maize root depth
+        depth = float(soil_max_b[2] - soil_min_b[2])
         soil_domain = pb.SDF_PlantContainer(np.inf, np.inf, depth, True)
         plant.setGeometry(soil_domain)
 
-        def _picker(_x, _y, z):
-            """Map 3D position to soil cell index. Above-ground → -1.
-            Clamp to [0, depth-1] to avoid out-of-bounds at exactly z=-depth."""
-            return max(min(int(np.floor(-z)), depth - 1), -1)
-        plant.setSoilGrid(_picker)
+        # Shift the soil grid so it's centered on the plant's XY seed
+        # position (see init_plant for rationale). Without this shift the
+        # entire root system can map to cellidx=-1 if the XML places seedPos
+        # outside the soil_min_b/max_b box (e.g. maize_calibrated.xml has
+        # seedPos=(200, 200, -3)).
+        srp = plant.getOrganRandomParameter(pb.OrganTypes.seed, 0)
+        sx, sy = float(srp.seedPos.x), float(srp.seedPos.y)
+        shifted_min = (soil_min_b[0] + sx, soil_min_b[1] + sy, soil_min_b[2])
+        shifted_max = (soil_max_b[0] + sx, soil_max_b[1] + sy, soil_max_b[2])
+
+        # Upstream-canonical 3D pattern (Phase 3.5,
+        # PLAN_DUMUX_INTEGRATION_2026-05-05.md): setRectangularGrid delegates
+        # the seg→cell mapping to MappedSegments::soil_index_, replacing the
+        # hand-rolled _picker lambda + setSoilGrid pair retired in this phase.
+        plant.setRectangularGrid(
+            pb.Vector3d(*shifted_min),
+            pb.Vector3d(*shifted_max),
+            pb.Vector3d(*soil_cell_number),
+            False,  # cut=False: no segment splitting at cell boundaries (preserves
+                    # legacy graph for parity; flip to True only when per-cell
+                    # uptake granularity at sub-segment scale matters)
+        )
 
     plant.initialize()
 
@@ -610,11 +671,11 @@ def run_photosynthesis(plant, sim_time, output_prefix,
               f"Vcmax~{vcmax_umol:.1f} umol m-2 s-1 (Chl={hm.Chl[0]:.1f} ug/cm2)")
 
     # --- Soil water potential vector ---
-    depth = 100  # must match setSoilGrid depth in grow_plant()
     if soil_psi_provider is None:
         from ..hydraulics.soil_psi import FixedSoilPsi
         soil_psi_provider = FixedSoilPsi(psi_cm=soil_psi_cm)
-    p_s = soil_psi_provider.get_profile(t_days=float(sim_time), depth_cm=depth)
+    n_cells = int(soil_psi_provider.n_cells_total)
+    p_s = soil_psi_provider.get_profile(t_days=float(sim_time), depth_cm=n_cells)
 
     # --- Weather ---
     es = hm.get_es(tair_c)
@@ -644,7 +705,7 @@ def run_photosynthesis(plant, sim_time, output_prefix,
     # FixedSoilPsi/BucketSoilPsi.
     from ..hydraulics.soil_psi import push_rwu_sink_to_provider
     push_rwu_sink_to_provider(hm, sim_time, p_s, soil_psi_provider,
-                              depth_cm=depth, verbose=False)
+                              n_cells=n_cells, verbose=False)
 
     # --- Results ---
     # NB: get_net_assimilation() returns per-leaf-segment (size = n_leaf_segs),

@@ -74,8 +74,10 @@ PSI_INIT_CM = -300.0    # well-watered initial soil head
 PAR_MIDDAY = 1500.0     # µmol m⁻² s⁻¹
 TLEAF_C = 25.0
 RH = 0.7
-DEPTH_CM = 100          # locked to coupled.py picker convention (z ∈ [-100, 0])
-N_CELLS_Z = 100
+DEPTH_CM = 150          # Phase 3.5+: column extends past the deepest maize roots
+                        # (~-130 cm at day 55) so all root segs map to a real
+                        # cellidx instead of -1 (which gives ψ_s=0 → no stress).
+N_CELLS_Z = 150
 COL_HALF_WIDTH_CM = 2.5 # 5×5 cm cross-section (≈ single-plant rhizosphere).
                         # 5×5×100 = 2500 cm³ column; at θ≈0.20 → ~500 cm³ water.
                         # 9.7 cm³/d uptake × 30 days = 290 cm³ ≈ 58 % depletion,
