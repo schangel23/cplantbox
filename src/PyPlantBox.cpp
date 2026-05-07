@@ -913,7 +913,9 @@ PYBIND11_MODULE(plantbox, m) {
             .def_readwrite("internode_D_n", &StemRandomParameter::internode_D_n)
             .def_readwrite("internode_IL_final", &StemRandomParameter::internode_IL_final)
             .def_readwrite("plastochron_andrieu", &StemRandomParameter::plastochron_andrieu)
-            .def_readwrite("basal_internode_cm", &StemRandomParameter::basal_internode_cm);
+            .def_readwrite("basal_internode_cm", &StemRandomParameter::basal_internode_cm)
+            .def_readwrite("cultivar_height_factor", &StemRandomParameter::cultivar_height_factor)
+            .def_readwrite("cultivar_height_factor_s", &StemRandomParameter::cultivar_height_factor_s);
     py::class_<StemSpecificParameter, OrganSpecificParameter, std::shared_ptr<StemSpecificParameter>>(m, "StemSpecificParameter")
             .def(py::init<>())
             .def(py::init<int , double, double, const std::vector<double>&, double, double, double, double, double>())
@@ -931,7 +933,8 @@ PYBIND11_MODULE(plantbox, m) {
             .def_readwrite("use_fournier_andrieu_kinetics", &StemSpecificParameter::use_fournier_andrieu_kinetics)
             .def_readwrite("internode_v_n", &StemSpecificParameter::internode_v_n)
             .def_readwrite("internode_D_n", &StemSpecificParameter::internode_D_n)
-            .def_readwrite("internode_IL_final", &StemSpecificParameter::internode_IL_final);
+            .def_readwrite("internode_IL_final", &StemSpecificParameter::internode_IL_final)
+            .def_readonly("cultivar_height_factor", &StemSpecificParameter::cultivar_height_factor);
     /**
      * Root.h
      */
