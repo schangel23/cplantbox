@@ -612,7 +612,15 @@ void Stem::simulate(double dt, bool verbose)
 						throw std::runtime_error(errMsg.str().c_str());
 					}
 					//internodal elongation, if the basal zone of the stem is created and still has to grow
-					double maxInternodeDistance = p.getK()-p.la - p.lb;//maximum length of branching zone
+					// PLAN_CULTIVAR_HEIGHT_FACTOR_2026-05-07 §S2: branching-zone outer cap
+					// scales with H so it stays consistent with the per-phytomer p.ln[i] * H
+					// inner caps inside internodalGrowth (otherwise the un-scaled outer cap
+					// = sum(ln) binds at H>1 and clips the H-scaled per-rank elongation before
+					// it can fill the wider branching zone). Default H=1.0 is a literal no-op
+					// (cap == p.getK() - p.la - p.lb bit-for-bit).
+					const double H_branch = (p.cultivar_height_factor > 0.0)
+					                        ? p.cultivar_height_factor : 1.0;
+					double maxInternodeDistance = (p.getK()-p.la - p.lb) * H_branch;//maximum length of branching zone
 					if((dl>0)&&(length>=p.lb)&&(maxInternodeDistance>0)){
 							int nn = localId_linking_nodes.back(); //node carrying the last lateral == end of branching zone
 							double currentInternodeDistance = getLength(nn) - p.lb; //actual length of branching zone
@@ -765,7 +773,13 @@ void Stem::simulate(double dt, bool verbose)
 			if (p.use_fournier_andrieu_kinetics && cessation_age_ >= 0.0) {
 				active = false;
 			} else {
-				active = getLength(false)<=(p.getK()*(1 - 1e-11)); // become inactive, if final length is nearly reached
+				// PLAN_CULTIVAR_HEIGHT_FACTOR_2026-05-07 §S2: keep the stem active up
+				// to H × getK() so length can fill the H-scaled branching zone +
+				// apical zone. Default H=1.0 is a literal no-op (active threshold ==
+				// p.getK() bit-for-bit).
+				const double H_active = (p.cultivar_height_factor > 0.0)
+				                        ? p.cultivar_height_factor : 1.0;
+				active = getLength(false)<=(p.getK()*H_active*(1 - 1e-11)); // become inactive, if final length is nearly reached
 			}
 		}
 	} // if alive
