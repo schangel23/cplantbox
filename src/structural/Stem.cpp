@@ -612,13 +612,15 @@ void Stem::simulate(double dt, bool verbose)
 						throw std::runtime_error(errMsg.str().c_str());
 					}
 					//internodal elongation, if the basal zone of the stem is created and still has to grow
-					// PLAN_CULTIVAR_HEIGHT_FACTOR_2026-05-07 §S2: branching-zone outer cap
-					// scales with H so it stays consistent with the per-phytomer p.ln[i] * H
-					// inner caps inside internodalGrowth (otherwise the un-scaled outer cap
-					// = sum(ln) binds at H>1 and clips the H-scaled per-rank elongation before
-					// it can fill the wider branching zone). Default H=1.0 is a literal no-op
-					// (cap == p.getK() - p.la - p.lb bit-for-bit).
-					const double H_branch = (p.cultivar_height_factor > 0.0)
+					// PLAN_CULTIVAR_HEIGHT_FACTOR_2026-05-07 §S2 + G7 FA-off gate: branching-zone
+					// outer cap scales with H so it stays consistent with the per-phytomer
+					// p.ln[i] * H inner caps inside internodalGrowth (otherwise the un-scaled
+					// outer cap = sum(ln) binds at H>1 and clips the H-scaled per-rank
+					// elongation). **Gated on FA-on**: H is an FA-specific asymptote scale;
+					// for FA-off stems p.getK() is the canonical scalar cap and must NOT be
+					// scaled (else FA-off baselines diverge — G7 D.0 invariance).
+					const bool fa_on_branch = p.use_fournier_andrieu_kinetics;
+					const double H_branch = (fa_on_branch && p.cultivar_height_factor > 0.0)
 					                        ? p.cultivar_height_factor : 1.0;
 					double maxInternodeDistance = (p.getK()-p.la - p.lb) * H_branch;//maximum length of branching zone
 					if((dl>0)&&(length>=p.lb)&&(maxInternodeDistance>0)){
@@ -773,11 +775,14 @@ void Stem::simulate(double dt, bool verbose)
 			if (p.use_fournier_andrieu_kinetics && cessation_age_ >= 0.0) {
 				active = false;
 			} else {
-				// PLAN_CULTIVAR_HEIGHT_FACTOR_2026-05-07 §S2: keep the stem active up
-				// to H × getK() so length can fill the H-scaled branching zone +
-				// apical zone. Default H=1.0 is a literal no-op (active threshold ==
-				// p.getK() bit-for-bit).
-				const double H_active = (p.cultivar_height_factor > 0.0)
+				// PLAN_CULTIVAR_HEIGHT_FACTOR_2026-05-07 §S2 + G7 FA-off gate: keep
+				// the stem active up to H × getK() so length can fill the H-scaled
+				// branching zone + apical zone. **Gated on FA-on**: H is an FA-
+				// specific asymptote scale; for FA-off stems the active threshold
+				// is the canonical scalar getK() and must NOT be scaled (else
+				// FA-off baselines diverge — G7 D.0 invariance).
+				const double H_active = (p.use_fournier_andrieu_kinetics
+				                         && p.cultivar_height_factor > 0.0)
 				                        ? p.cultivar_height_factor : 1.0;
 				active = getLength(false)<=(p.getK()*H_active*(1 - 1e-11)); // become inactive, if final length is nearly reached
 			}
@@ -954,16 +959,16 @@ void Stem::internodalGrowth(double dl,double dt, bool verbose)
 
 		double length1 = getLength(nn1);
 		const double current_in_phytomer = getLength(nn2) - length1;
-		// PLAN_CULTIVAR_HEIGHT_FACTOR_2026-05-07 §S2: per-phytomer cap also
-		// scales by H so it stays consistent with the H-scaled fa_target the
+		// PLAN_CULTIVAR_HEIGHT_FACTOR_2026-05-07 §S2 + G7 FA-off gate: per-phytomer
+		// cap scales by H so it stays consistent with the H-scaled fa_target the
 		// FA gate below clips against. p.ln[phytomerId] is built in
-		// StemRandomParameter::realize() from un-scaled internode_IL_final
-		// (sp->ln is the StemSpecificParameter copy), so we apply H here at
-		// read time. Without this, the un-scaled per-phytomer cap binds at
-		// H>1 and freezes each rank at IL_final cm (H=1.0 size) even though
-		// fa_target is H × IL_final. Default H=1.0 makes this a literal
-		// no-op (cap == p.ln[phytomerId] bit-for-bit).
-		const double H_phyto = (p.cultivar_height_factor > 0.0)
+		// StemRandomParameter::realize() from un-scaled internode_IL_final, so
+		// we apply H here at read time. **Gated on FA-on**: H is an FA-specific
+		// asymptote scale (Phase III/IV); for FA-off stems p.ln[] is the
+		// canonical scalar cap and must NOT be scaled (else FA-off baselines
+		// of any maize XML carrying a baked cultivar_height_factor diverge —
+		// G7 D.0 invariance). FA-off → H_phyto = 1.0 (literal no-op).
+		const double H_phyto = (fa_on && p.cultivar_height_factor > 0.0)
 		                       ? p.cultivar_height_factor : 1.0;
 		double availableForGrowth = p.ln.at(phytomerId) * H_phyto - current_in_phytomer;//difference between maximum and current length of the phytomer
 		// FA per-rank gate (Tier 1d, 2026-05-01): under FA-on, the rank-n
