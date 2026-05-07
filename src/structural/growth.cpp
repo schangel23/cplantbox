@@ -393,37 +393,68 @@ double MultiPhaseStemGrowth::calcLengthPerPhytomer(int n,
     const double phase_IV_duration = srp->phase_IV_duration;
     const double phase_IV_k = srp->phase_IV_k;
 
+    // FA Phase I → II → III → IV trajectory math is UNCHANGED — every
+    // per-rank constant (il_init_cm, v_n, D_n, IL_final, il_at_end_phase_II_cm,
+    // phase_IV_k) is read literally from `srp` / `sp` and feeds the same
+    // formulas as pre-cultivar_height_factor HEAD. The genotypic asymptote
+    // scale H is applied at the bottom as a single output multiplier — see
+    // the comment block at the final `return target * H` for rationale.
+    double target;
     // Phase I: pre-collar exponential.
     if (tau < phase_I_duration) {
-        return srp->il_init_cm * std::exp(r_I * tau);
+        target = srp->il_init_cm * std::exp(r_I * tau);
+    } else {
+        // Phase II: linear ramp from end-of-Phase-I to il_at_end_phase_II_cm.
+        const double phase_II_end = phase_I_duration + phase_II_duration;
+        if (tau < phase_II_end) {
+            const double IL_end_I = srp->il_init_cm * std::exp(r_I * phase_I_duration);
+            const double frac = (tau - phase_I_duration) / phase_II_duration;
+            target = IL_end_I + frac * (srp->il_at_end_phase_II_cm - IL_end_I);
+        } else {
+            // Phase III: per-rank linear at v_n for D_n.
+            const auto& vvec = sp->internode_v_n;
+            const auto& dvec = sp->internode_D_n;
+            if (n < 1 || n > static_cast<int>(vvec.size())
+                      || n > static_cast<int>(dvec.size())) {
+                target = srp->il_at_end_phase_II_cm;
+            } else {
+                const double v_n = vvec[n - 1];
+                const double D_n = dvec[n - 1];
+                const double phase_III_end = phase_II_end + D_n;
+                if (tau < phase_III_end) {
+                    target = srp->il_at_end_phase_II_cm + v_n * (tau - phase_II_end);
+                } else {
+                    // Phase IV: exponential decay toward IL_final.
+                    const double IL_end_III = srp->il_at_end_phase_II_cm + v_n * D_n;
+                    const auto& ilfvec = sp->internode_IL_final;
+                    if (n < 1 || n > static_cast<int>(ilfvec.size())) {
+                        target = IL_end_III;
+                    } else {
+                        const double IL_final = ilfvec[n - 1];
+                        target = IL_final - (IL_final - IL_end_III)
+                                            * std::exp(-phase_IV_k * (tau - phase_III_end));
+                    }
+                }
+            }
+        }
     }
-    // Phase II: linear ramp from end-of-Phase-I to 4.5 cm uniform boundary.
-    const double phase_II_end = phase_I_duration + phase_II_duration;
-    if (tau < phase_II_end) {
-        const double IL_end_I = srp->il_init_cm * std::exp(r_I * phase_I_duration);
-        const double frac = (tau - phase_I_duration) / phase_II_duration;
-        return IL_end_I + frac * (srp->il_at_end_phase_II_cm - IL_end_I);
-    }
-    // Phase III: per-rank linear at v_n for D_n.
-    const auto& vvec = sp->internode_v_n;
-    const auto& dvec = sp->internode_D_n;
-    if (n < 1 || n > static_cast<int>(vvec.size()) || n > static_cast<int>(dvec.size())) {
-        return srp->il_at_end_phase_II_cm;
-    }
-    const double v_n = vvec[n - 1];
-    const double D_n = dvec[n - 1];
-    const double phase_III_end = phase_II_end + D_n;
-    if (tau < phase_III_end) {
-        return srp->il_at_end_phase_II_cm + v_n * (tau - phase_II_end);
-    }
-    // Phase IV: exponential decay toward IL_final.
-    const double IL_end_III = srp->il_at_end_phase_II_cm + v_n * D_n;
-    const auto& ilfvec = sp->internode_IL_final;
-    if (n < 1 || n > static_cast<int>(ilfvec.size())) {
-        return IL_end_III;
-    }
-    const double IL_final = ilfvec[n - 1];
-    return IL_final - (IL_final - IL_end_III) * std::exp(-phase_IV_k * (tau - phase_III_end));
+
+    // PLAN_CULTIVAR_HEIGHT_FACTOR_2026-05-07 §S2 — single output multiplier.
+    // Apply the genotypic asymptote scale H to whichever Phase I/II/III/IV
+    // value `target` ended up holding. Multiplying at the single end-of-
+    // function sink (instead of inside each phase) keeps every internal
+    // identity intact: v_n·D_n + il_at_end_phase_II + phase_IV_residual ≡
+    // IL_final is preserved bit-for-bit (both sides scale equally), and
+    // Vidal's universal-RER (RER = v/L) is invariant under uniform output
+    // scaling (RER_eff = (v_n·H)/(L·H) = v_n/L). Default H=1.0 makes this
+    // multiplication a literal no-op for every existing XML — D3 / D.0
+    // 6-XML invariance / Hard Invariant #5. The early `return 0.0` paths
+    // above (basal_zero, missing leaf, init_tt < 0, tau < 0) are unscaled
+    // because 0·H = 0 by inspection — leaving them as bare returns avoids
+    // a redundant variable assignment for those cases.
+    const double H = (sp->cultivar_height_factor > 0.0)
+                     ? sp->cultivar_height_factor : 1.0;
+    return target * H;
 }
 
 // -------------------------------------------------------------------------
@@ -647,9 +678,22 @@ double MultiPhaseStemGrowth::getLength(double t, double r, double k,
     }
 
     // Block 4: branching cap. min(fa_sum, sum(ln)) — matches today's clamp.
+    // PLAN_CULTIVAR_HEIGHT_FACTOR_2026-05-07 §S2: both arms of the cap must
+    // scale by H. `fa_sum` already does (each `target_n` is H-scaled by
+    // calcLengthPerPhytomer); ln_sum is built from sp->ln (constructed in
+    // realize() from un-scaled internode_IL_final), so we apply H at read
+    // time here. Without this scaling, fa_sum_H exceeds ln_sum_H1.0 at H>1
+    // and the un-scaled cap binds → realised stem caps at H=1.0 length while
+    // the per-rank allocator redistributes mass downward, starving upper
+    // ranks (verified empirically 2026-05-07 at H=1.32: z_max 180.4→172.0 cm
+    // before this fix). Default H=1.0 makes `* H` a literal no-op (D3 / D.0
+    // 6-XML invariance preserved).
+    const double H_cap = (sp->cultivar_height_factor > 0.0)
+                         ? sp->cultivar_height_factor : 1.0;
     double ln_sum = 0.0;
     for (double v : sp->ln) ln_sum += v;
-    double targetlength = sp->lb + ((fa_sum < ln_sum) ? fa_sum : ln_sum);
+    const double ln_sum_H = ln_sum * H_cap;
+    double targetlength = sp->lb + ((fa_sum < ln_sum_H) ? fa_sum : ln_sum_H);
 
     // Block 5: cessation gate. Force dl=0 in the caller by returning current
     // realised length (so e = targetlength - length = 0).

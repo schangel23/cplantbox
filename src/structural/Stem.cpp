@@ -940,7 +940,18 @@ void Stem::internodalGrowth(double dl,double dt, bool verbose)
 
 		double length1 = getLength(nn1);
 		const double current_in_phytomer = getLength(nn2) - length1;
-		double availableForGrowth = p.ln.at(phytomerId) - current_in_phytomer;//difference between maximum and current length of the phytomer
+		// PLAN_CULTIVAR_HEIGHT_FACTOR_2026-05-07 §S2: per-phytomer cap also
+		// scales by H so it stays consistent with the H-scaled fa_target the
+		// FA gate below clips against. p.ln[phytomerId] is built in
+		// StemRandomParameter::realize() from un-scaled internode_IL_final
+		// (sp->ln is the StemSpecificParameter copy), so we apply H here at
+		// read time. Without this, the un-scaled per-phytomer cap binds at
+		// H>1 and freezes each rank at IL_final cm (H=1.0 size) even though
+		// fa_target is H × IL_final. Default H=1.0 makes this a literal
+		// no-op (cap == p.ln[phytomerId] bit-for-bit).
+		const double H_phyto = (p.cultivar_height_factor > 0.0)
+		                       ? p.cultivar_height_factor : 1.0;
+		double availableForGrowth = p.ln.at(phytomerId) * H_phyto - current_in_phytomer;//difference between maximum and current length of the phytomer
 		// FA per-rank gate (Tier 1d, 2026-05-01): under FA-on, the rank-n
 		// internode's CURRENT permissible length is the FA Phase I→IV target,
 		// not the IL_final cap p.ln[n]. Without this, internodalGrowth fills
