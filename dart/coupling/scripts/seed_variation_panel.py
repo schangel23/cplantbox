@@ -101,7 +101,8 @@ def _total_leaf_area_cm2(mesh) -> float:
 
 def grow_one_seed(xml_path: Path, day: int, seed: int, out_dir: Path,
                   cp_donor_seed: int | None = None,
-                  cp_donor_mode: str = "draw_coherent") -> dict:
+                  cp_donor_mode: str = "draw_coherent",
+                  cp_donor_smooth_alpha: float = 1.0) -> dict:
     t0 = time.time()
     plant = grow_plant(
         xml_path=str(xml_path),
@@ -110,6 +111,7 @@ def grow_one_seed(xml_path: Path, day: int, seed: int, out_dir: Path,
         enable_photosynthesis=True,
         cp_donor_seed=cp_donor_seed,
         cp_donor_mode=cp_donor_mode,
+        cp_donor_smooth_alpha=cp_donor_smooth_alpha,
     )
     label = detect_v_stage(plant)
     counts = count_visible_leaves(plant)
@@ -155,11 +157,24 @@ def main() -> int:
         "--cp-donor",
         choices=["off", "match", "draw", "draw_coherent"],
         default="match",
-        help="Per-plant MF3D leaf-CP donor mode. 'match' (default) reuses the "
-             "panel seed as cp_donor_seed in draw_coherent mode (one donor "
-             "plant per panel slot). 'draw'/'draw_coherent' force a mode and "
-             "use seed as cp_donor_seed. 'off' disables donor swap (leaves "
-             "use baked-in XML CPs).",
+        help="Per-plant MF3D leaf-CP donor mode. 'match' (default) reuses "
+             "the panel seed as cp_donor_seed in draw_coherent mode — one "
+             "donor plant per panel slot, picked from the 5-plant pool "
+             "{216, 374, 430, 446, 455} that survives _default_tip_bounds "
+             "at all 14 positions (per RUNTIME_CP_SWAP_2026-04-20.md). "
+             "'draw' draws independently per position. 'off' disables donor "
+             "swap (XML CPs).",
+    )
+    p.add_argument(
+        "--smooth-alpha",
+        type=float,
+        default=0.7,
+        help="Smooth-CP blend weight (RUNTIME_CP_SWAP_2026-04-20 §187). "
+             "1.0 = pure donor (legacy, asymmetric mid-bulges visible). "
+             "0.7 (default) = 70%% donor + 30%% per-position median, "
+             "damps asymmetric mid-bulges while keeping donor identity. "
+             "0.0 = pure median (no plant-to-plant variation). Only "
+             "engaged for draw / draw_coherent modes.",
     )
     args = p.parse_args()
 
@@ -186,6 +201,7 @@ def main() -> int:
                 xml_path, args.day, seed, out_dir,
                 cp_donor_seed=(seed if donor_seed_arg == "use_panel_seed" else None),
                 cp_donor_mode=donor_mode_arg,
+                cp_donor_smooth_alpha=args.smooth_alpha,
             )
         except Exception as exc:
             print(f"  FAILED: {exc!r}")

@@ -412,6 +412,7 @@ def init_plant(xml_path=None, seed=None, enable_photosynthesis=True,
 def grow_plant(xml_path, simulation_time, min_stem_nodes=50, min_leaf_nodes=20,
                enable_photosynthesis=False, seed=None,
                cp_donor_seed=None, cp_donor_mode="draw_coherent",
+               cp_donor_smooth_alpha=1.0,
                daily_met=None, T_air_default=25.0,
                mutate_lrp_pre_init=None,
                soil_min_b=(-50.0, -50.0, -150.0),
@@ -464,6 +465,7 @@ def grow_plant(xml_path, simulation_time, min_stem_nodes=50, min_leaf_nodes=20,
 
     if cp_donor_seed is not None:
         apply_donor_cps(plant, donor_seed=cp_donor_seed, mode=cp_donor_mode,
+                        smooth_alpha=cp_donor_smooth_alpha,
                         verbose=True)
 
     # Final pre-initialize hook for tests / harnesses that need to flip

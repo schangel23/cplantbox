@@ -76,6 +76,7 @@ def apply_donor_cps(
     donor_seed: int,
     mode: str = "draw_coherent",
     resize_blades: bool = True,
+    smooth_alpha: float = 1.0,
     verbose: bool = False,
 ) -> dict:
     """Overwrite each blade's ``surface_cps`` with the donor plant's CPs.
@@ -91,6 +92,17 @@ def apply_donor_cps(
         resize_blades: if True, also set ``lmax``, ``Width_blade``, and
             ``areaMax`` from the donor's per-position metrics so the
             blade's absolute scale matches its shape.
+        smooth_alpha: Median-smoothing weight in ``[0, 1]``. Implements the
+            "smooth-CP option" from RUNTIME_CP_SWAP_2026-04-20.md §187 —
+            blends the picked donor's per-position CPs with the per-position
+            median of the entire filtered pool:
+            ``cps = smooth_alpha * cps_donor + (1 - smooth_alpha) * cps_median``.
+            Damps asymmetric mid-bulges that real-leaf scans carry without
+            erasing donor identity. ``1.0`` (default) is the legacy
+            no-smoothing behaviour. ``0.7`` is the recommended starting
+            point — keeps donor character, removes the worst bulges. Only
+            engaged for ``mode in {"draw", "draw_coherent"}`` (median /
+            mean reducers are already smooth across the pool).
         verbose: print a one-line summary of swapped subtypes.
 
     Returns:
@@ -113,6 +125,23 @@ def apply_donor_cps(
     pos_to_idx = {int(p): i for i, p in enumerate(positions)}
     n_u, n_v = int(lib["n_u"]), int(lib["n_v"])
     deg_u, deg_v = int(lib["deg_u"]), int(lib["deg_v"])
+
+    # Smooth-CP option (RUNTIME_CP_SWAP_2026-04-20 §187): blend the picked
+    # donor against per-position median to damp asymmetric mid-bulges that
+    # real-leaf scans carry. Only build the median library when the picked
+    # donor mode is non-deterministic across plants — median/mean reducers
+    # already average bulges out.
+    smooth_alpha = float(min(max(smooth_alpha, 0.0), 1.0))
+    median_by_pos = None
+    median_pos_to_idx = None
+    if smooth_alpha < 1.0 and mode in ("draw", "draw_coherent"):
+        median_lib = build_from_maizefield3d(
+            _default_canonical_json(), reducer="median",
+        )
+        median_by_pos = median_lib["cps_local"]
+        median_pos_to_idx = {
+            int(p): i for i, p in enumerate(median_lib["positions"])
+        }
 
     phytomer_mode = _detect_phytomer_mode(plant)
     modified: list[tuple[int, int]] = []  # (subType, pos)
@@ -146,6 +175,18 @@ def apply_donor_cps(
         # are normalised (arc=1); skipping this rescale produced NaN leaf
         # nodes from the C++ midrib re-projection.
         grid = np.asarray(cps_by_pos[idx], dtype=np.float64)
+
+        # Smooth-CP blend (per-position median anti-bulge). Applied in
+        # normalised local-frame space BEFORE axial rescale so both grids
+        # are on the same arc=1 scale. Position must exist in median lib.
+        if (median_by_pos is not None
+                and median_pos_to_idx is not None
+                and pos in median_pos_to_idx):
+            median_grid = np.asarray(
+                median_by_pos[median_pos_to_idx[pos]], dtype=np.float64,
+            )
+            grid = smooth_alpha * grid + (1.0 - smooth_alpha) * median_grid
+
         midrib = grid[:, n_v // 2, :]
         lib_arc = float(np.sum(np.linalg.norm(np.diff(midrib, axis=0), axis=1)))
         if lib_arc > 1e-9 and new_lmax > 1e-9:
