@@ -143,10 +143,52 @@ def tutorial_hydraulic_params():
     return tutorial_hydraulic_params_for_weather(weather(SIM_INIT))
 
 
-def tutorial_hydraulic_params_for_weather(weather_init):
+def tutorial_hydraulic_params_for_weather(weather_init, *, plant=None, notebook_aligned=False):
+    """Build PlantHydraulicParameters from weather (TairC, RH).
+
+    PiafMunch follow-up #2 (2026-05-08): when ``notebook_aligned=True``
+    AND a ``plant`` (MappedPlant or any MappedSegments) is provided, the
+    legacy ``setKrKx_xylem`` regime from
+    ``modelparameter/functional/plant_hydraulics/wheat_Giraud2023adapted.py``
+    is reproduced — root kr is gated to the last ``kr_length=0.8 cm`` of
+    each root segment (tip-only kr, not whole-root) and ``psi_air`` is
+    derived from RH via the standard Kelvin formula.
+
+    The ``plant`` argument is required for ``kr_length>0`` because the
+    underlying ``PlantHydraulicParameters::setKrConst`` calls
+    ``ms->calcExchangeZoneCoefs()`` and segfaults if ``ms`` is null. When
+    ``plant=None`` the helper silently disables the ``kr_length`` gate
+    (kr applied to whole segment, identical to the pre-2026-05-08 path)
+    but still applies ``psi_air`` if ``notebook_aligned`` is requested.
+
+    **Default ``notebook_aligned=False`` (rationale: 2026-05-08 A/B/C/D
+    falsification of plan §"New follow-ups uncovered" #2):**
+
+    - ``psi_air`` from RH is REDUNDANT — ``configure_wheat_tutorial`` calls
+      ``setPhotosynthesisParameters`` which sets ``hm.psi_air`` from
+      ``weather_init["RH"]`` directly on the PhloemFluxPython instance,
+      overriding whatever ``params.psi_air`` carries. Effect on Q_Gr: 0 %.
+    - ``kr_length=0.8 cm`` (root tip-only kr) actively makes wheat-tutorial
+      water status WORSE — psiXyl drops from −4832 cm (whole-segment kr)
+      to −13274 cm (0.8 cm tip-only) under the fixed soil profile, and
+      Σ Q_Grmax collapses from 7.56e-4 mmol Suc to **zero** at substep 1.
+      Plan hypothesis "Q_Gr lands in [3.6e-3, 1.45e-2] band" is FALSIFIED.
+
+    The plan-predicted closure of the wheat-notebook Q_Gr gap therefore
+    has a different root cause than hydraulic regime alignment alone
+    (likely XML drift 90 vs 936 nodes + soil profile + phloem
+    parameters). New follow-up.
+
+    Set ``notebook_aligned=True`` only to reproduce the legacy regime
+    bit-for-bit (e.g. for byte-identical xylem-side comparisons against
+    ``setKrKx_xylem`` consumers); expect collapsed Q_Gr.
+    """
     from plantbox.functional.PlantHydraulicParameters import PlantHydraulicParameters
 
-    params = PlantHydraulicParameters()
+    if plant is not None:
+        params = PlantHydraulicParameters(plant)
+    else:
+        params = PlantHydraulicParameters()
     TairC = float(weather_init["TairC"])
     hPa2cm = 1.0197
     d_water = (
@@ -187,6 +229,28 @@ def tutorial_hydraulic_params_for_weather(weather_init):
     root = 2
     stem = 3
     leaf = 4
+    # PiafMunch follow-up #2 (2026-05-08): legacy setKrKx_xylem applies kr
+    # only to the last l_kr=0.8 cm of every root segment (tip-only); setKrConst
+    # exposes this via the kr_length C++ argument (default -1 = whole-segment).
+    # kr_length>0 requires params.ms to be bound (calcExchangeZoneCoefs);
+    # if no plant was provided the gate stays off to avoid a segfault.
+    #
+    # Order matters: setKrConst's last call wins for kr_f (the dispatch
+    # callback). We need the kr_RootExchangeZonePerType callback active on
+    # the FINAL setKrConst call so root segments dispatch through
+    # ms->exchangeZoneCoefs. So: stem + leaf first (whole-segment kr,
+    # callback bound to kr_perType), then root subTypes last with
+    # kr_length=0.8 cm (callback bound to kr_RootExchangeZonePerType, which
+    # ALSO handles stem + leaf correctly — see PlantHydraulicParameters.cpp:136).
+    # The trailing setMode("constant", "constant") is a no-op in C++
+    # (string mismatch: "constant" != "const") and is dropped here.
+    kr_length_root = 0.8 if (notebook_aligned and plant is not None) else -1.0
+    for st in [0, 1]:
+        params.set_kr_const(kr_s, subType=st, organType=stem)
+        params.set_kx_const(kz_s, subType=st, organType=stem)
+    for st in range(0, 12):
+        params.set_kr_const(kr_l, subType=st, organType=leaf)
+        params.set_kx_const(kz_l, subType=st, organType=leaf)
     for st, kr, kx in [
         (0, kr_r0, kz_r0),
         (1, kr_r1, kz_r1),
@@ -194,15 +258,25 @@ def tutorial_hydraulic_params_for_weather(weather_init):
         (3, kr_r0, kz_r0),
         (4, kr_r3, kz_r3),
     ]:
-        params.set_kr_const(kr, subType=st, organType=root)
+        # Bypass set_kr_const wrapper (no kr_length pass-through) and
+        # call the C++ method directly with the 4-arg form.
+        params.setKrConst(kr, subType=st, organType=root, kr_length=kr_length_root)
         params.set_kx_const(kx, subType=st, organType=root)
-    for st in [0, 1]:
-        params.set_kr_const(kr_s, subType=st, organType=stem)
-        params.set_kx_const(kz_s, subType=st, organType=stem)
-    for st in range(0, 12):
-        params.set_kr_const(kr_l, subType=st, organType=leaf)
-        params.set_kx_const(kz_l, subType=st, organType=leaf)
-    params.setMode("constant", "constant")
+
+    # PiafMunch follow-up #2: psi_air from RH via Kelvin formula
+    # (legacy wheat_Giraud2023adapted.py:55). Default psi_air=-954378
+    # corresponds to RH=0.5, TairC=20 °C; out-of-band weather requires
+    # this update or psi_air becomes inconsistent with TairC.
+    if notebook_aligned and "RH" in weather_init:
+        RH = float(weather_init["RH"])
+        Rgaz = 8.314  # J K-1 mol-1
+        rho_h2o = d_water / 1000.0  # g/cm3
+        Mh2o = 18.05  # g/mol
+        MPa2hPa = 10000.0
+        hPa2cm_psi = 1.0 / 0.9806806
+        params.psi_air = (
+            np.log(RH) * Rgaz * rho_h2o * (TairC + 273.15) / Mh2o * MPa2hPa * hPa2cm_psi
+        )
     return params
 
 

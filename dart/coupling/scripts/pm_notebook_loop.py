@@ -286,7 +286,13 @@ def case_wheat_tutorial(verbose):
     p_mean = weather_init["p_mean"]; depth = cfg["depth"]
     p_top = p_mean - depth/2
 
-    hyd = tutorial_hydraulic_params_for_weather(weather_init)
+    # PiafMunch follow-up #2 (2026-05-08): default `notebook_aligned=False`
+    # — empirical A/B/C/D probe falsified the plan's hypothesis that
+    # aligning to legacy setKrKx_xylem closes the wheat-notebook Q_Gr gap.
+    # kr_length=0.8 dropped psiXyl to −13274 cm and Q_Gr to 0 (worse, not
+    # better). Pre-fix Q_Gr=7.56e-4 stays the wheat-tutorial baseline.
+    hyd = tutorial_hydraulic_params_for_weather(weather_init, plant=plant,
+                                                notebook_aligned=False)
     hm = PhloemFluxPython(plant, hyd,
                           psiXylInit=p_top,
                           ciInit=weather_init["cs"] * 0.5)
