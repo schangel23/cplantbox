@@ -1,23 +1,31 @@
-"""pm_gate2_score.py — Gate Ch1.PM.2 literature-band scorecard.
+"""pm_gate3_score.py — Gate Ch1.PM.3 mass-balance closure scorecard.
 
-Reads the post-Gate-1 (Krm1=WOFOST, stem PerType padded 1->3) JSON dumps
-from `pm_notebook_loop.py` for v3_maize, day55_maize, day130_maize and
-scores each against the four directly-observable bands:
+Extends `pm_gate2_score.py` (renamed in place — Gate 2 band scoring is
+unchanged) with mass-balance closure: Q_S_Mesophyll (the mesophyll starch
+buffer, hm.Q_out block 7 per src/external/PiafMunch/solve.cpp:191-207) is
+now part of dStorage, so the residual
+
+    |dAn - (dRm + dGr + dExud + dStorage_full)| / dAn          (target < 1 %)
+
+with
+
+    dStorage_full = (Q_ST + Q_meso + Q_S_Mesophyll)_last
+                  - (Q_ST + Q_meso + Q_S_Mesophyll)_first
+
+closes the An accounting that the Gate 2 scorer missed on day-55
+(4.75 mmol Suc/d, 2.35 %) and day-130 (7.25 mmol Suc/d, 2.50 %). V3 was
+already within 1 % via Q_ST + Q_meso alone (0.59 %); Gate 3 confirms
+whether V3's residual was numeric or whether Q_S_Mesophyll engages even
+at small plant size.
+
+Bands (unchanged from Gate 2):
 
   * Rm/An ratio    : 5-25 % vegetative,  10-35 % maturity
   * Gr/An ratio    : 20-50 % vegetative,  0-10 % cessation-latched maturity
   * Exud/An ratio  : 1-10 % across all stages
   * C_ST_mean      : 0.30-0.90 mmol/cm^3 across the 24 h
 
-Plus the mass-balance criterion (Gate Ch1.PM.3 target):
-
-  * |dAn - (dRm + dGr + dExud + dStorage)| / dAn  with
-      dStorage = (Q_ST + Q_meso)_last - (Q_ST + Q_meso)_first
-    Will likely miss by a wide margin on day-55 + day-130 — the residual
-    is the magnitude of the unaccounted An that should land in
-    Q_S_Mesophyll once Gate 3 instruments it.
-
-Stage assignment (from plan):
+Stage assignment (unchanged):
 
   * V3 (21 d)        : vegetative
   * day-55           : late-vegetative — FA cessation has latched on the
@@ -30,7 +38,7 @@ Lohaus 2000 (phloem [Suc]). See
 [[reference_amthor_2000_respiration]], [[reference_babst_2022_phloem]].
 
 Usage:
-    cpbenv/bin/python dart/coupling/scripts/pm_gate2_score.py
+    cpbenv/bin/python dart/coupling/scripts/pm_gate3_score.py
 """
 
 import json
@@ -82,8 +90,17 @@ def _score_case(case_key, label, stage, rows):
     dRm   = last["cum_Q_Rm"]   - first["cum_Q_Rm"]
     dGr   = last["cum_Q_Gr"]   - first["cum_Q_Gr"]
     dExud = last["cum_Q_Exud"] - first["cum_Q_Exud"]
-    dStor = (last["sum_Q_ST"]   - first["sum_Q_ST"]) \
-          + (last["sum_Q_meso"] - first["sum_Q_meso"])
+    dQ_ST     = last["sum_Q_ST"]     - first["sum_Q_ST"]
+    dQ_meso   = last["sum_Q_meso"]   - first["sum_Q_meso"]
+    # Gate Ch1.PM.3: dStorage now includes Q_S_Mesophyll (block 7 of
+    # hm.Q_out); pre-Gate-3 dumps without sum_Q_S_meso fall back to the
+    # Gate 2 storage definition (Q_ST + Q_meso) and the residual will
+    # match the Gate 2 scorer.
+    if "sum_Q_S_meso" in last and "sum_Q_S_meso" in first:
+        dQ_S_meso = last["sum_Q_S_meso"] - first["sum_Q_S_meso"]
+    else:
+        dQ_S_meso = 0.0
+    dStor = dQ_ST + dQ_meso + dQ_S_meso
 
     Rm_An_pct   = 100.0 * dRm   / dAn if dAn > 0 else 0.0
     Gr_An_pct   = 100.0 * dGr   / dAn if dAn > 0 else 0.0
@@ -136,6 +153,9 @@ def _score_case(case_key, label, stage, rows):
         "dRm":           dRm,
         "dGr":           dGr,
         "dExud":         dExud,
+        "dQ_ST":         dQ_ST,
+        "dQ_meso":       dQ_meso,
+        "dQ_S_meso":     dQ_S_meso,
         "dStor":         dStor,
         "Rm_An_pct":     Rm_An_pct,
         "Gr_An_pct":     Gr_An_pct,
@@ -154,7 +174,7 @@ def _score_case(case_key, label, stage, rows):
 def _print_table(results):
     # Header.
     print("=" * 100)
-    print("Gate Ch1.PM.2 — literature-band scorecard")
+    print("Gate Ch1.PM.3 — mass-balance closure scorecard (Gate 2 bands + Q_S_Mesophyll)")
     print("=" * 100)
     print(
         f"{'case':<14}{'stage':<18}{'Rm/An [%]':>14}{'Gr/An [%]':>14}"
@@ -179,14 +199,19 @@ def _print_table(results):
         print(
             f"    24h cumulative (mmol Suc): "
             f"dAn={r['dAn']:.3f}, dRm={r['dRm']:.3f}, dGr={r['dGr']:.4f}, "
-            f"dExud={r['dExud']:.3f}, dStorage(Q_ST+Q_meso)={r['dStor']:.3f}"
+            f"dExud={r['dExud']:.3f}"
+        )
+        print(
+            f"    Storage breakdown (mmol Suc): "
+            f"dQ_ST={r['dQ_ST']:.3f}, dQ_meso={r['dQ_meso']:.3f}, "
+            f"dQ_S_meso={r['dQ_S_meso']:.3f}, dStorage_full={r['dStor']:.3f}"
         )
         print(
             f"    C_ST_mean over 24 h: mean={r['cst_24h_mean']:.3f} "
             f"(min={r['cst_24h_min']:.3f}, max={r['cst_24h_max']:.3f})"
         )
         print(
-            f"    Mass-balance residual: |dAn - (dRm+dGr+dExud+dStorage)| = "
+            f"    Mass-balance residual: |dAn - (dRm+dGr+dExud+dStorage_full)| = "
             f"{r['mb_residual_abs']:.3f} mmol Suc/d "
             f"({r['mb_residual_rel']*100:.2f} % of dAn) -> {r['verdict']['mass_balance']}"
         )
@@ -216,7 +241,7 @@ def main():
 
     _print_table(results)
 
-    out_path = SCRIPTS / "_pm_gate2_score.json"
+    out_path = SCRIPTS / "_pm_gate3_score.json"
     with open(out_path, "w") as f:
         json.dump(results, f, indent=2)
     print(f"\nJSON dump: {out_path}")
