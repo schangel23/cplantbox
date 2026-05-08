@@ -131,6 +131,7 @@ def _build_local_frame(cps: np.ndarray) -> tuple[np.ndarray, np.ndarray]:
 def to_local_frame(
     cps_world: np.ndarray,
     normalize_arc: bool = False,
+    tip_canonical_rotate: bool = True,
 ) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
     """Transform a world-frame CP grid into leaf-local coordinates.
 
@@ -140,6 +141,13 @@ def to_local_frame(
             length so the grid has unit midrib length. Enables size
             consistency across library plants whose raw leaves span
             14–110 cm — the lofter then re-scales via ``mature_length``.
+        tip_canonical_rotate: if True (default), rotate each leaf about
+            the +z midrib axis so its tip lies in the canonical
+            ``(+y, +z)`` half-plane. Set to False to reproduce the
+            ``canonical_leaf_library.npz`` build (the baked
+            ``maize_calibrated.xml`` surface_cps live in this NPZ-compat
+            frame). Mixing rotated and non-rotated CPs on the same plant
+            produces frame mismatch and crumbled meshes.
 
     Returns:
         Tuple ``(cps_local, R, collar)`` where ``cps_local`` has the same
@@ -149,12 +157,12 @@ def to_local_frame(
         ``R @ cps_local[i, j] + collar`` reproduces the original world CPs
         only when ``normalize_arc`` is False.
 
-    After building the collar-local frame the CPs are additionally rotated
-    about +z (midrib axis) so the **tip** lies in the canonical ``+y, +z``
-    half-plane (``x_tip = 0``, ``y_tip >= 0``). Without this step, individual
-    real leaves have their tips scattered azimuthally (plant-specific droop
-    direction) and per-plant draws inherit that scatter — medianing 520
-    plants hides it, but picking a single plant does not.
+    With ``tip_canonical_rotate=True``, after building the collar-local
+    frame the CPs are additionally rotated about +z so the **tip** lies in
+    the canonical ``(+y, +z)`` half-plane. Without this step (NPZ-compat
+    mode), individual real leaves keep their plant-specific droop
+    azimuth — medianing 520 plants hides the scatter, but picking a
+    single plant via ``draw`` / ``draw_coherent`` carries it through.
     """
     cps_world = enforce_orientation(np.asarray(cps_world, dtype=np.float64))
     R, collar = _build_local_frame(cps_world)
@@ -162,16 +170,17 @@ def to_local_frame(
     shifted = cps_world - collar[None, None, :]
     cps_local = np.einsum("ij,uvj->uvi", R_inv, shifted)
 
-    tip = cps_local[-1, :, :].mean(axis=0)
-    tip_xy = float(np.hypot(tip[0], tip[1]))
-    if tip_xy > 1e-9:
-        cos_a = tip[1] / tip_xy
-        sin_a = tip[0] / tip_xy
-        Rz = np.array([[cos_a, -sin_a, 0.0],
-                       [sin_a,  cos_a, 0.0],
-                       [0.0,    0.0,   1.0]])
-        cps_local = np.einsum("ij,uvj->uvi", Rz, cps_local)
-        R = R @ Rz.T
+    if tip_canonical_rotate:
+        tip = cps_local[-1, :, :].mean(axis=0)
+        tip_xy = float(np.hypot(tip[0], tip[1]))
+        if tip_xy > 1e-9:
+            cos_a = tip[1] / tip_xy
+            sin_a = tip[0] / tip_xy
+            Rz = np.array([[cos_a, -sin_a, 0.0],
+                           [sin_a,  cos_a, 0.0],
+                           [0.0,    0.0,   1.0]])
+            cps_local = np.einsum("ij,uvj->uvi", Rz, cps_local)
+            R = R @ Rz.T
 
     if normalize_arc:
         midrib = cps_local[:, N_V // 2, :]
@@ -374,6 +383,7 @@ def build_from_maizefield3d(
     draw_seed: int | None = None,
     normalize_arc: bool = True,
     tip_bounds: Callable[[int], tuple[float, float, float, float]] | None = None,
+    tip_canonical_rotate: bool = True,
 ) -> dict:
     """Read the canonical per-plant CP JSON and build a local-frame library.
 
@@ -385,6 +395,12 @@ def build_from_maizefield3d(
             unit midrib-arc before aggregation. Downstream consumers
             should re-scale via ``mature_length`` at loft time — the
             returned dict flags this via ``normalized=True``.
+        tip_canonical_rotate: forwarded to :func:`to_local_frame`. Set to
+            False to match the frame the baked
+            ``canonical_leaf_library.npz`` (and the NPZ-derived
+            ``maize_calibrated.xml`` surface_cps) live in. ``cp_swap``
+            uses this for runtime donor injection so swapped CPs share a
+            frame with the XML's CPs.
 
     Returns a dict with keys:
       - ``cps_local``: ``(n_positions, N_U, N_V, 3)`` aggregated local CPs
@@ -439,7 +455,11 @@ def build_from_maizefield3d(
                 if world_lmax_cm > 1e-9 else 0.0
             )
             try:
-                cps_local, _, _ = to_local_frame(cps_world, normalize_arc=normalize_arc)
+                cps_local, _, _ = to_local_frame(
+                    cps_world,
+                    normalize_arc=normalize_arc,
+                    tip_canonical_rotate=tip_canonical_rotate,
+                )
             except ValueError:
                 continue
             midrib = cps_local[:, N_V // 2, :]

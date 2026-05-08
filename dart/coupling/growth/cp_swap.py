@@ -114,10 +114,23 @@ def apply_donor_cps(
         _default_canonical_json,
     )
 
+    # NPZ-compat: tip_canonical_rotate=False matches the frame the baked
+    # canonical_leaf_library.npz (and maize_calibrated.xml's surface_cps)
+    # live in. Without this, runtime CPs land in a +y-aligned canonical
+    # frame while the XML's CPs keep their plant-natural azimuth — mixing
+    # the two on the same plant produces frame mismatch and crumbled
+    # meshes. The default _default_tip_bounds thresholds were tuned for
+    # the rotated frame, so they reject most plants under the natural
+    # azimuth (in particular emptying the draw_coherent intersection).
+    # Disable the filter to recover the 520-plant pool the NPZ was built
+    # against — calibrate also bakes the XML from this unfiltered pool.
+    npz_compat_filter = lambda _pos: (-1e9, 1e9, -1e9, -1e9)
     lib = build_from_maizefield3d(
         _default_canonical_json(),
         reducer=mode,
         draw_seed=int(donor_seed) if mode in ("draw", "draw_coherent") else None,
+        tip_canonical_rotate=False,
+        tip_bounds=npz_compat_filter,
     )
     cps_by_pos = lib["cps_local"]          # (n_pos, N_U, N_V, 3)
     metrics = lib["chosen_metrics_cm"]     # (n_pos, 2) → (lmax, max_w)
@@ -137,6 +150,7 @@ def apply_donor_cps(
     if smooth_alpha < 1.0 and mode in ("draw", "draw_coherent"):
         median_lib = build_from_maizefield3d(
             _default_canonical_json(), reducer="median",
+            tip_canonical_rotate=False, tip_bounds=npz_compat_filter,
         )
         median_by_pos = median_lib["cps_local"]
         median_pos_to_idx = {
