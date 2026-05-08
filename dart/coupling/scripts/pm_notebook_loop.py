@@ -608,7 +608,8 @@ def case_maize(age_days, verbose):
 
 def main():
     p = argparse.ArgumentParser()
-    p.add_argument("--case", choices=("wheat_tutorial", "v3_maize", "day55_maize", "all"),
+    p.add_argument("--case", choices=("wheat_tutorial", "v3_maize", "day55_maize",
+                                      "day130_maize", "all"),
                    default="wheat_tutorial")
     p.add_argument("-v", "--verbose", action="store_true")
     p.add_argument("--legacy-perstep", action="store_true",
@@ -642,6 +643,9 @@ def main():
     if args.case in ("day55_maize", "all"):
         print()
         out["day55_maize"] = case_maize(55, args.verbose)
+    if args.case in ("day130_maize", "all"):
+        print()
+        out["day130_maize"] = case_maize(130, args.verbose)
 
     out_json = REPO_ROOT / f"dart/coupling/scripts/_pm_notebook_loop_{args.case}.json"
     with open(out_json, 'w') as f:
