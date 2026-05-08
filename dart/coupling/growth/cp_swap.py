@@ -114,31 +114,41 @@ def apply_donor_cps(
         _default_canonical_json,
     )
 
-    # NPZ-compat: tip_canonical_rotate=False matches the frame the baked
-    # canonical_leaf_library.npz (and maize_calibrated.xml's surface_cps)
-    # live in. Without this, runtime CPs land in a +y-aligned canonical
-    # frame while the XML's CPs keep their plant-natural azimuth — mixing
-    # the two on the same plant produces frame mismatch and crumbled
-    # meshes. The default _default_tip_bounds thresholds were tuned for
-    # the rotated frame, so they reject most plants under the natural
-    # azimuth (in particular emptying the draw_coherent intersection).
-    # Disable the filter to recover the 520-plant pool the NPZ was built
-    # against — calibrate also bakes the XML from this unfiltered pool.
+    # tip_canonical_rotate=True: each donor leaf's CP grid is rotated
+    # about +z so its tip lands in the canonical (+y, +z) half-plane.
+    # The XML's median-derived surface_cps look near-canonical anyway
+    # (median across 520 plants converges azimuthally to ±10° of +y),
+    # so canonicalising at injection produces a leaf shape compatible
+    # with the XML's frame. WITHOUT this rotate, single-plant donors
+    # carry their plant-natural azimuth scatter (per-leaf tip directions
+    # ranging across ±170°) — leaves render at random orientations,
+    # producing the "very upright and drastically crumbled" look the
+    # user reported on first sight. Per-plant identity is still
+    # preserved by the donor's lmax/width metrics; only the azimuth
+    # scatter is washed out.
+    #
+    # tip_bounds=no_op: the default _default_tip_bounds thresholds
+    # reject too aggressively at upper positions (pos 13 with default
+    # bounds + canonical-rotate has only 21 plants surviving, with
+    # the 14-position intersection collapsing to {216, 374, 430, 446,
+    # 455} — only 5 plants). The donor_quality_filter below is the
+    # principled per-plant gate; keep tip_bounds permissive so the
+    # draw_coherent pool stays diverse.
     npz_compat_filter = lambda _pos: (-1e9, 1e9, -1e9, -1e9)
     # donor_quality_filter rejects plants whose lmax-vs-position curve
     # violates U-shape monotonicity within ±20 % — catches the
     # scan-corrupted MaizeField3D donors (occluded leaves, partial
     # captures of upper leaves, lodged plants with mis-numbered
     # positions) that would otherwise produce visually-implausible
-    # per-plant draws (e.g. seed 1's pos 8 = 30.9 cm next to pos 9 =
-    # 47.7 cm). Keeps ~82 % of the 520-plant pool and grows the
-    # 14-position draw_coherent intersection from 5 to 19 plants.
+    # per-plant draws. Keeps ~78 % of the 520-plant pool and grows the
+    # 14-position draw_coherent intersection from 5 to 18 plants under
+    # the canonical-rotate frame.
     DONOR_QUALITY_TOL = 0.20
     lib = build_from_maizefield3d(
         _default_canonical_json(),
         reducer=mode,
         draw_seed=int(donor_seed) if mode in ("draw", "draw_coherent") else None,
-        tip_canonical_rotate=False,
+        tip_canonical_rotate=True,
         tip_bounds=npz_compat_filter,
         donor_quality_filter=DONOR_QUALITY_TOL,
     )
@@ -161,7 +171,7 @@ def apply_donor_cps(
     if smooth_alpha < 1.0 and mode in ("draw", "draw_coherent"):
         median_lib = build_from_maizefield3d(
             _default_canonical_json(), reducer="median",
-            tip_canonical_rotate=False, tip_bounds=npz_compat_filter,
+            tip_canonical_rotate=True, tip_bounds=npz_compat_filter,
             donor_quality_filter=DONOR_QUALITY_TOL,
         )
         median_by_pos = median_lib["cps_local"]
