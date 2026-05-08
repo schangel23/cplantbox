@@ -134,10 +134,18 @@ def solve_carbon_partitioning_pm(plant, An_per_leaf_seg, Tair_C=25.0,
             uses a static 200-cell linspace gradient anchored at
             ``soil_psi_cm`` — bit-identical with the pre-Gate-Ch1.PMDM.1
             behaviour. When supplied, the loop reads
-            ``provider.get_profile(t_days=sim)`` per substep, which
-            advances ``DumuxSoilPsi`` internally if its ``update`` was
-            called between substeps. RWU sink-feedback is added in
-            Gate Ch1.PMDM.2 (this kwarg is plumbing-only at G1).
+            ``provider.get_profile(t_days=sim)`` per substep AND pushes
+            per-cell RWU sinks back via ``push_rwu_sink_to_provider``
+            after each ``hm.solve`` (Gate Ch1.PMDM.2), so the next
+            substep's ``get_profile`` advances ``DumuxSoilPsi`` against
+            the previous substep's transpiration sink — closing the
+            soil↔plant water loop. ``FixedSoilPsi`` / ``BucketSoilPsi``
+            short-circuit the sink push to a no-op, so passing one of
+            those is functionally equivalent to ``soil_psi_provider=None``
+            (modulo their static return shape). The caller is
+            responsible for aligning ``provider._t_last_days`` with
+            ``day`` before this function is called (the production
+            diurnal pipeline owns this in G5).
 
     Returns:
         carbon_result dict with the same keys as
@@ -188,25 +196,35 @@ def solve_carbon_partitioning_pm(plant, An_per_leaf_seg, Tair_C=25.0,
 
     # Soil psi profile.
     #
-    # G1 default (soil_psi_provider=None): same shape as
+    # Default (soil_psi_provider=None): same shape as
     # pm_notebook_loop.case_maize — 200 layers from soil_psi_cm to
     # soil_psi_cm-200 (well-watered top → drier bottom), built once
     # before the loop. Bit-identical with pre-Gate-Ch1.PMDM.1 behaviour
     # and with all Gate 1-5 calibration runs.
     #
-    # G1 provider branch: when a SoilPsiProvider is supplied, the static
-    # build is skipped; ``p_s`` is refreshed inside the substep loop via
-    # ``soil_psi_provider.get_profile(t_days=sim)``. For static providers
-    # (FixedSoilPsi, BucketSoilPsi) this is functionally equivalent to
-    # the static linspace below (provider returns its own constant or
-    # exponential-decay vector). For DumuxSoilPsi this triggers an
-    # internal Richards advance against the *previously*-registered sink
-    # (zero in G1 because no push_rwu_sink_to_provider hook is wired
-    # yet — that is Gate Ch1.PMDM.2).
+    # Provider branch (Gate Ch1.PMDM.2): when a SoilPsiProvider is
+    # supplied, the static build is skipped; ``p_s`` is refreshed inside
+    # the substep loop via ``soil_psi_provider.get_profile(t_days=sim)``
+    # *and* the per-segment radial fluxes from the previous solve are
+    # aggregated into per-cell sinks via ``push_rwu_sink_to_provider``
+    # (see ``hydraulics.soil_psi``). For static providers this push is
+    # a documented no-op so ``--soil-mode fixed`` stays bit-identical
+    # with the linspace branch (modulo provider return shape). For
+    # ``DumuxSoilPsi`` the push closes the soil↔plant water loop:
+    # substep N's RWU sink drives substep N+1's RichardsSP advance
+    # inside ``get_profile``.
+    from ..hydraulics.soil_psi import push_rwu_sink_to_provider
+
     if soil_psi_provider is None:
         p_s = np.linspace(soil_psi_cm, soil_psi_cm - 200.0, 200)
+        n_cells = 200
     else:
-        p_s = None  # built fresh per substep inside the loop
+        # ``p_s`` is rebuilt fresh per substep inside the loop; seed with
+        # an empty array of the provider's length so the type checker
+        # tracks ``np.ndarray`` cleanly across the get_profile / solve /
+        # push hand-off.
+        n_cells = int(soil_psi_provider.n_cells_total)
+        p_s = np.empty(n_cells, dtype=float)
 
     # PAR conversion: μmol m⁻² s⁻¹ → mol cm⁻² d⁻¹
     par_mol_cm2_d = par_umol * 1e-6 * 86400 * 1e-4
@@ -232,7 +250,10 @@ def solve_carbon_partitioning_pm(plant, An_per_leaf_seg, Tair_C=25.0,
         # Static providers (Fixed/Bucket) return a length-validated array
         # bit-identically to the legacy linspace; DumuxSoilPsi advances
         # its internal RichardsSP solver here using whatever sink was
-        # last registered via update() (none in G1).
+        # registered by the previous substep's
+        # ``push_rwu_sink_to_provider`` call (zero on substep 0 because
+        # nothing has been pushed yet — first DuMux advance runs against
+        # an empty source).
         if soil_psi_provider is not None:
             p_s = soil_psi_provider.get_profile(t_days=float(sim))
 
@@ -247,6 +268,16 @@ def solve_carbon_partitioning_pm(plant, An_per_leaf_seg, Tair_C=25.0,
             return None
         else:
             _restore_io(*fdpair)
+
+        # 1b. Close the soil↔plant water loop (Gate Ch1.PMDM.2): aggregate
+        # per-segment radial fluxes into per-cell sinks and push to the
+        # provider. The next substep's get_profile reads the updated ψ_s.
+        # No-op for FixedSoilPsi/BucketSoilPsi (helper short-circuits on
+        # static providers), keeping --soil-mode fixed bit-identical.
+        if soil_psi_provider is not None:
+            push_rwu_sink_to_provider(
+                hm, float(sim), p_s, soil_psi_provider, n_cells=n_cells,
+            )
 
         # 2. Accumulate An (notebook pattern: AnSum += sum(Ag4Phloem) * dt).
         Ag = np.array(hm.Ag4Phloem)
