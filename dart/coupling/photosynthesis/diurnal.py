@@ -814,7 +814,17 @@ def run_single_day(sim_day, use_dart=True, timestep_min=30,
 
 def _save_per_plant_carbon_csv(per_plant_carbon, daily_An_per_plant, day_dir,
                                sim_day):
-    """Save per-plant carbon partitioning results to CSV."""
+    """Save per-plant carbon partitioning results to CSV.
+
+    Always writes ``per_plant_carbon_day{N}.csv`` with the S5-shape
+    columns (bit-identical with pre-Gate-4 production output regardless
+    of carbon_solver). When PM produced any plant, also writes a
+    sidecar ``per_plant_carbon_pm_day{N}.csv`` with Gate Ch1.PM.3
+    instrumentation (sum_Q_S_meso, dQ_S_meso, dQ_meso, dQ_ST,
+    mass_balance_residual_pct, An_total_mmol vs An_total_mmol_target).
+    The sidecar lets pm_gate3_score-style mass-balance scoring run
+    against the production output without re-running the substep loop.
+    """
     csv_path = day_dir / f'per_plant_carbon_day{sim_day}.csv'
     header = ('plant_idx,seed,daily_An_mol,FR_leaf,FR_stem,FR_root,FR_storage,'
               'Rm_total_mmol,Rg_total_mmol,growth_mmol_d,'
@@ -838,6 +848,40 @@ def _save_per_plant_carbon_csv(per_plant_carbon, daily_An_per_plant, day_dir,
             )
     csv_path.write_text(header + '\n' + '\n'.join(rows) + '\n')
     print(f"  Per-plant carbon CSV: {csv_path}")
+
+    # PM sidecar (Gate Ch1.PM.4): only emitted when at least one plant
+    # ran through the PiafMunch substep loop. Keeps the S5 path's
+    # outputs bit-identical with pre-Gate-4 production.
+    has_pm = any(
+        c is not None and c.get('partitioning_source') == 'piafmunch_substep'
+        for c in per_plant_carbon
+    )
+    if not has_pm:
+        return
+    pm_csv = day_dir / f'per_plant_carbon_pm_day{sim_day}.csv'
+    pm_header = (
+        'plant_idx,seed,An_total_mmol,An_total_mmol_target,'
+        'sum_Q_S_meso,dQ_S_meso,dQ_meso,dQ_ST,'
+        'mass_balance_residual_pct'
+    )
+    pm_rows = []
+    for pi in range(N_PLANTS):
+        c = per_plant_carbon[pi]
+        if c is None or c.get('partitioning_source') != 'piafmunch_substep':
+            pm_rows.append(f"{pi},{FIELD_SEED+pi},,,,,,,")
+            continue
+        pm_rows.append(
+            f"{pi},{FIELD_SEED+pi},"
+            f"{c.get('An_total_mmol',0):.4f},"
+            f"{c.get('An_total_mmol_target',0):.4f},"
+            f"{c.get('sum_Q_S_meso',0):.4f},"
+            f"{c.get('dQ_S_meso',0):.4f},"
+            f"{c.get('dQ_meso',0):.4f},"
+            f"{c.get('dQ_ST',0):.4f},"
+            f"{c.get('mass_balance_residual_pct',0):.4f}"
+        )
+    pm_csv.write_text(pm_header + '\n' + '\n'.join(pm_rows) + '\n')
+    print(f"  Per-plant carbon PM-sidecar CSV: {pm_csv}")
 
 
 def _run_per_plant_carbon(daily_An_per_plant, sim_day, day_dir,
@@ -2344,7 +2388,7 @@ def run_production_series_carbon(growth_days, timestep_min=60,
             carbon_per_plant = []
             for pi, c in enumerate(per_plant_carbon):
                 if c is not None:
-                    carbon_per_plant.append({
+                    entry = {
                         'plant': pi,
                         'Rm_total_mmol': c.get('Rm_total_mmol'),
                         'Rg_total_mmol': c.get('Rg_total_mmol'),
@@ -2356,7 +2400,21 @@ def run_production_series_carbon(growth_days, timestep_min=60,
                         'carbon_balance_error': c.get('carbon_balance_error'),
                         'DVS': c.get('DVS'),
                         'partitioning_source': c.get('partitioning_source'),
-                    })
+                    }
+                    # Gate Ch1.PM.4 sidecar fields (only when PM produced
+                    # this plant). Keeps S5 entries shape-identical with
+                    # pre-Gate-4 daily_summary.json.
+                    if c.get('partitioning_source') == 'piafmunch_substep':
+                        entry['sum_Q_S_meso'] = c.get('sum_Q_S_meso')
+                        entry['dQ_S_meso'] = c.get('dQ_S_meso')
+                        entry['dQ_meso'] = c.get('dQ_meso')
+                        entry['dQ_ST'] = c.get('dQ_ST')
+                        entry['mass_balance_residual_pct'] = c.get(
+                            'mass_balance_residual_pct')
+                        entry['An_total_mmol'] = c.get('An_total_mmol')
+                        entry['An_total_mmol_target'] = c.get(
+                            'An_total_mmol_target')
+                    carbon_per_plant.append(entry)
             daily_json['carbon_partitioning'] = carbon_per_plant
             with open(json_path, 'w') as f:
                 json.dump(daily_json, f, indent=2)
