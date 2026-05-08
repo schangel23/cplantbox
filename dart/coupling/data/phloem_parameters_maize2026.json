@@ -1,4 +1,22 @@
 {
+  "_meta": {
+    "description": "PiafMunch phloem parameters for maize (CPlantBox dart/coupling). Read by phloem_flux.PhloemFluxPython.read_phloem_parameters; the `_meta` block is documentary only (the reader ignores unknown top-level keys).",
+    "provenance": {
+      "Krm1": "Penning de Vries 1989; WOFOST R_M_S_T_L. root=0.012, stem=0.015, leaf=0.030 [d^-1]. Anchored to Amthor 2000 (~600 mmol CO2 kg DM^-1 d^-1 for crop foliage at 20 C; ~2.5 mmol Suc/d for ~50 g DM maize).",
+      "C_targ": "Lohaus 2000 (maize stylectomy ~850 mol/m^3) / Babst 2022 / Jensen 2013 / Yesbergenova-Cuny 2016 / Ohshima 1990.",
+      "Vmaxloading_beta_Mloading": "ZmSUT1 kinetics, Carpaneto 2005; tuned to match Babst 2022 ZmSUT1 WT loading rate.",
+      "kx_st": "Babst 2022 (stem) reduced to 175 bundles; Hartmann-Pellegrini (HP) plate-corrected for leaf and root."
+    },
+    "version_log": [
+      {
+        "date": "2026-05-08",
+        "change": "Krm1 retune [0.15, 0.15, 0.25] -> [0.012, 0.015, 0.030] (Gate Ch1.PM.1).",
+        "why": "Pre-fix maize-day-55 24h cumulative Rm = 23.74 mmol Suc/d, ~10x over Amthor 2000 anchor (~2.5 mmol Suc/d for 50 g DM maize). Old Krm1 was ad-hoc and the description falsely claimed WOFOST provenance. New values are the true Penning de Vries 1989 / WOFOST R_M_S_T_L coefficients.",
+        "expected_effect": "Day-55 Rm drops 23.74 -> ~2.4 mmol Suc/d (in Amthor band 1.4-4.2). Surplus deepens (S/D ~ 27 at saturating PAR) so cuse-gate is expected to pin C_ST_mean near CSTimin = 0.20 (Option A in plan).",
+        "ref": "Literature/Chapter 1/Concepts/CPBOXBALENOCOUPLING/PLAN_PIAFMUNCH_CALIBRATION_2026-05-04.md, sections '2026-05-08 Ch1 critical path REVERSED' and 'Gate Ch1.PM.1'."
+      }
+    ]
+  },
   "InitialValues": {
     "initValST": {
       "value": 0.4,
@@ -273,16 +291,16 @@
     "Krm1": {
       "value": [
         [
-          0.15
+          0.012
         ],
         [
-          0.15
+          0.015
         ],
         [
-          0.25
+          0.030
         ]
       ],
-      "description": "Q2: Per-organ-type maintenance respiration (WOFOST). Leaf=0.25 (2.5x; protein-rich), stem=0.15, root=0.15. Total respiration: ~9 -> ~18 mmol/d (50-65% of loading)"
+      "description": "Q2: Per-organ-type maintenance respiration coefficient k_m,Suc [d^-1]. Penning de Vries 1989 / WOFOST R_M_S_T_L (root=0.012, stem=0.015, leaf=0.030); Q_Rmmax = Krm1 x Rho_s x seg_vol. Replaces 2026-04 ad-hoc [0.15,0.15,0.25] (Gate Ch1.PM.1 retune 2026-05-08): pre-fix maize-day-55 absolute Rm = 23.74 mmol Suc/d (~10x over Amthor 2000 anchor 2.5 mmol Suc/d for ~50 g DM); WOFOST literature values land Rm in the Amthor 1.4-4.2 band. See PLAN_PIAFMUNCH_CALIBRATION_2026-05-04.md Gate Ch1.PM.1."
     },
     "Rho_s": {
       "value": [
