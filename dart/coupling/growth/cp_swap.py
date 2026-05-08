@@ -151,6 +151,21 @@ def apply_donor_cps(
         if lib_arc > 1e-9 and new_lmax > 1e-9:
             grid = grid * (new_lmax / lib_arc)
 
+        # Lateral rescale so CP-encoded area matches the target ``areaMax``.
+        # The donor library inherits the same flawed lateral convention as
+        # the original XML CPs (peak ≈ Width_blade vs the calibrate.py-asked
+        # Width_blade × 2). The 2026-05-08 surface_cp lateral-rescale fix
+        # (scripts/fix_surface_cp_lateral.py) only touched the XML; mirror
+        # it here so library-injected blades render with correct width too.
+        # SHAPE_FACTOR = 0.73 mirrors fix_surface_cp_lateral.py.
+        if resize_blades and new_area > 1e-9:
+            mid_xyz = grid[:, n_v // 2, :]
+            mid_arc = float(np.sum(np.linalg.norm(np.diff(mid_xyz, axis=0), axis=1)))
+            peak_x = float(grid[:, :, 0].max() - grid[:, :, 0].min())
+            cp_area = mid_arc * peak_x * 0.73
+            if cp_area > 1e-9:
+                grid[:, :, 0] *= (new_area / cp_area)
+
         # Setter expects List[Vector3d] flattened row-major (i_u*n_v + i_v).
         flat = [pb.Vector3d(float(grid[iu, iv, 0]),
                             float(grid[iu, iv, 1]),
