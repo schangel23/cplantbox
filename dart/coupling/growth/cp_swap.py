@@ -146,6 +146,7 @@ def apply_donor_cps(
     # already average bulges out.
     smooth_alpha = float(min(max(smooth_alpha, 0.0), 1.0))
     median_by_pos = None
+    median_metrics = None
     median_pos_to_idx = None
     if smooth_alpha < 1.0 and mode in ("draw", "draw_coherent"):
         median_lib = build_from_maizefield3d(
@@ -153,6 +154,7 @@ def apply_donor_cps(
             tip_canonical_rotate=False, tip_bounds=npz_compat_filter,
         )
         median_by_pos = median_lib["cps_local"]
+        median_metrics = median_lib["chosen_metrics_cm"]
         median_pos_to_idx = {
             int(p): i for i, p in enumerate(median_lib["positions"])
         }
@@ -174,6 +176,24 @@ def apply_donor_cps(
         idx = pos_to_idx[pos]
         raw_lmax = float(metrics[idx][0])
         max_w = float(metrics[idx][1])
+
+        # Damp per-position size noise. MaizeField3D scans carry per-plant
+        # spike-noise on lmax/Width_blade (occluded leaves, partial captures
+        # of upper leaves, lodged plants with mis-numbered positions). A
+        # single donor's per-position curve can have e.g. pos 8=30.9 cm
+        # next to pos 9=47.7 cm. The CP shape blend above damps shape
+        # noise; mirror it here so the size profile also looks plausible.
+        # Plant-to-plant variation is preserved across seeds because the
+        # blend keeps a fraction of the donor's actual size — heights
+        # vary, but each plant's position-curve smooths.
+        if (median_metrics is not None
+                and median_pos_to_idx is not None
+                and pos in median_pos_to_idx):
+            m_idx = median_pos_to_idx[pos]
+            median_lmax = float(median_metrics[m_idx][0])
+            median_max_w = float(median_metrics[m_idx][1])
+            raw_lmax = smooth_alpha * raw_lmax + (1.0 - smooth_alpha) * median_lmax
+            max_w = smooth_alpha * max_w + (1.0 - smooth_alpha) * median_max_w
 
         if resize_blades:
             new_lmax, new_area = _apply_bottom_taper(pos, raw_lmax, max_w)
