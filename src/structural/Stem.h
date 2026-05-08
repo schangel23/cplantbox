@@ -50,6 +50,18 @@ public:
 	 * but not consulted. Returns cm. */
 	double getRadiusAt(double arc_length) const;
 
+	/* H-aware per-phytomer ln cap accessor (PiafMunch follow-up #1,
+	 * 2026-05-08). Returns p.ln[i] * cultivar_height_factor under FA-on
+	 * (matches the per-phytomer cap consumed in Stem::internodalGrowth at
+	 * Stem.cpp:973), bare p.ln[i] otherwise. Out-of-range i returns 0.
+	 * Used by runPM.cpp:getGrowingNodes so PM compares phytomer fill
+	 * against the same effective cap the FA stem actually grows against
+	 * (otherwise FA-on stems with cultivar_height_factor>1 trip
+	 * "maxPhytoLen-currentPhytoLen<-1e10" once a phytomer grows past
+	 * its un-scaled ln target). FA-off path is bit-identical to raw
+	 * p.ln[i]. */
+	double getEffectiveLn(size_t i) const;
+
     /* exact from analytical equations */
     double calcLength(double age); ///< analytical length of the stem
     double calcAge(double length) const; ///< analytical age of the stem

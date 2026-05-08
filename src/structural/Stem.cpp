@@ -1104,6 +1104,32 @@ double Stem::getRadiusAt(double /*arc_length*/) const
 
 
 /**
+ * H-aware per-phytomer ln cap (PiafMunch follow-up #1, 2026-05-08).
+ *
+ * Mirrors the per-phytomer cap consumed in Stem::internodalGrowth (Stem.cpp:973)
+ * so external readers (PiafMunch::getGrowingNodes at runPM.cpp:802-807) compare
+ * a phytomer's current fill against the SAME effective cap that the FA stem
+ * actually grows against. Without this, an FA-on stem realised with
+ * cultivar_height_factor > 1 grows past raw p.ln[i] and trips PM's
+ * "maxPhytoLen-currentPhytoLen < -1e10" runtime_error on day-55 maize.
+ *
+ * FA-off (`use_fournier_andrieu_kinetics == 0`) returns bare p.ln[i],
+ * preserving G7 D.0 invariance for every non-maize XML.
+ *
+ * Out-of-range `i` returns 0 (defensive; callers loop over `p.ln.size()`).
+ */
+double Stem::getEffectiveLn(size_t i) const
+{
+	const auto& p = *param();
+	if (i >= p.ln.size()) return 0.0;
+	const bool fa_on = (p.use_fournier_andrieu_kinetics != 0);
+	const double H = (fa_on && p.cultivar_height_factor > 0.0)
+	                 ? p.cultivar_height_factor : 1.0;
+	return p.ln[i] * H;
+}
+
+
+/**
  * Analytical length of the stem at a given age
  *
  * @param age          age of the stem [day]

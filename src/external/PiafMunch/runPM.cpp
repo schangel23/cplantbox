@@ -796,16 +796,23 @@ std::vector<int> PhloemFlux::getGrowingNodes(std::shared_ptr<CPlantBox::Organ> o
 			if((StemGrowthPerPhytomer)&&(org->getNumberOfChildren() > 0))
 			{
 				// only for nodes in the growing phytomers. Phytomer ends each time we have a lateral.
-				auto stemParams = std::static_pointer_cast<CPlantBox::Stem>(org)->param();
+				// 2026-05-08 follow-up #1: read per-phytomer cap via Stem::getEffectiveLn
+				// so the comparison sees the H-scaled cap that an FA-on stem actually
+				// grows against (Stem.cpp:973). Without this, FA-on plants realised with
+				// cultivar_height_factor > 1 trip the "maxPhytoLen - currentPhytoLen < -1e10"
+				// throw below on day-55 maize. ln.size() is invariant in H, so we iterate
+				// over the raw size and only the cap value goes through getEffectiveLn.
+				auto stemPtr = std::static_pointer_cast<CPlantBox::Stem>(org);
+				auto stemParams = stemPtr->param();
 				bool foundPhytoIdx = false;
 				int PhytoIdx = 0; // to remember PhytoIdx outside of loop
 				for(; ((PhytoIdx < stemParams->ln.size())&(!foundPhytoIdx));PhytoIdx++)
 				{
-					double maxPhytoLen = stemParams->ln.at(PhytoIdx);
+					double maxPhytoLen = stemPtr->getEffectiveLn(PhytoIdx);
 					double currentPhytoLen = org->getLength(org->getChild(PhytoIdx+1)->parentNI) - org->getLength(org->getChild(std::max(0,PhytoIdx))->parentNI);
 					foundPhytoIdx = (maxPhytoLen - currentPhytoLen > 1e-10);//first still growing phytomere
 					if(maxPhytoLen - currentPhytoLen < -1e-10){throw std::runtime_error("maxPhytoLen - currentPhytoLen < -1e10;");}
-					
+
 				}
 				assert((nn1 < nNodes)&&"nn1 > nNodes");
 			}
