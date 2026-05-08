@@ -125,12 +125,22 @@ def apply_donor_cps(
     # Disable the filter to recover the 520-plant pool the NPZ was built
     # against — calibrate also bakes the XML from this unfiltered pool.
     npz_compat_filter = lambda _pos: (-1e9, 1e9, -1e9, -1e9)
+    # donor_quality_filter rejects plants whose lmax-vs-position curve
+    # violates U-shape monotonicity within ±20 % — catches the
+    # scan-corrupted MaizeField3D donors (occluded leaves, partial
+    # captures of upper leaves, lodged plants with mis-numbered
+    # positions) that would otherwise produce visually-implausible
+    # per-plant draws (e.g. seed 1's pos 8 = 30.9 cm next to pos 9 =
+    # 47.7 cm). Keeps ~82 % of the 520-plant pool and grows the
+    # 14-position draw_coherent intersection from 5 to 19 plants.
+    DONOR_QUALITY_TOL = 0.20
     lib = build_from_maizefield3d(
         _default_canonical_json(),
         reducer=mode,
         draw_seed=int(donor_seed) if mode in ("draw", "draw_coherent") else None,
         tip_canonical_rotate=False,
         tip_bounds=npz_compat_filter,
+        donor_quality_filter=DONOR_QUALITY_TOL,
     )
     cps_by_pos = lib["cps_local"]          # (n_pos, N_U, N_V, 3)
     metrics = lib["chosen_metrics_cm"]     # (n_pos, 2) → (lmax, max_w)
@@ -152,6 +162,7 @@ def apply_donor_cps(
         median_lib = build_from_maizefield3d(
             _default_canonical_json(), reducer="median",
             tip_canonical_rotate=False, tip_bounds=npz_compat_filter,
+            donor_quality_filter=DONOR_QUALITY_TOL,
         )
         median_by_pos = median_lib["cps_local"]
         median_metrics = median_lib["chosen_metrics_cm"]

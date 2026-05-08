@@ -377,6 +377,69 @@ def aggregate_library(
 # ---------------------------------------------------------------------------
 # MaizeField3D loader → local-frame → aggregate
 # ---------------------------------------------------------------------------
+def _passes_lmax_smoothness(
+    plant_pos_to_lmax: dict[int, float],
+    *,
+    max_jump_frac: float,
+    min_positions: int = 6,
+) -> bool:
+    """Per-plant scan-noise filter on the lmax-vs-position curve.
+
+    Real maize plants follow a roughly U-shaped lmax curve: leaves
+    lengthen monotonically from pos 0 up to a peak in the mid stem
+    (typically pos 4–5), then shorten monotonically toward the tassel.
+    MaizeField3D scans frequently violate this — partial captures of
+    upper leaves, occluded blades, lodged plants whose leaf positions
+    were mis-numbered all produce jagged lmax curves.
+
+    Peak detection uses a 3-point moving median so an isolated upper
+    noise-spike doesn't masquerade as the biological peak. Among
+    positions whose smoothed value is within 5 % of the smoothed max we
+    pick the lowest position — biological peaks live at pos 4–5; a
+    spike at pos 12 won't displace the true peak under this rule.
+
+    A plant passes if both legs are monotonic within ``max_jump_frac``
+    relative tolerance:
+
+      ascent  (pos < peak):   ``vals[i] <= vals[i+1] * (1 + max_jump_frac)``
+      descent (pos >= peak):  ``vals[i+1] <= vals[i]   * (1 + max_jump_frac)``
+
+    ``min_positions`` rejects plants with too few leaves to assess the
+    curve shape. ``max_jump_frac=0.20`` is a reasonable default — at the
+    520-plant MaizeField3D pool it accepts ~82 % of plants while
+    rejecting all of the obvious scan-noise donors (e.g. lmax
+    ``[..., 42.3, 30.9, 47.7, 39.2, ...]`` where pos 8→9 jumps +54 %
+    above the local trend, or ``[..., 71.3, 62.3, 88.4, 52.6]`` where
+    a single upper spike would otherwise displace the peak detector).
+    """
+    positions = sorted(plant_pos_to_lmax.keys())
+    if len(positions) < min_positions:
+        return False
+    vals = [plant_pos_to_lmax[p] for p in positions]
+    n = len(vals)
+
+    # Smoothed peak detection: 3-point moving median + bias toward the
+    # lowest position whose smoothed value is within 5 % of the smoothed
+    # max. Biological peaks live at pos 4–5; an isolated spike at pos 12
+    # won't displace the peak under this rule.
+    smoothed = [
+        float(np.median(vals[max(0, i - 1): min(n, i + 2)])) for i in range(n)
+    ]
+    smoothed_max = max(smoothed)
+    if smoothed_max <= 0:
+        return False
+    peak_threshold = 0.95 * smoothed_max
+    peak_idx = next(i for i, v in enumerate(smoothed) if v >= peak_threshold)
+
+    for i in range(peak_idx):
+        if vals[i] > vals[i + 1] * (1.0 + max_jump_frac):
+            return False
+    for i in range(peak_idx, n - 1):
+        if vals[i + 1] > vals[i] * (1.0 + max_jump_frac):
+            return False
+    return True
+
+
 def build_from_maizefield3d(
     canonical_json_path: Path,
     reducer: str = "median",
@@ -384,6 +447,7 @@ def build_from_maizefield3d(
     normalize_arc: bool = True,
     tip_bounds: Callable[[int], tuple[float, float, float, float]] | None = None,
     tip_canonical_rotate: bool = True,
+    donor_quality_filter: float | None = None,
 ) -> dict:
     """Read the canonical per-plant CP JSON and build a local-frame library.
 
@@ -401,6 +465,16 @@ def build_from_maizefield3d(
             ``maize_calibrated.xml`` surface_cps) live in. ``cp_swap``
             uses this for runtime donor injection so swapped CPs share a
             frame with the XML's CPs.
+        donor_quality_filter: if not None, reject plants whose lmax
+            curve violates U-shape monotonicity within this fractional
+            tolerance (see :func:`_passes_lmax_smoothness`). Filters out
+            scan-corrupted plants whose per-position size profile would
+            otherwise produce visually-implausible per-plant draws.
+            ``0.20`` is a reasonable default for MaizeField3D scans
+            (rejects ~18 % of plants, grows the 14-position
+            ``draw_coherent`` intersection from 5 to 19 plants under the
+            NPZ-compat frame). All-or-nothing per plant — a rejected
+            plant contributes zero leaves to zero positions.
 
     Returns a dict with keys:
       - ``cps_local``: ``(n_positions, N_U, N_V, 3)`` aggregated local CPs
@@ -427,8 +501,14 @@ def build_from_maizefield3d(
     per_position_ids: dict[int, list[int]] = {}
     per_position_metrics: dict[int, list[tuple[float, float]]] = {}
     n_rejected_shape = 0
+    n_rejected_donor_quality = 0
     plants = data.get("plants") or []
     for plant_idx, plant_record in enumerate(plants):
+        # First pass per plant: parse + apply per-leaf shape filter, collect
+        # everything that survives. Per-plant donor-quality filter is then
+        # applied to the surviving set as an all-or-nothing gate.
+        plant_leaves: list[tuple[int, np.ndarray, float, float]] = []
+        plant_lmax_curve: dict[int, float] = {}
         for leaf in plant_record.get("leaves", []):
             pos = int(leaf["position"])
             cps_world = np.asarray(leaf["cps_cm"], dtype=np.float64)
@@ -476,11 +556,22 @@ def build_from_maizefield3d(
                     or world_droop_frac < mn_droop):
                 n_rejected_shape += 1
                 continue
+            plant_leaves.append(
+                (pos, cps_local, world_lmax_cm, world_max_width_cm)
+            )
+            plant_lmax_curve[pos] = world_lmax_cm
+
+        if donor_quality_filter is not None and plant_leaves:
+            if not _passes_lmax_smoothness(
+                plant_lmax_curve, max_jump_frac=float(donor_quality_filter)
+            ):
+                n_rejected_donor_quality += len(plant_leaves)
+                continue
+
+        for pos, cps_local, lmax, max_w in plant_leaves:
             per_position.setdefault(pos, []).append(cps_local)
             per_position_ids.setdefault(pos, []).append(plant_idx)
-            per_position_metrics.setdefault(pos, []).append(
-                (world_lmax_cm, world_max_width_cm)
-            )
+            per_position_metrics.setdefault(pos, []).append((lmax, max_w))
 
     if not per_position:
         raise ValueError(f"no valid leaves parsed from {canonical_json_path}")
@@ -517,6 +608,11 @@ def build_from_maizefield3d(
                 int(p): tuple(bounds_fn(int(p))) for p in positions
             },
             "n_rejected": int(n_rejected_shape),
+            "donor_quality_filter": (
+                float(donor_quality_filter)
+                if donor_quality_filter is not None else None
+            ),
+            "n_rejected_donor_quality_leaves": int(n_rejected_donor_quality),
         },
         # Per-position (lmax_cm, max_width_cm) for the reducer's chosen leaf:
         # - median/mean: per-position median/mean across the filtered pool

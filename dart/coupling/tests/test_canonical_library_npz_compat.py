@@ -22,6 +22,7 @@ import pytest
 
 from dart.coupling.geometry.canonical_library import (
     _default_canonical_json,
+    _passes_lmax_smoothness,
     build_from_maizefield3d,
     load_library,
 )
@@ -84,6 +85,63 @@ def test_npz_compat_build_bit_identical_to_baked_npz():
             "cp_swap injects donor CPs into XML CPs that live in the NPZ "
             "frame; any drift here will crumble swapped meshes."
         ),
+    )
+
+
+def test_donor_quality_filter_rejects_known_bad_curves():
+    """Both panel-seed scan-noise donors must be rejected at tol=0.20.
+
+    Concrete curves drawn from the live MaizeField3D pool — seed-1's
+    chosen donor jumps from pos 8 = 30.9 cm to pos 9 = 47.7 cm (descent
+    leg goes UP +54 %); seed-4's donor has a single upper-rank spike at
+    pos 12 = 88.4 cm that would displace a naive argmax-based peak
+    detector. The smoothed-peak filter catches both.
+    """
+    bad_seed1 = {0: 46.8, 1: 55.4, 2: 61.1, 3: 56.7, 4: 56.0, 5: 50.3,
+                 6: 46.3, 7: 42.3, 8: 30.9, 9: 47.7, 10: 39.2, 11: 39.0,
+                 12: 30.7, 13: 22.0}
+    bad_seed4 = {0: 51.0, 1: 61.8, 2: 70.6, 3: 77.6, 4: 74.5, 5: 78.0,
+                 6: 70.6, 7: 77.1, 8: 81.3, 9: 79.3, 10: 71.3, 11: 62.3,
+                 12: 88.4, 13: 52.6}
+    assert not _passes_lmax_smoothness(bad_seed1, max_jump_frac=0.20)
+    assert not _passes_lmax_smoothness(bad_seed4, max_jump_frac=0.20)
+
+
+def test_donor_quality_filter_accepts_clean_u_curve():
+    """A monotonic U-curve must pass at the default tolerance."""
+    clean = {0: 64.0, 1: 77.2, 2: 86.3, 3: 95.9, 4: 102.0, 5: 97.2,
+             6: 106.9, 7: 104.1, 8: 110.0, 9: 104.5, 10: 97.1, 11: 80.4,
+             12: 78.3, 13: 71.2}
+    assert _passes_lmax_smoothness(clean, max_jump_frac=0.20)
+
+
+def test_donor_quality_filter_rejects_too_few_positions():
+    """Plants with fewer than min_positions leaves are rejected."""
+    sparse = {0: 50.0, 1: 60.0, 2: 70.0}
+    assert not _passes_lmax_smoothness(sparse, max_jump_frac=0.20)
+
+
+@pytest.mark.skipif(
+    not _default_canonical_json().exists(),
+    reason="MaizeField3d canonical_cps.json not available in this checkout",
+)
+def test_donor_quality_filter_shrinks_pool():
+    """Filter on must reduce per-position counts vs filter off."""
+    no_op = lambda _p: (-1e9, 1e9, -1e9, -1e9)  # noqa: E731
+    lib_off = build_from_maizefield3d(
+        _default_canonical_json(), reducer="median", normalize_arc=False,
+        tip_bounds=no_op, tip_canonical_rotate=False,
+    )
+    lib_on = build_from_maizefield3d(
+        _default_canonical_json(), reducer="median", normalize_arc=False,
+        tip_bounds=no_op, tip_canonical_rotate=False,
+        donor_quality_filter=0.20,
+    )
+    assert lib_on["counts"].sum() < lib_off["counts"].sum(), (
+        "donor_quality_filter=0.20 should reject some leaves"
+    )
+    assert lib_on["counts"][0] >= int(0.6 * lib_off["counts"][0]), (
+        "filter at 0.20 should keep most plants at pos 0 (>60%)"
     )
 
 
