@@ -356,12 +356,20 @@ def run_loop(plant, sim_init, sim_max, dt, hm,
             return rows
 
         # 3) Read state (per notebook cell 13).
-        Q_ST   = np.array(hm.Q_out[0:nt])
-        Q_meso = np.array(hm.Q_out[nt:(nt*2)])
-        Q_Rm   = np.array(hm.Q_out[(nt*2):(nt*3)])
-        Q_Exud = np.array(hm.Q_out[(nt*3):(nt*4)])
-        Q_Gr   = np.array(hm.Q_out[(nt*4):(nt*5)])
-        C_ST   = np.array(hm.C_ST)
+        # Q_out layout (10 blocks × Nt, per src/external/PiafMunch/solve.cpp:191-207):
+        #   block 0 Q_ST, 1 Q_Mesophyll, 2 Q_RespMaint, 3 Q_Exudation, 4 Q_Growthtot,
+        #   block 5 Q_RespMaintmax, 6 Q_Growthtotmax, 7 Q_S_Mesophyll,
+        #   block 8 Q_S_ST, 9 Q_Mucil. Q_S_Mesophyll (mesophyll starch buffer) is a
+        # state variable (mmol Suc) — instrumented for Gate Ch1.PM.3 mass-balance
+        # closure: it absorbs the An residual after Q_Rm + Q_Gr + Q_Exud + Q_ST +
+        # Q_meso are accounted for.
+        Q_ST     = np.array(hm.Q_out[0:nt])
+        Q_meso   = np.array(hm.Q_out[nt:(nt*2)])
+        Q_Rm     = np.array(hm.Q_out[(nt*2):(nt*3)])
+        Q_Exud   = np.array(hm.Q_out[(nt*3):(nt*4)])
+        Q_Gr     = np.array(hm.Q_out[(nt*4):(nt*5)])
+        Q_S_meso = np.array(hm.Q_out[(nt*7):(nt*8)])
+        C_ST     = np.array(hm.C_ST)
 
         # Per-step deltas
         Q_ST_i   = Q_ST  # not differenced; absolute since AnSum is also absolute
@@ -378,6 +386,7 @@ def run_loop(plant, sim_init, sim_max, dt, hm,
             sim=sim, dt=dt, AnSum=AnSum,
             sum_Q_ST=float(np.sum(Q_ST)),
             sum_Q_meso=float(np.sum(Q_meso)),
+            sum_Q_S_meso=float(np.sum(Q_S_meso)),
             cum_Q_Rm=float(np.sum(Q_Rm)),
             cum_Q_Gr=float(np.sum(Q_Gr)),
             cum_Q_Exud=float(np.sum(Q_Exud)),
