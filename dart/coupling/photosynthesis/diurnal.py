@@ -842,23 +842,26 @@ def _save_per_plant_carbon_csv(per_plant_carbon, daily_An_per_plant, day_dir,
 
 def _run_per_plant_carbon(daily_An_per_plant, sim_day, day_dir,
                           carbon_method='auto', warm_start=None,
-                          gdd_accumulated=None):
+                          gdd_accumulated=None, carbon_solver='s5'):
     """Run carbon partitioning independently for each of 9 plants.
 
     Args:
         daily_An_per_plant: list of daily An [mol CO2/plant/day] per plant.
         sim_day: simulation day.
         day_dir: Path for output files.
-        carbon_method: 'auto', 'phloem', or 'dvs'.
+        carbon_method: 'auto', 'phloem', or 'dvs' (S5 path only).
         warm_start: dict {plant_idx: {'C_ST_mean', 'C_ST_min', 'C_ST_max'}} or None.
         gdd_accumulated: accumulated GDD for DVS.
+        carbon_solver: 's5' (default — quasi-steady phloem, Gate Ch1.PM.<=3
+            production behaviour) or 'pm' (PiafMunch substep loop, Gate
+            Ch1.PM.4). When 'pm', ``carbon_method`` is ignored.
 
     Returns:
         dict with 'per_plant', 'per_plant_agroc', 'field_mean_carbon',
         'field_mean_agroc', 'per_plant_warm_starts'.
     """
     from ..growth import run_photosynthesis, extract_lai_profile
-    from ..carbon import solve_carbon_partitioning
+    from ..carbon import solve_carbon_partitioning, solve_carbon_partitioning_pm
     from ..agroc import export_agroc_timestep, average_agroc_timesteps
 
     per_plant_carbon = []
@@ -906,12 +909,19 @@ def _run_per_plant_carbon(daily_An_per_plant, sim_day, day_dir,
             ws_pi = warm_start[pi]
 
         try:
-            carbon = solve_carbon_partitioning(
-                plant, An_leaf_scaled, Tair_C=25.0,
-                method=carbon_method, day=sim_day,
-                warm_start=ws_pi,
-                gdd_accumulated=gdd_accumulated,
-            )
+            if carbon_solver == 'pm':
+                carbon = solve_carbon_partitioning_pm(
+                    plant, An_leaf_scaled, Tair_C=25.0,
+                    day=sim_day, warm_start=ws_pi,
+                    gdd_accumulated=gdd_accumulated,
+                )
+            else:
+                carbon = solve_carbon_partitioning(
+                    plant, An_leaf_scaled, Tair_C=25.0,
+                    method=carbon_method, day=sim_day,
+                    warm_start=ws_pi,
+                    gdd_accumulated=gdd_accumulated,
+                )
         except Exception as e:
             print(f"    Plant {pi} carbon partitioning error: {e}")
             carbon = None
@@ -985,7 +995,8 @@ def run_single_day_with_carbon(sim_day, use_dart=True, timestep_min=30,
                                gdd_accumulated=None,
                                with_sif=False, with_dart_f=False,
                                sif_triangles=False,
-                               soil_psi_provider=None):
+                               soil_psi_provider=None,
+                               carbon_solver='s5'):
     """Run diurnal loop + per-plant carbon partitioning and AgroC export.
 
     Wraps run_single_day() and appends:
@@ -1044,6 +1055,7 @@ def run_single_day_with_carbon(sim_day, use_dart=True, timestep_min=30,
         daily_An_per_plant, sim_day, day_dir,
         carbon_method=carbon_method, warm_start=warm_start,
         gdd_accumulated=gdd_accumulated,
+        carbon_solver=carbon_solver,
     )
 
     result['daily_carbon'] = carbon_result
@@ -1245,7 +1257,8 @@ def run_production_series(growth_days, use_dart=True, timestep_min=60,
                           run_agroc_fortran=False, resume=False,
                           with_sif=False, with_dart_f=False,
                           sif_triangles=False,
-                          soil_psi_provider=None):
+                          soil_psi_provider=None,
+                          carbon_solver='s5'):
     """Run full production diurnal campaign with carbon + AgroC.
 
     Calls run_single_day_with_carbon() per day, supports checkpointing/resume
@@ -1287,7 +1300,8 @@ def run_production_series(growth_days, use_dart=True, timestep_min=60,
 
     print(f"\n{'=' * 70}")
     print(f"PRODUCTION SERIES{mode_label}: {growth_days}")
-    print(f"  Carbon: {carbon_method}, AgroC Fortran: {run_agroc_fortran}, "
+    print(f"  Carbon: {carbon_method} (solver={carbon_solver}), "
+          f"AgroC Fortran: {run_agroc_fortran}, "
           f"Resume: {resume}")
     print(f"{'=' * 70}")
 
@@ -1355,6 +1369,7 @@ def run_production_series(growth_days, use_dart=True, timestep_min=60,
             with_sif=with_sif, with_dart_f=with_dart_f,
             sif_triangles=sif_triangles,
             soil_psi_provider=soil_psi_provider,
+            carbon_solver=carbon_solver,
         )
         series_results[day] = result
 
@@ -1428,6 +1443,7 @@ def run_production_series(growth_days, use_dart=True, timestep_min=60,
         'timestep_min': timestep_min,
         'n_plants': N_PLANTS,
         'carbon_method': carbon_method,
+        'carbon_solver': carbon_solver,
         'iterate_gs': iterate_gs,
         'enable_baleno': enable_baleno,
         'daily_summaries': daily_summaries,
@@ -1556,7 +1572,8 @@ def run_production_series_carbon(growth_days, timestep_min=60,
                                   run_agroc_fortran=False, resume=False,
                                   with_sif=False, with_dart_f=False,
                                   sif_triangles=False,
-                                  soil_psi_provider=None):
+                                  soil_psi_provider=None,
+                                  carbon_solver='s5'):
     """Production series with carbon-feedback growth.
 
     Flow:
@@ -1594,12 +1611,12 @@ def run_production_series_carbon(growth_days, timestep_min=60,
     from ..growth.carbon_growth import (
         enable_cw_limited_growth, step_plant_carbon,
     )
-    from ..carbon import solve_carbon_partitioning
+    from ..carbon import solve_carbon_partitioning, solve_carbon_partitioning_pm
 
     print(f"\n{'=' * 70}")
     print(f"PRODUCTION SERIES (CARBON FEEDBACK): {growth_days}")
-    print(f"  Carbon: {carbon_method}, Baleno: {enable_baleno}, "
-          f"iterate_gs: {iterate_gs}")
+    print(f"  Carbon: {carbon_method} (solver={carbon_solver}), "
+          f"Baleno: {enable_baleno}, iterate_gs: {iterate_gs}")
     print(f"{'=' * 70}")
 
     from ..carbon.dvs_partitioning import gdd_at_day, dvs_from_gdd
@@ -2163,18 +2180,33 @@ def run_production_series_carbon(growth_days, timestep_min=60,
                 An_leaf_scaled = An_leaf
 
             try:
-                carbon = solve_carbon_partitioning(
-                    plant, An_leaf_scaled, Tair_C=daily_mean_tair,
-                    method=carbon_method, day=dart_day,
-                    warm_start=per_plant_warm_starts[pi] or None,
-                    gdd_accumulated=gdd_accumulated,
-                )
+                if carbon_solver == 'pm':
+                    # Gate Ch1.PM.4: substep-loop dispatch. The PM helper
+                    # ALSO advances the plant by ~1 day under
+                    # carbon-limited growth (plant.simulate(dt) inside the
+                    # 24-substep loop), so the subsequent DART-day
+                    # ``step_plant_carbon`` block is skipped under
+                    # carbon_solver='pm' to avoid double-advancement.
+                    carbon = solve_carbon_partitioning_pm(
+                        plant, An_leaf_scaled, Tair_C=daily_mean_tair,
+                        day=dart_day,
+                        warm_start=per_plant_warm_starts[pi] or None,
+                        gdd_accumulated=gdd_accumulated,
+                    )
+                else:
+                    carbon = solve_carbon_partitioning(
+                        plant, An_leaf_scaled, Tair_C=daily_mean_tair,
+                        method=carbon_method, day=dart_day,
+                        warm_start=per_plant_warm_starts[pi] or None,
+                        gdd_accumulated=gdd_accumulated,
+                    )
                 per_plant_carbon.append(carbon)
-                per_plant_warm_starts[pi] = {
-                    'C_ST_mean': carbon.get('C_ST_mean'),
-                    'C_ST_min': carbon.get('C_ST_min'),
-                    'C_ST_max': carbon.get('C_ST_max'),
-                }
+                if carbon is not None:
+                    per_plant_warm_starts[pi] = {
+                        'C_ST_mean': carbon.get('C_ST_mean'),
+                        'C_ST_min': carbon.get('C_ST_min'),
+                        'C_ST_max': carbon.get('C_ST_max'),
+                    }
             except Exception as e:
                 print(f"    Plant {pi} carbon partitioning error: {e}")
                 per_plant_carbon.append(None)
@@ -2256,42 +2288,50 @@ def run_production_series_carbon(growth_days, timestep_min=60,
             print()  # newline after all plants
 
         # --- 3d. Carbon-limited growth step on DART day itself ---
-        # Use the DART-informed An for this day's growth step
-        print(f"  DART-day growth step (day {dart_day}):")
-        for pi in range(N_PLANTS):
-            plant = persistent_plants[pi]
-            daily_An_mol = daily_An_per_plant_mol[pi]
-            if daily_An_mol <= 0:
-                continue
+        # Use the DART-informed An for this day's growth step. Skipped
+        # under carbon_solver='pm' because solve_carbon_partitioning_pm
+        # has already advanced each plant by ~1 day inside its 24-substep
+        # loop (plant.simulate(dt) per substep), so a second
+        # step_plant_carbon would double-advance.
+        if carbon_solver == 'pm':
+            print(f"  DART-day growth step (day {dart_day}): handled inside "
+                  f"PiafMunch substep loop (carbon_solver='pm')")
+        else:
+            print(f"  DART-day growth step (day {dart_day}):")
+            for pi in range(N_PLANTS):
+                plant = persistent_plants[pi]
+                daily_An_mol = daily_An_per_plant_mol[pi]
+                if daily_An_mol <= 0:
+                    continue
 
-            # Get per-segment An shape from persistent plant
-            hm = run_photosynthesis(
-                plant, sim_time=dart_day,
-                output_prefix=None, par_umol=1000.0, tair_c=daily_mean_tair)
-            if hm is None:
-                continue
+                # Get per-segment An shape from persistent plant
+                hm = run_photosynthesis(
+                    plant, sim_time=dart_day,
+                    output_prefix=None, par_umol=1000.0, tair_c=daily_mean_tair)
+                if hm is None:
+                    continue
 
-            An_leaf = np.array(hm.get_net_assimilation())
-            An_peak_total = float(np.sum(An_leaf))
-            if An_peak_total > 0:
-                An_leaf_scaled = An_leaf * (daily_An_mol / An_peak_total)
-            else:
-                An_leaf_scaled = An_leaf
+                An_leaf = np.array(hm.get_net_assimilation())
+                An_peak_total = float(np.sum(An_leaf))
+                if An_peak_total > 0:
+                    An_leaf_scaled = An_leaf * (daily_An_mol / An_peak_total)
+                else:
+                    An_leaf_scaled = An_leaf
 
-            try:
-                result = step_plant_carbon(
-                    plant, An_leaf_scaled, sim_day=dart_day,
-                    tair_c=daily_mean_tair, dt=1.0,
-                    warm_start=per_plant_warm_starts[pi] or None,
-                    gdd_accumulated=gdd_accumulated,
-                )
-                per_plant_warm_starts[pi] = {
-                    'C_ST_mean': result.get('C_ST_mean'),
-                    'C_ST_min': result.get('C_ST_min'),
-                    'C_ST_max': result.get('C_ST_max'),
-                }
-            except Exception as e:
-                print(f"    Plant {pi} growth step error: {e}")
+                try:
+                    result = step_plant_carbon(
+                        plant, An_leaf_scaled, sim_day=dart_day,
+                        tair_c=daily_mean_tair, dt=1.0,
+                        warm_start=per_plant_warm_starts[pi] or None,
+                        gdd_accumulated=gdd_accumulated,
+                    )
+                    per_plant_warm_starts[pi] = {
+                        'C_ST_mean': result.get('C_ST_mean'),
+                        'C_ST_min': result.get('C_ST_min'),
+                        'C_ST_max': result.get('C_ST_max'),
+                    }
+                except Exception as e:
+                    print(f"    Plant {pi} growth step error: {e}")
 
         # --- Append carbon partitioning to daily_summary.json ---
         try:
@@ -2387,6 +2427,7 @@ def run_production_series_carbon(growth_days, timestep_min=60,
         'growth_mode': 'carbon',
         'n_plants': N_PLANTS,
         'carbon_method': carbon_method,
+        'carbon_solver': carbon_solver,
         'enable_baleno': enable_baleno,
         'iterate_gs': iterate_gs,
         'daily_summaries': daily_summaries,
@@ -2468,6 +2509,15 @@ Examples:
     parser.add_argument('--carbon-method', type=str, default='auto',
                         choices=['auto', 'phloem', 'dvs'],
                         help='Carbon partitioning method (default: auto)')
+    parser.add_argument('--carbon-solver', type=str, default='s5',
+                        choices=['s5', 'pm'],
+                        help="Carbon partitioning solver (Gate Ch1.PM.4): "
+                             "'s5' (default — quasi-steady phloem solver, "
+                             "bit-identical with pre-Gate-4 production) or "
+                             "'pm' (PiafMunch substep loop mirroring "
+                             "pm_notebook_loop.run_loop). PM mode adds "
+                             "Q_S_Mesophyll mass-balance instrumentation to "
+                             "per-plant outputs.")
     parser.add_argument('--resume', action='store_true',
                         help='Resume interrupted production run from checkpoint')
     parser.add_argument('--uniform', action='store_true',
@@ -2568,6 +2618,7 @@ Examples:
                     with_sif=args.with_sif, with_dart_f=args.with_dart_f,
                     sif_triangles=args.sif_triangles,
                     soil_psi_provider=soil_psi_provider,
+                    carbon_solver=args.carbon_solver,
                 )
             else:
                 raise ValueError(
@@ -2607,6 +2658,7 @@ Examples:
                 with_sif=args.with_sif, with_dart_f=args.with_dart_f,
                 sif_triangles=args.sif_triangles,
                 soil_psi_provider=soil_psi_provider,
+                carbon_solver=args.carbon_solver,
             )
         elif args.with_carbon:
             # Production mode: full carbon + AgroC pipeline (parametric growth)
@@ -2624,6 +2676,7 @@ Examples:
                 with_sif=args.with_sif, with_dart_f=args.with_dart_f,
                 sif_triangles=args.sif_triangles,
                 soil_psi_provider=soil_psi_provider,
+                carbon_solver=args.carbon_solver,
             )
         else:
             raise ValueError(
