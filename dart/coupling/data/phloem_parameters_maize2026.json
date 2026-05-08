@@ -14,6 +14,13 @@
         "why": "Pre-fix maize-day-55 24h cumulative Rm = 23.74 mmol Suc/d, ~10x over Amthor 2000 anchor (~2.5 mmol Suc/d for 50 g DM maize). Old Krm1 was ad-hoc and the description falsely claimed WOFOST provenance. New values are the true Penning de Vries 1989 / WOFOST R_M_S_T_L coefficients.",
         "expected_effect": "Day-55 Rm drops 23.74 -> ~2.4 mmol Suc/d (in Amthor band 1.4-4.2). Surplus deepens (S/D ~ 27 at saturating PAR) so cuse-gate is expected to pin C_ST_mean near CSTimin = 0.20 (Option A in plan).",
         "ref": "Literature/Chapter 1/Concepts/CPBOXBALENOCOUPLING/PLAN_PIAFMUNCH_CALIBRATION_2026-05-04.md, sections '2026-05-08 Ch1 critical path REVERSED' and 'Gate Ch1.PM.1'."
+      },
+      {
+        "date": "2026-05-08",
+        "change": "Stem PerType arrays padded 1 -> 3 entries (Across_st, kr_st, kx_st, Rmax_st) to cover tassel emergence (Gate Ch1.PM.2 prep).",
+        "why": "Day-130 maize grows tassel: subType 20 (peduncle, n=1) and subType 21 (tassel branches, n=12). MappedOrganism::mapSubTypes (the XML defines all three stem subTypes from initialisation, so new_st = 0, 1, 2 are assigned even on v3/day-55 plants where no tassel segments exist) means PiafMunch's *_perType lookups (runPM.cpp:295-301) index those slots; with size-1 stem arrays it tripped vector::_M_range_check '1 >= 1' inside startPM at the first tassel-bearing substep on day-130.",
+        "expected_effect": "day130_maize runs end-to-end (25 substeps). v3_maize and day55_maize are NOT bit-identical post-pad (the size-1 -> size-3 layout shift perturbs the LSODA stiff trajectory): AnSum and cum_Q_Gr stay machine-precision bit-identical; cum_Q_Rm drifts ~1-2 %, cum_Q_Exud ~0.4-5 %, C_ST_mean ~12-23 %, C_ST_max amplified at small-volume apical nodes (known transient artefact, sub-dominant to mean). All four Gate 2 bands (Rm/An, Gr/An, Exud/An, C_ST_mean) stay within the same regime/band-side as pre-pad. Same drift class as the 2026-05-08 leaf pad 11 -> 15 (CPlantBox 8df1eaaf, follow-up #3); pre-stem-pad archives at scripts/_pm_pre_stempad_{v3,day55}_maize.json.",
+        "ref": "Literature/Chapter 1/Concepts/CPBOXBALENOCOUPLING/PLAN_PIAFMUNCH_CALIBRATION_2026-05-04.md, section 'Gate Ch1.PM.2'."
       }
     ]
   },
@@ -185,6 +192,8 @@
           3.534291735288517e-05
         ],
         [
+          0.0006442719309119693,
+          0.0006442719309119693,
           0.0006442719309119693
         ],
         [
@@ -206,7 +215,7 @@
         ]
       ],
       "unit": "cm2",
-      "description": "Total sieve tube cross-sectional area per organ subtype. Indices 11-14 (leaf subTypes 13-16) replicate the index 10 (subType 12) value: the 2026-04-22 16-leaf extension prepended stub leaves above the original 11-rank calibration; per-rank Babst/HP anatomy data exists only for ranks 0-10. Stub leaves at day-55 are 0-2 cm long so the placeholder is sub-dominant in PM; revisit if upper leaves become carbon-significant."
+      "description": "Total sieve tube cross-sectional area per organ subtype. Indices 11-14 (leaf subTypes 13-16) replicate the index 10 (subType 12) value: the 2026-04-22 16-leaf extension prepended stub leaves above the original 11-rank calibration; per-rank Babst/HP anatomy data exists only for ranks 0-10. Stub leaves at day-55 are 0-2 cm long so the placeholder is sub-dominant in PM; revisit if upper leaves become carbon-significant. Stem indices 1-2 (subTypes 20=peduncle, 21=tassel branches) replicate index 0 (subType 1=mainstem) as the no-extra-information default — same pattern as the leaf pad. Tassel emerges around day 125 under Juelich met; pre-day-130 cases never indexed those slots. Revisit if tassel sink behaviour becomes carbon-significant for Ch1 (currently dominated by post-anthesis storage)."
     },
     "kr_st": {
       "value": [
@@ -218,6 +227,8 @@
           0.05
         ],
         [
+          0.015,
+          0.015,
           0.015
         ],
         [
@@ -239,7 +250,7 @@
         ]
       ],
       "unit": "1 d-1",
-      "description": "Q6: Phloem radial conductivity. Leaf=0 (source). Stem=0.015 (transport phloem leakage, Bihmidine 2015). Root=0.05 (terminal sink, CALIBRATION PARAMETER). Padded 11->15 leaf entries for the 2026-04-22 16-leaf XML extension; all leaf entries remain 0 (Bihmidine 2015 leaf source assumption)."
+      "description": "Q6: Phloem radial conductivity. Leaf=0 (source). Stem=0.015 (transport phloem leakage, Bihmidine 2015). Root=0.05 (terminal sink, CALIBRATION PARAMETER). Padded 11->15 leaf entries for the 2026-04-22 16-leaf XML extension; all leaf entries remain 0 (Bihmidine 2015 leaf source assumption). Stem padded 1->3 entries for tassel emergence (subTypes 20=peduncle, 21=tassel branches): all replicate the mainstem 0.015 default since Bihmidine et al. only characterise the dominant transport phloem; revisit when reproductive-organ-specific conductivity data becomes available."
     },
     "kx_st": {
       "value": [
@@ -251,6 +262,8 @@
           7.731263170943632e-13
         ],
         [
+          2.83127313389049e-11,
+          2.83127313389049e-11,
           2.83127313389049e-11
         ],
         [
@@ -272,7 +285,7 @@
         ]
       ],
       "unit": "cm4",
-      "description": "Q1: Stem from Babst (2022) k with reduced bundles (175). Leaf from HP with plate correction (beta=0.5). Roots from HP with beta=0.7. Stem/leaf ratio ~10x (was 83x). Indices 11-14 replicate index 10 — same provenance note as Across_st."
+      "description": "Q1: Stem from Babst (2022) k with reduced bundles (175). Leaf from HP with plate correction (beta=0.5). Roots from HP with beta=0.7. Stem/leaf ratio ~10x (was 83x). Leaf indices 11-14 replicate index 10 — same provenance note as Across_st. Stem indices 1-2 (peduncle/tassel branches) replicate index 0 (mainstem); tassel branches in reality have narrower vessels but no per-rank Babst calibration exists, so we keep mainstem k as the upper-bound placeholder."
     },
     "Krm2": {
       "value": [
@@ -327,6 +340,8 @@
           4.0
         ],
         [
+          1.2,
+          1.2,
           1.2
         ],
         [
@@ -348,7 +363,7 @@
         ]
       ],
       "unit": "cm d-1",
-      "description": "Maximum growth rate per subtype. Leaf: Ben-Haj-Salah & Tardieu 1995. Root: Bloom et al. 2006. Stem: Morrison et al. 2003. Indices 11-14 replicate index 10 — same provenance note as Across_st."
+      "description": "Maximum growth rate per subtype. Leaf: Ben-Haj-Salah & Tardieu 1995. Root: Bloom et al. 2006. Stem: Morrison et al. 2003. Leaf indices 11-14 replicate index 10 — same provenance note as Across_st. Stem indices 1-2 (peduncle/tassel branches) replicate index 0 (mainstem); peduncle elongation rates (~1.2 cm/d) are within the same band as mainstem internode elongation, and tassel branches are typically FA-cessation-latched by the time they appear so the value is sub-dominant."
     }
   },
   "Soil": {
