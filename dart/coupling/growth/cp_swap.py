@@ -114,42 +114,37 @@ def apply_donor_cps(
         _default_canonical_json,
     )
 
+    # Three filters layered on the donor build:
+    #
     # tip_canonical_rotate=True: each donor leaf's CP grid is rotated
     # about +z so its tip lands in the canonical (+y, +z) half-plane.
-    # The XML's median-derived surface_cps look near-canonical anyway
-    # (median across 520 plants converges azimuthally to ±10° of +y),
-    # so canonicalising at injection produces a leaf shape compatible
-    # with the XML's frame. WITHOUT this rotate, single-plant donors
-    # carry their plant-natural azimuth scatter (per-leaf tip directions
-    # ranging across ±170°) — leaves render at random orientations,
-    # producing the "very upright and drastically crumbled" look the
-    # user reported on first sight. Per-plant identity is still
-    # preserved by the donor's lmax/width metrics; only the azimuth
-    # scatter is washed out.
+    # WITHOUT this, single-plant donors carry per-leaf azimuth scatter
+    # ranging across ±170° → leaves render at random orientations.
     #
-    # tip_bounds=no_op: the default _default_tip_bounds thresholds
-    # reject too aggressively at upper positions (pos 13 with default
-    # bounds + canonical-rotate has only 21 plants surviving, with
-    # the 14-position intersection collapsing to {216, 374, 430, 446,
-    # 455} — only 5 plants). The donor_quality_filter below is the
-    # principled per-plant gate; keep tip_bounds permissive so the
-    # draw_coherent pool stays diverse.
-    npz_compat_filter = lambda _pos: (-1e9, 1e9, -1e9, -1e9)
-    # donor_quality_filter rejects plants whose lmax-vs-position curve
-    # violates U-shape monotonicity within ±20 % — catches the
-    # scan-corrupted MaizeField3D donors (occluded leaves, partial
-    # captures of upper leaves, lodged plants with mis-numbered
-    # positions) that would otherwise produce visually-implausible
-    # per-plant draws. Keeps ~78 % of the 520-plant pool and grows the
-    # 14-position draw_coherent intersection from 5 to 18 plants under
-    # the canonical-rotate frame.
+    # tip_bounds=no_op: the default _default_tip_bounds thresholds at
+    # rotated-frame + draw_coherent collapse the 14-position
+    # intersection. Per-leaf shape filtering is done below as a
+    # MEDIAN-FALLBACK at injection time, not as a build-time gate, so
+    # an over-drooped or back-bent leaf falls through to the median
+    # rather than disqualifying its donor plant entirely.
+    #
+    # donor_quality_filter=0.20: whole-plant U-shape monotonicity test
+    # on the lmax-vs-position curve. Catches scan-corrupted plants
+    # (occluded leaves, partial captures, lodged plants with
+    # mis-numbered positions) whose overall size profile is implausible.
+    no_op_filter = lambda _pos: (-1e9, 1e9, -1e9, -1e9)
     DONOR_QUALITY_TOL = 0.20
+    # Per-leaf median fallback thresholds (applied below, not at build).
+    # tip_z fraction of arc < this → leaf bends back on itself (won't
+    # extend properly along the runtime tangent) → use median instead.
+    TIP_Z_MIN_FRAC = 0.20
+    TIP_Y_MIN_FRAC = 0.10
     lib = build_from_maizefield3d(
         _default_canonical_json(),
         reducer=mode,
         draw_seed=int(donor_seed) if mode in ("draw", "draw_coherent") else None,
         tip_canonical_rotate=True,
-        tip_bounds=npz_compat_filter,
+        tip_bounds=no_op_filter,
         donor_quality_filter=DONOR_QUALITY_TOL,
     )
     cps_by_pos = lib["cps_local"]          # (n_pos, N_U, N_V, 3)
@@ -168,10 +163,15 @@ def apply_donor_cps(
     median_by_pos = None
     median_metrics = None
     median_pos_to_idx = None
-    if smooth_alpha < 1.0 and mode in ("draw", "draw_coherent"):
+    # The median library is always needed in draw_* modes — it's used
+    # for both smooth-alpha shape blending (when smooth_alpha < 1.0) AND
+    # per-leaf median fallback (when a donor's individual leaf has tip_z
+    # below TIP_Z_MIN_FRAC). Filter the median pool with default
+    # _default_tip_bounds so the fallback CPs themselves are well-formed.
+    if mode in ("draw", "draw_coherent"):
         median_lib = build_from_maizefield3d(
             _default_canonical_json(), reducer="median",
-            tip_canonical_rotate=True, tip_bounds=npz_compat_filter,
+            tip_canonical_rotate=True, tip_bounds=None,
             donor_quality_filter=DONOR_QUALITY_TOL,
         )
         median_by_pos = median_lib["cps_local"]
@@ -179,6 +179,37 @@ def apply_donor_cps(
         median_pos_to_idx = {
             int(p): i for i, p in enumerate(median_lib["positions"])
         }
+
+        # Per-leaf median fallback: scan the donor's grid at each
+        # position; if tip_z < TIP_Z_MIN_FRAC of arc (bent-back leaf
+        # that won't extend along the runtime tangent) or tip_y <
+        # TIP_Y_MIN_FRAC (insufficient forward droop), substitute the
+        # median CPs + metrics for that position. Preserves donor
+        # identity at clean positions, prevents the "very upright +
+        # miniature" render at scan-corrupted positions.
+        n_v_lib = int(lib["n_v"])
+        n_swapped_to_median = 0
+        for p_idx, p in enumerate(lib["positions"]):
+            p_int = int(p)
+            if p_int not in median_pos_to_idx:
+                continue
+            grid = lib["cps_local"][p_idx]
+            midrib = grid[:, n_v_lib // 2, :]
+            arc = float(np.sum(np.linalg.norm(np.diff(midrib, axis=0), axis=1)))
+            if arc < 1e-9:
+                continue
+            tip = midrib[-1]
+            tip_z_frac = float(tip[2]) / arc
+            tip_y_frac = float(tip[1]) / arc
+            if tip_z_frac < TIP_Z_MIN_FRAC or tip_y_frac < TIP_Y_MIN_FRAC:
+                m_idx = median_pos_to_idx[p_int]
+                lib["cps_local"][p_idx] = median_by_pos[m_idx]
+                lib["chosen_metrics_cm"][p_idx] = median_metrics[m_idx]
+                n_swapped_to_median += 1
+        if verbose and n_swapped_to_median > 0:
+            print(f"  apply_donor_cps: {n_swapped_to_median}/{len(lib['positions'])} "
+                  f"positions fell back to median (tip_z<{TIP_Z_MIN_FRAC} or "
+                  f"tip_y<{TIP_Y_MIN_FRAC})")
 
     phytomer_mode = _detect_phytomer_mode(plant)
     modified: list[tuple[int, int]] = []  # (subType, pos)
