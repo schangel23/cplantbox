@@ -180,11 +180,15 @@
           4.597936833023596e-05,
           4.241680226106514e-05,
           4.041285884715655e-05,
+          3.562566069170825e-05,
+          3.562566069170825e-05,
+          3.562566069170825e-05,
+          3.562566069170825e-05,
           3.562566069170825e-05
         ]
       ],
       "unit": "cm2",
-      "description": "Total sieve tube cross-sectional area per organ subtype"
+      "description": "Total sieve tube cross-sectional area per organ subtype. Indices 11-14 (leaf subTypes 13-16) replicate the index 10 (subType 12) value: the 2026-04-22 16-leaf extension prepended stub leaves above the original 11-rank calibration; per-rank Babst/HP anatomy data exists only for ranks 0-10. Stub leaves at day-55 are 0-2 cm long so the placeholder is sub-dominant in PM; revisit if upper leaves become carbon-significant."
     },
     "kr_st": {
       "value": [
@@ -209,11 +213,15 @@
           0.0,
           0.0,
           0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
           0.0
         ]
       ],
       "unit": "1 d-1",
-      "description": "Q6: Phloem radial conductivity. Leaf=0 (source). Stem=0.015 (transport phloem leakage, Bihmidine 2015). Root=0.05 (terminal sink, CALIBRATION PARAMETER)."
+      "description": "Q6: Phloem radial conductivity. Leaf=0 (source). Stem=0.015 (transport phloem leakage, Bihmidine 2015). Root=0.05 (terminal sink, CALIBRATION PARAMETER). Padded 11->15 leaf entries for the 2026-04-22 16-leaf XML extension; all leaf entries remain 0 (Bihmidine 2015 leaf source assumption)."
     },
     "kx_st": {
       "value": [
@@ -238,11 +246,15 @@
           5.819263804295488e-13,
           5.368376536166055e-13,
           5.11475244784325e-13,
+          4.5088726812943253e-13,
+          4.5088726812943253e-13,
+          4.5088726812943253e-13,
+          4.5088726812943253e-13,
           4.5088726812943253e-13
         ]
       ],
       "unit": "cm4",
-      "description": "Q1: Stem from Babst (2022) k with reduced bundles (175). Leaf from HP with plate correction (beta=0.5). Roots from HP with beta=0.7. Stem/leaf ratio ~10x (was 83x)."
+      "description": "Q1: Stem from Babst (2022) k with reduced bundles (175). Leaf from HP with plate correction (beta=0.5). Roots from HP with beta=0.7. Stem/leaf ratio ~10x (was 83x). Indices 11-14 replicate index 10 — same provenance note as Across_st."
     },
     "Krm2": {
       "value": [
@@ -310,11 +322,15 @@
           6.2,
           5.5,
           5.0,
+          4.5,
+          4.5,
+          4.5,
+          4.5,
           4.5
         ]
       ],
       "unit": "cm d-1",
-      "description": "Maximum growth rate per subtype. Leaf: Ben-Haj-Salah & Tardieu 1995. Root: Bloom et al. 2006. Stem: Morrison et al. 2003."
+      "description": "Maximum growth rate per subtype. Leaf: Ben-Haj-Salah & Tardieu 1995. Root: Bloom et al. 2006. Stem: Morrison et al. 2003. Indices 11-14 replicate index 10 — same provenance note as Across_st."
     }
   },
   "Soil": {
