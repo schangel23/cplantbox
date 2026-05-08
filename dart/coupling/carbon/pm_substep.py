@@ -101,7 +101,7 @@ def solve_carbon_partitioning_pm(plant, An_per_leaf_seg, Tair_C=25.0,
                                   pm_filename=None,
                                   pm_atol=1e-6, pm_rtol=1e-4,
                                   Vmaxloading=0.20, beta_loading=2.0,
-                                  solver=32):
+                                  solver=32, soil_psi_provider=None):
     """Run a 24-substep PiafMunch loop and return an S5-shaped carbon dict.
 
     Args:
@@ -117,7 +117,8 @@ def solve_carbon_partitioning_pm(plant, An_per_leaf_seg, Tair_C=25.0,
             ``solve_carbon_partitioning``).
         par_umol: constant PAR [μmol photons m⁻² s⁻¹]. Default 600 matches
             ``pm_notebook_loop.case_maize``.
-        soil_psi_cm: uniform soil pressure head [cm]; default -500.
+        soil_psi_cm: uniform soil pressure head [cm]; default -500. Used
+            only when ``soil_psi_provider`` is ``None``.
         n_substeps: substep count over a 1-day window. Default 24 (1 h).
         advance_plant: when True (default), ``plant.simulate(dt)`` runs
             inside the loop, consuming CW_Gr and advancing the plant by
@@ -128,6 +129,15 @@ def solve_carbon_partitioning_pm(plant, An_per_leaf_seg, Tair_C=25.0,
             ``configure_maize`` from ``pm_notebook_loop``.
         Vmaxloading, beta_loading, solver: phloem solver overrides; same
             defaults as ``pm_notebook_loop.case_maize``.
+        soil_psi_provider: optional ``SoilPsiProvider`` (see
+            ``hydraulics.soil_psi``). When ``None`` (default), the loop
+            uses a static 200-cell linspace gradient anchored at
+            ``soil_psi_cm`` — bit-identical with the pre-Gate-Ch1.PMDM.1
+            behaviour. When supplied, the loop reads
+            ``provider.get_profile(t_days=sim)`` per substep, which
+            advances ``DumuxSoilPsi`` internally if its ``update`` was
+            called between substeps. RWU sink-feedback is added in
+            Gate Ch1.PMDM.2 (this kwarg is plumbing-only at G1).
 
     Returns:
         carbon_result dict with the same keys as
@@ -176,10 +186,27 @@ def solve_carbon_partitioning_pm(plant, An_per_leaf_seg, Tair_C=25.0,
     dt = 1.0 / float(n_substeps)
     sim_max = sim_init + 1.0 - 0.5 * dt  # n_substeps total iterations
 
-    # Soil psi profile (same shape as pm_notebook_loop.case_maize: 200
-    # layers from soil_psi_cm to soil_psi_cm-200, well-watered top → drier
-    # bottom).
-    p_s = np.linspace(soil_psi_cm, soil_psi_cm - 200.0, 200)
+    # Soil psi profile.
+    #
+    # G1 default (soil_psi_provider=None): same shape as
+    # pm_notebook_loop.case_maize — 200 layers from soil_psi_cm to
+    # soil_psi_cm-200 (well-watered top → drier bottom), built once
+    # before the loop. Bit-identical with pre-Gate-Ch1.PMDM.1 behaviour
+    # and with all Gate 1-5 calibration runs.
+    #
+    # G1 provider branch: when a SoilPsiProvider is supplied, the static
+    # build is skipped; ``p_s`` is refreshed inside the substep loop via
+    # ``soil_psi_provider.get_profile(t_days=sim)``. For static providers
+    # (FixedSoilPsi, BucketSoilPsi) this is functionally equivalent to
+    # the static linspace below (provider returns its own constant or
+    # exponential-decay vector). For DumuxSoilPsi this triggers an
+    # internal Richards advance against the *previously*-registered sink
+    # (zero in G1 because no push_rwu_sink_to_provider hook is wired
+    # yet — that is Gate Ch1.PMDM.2).
+    if soil_psi_provider is None:
+        p_s = np.linspace(soil_psi_cm, soil_psi_cm - 200.0, 200)
+    else:
+        p_s = None  # built fresh per substep inside the loop
 
     # PAR conversion: μmol m⁻² s⁻¹ → mol cm⁻² d⁻¹
     par_mol_cm2_d = par_umol * 1e-6 * 86400 * 1e-4
@@ -201,6 +228,14 @@ def solve_carbon_partitioning_pm(plant, An_per_leaf_seg, Tair_C=25.0,
     sim = sim_init
     n_done = 0
     while sim <= sim_max + 1e-9:
+        # Refresh per-substep soil profile when a provider is supplied.
+        # Static providers (Fixed/Bucket) return a length-validated array
+        # bit-identically to the legacy linspace; DumuxSoilPsi advances
+        # its internal RichardsSP solver here using whatever sink was
+        # last registered via update() (none in G1).
+        if soil_psi_provider is not None:
+            p_s = soil_psi_provider.get_profile(t_days=float(sim))
+
         # 1. Photosynthesis solve at this substep.
         fdpair = _suppress_io()
         try:
