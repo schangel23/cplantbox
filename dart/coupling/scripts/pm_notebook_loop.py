@@ -124,6 +124,18 @@ def build_maize(age_days):
         daily_met=BABST_MET,
         T_air_default=Tair_C,
     )
+    # PM compat (D1+D2+D3, 2026-05-08): grow_plant leaves stems on
+    # MultiPhaseStemGrowth, leaves on MultiPhaseLeafGrowth, roots on the
+    # base GrowthFunction wrapper. None of these consume f_gf->CW_Gr in
+    # getLength; PM fills the map at substep 1 and substep 2 trips
+    # PhloemFlux::assertUsedCReserves. Wrap with CWLimitedGrowth (the
+    # production diurnal.py path at diurnal.py:1627) so getLength
+    # consumes CW_Gr (-> -1.0) and the carbon supply is actually applied
+    # to plant growth. wrap_roots=False keeps the
+    # [[project_root_path_preservation]] contract: bare CWLimitedGrowth
+    # on roots is enough for consumption.
+    from dart.coupling.growth.carbon_growth import enable_cw_limited_growth
+    enable_cw_limited_growth(plant)
     return plant, dict(sim_init=float(age_days),
                        sim_max=float(age_days) + 1.0,
                        dt=1.0 / 24.0, Tair_C=Tair_C)
