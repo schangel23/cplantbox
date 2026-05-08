@@ -60,12 +60,32 @@ def enable_cw_limited_growth(plant, wrap_roots=False, wrap_fa=True):
         wrap_fa: When True (default), wrap MultiPhase{Stem,Leaf}Growth
             instances. Set False for an emergency rollback to pre-Lock-#9
             blanket-bare semantics across all organ types.
+
+    Gate Ch1.PM.5 — preservable-GF allowlist for the bare path
+    -----------------------------------------------------------
+    Empty ``CW_Gr`` makes ``CWLimitedGrowth::getLength`` fall back to
+    ``ExponentialGrowth::getLength`` (``growth.cpp:154``) — so overwriting
+    an existing ``f_gf`` with bare ``CWLimitedGrowth()`` is bit-identical
+    only when the existing GF was already ``ExponentialGrowth`` (gf=1) or
+    ``CWLimitedGrowth`` (gf=3). For ``LinearGrowth`` (gf=2) or
+    ``GompertzGrowth`` (gf=4) the overwrite would silently switch the
+    organ's length curve to ExponentialGrowth-equivalent, breaking the G7
+    D.0 6-XML invariance gate (CLAUDE.md "Bit-identical regression on
+    native paths"). The bare branch is therefore gated on the int ``gf``
+    enum: only gf ∈ {1, 3} get overwritten; LinearGrowth/Gompertz/etc.
+    are left untouched.
     """
     import plantbox as pb
 
     # Allowlist of demand GFs the wrap recognises. Adding a new demand law
     # (e.g. WheatFournierAndrieu) is opt-in by appending here.
     fa_wrap_classes = (pb.MultiPhaseStemGrowth, pb.MultiPhaseLeafGrowth)
+
+    # gf int → GrowthFunction class lookup (matches Plant.h::GrowthFunctionTypes).
+    # Only ExponentialGrowth and CWLimitedGrowth fall back cleanly to
+    # ExponentialGrowth-equivalent under empty CW_Gr, so only these can be
+    # safely overwritten with bare CWLimitedGrowth().
+    preservable_gf_ints = (1, 3)  # gft_negexp, gft_CWLim
 
     for ot in [2, 3, 4]:  # root, stem, leaf
         for param in plant.getOrganRandomParameter(ot):
@@ -79,8 +99,10 @@ def enable_cw_limited_growth(plant, wrap_roots=False, wrap_fa=True):
             )
             if should_wrap:
                 param.f_gf = pb.CWLimitedGrowth(demand=existing)
-            else:
+            elif int(getattr(param, "gf", 0)) in preservable_gf_ints:
                 param.f_gf = pb.CWLimitedGrowth()
+            # else: LinearGrowth / Gompertz / unknown — leave alone so the
+            # native length curve is preserved (Gate Ch1.PM.5 invariance).
 
 
 def inject_cw_gr(plant, organ_growth_map, per_rank_map=None):
