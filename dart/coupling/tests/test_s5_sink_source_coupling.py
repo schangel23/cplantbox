@@ -352,6 +352,39 @@ def test_d0_6xml_bit_identical():
 
 
 @pytest.mark.slow
+def test_d0_5xml_pm_wrap_invariant():
+    """Gate Ch1.PM.5 — PM wrap policy bit-identical on FA-off paths.
+
+    Subprocess call to ``capture_d0_pm_invariance.py``: re-runs the 5
+    FA-off XMLs from the D.0 matrix with
+    ``enable_cw_limited_growth(plant, wrap_roots=False, wrap_fa=True)``
+    injected after ``initialize()`` and compares each hash against the
+    captured ``d0_<slug>.json`` baseline. The maize FA-on case is
+    excluded (covered by Gate 4 §G3 bootstrap+inject parity).
+
+    Acceptance: 5/5 PASS bit-identical. Catches PM-leakage in the wrap
+    policy — e.g. the pre-Gate-5 bug where the bare-CWLim overwrite
+    converted ``LinearGrowth`` (wheat stems gf=2) into the empty-CW_Gr
+    fallback ``ExponentialGrowth`` and silently changed geometry.
+    """
+    script = BASELINES_DIR / "capture_d0_pm_invariance.py"
+    result = subprocess.run(
+        [sys.executable, str(script)],
+        capture_output=True,
+        text=True,
+        cwd=str(REPO_ROOT),
+        timeout=600,
+    )
+    assert result.returncode == 0, (
+        f"Gate 5 D.0 PM-wrap invariance failed:\n--- stdout ---\n"
+        f"{result.stdout[-2000:]}\n--- stderr ---\n{result.stderr[-2000:]}"
+    )
+    assert "Gate Ch1.PM.5 PASSED" in result.stdout, (
+        f"Gate 5 verify did not match:\n{result.stdout[-1000:]}"
+    )
+
+
+@pytest.mark.slow
 def test_s5_oracle_bit_identical():
     """S5 oracle re-capture matches the stored fixture (G1 acceptance gate).
 
