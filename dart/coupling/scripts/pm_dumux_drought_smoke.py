@@ -64,6 +64,16 @@ import numpy as np
 REPO_ROOT = Path(__file__).resolve().parents[3]
 sys.path.insert(0, str(REPO_ROOT))
 
+# Force line-buffered stdout so progress lines appear immediately when the
+# script is piped through ``tee`` or redirected to a file. Default Python
+# block-buffers stdout on non-tty pipes, which would hide day-row progress
+# until the buffer flushes (i.e. at end-of-program — useless for a 20-min
+# run). Equivalent to running with ``PYTHONUNBUFFERED=1``.
+try:
+    sys.stdout.reconfigure(line_buffering=True)
+except (AttributeError, OSError):
+    pass
+
 from dart.coupling.carbon.pm_substep import solve_carbon_partitioning_pm
 from dart.coupling.config import DEFAULT_XML
 from dart.coupling.growth.grow import grow_plant
@@ -230,7 +240,23 @@ def main() -> int:
           f"max={psi_initial.max():.1f} cm")
 
     # --- Daily PM ↔ DuMux loop ------------------------------------------
+    # Write CSV row-by-row so partial results survive an interrupt
+    # (matters for a multi-day run that may exceed an hour).
     rows = []
+    fieldnames = [
+        "day",
+        "psi_root_zone_mean_cm", "psi_root_zone_min_cm", "psi_root_zone_max_cm",
+        "psi_column_mean_cm", "psi_column_min_cm",
+        "psi_leaf_min_cm", "psi_leaf_max_cm", "psi_leaf_mean_cm",
+        "An_total_mmol", "Rg_total_mmol", "Rm_total_mmol", "C_ST_mean",
+        "integrated_rwu_cm3", "integrated_transpiration_cm3",
+        "mass_balance_residual_pct", "wall_seconds",
+    ]
+    csv_file = csv_path.open("w", newline="")
+    csv_writer = csv.DictWriter(csv_file, fieldnames=fieldnames)
+    csv_writer.writeheader()
+    csv_file.flush()
+
     print(f"\n{'='*72}")
     print(f"{'day':>3}  {'ψ_rz_mean':>10}  {'ψ_leaf_min':>11}  "
           f"{'ψ_leaf_mean':>11}  {'An':>8}  {'Rg':>7}  "
@@ -291,6 +317,8 @@ def main() -> int:
             "wall_seconds": wall_d,
         }
         rows.append(row)
+        csv_writer.writerow(row)
+        csv_file.flush()
 
         print(f"{day:>3d}  {row['psi_root_zone_mean_cm']:>10.1f}  "
               f"{row['psi_leaf_min_cm']:>11.1f}  "
@@ -301,12 +329,7 @@ def main() -> int:
               f"{row['integrated_rwu_cm3']:>8.2f}  "
               f"{wall_d:>4.0f}s")
 
-    # --- Write CSV -------------------------------------------------------
-    fieldnames = list(rows[0].keys())
-    with csv_path.open("w", newline="") as f:
-        w = csv.DictWriter(f, fieldnames=fieldnames)
-        w.writeheader()
-        w.writerows(rows)
+    csv_file.close()
     print(f"\nCSV: {csv_path}")
 
     # --- Acceptance gates ------------------------------------------------
