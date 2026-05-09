@@ -107,12 +107,12 @@ FIELD_SEED = 42
 def _cp_donor_seed_for(seed):
     """Map a per-plant simulation seed to a cp_donor_seed.
 
-    Default = pass-through, so each plant in a canopy gets a distinct MF3D
-    donor (per-plant leaf-shape variation). Set ``COUPLING_CP_DONOR=off`` in
-    the environment to revert to the XML's baked median CPs (no swap, no
-    variation — production behaviour before this wiring).
+    Default = ``None`` (no swap, XML's baked median CPs for every plant in the
+    canopy). Set ``COUPLING_CP_DONOR=on`` in the environment to enable per-plant
+    MF3D donor swap; the pipeline then passes ``seed`` through as the donor
+    seed so each plant in a canopy gets a distinct donor.
     """
-    if os.environ.get("COUPLING_CP_DONOR", "on").lower() in ("off", "0", "false"):
+    if os.environ.get("COUPLING_CP_DONOR", "off").lower() not in ("on", "1", "true"):
         return None
     return int(seed)
 
