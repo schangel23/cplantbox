@@ -270,10 +270,21 @@ def setup_plants_and_meshes(sim_day, output_subdir, plants=None):
         json_path = out / f'maize_day{sim_day}_p{i}_mapping.json'
         mesh.to_mapping_json(str(json_path))
 
-        # Convert to DART coordinates
+        # Convert to DART coordinates. Subtract seedPos.x/y so the plant
+        # geometry lands at scene origin in DART meters; plant_field.txt
+        # then provides the per-plant grid placement on top. Without this,
+        # XMLs with non-zero seedPos (Phase 3.5 set maize_calibrated.xml's
+        # seedPos to (200, 200, -3) for DuMux setRectangularGrid) push
+        # every plant out of the 4×2.25 m DART scene, maket discards them
+        # all, no .ori reindex tables are written, and the entire daily
+        # photosynthesis loop early-exits with An=0.
+        import plantbox as pb
+        srp = plant.getOrganRandomParameter(pb.OrganTypes.seed, 0)
+        seed_xy_cm = (float(srp.seedPos.x), float(srp.seedPos.y))
         dart_obj = out / f'maize_day{sim_day}_p{i}_dart.obj'
         convert_obj_to_dart(obj_path, dart_obj, scale=0.01,
-                            zero_pad_groups=True)
+                            zero_pad_groups=True,
+                            xy_offset_cm=seed_xy_cm)
 
         dart_mapping = out / f'maize_day{sim_day}_p{i}_dart_mapping.json'
         shutil.copy(json_path, dart_mapping)
