@@ -2375,6 +2375,22 @@ def run_production_series_carbon(growth_days, timestep_min=60,
                 if hasattr(provider, "get_profile"):
                     provider.get_profile(t_days=float(dart_day + 1))
 
+        # --- 3b'''. Per-plant carbon CSV + PM sidecar (Gate Ch1.PMDM.5
+        # follow-up). The carbon-feedback path B builds its own
+        # per_plant_carbon list inside this function rather than calling
+        # ``_run_per_plant_carbon`` (which is path A only), so the
+        # sidecar writer needs an explicit invocation here. Without
+        # this, the PMDM.3 RWU + PMDM.4 ψ_leaf fields wired into the
+        # writer at 908a5550 are computed in memory and discarded.
+        # Mirrors the path-A call at line ~1083.
+        try:
+            _save_per_plant_carbon_csv(
+                per_plant_carbon, daily_An_per_plant_mol,
+                day_dir, dart_day,
+            )
+        except Exception as e:
+            print(f"  WARNING: Failed to write per-plant carbon CSV: {e}")
+
         # --- 3b'. AgroC export per plant (same as parametric mode) ---
         if per_plant_carbon:
             from ..agroc import export_agroc_timestep, average_agroc_timesteps
