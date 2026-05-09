@@ -7,11 +7,13 @@
 #include "organparameter.h"
 #include "growth.h"
 
+#include <memory>
 #include <vector>
 
 namespace CPlantBox {
 
 class Organism;
+class LeafShape;
 
 /**
  * Parameters of a single leaf (created by LeafSpecificParameter)
@@ -41,6 +43,16 @@ public:
 	std::vector<double> ln = std::vector<double>(); ///< Inter-lateral distances (if laterals) or mid for radial parametrisation (if there are no laterals) [cm]
 	double width_blade = 0.;		///< width of leafe blade (cm) = length - lb zone. define later a width growth rate?
 	double width_petiole = 0.;		///< width of leafe petiole (cm) = lb zone. define later a width growth rate?
+
+	/* Per-leaf shape evaluator (S2 of PLAN_PARAMETRIC_LEAF_SHAPE_2026-05-09_REV1).
+	 * Set by Leaf::getEffectiveSurfaceCPs / updateNodesFromSurfaceCPs lazily on
+	 * first access to a default-fallback MedianLeafShape built from the LRP's
+	 * surface_cps grid. The lazy fallback keeps every existing XML byte-identical
+	 * (D.0 6-XML invariance gate G1). At S4 LeafRandomParameter::realize() will
+	 * pre-populate this with either MedianLeafShape (no distribution) or
+	 * ParametricLeafShape (cultivar distribution loaded). `mutable` so the lazy
+	 * cache survives the const-correct param() accessor on Leaf. */
+	mutable std::shared_ptr<LeafShape> shape;
 
 	int nob() const { return ln.size() + laterals; } //number of laterals = number of phytomers + 1
 	double getK() const; ///< Returns the exact maximal leaf length (including leaf stem) of this realization [cm]

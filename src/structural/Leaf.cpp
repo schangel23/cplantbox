@@ -2,6 +2,7 @@
 #include "Leaf.h"
 #include "Root.h"
 #include "Plant.h"
+#include "leafshape.h"
 
 namespace CPlantBox {
 
@@ -400,10 +401,17 @@ std::vector<Vector3d> buildFlatTemplate(
 
 /**
  * Maturity-dependent shape blend. Mature leaves (m >= kYoungFadeEnd) return
- * ``lrp->surface_cps`` unchanged. Younger leaves are blended toward a flat
+ * the LeafShape's mature CP grid unchanged. Younger leaves blend toward a flat
  * template (zero y, straight +z midrib) with weight
  *     alpha = (1 - m/kYoungFadeEnd)^kYoungExp,  m = length / lmax in [0,1].
- * The blend removes droop early while leaving mature silhouettes untouched.
+ *
+ * S2 of PLAN_PARAMETRIC_LEAF_SHAPE_2026-05-09_REV1: the mature grid is now
+ * sourced from ``param()->shape->sampleCanonicalGrid(n_u, n_v, ...)`` rather
+ * than from ``lrp->surface_cps`` directly. Default fallback (no parametric
+ * distribution) lazily builds a ``MedianLeafShape`` from the LRP's surface_cps;
+ * its ``sampleCanonicalGrid`` returns a byte-identical copy at matching
+ * (n_u, n_v) so D.0 6-XML invariance (gate G1) holds at the byte level. The
+ * maturity blend stays layered on top, exactly as before.
  */
 std::vector<Vector3d> Leaf::getEffectiveSurfaceCPs() const
 {
@@ -413,17 +421,29 @@ std::vector<Vector3d> Leaf::getEffectiveSurfaceCPs() const
 	const int n_v = lrp->surface_n_v;
 	if (n_u < 2 || n_v < 1) return lrp->surface_cps;
 	if ((int)lrp->surface_cps.size() != n_u * n_v) return lrp->surface_cps;
+
+	// Resolve the leaf-shape evaluator. Lazy fallback to MedianLeafShape until
+	// LeafRandomParameter::realize() pre-populates this at S4 of the plan.
+	auto sp = this->param();
+	if (!sp->shape) {
+		sp->shape = std::make_shared<MedianLeafShape>(
+			lrp->surface_cps, n_u, n_v);
+	}
+	std::vector<Vector3d> mature = sp->shape->sampleCanonicalGrid(
+		n_u, n_v, lrp->lmax, lrp->Width_blade);
+	if ((int)mature.size() != n_u * n_v) return lrp->surface_cps;
+
 	const double mature_length = std::max(lrp->lmax, 1e-9);
 	const double m = std::min(std::max(getLength(true) / mature_length, 0.0), 1.0);
-	if (m >= kYoungFadeEnd) return lrp->surface_cps; // early-out for mature
+	if (m >= kYoungFadeEnd) return mature; // early-out for mature
 	double alpha = std::pow(1.0 - m / kYoungFadeEnd, kYoungExp);
 	alpha = std::min(std::max(alpha, 0.0), 1.0);
-	if (alpha < 1e-6) return lrp->surface_cps;
-	auto flat = buildFlatTemplate(lrp->surface_cps, n_u, n_v);
-	std::vector<Vector3d> out(lrp->surface_cps.size());
+	if (alpha < 1e-6) return mature;
+	auto flat = buildFlatTemplate(mature, n_u, n_v);
+	std::vector<Vector3d> out(mature.size());
 	const double w_mat = 1.0 - alpha;
 	for (size_t i = 0; i < out.size(); ++i) {
-		const Vector3d& a = lrp->surface_cps[i];
+		const Vector3d& a = mature[i];
 		const Vector3d& b = flat[i];
 		out[i] = Vector3d(
 			w_mat * a.x + alpha * b.x,
@@ -437,8 +457,13 @@ std::vector<Vector3d> Leaf::getEffectiveSurfaceCPs() const
  * Re-project internal midrib nodes onto the library-derived midrib.
  *
  * Procedure
- *  1. Extract the v=midrib u-line (11 points in leaf-local frame) from the
- *     LRP's CP grid.
+ *  1. Pull the maturity-blended CP grid from ``getEffectiveSurfaceCPs()`` —
+ *     which itself dispatches through ``param()->shape->sampleCanonicalGrid``
+ *     (S2 of PLAN_PARAMETRIC_LEAF_SHAPE_2026-05-09_REV1). Extract the v=midrib
+ *     u-line (11 points in leaf-local frame) from the resulting blended grid,
+ *     so the simulator's node update consumes the same shape evaluator the
+ *     Python lofter sees — no silent-disagreement window between simulator
+ *     state and extracted geometry.
  *  2. Scale all local points by (current_length / mature_length).
  *  3. Build the insertion frame from ``nodes[0]`` (collar) and ``iHeading0``
  *     (collar tangent): ``x_local = tangent x UP``, ``y_local = tangent x

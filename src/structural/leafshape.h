@@ -50,6 +50,23 @@ public:
 	 */
 	virtual Vector3d evaluate(double u, double v,
 		double lmax, double max_w) const = 0;
+
+	/**
+	 * Sample the surface on the canonical (n_u, n_v) grid (row-major,
+	 * index = i_u * n_v + i_v). Used by Leaf::getEffectiveSurfaceCPs
+	 * (S2 of PLAN_PARAMETRIC_LEAF_SHAPE_2026-05-09_REV1) to materialise
+	 * the mature CP grid that the maturity-fade blend sits on top of.
+	 *
+	 * Default implementation calls evaluate(u_i, v_j) at u_i = i/(n_u-1),
+	 * v_j = j/(n_v-1). MedianLeafShape overrides this to short-circuit to a
+	 * direct copy of its stored CPs when (n_u, n_v) match — that override is
+	 * what gives the S2 D.0 6-XML byte-identity guarantee. Without it, the
+	 * default bilinear path drifts by ~1e-15 cm at non-FP-exact canonical
+	 * coordinates (e.g. u_i = 0.7 for n_u = 11) and the byte-identity gate
+	 * would fail.
+	 */
+	virtual std::vector<Vector3d> sampleCanonicalGrid(int n_u, int n_v,
+		double lmax, double max_w) const;
 };
 
 /**
@@ -74,6 +91,13 @@ public:
 	MedianLeafShape(std::vector<Vector3d> cps, int n_u, int n_v);
 
 	Vector3d evaluate(double u, double v,
+		double lmax, double max_w) const override;
+
+	/// Direct copy of cps_ when (n_u, n_v) match (the S2 byte-identity path).
+	/// If the grid sizes differ we fall back to the base-class default
+	/// (bilinear sampling via evaluate); that case never fires today but
+	/// keeps the contract complete for future callers.
+	std::vector<Vector3d> sampleCanonicalGrid(int n_u, int n_v,
 		double lmax, double max_w) const override;
 
 	int numCpsU() const { return n_u_; }

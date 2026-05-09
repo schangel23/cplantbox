@@ -7,6 +7,31 @@
 namespace CPlantBox {
 
 // ============================================================
+// LeafShape (base default for sampleCanonicalGrid)
+// ============================================================
+
+std::vector<Vector3d> LeafShape::sampleCanonicalGrid(
+	int n_u, int n_v, double lmax, double max_w) const
+{
+	if (n_u < 2 || n_v < 1) {
+		throw std::invalid_argument(
+			"LeafShape::sampleCanonicalGrid: n_u >= 2 and n_v >= 1 required");
+	}
+	std::vector<Vector3d> out;
+	out.reserve(static_cast<size_t>(n_u) * static_cast<size_t>(n_v));
+	const double du = 1.0 / static_cast<double>(n_u - 1);
+	const double dv = (n_v > 1) ? 1.0 / static_cast<double>(n_v - 1) : 0.0;
+	for (int iu = 0; iu < n_u; ++iu) {
+		const double u = static_cast<double>(iu) * du;
+		for (int iv = 0; iv < n_v; ++iv) {
+			const double v = (n_v > 1) ? static_cast<double>(iv) * dv : 0.5;
+			out.push_back(evaluate(u, v, lmax, max_w));
+		}
+	}
+	return out;
+}
+
+// ============================================================
 // MedianLeafShape
 // ============================================================
 
@@ -59,6 +84,21 @@ Vector3d MedianLeafShape::evaluate(
 		w00 * p00.x + w10 * p10.x + w01 * p01.x + w11 * p11.x,
 		w00 * p00.y + w10 * p10.y + w01 * p01.y + w11 * p11.y,
 		w00 * p00.z + w10 * p10.z + w01 * p01.z + w11 * p11.z);
+}
+
+std::vector<Vector3d> MedianLeafShape::sampleCanonicalGrid(
+	int n_u, int n_v, double lmax, double max_w) const
+{
+	// Byte-identity fast path: caller asks for the grid this MedianLeafShape
+	// was built on → return a direct copy of cps_. This is the S2 D.0 6-XML
+	// invariance guarantee — the default-fallback dispatch reproduces the
+	// previous direct-surface_cps consumption byte-for-byte.
+	if (n_u == n_u_ && n_v == n_v_) {
+		return cps_;
+	}
+	// Fallback: bilinear via evaluate (base-class default). Not exercised
+	// today but kept for any future caller that resamples on a different grid.
+	return LeafShape::sampleCanonicalGrid(n_u, n_v, lmax, max_w);
 }
 
 // ============================================================
