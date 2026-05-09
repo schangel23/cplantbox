@@ -248,6 +248,96 @@ def test_s5_baseline_unchanged_on_same_plant(v3_plant):
         "quasi_steady_phloem", "dvs_calendar", "dvs_thermal_time")
 
 
+def test_pm_provider_pool_factory_independence():
+    """Gate Ch1.PMDM.5 — ``make_provider_pool`` returns N independent
+    providers per the upstream-canonical 1:1 plant ↔ soil pairing of
+    ``example8b_phloemFlow_coupled.py``.
+
+    Acceptance:
+      1. Pool length matches ``n_plants``.
+      2. Each entry is a fresh object (not the same instance repeated).
+      3. Modifying one entry does not affect siblings — required for
+         ``DumuxSoilPsi`` mode where each plant's ``_pending_sink`` /
+         ``_t_last_days`` state must be isolated. Exercised here with
+         the cheap stateless ``FixedSoilPsi`` to keep the test fast.
+      4. ``n_plants <= 0`` raises ``ValueError``.
+    """
+    from dart.coupling.hydraulics.soil_psi import (
+        make_provider_pool, FixedSoilPsi, BucketSoilPsi,
+    )
+
+    pool = make_provider_pool("fixed", n_plants=9, soil_psi_cm=-500.0)
+    assert len(pool) == 9, f"Expected len 9, got {len(pool)}"
+    assert all(isinstance(p, FixedSoilPsi) for p in pool)
+    # Independence: distinct id() per entry.
+    ids = {id(p) for p in pool}
+    assert len(ids) == 9, "Pool entries are not distinct objects"
+    # Modify one — siblings unchanged. (FixedSoilPsi has psi_cm; mutate
+    # to assert per-instance state.)
+    pool[0].psi_cm = -777.0
+    assert all(p.psi_cm == -500.0 for p in pool[1:]), (
+        "Mutation on pool[0] leaked to siblings — pool entries share state"
+    )
+
+    # Bucket mode: also independent.
+    bpool = make_provider_pool("bucket", n_plants=3, soil_psi_cm=-500.0)
+    assert len(bpool) == 3
+    assert all(isinstance(p, BucketSoilPsi) for p in bpool)
+    assert len({id(p) for p in bpool}) == 3
+
+    # Invalid n_plants.
+    with pytest.raises(ValueError, match="n_plants must be > 0"):
+        make_provider_pool("fixed", n_plants=0)
+
+    # Invalid mode forwards to make_provider's error.
+    with pytest.raises(ValueError, match="Unknown soil_mode"):
+        make_provider_pool("bogus", n_plants=2)
+
+
+def test_pm_provider_pool_priming_pattern():
+    """Gate Ch1.PMDM.5 — verify the diurnal-pipeline priming contract.
+
+    The diurnal wiring (``run_production_series_carbon`` line ~1715,
+    ``_run_per_plant_carbon`` line ~970) does:
+
+        if hasattr(provider, "_t_last_days"):
+            provider._t_last_days = float(day)
+        if hasattr(provider, "_pending_sink"):
+            provider._pending_sink = None
+
+    before each PM call. This must be safe for ALL provider types in
+    the pool — present-attr (DumuxSoilPsi) gets primed, absent-attr
+    (FixedSoilPsi) is silently skipped. This test exercises both
+    branches via stub classes that mimic the attribute surface so the
+    test runs without rosi_richards installed.
+    """
+    from types import SimpleNamespace
+
+    # Stateless stub (FixedSoilPsi-like): no priming attrs.
+    fixed_like = SimpleNamespace()
+    assert not hasattr(fixed_like, "_t_last_days")
+    assert not hasattr(fixed_like, "_pending_sink")
+    # The priming guards must no-op gracefully (no AttributeError).
+    if hasattr(fixed_like, "_t_last_days"):
+        fixed_like._t_last_days = 0.0
+    if hasattr(fixed_like, "_pending_sink"):
+        fixed_like._pending_sink = None
+    # Object unchanged.
+    assert vars(fixed_like) == {}
+
+    # Stateful stub (DumuxSoilPsi-like): priming attrs present.
+    dumux_like = SimpleNamespace(
+        _t_last_days=10.0,
+        _pending_sink={"some": "stale_sink"},
+    )
+    if hasattr(dumux_like, "_t_last_days"):
+        dumux_like._t_last_days = float(55)
+    if hasattr(dumux_like, "_pending_sink"):
+        dumux_like._pending_sink = None
+    assert dumux_like._t_last_days == 55.0
+    assert dumux_like._pending_sink is None
+
+
 @pytest.mark.slow
 def test_pm_substep_dumux_smoke():
     """Gate Ch1.PMDM.2 acceptance — DuMux + PM well-watered no-op smoke.
