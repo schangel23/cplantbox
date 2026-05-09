@@ -168,6 +168,13 @@ def solve_carbon_partitioning_pm(plant, An_per_leaf_seg, Tair_C=25.0,
               100·|∫RWU+∫Ev|/|∫Ev| — the steady-state plant water
               balance closure. Gate Ch1.PMDM.3 expects < 2 % under
               well-watered DuMux IC.
+            - ``psi_leaf_min_cm`` / ``psi_leaf_max_cm`` / ``psi_leaf_mean_cm``:
+              leaf-node xylem ψ aggregates over the substep loop.
+              ``min`` / ``max`` are extrema across all substeps;
+              ``mean`` is the substep-averaged per-substep leaf mean.
+              ``None`` when the plant has no leaf nodes yet.
+              Added for Gate Ch1.PMDM.4 (drought smoke needs ψ_leaf
+              minimum below -1000 cm under low-ψ_s).
 
         Returns ``None`` on solver failure (caller falls back to S5 or
         marks the plant as no-result, mirroring S5's exception path).
@@ -263,6 +270,15 @@ def solve_carbon_partitioning_pm(plant, An_per_leaf_seg, Tair_C=25.0,
     integrated_transp_cm3 = 0.0
     integrated_rwu_cm3 = 0.0
 
+    # Gate Ch1.PMDM.4 diagnostics: track leaf-node xylem ψ extrema across
+    # the loop. min/max are the worst/best instantaneous leaf-node ψ over
+    # all substeps; mean is the substep-averaged per-substep leaf mean.
+    # ``None`` if no leaf nodes exist (e.g. pre-emergence plant).
+    psi_leaf_min_cm = None
+    psi_leaf_max_cm = None
+    psi_leaf_mean_sum = 0.0
+    psi_leaf_mean_count = 0
+
     sim = sim_init
     n_done = 0
     while sim <= sim_max + 1e-9:
@@ -315,6 +331,30 @@ def solve_carbon_partitioning_pm(plant, An_per_leaf_seg, Tair_C=25.0,
             if c_idx >= 0 and int(seg_ot_arr[s_idx]) == 2:
                 rwu_substep_cm3_d += float(out_flux_arr[s_idx])
         integrated_rwu_cm3 += rwu_substep_cm3_d * dt
+
+        # 1d. Leaf-node xylem ψ extrema (Gate Ch1.PMDM.4). Mirrors the
+        # node_ot mapping done at loop end (line ~376) but rebuilt per
+        # substep because plant.simulate(dt) below grows the plant.
+        psixyl_now = np.asarray(hm.psiXyl, dtype=float)
+        nt_now = psixyl_now.size
+        n_segs_now = seg_ot_arr.size
+        if nt_now > 0:
+            node_ot_now = np.zeros(nt_now, dtype=int)
+            if n_segs_now + 1 == nt_now:
+                node_ot_now[1:] = seg_ot_arr
+            else:
+                m = min(n_segs_now, nt_now - 1)
+                node_ot_now[1:m + 1] = seg_ot_arr[:m]
+            leaf_psi = psixyl_now[node_ot_now == 4]
+            if leaf_psi.size > 0:
+                sub_min = float(np.min(leaf_psi))
+                sub_max = float(np.max(leaf_psi))
+                if psi_leaf_min_cm is None or sub_min < psi_leaf_min_cm:
+                    psi_leaf_min_cm = sub_min
+                if psi_leaf_max_cm is None or sub_max > psi_leaf_max_cm:
+                    psi_leaf_max_cm = sub_max
+                psi_leaf_mean_sum += float(np.mean(leaf_psi))
+                psi_leaf_mean_count += 1
 
         # 2. Accumulate An (notebook pattern: AnSum += sum(Ag4Phloem) * dt).
         Ag = np.array(hm.Ag4Phloem)
@@ -439,6 +479,11 @@ def solve_carbon_partitioning_pm(plant, An_per_leaf_seg, Tair_C=25.0,
     else:
         rwu_transp_residual = 0.0
 
+    psi_leaf_mean_cm = (
+        psi_leaf_mean_sum / psi_leaf_mean_count
+        if psi_leaf_mean_count > 0 else None
+    )
+
     # Convert sucrose → CO2 for the S5 contract. Keep root_exud_mmol_d in
     # mmol Suc (downstream AgroC export expects sucrose for kg-C-via-molar
     # conversion, matching the S5 path).
@@ -493,4 +538,9 @@ def solve_carbon_partitioning_pm(plant, An_per_leaf_seg, Tair_C=25.0,
         "integrated_rwu_cm3": float(integrated_rwu_cm3),
         "integrated_transpiration_cm3": float(integrated_transp_cm3),
         "rwu_transpiration_residual_pct": float(rwu_transp_residual * 100.0),
+        # Gate Ch1.PMDM.4 leaf-water diagnostics (cm). None when the
+        # plant has no leaf nodes yet.
+        "psi_leaf_min_cm": psi_leaf_min_cm,
+        "psi_leaf_max_cm": psi_leaf_max_cm,
+        "psi_leaf_mean_cm": psi_leaf_mean_cm,
     }

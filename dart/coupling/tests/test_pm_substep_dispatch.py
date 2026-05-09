@@ -50,6 +50,8 @@ PM_EXTRA_KEYS = {
     # Gate Ch1.PMDM.3 conservation diagnostics
     "integrated_rwu_cm3", "integrated_transpiration_cm3",
     "rwu_transpiration_residual_pct",
+    # Gate Ch1.PMDM.4 leaf-water diagnostics
+    "psi_leaf_min_cm", "psi_leaf_max_cm", "psi_leaf_mean_cm",
 }
 
 
