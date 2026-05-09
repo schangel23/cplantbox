@@ -332,6 +332,19 @@ class DumuxSoilPsi:
         # Reorder DOF → cellidx. psi_cellidx[i] = psi at CPlantBox cellidx i.
         return psi_dof[self._dof_for_cellidx]
 
+    def get_water_volume_cm3(self) -> float:
+        """Total domain water volume [cm³].
+
+        The C++ ``RichardsSP::getWaterVolume`` binding returns a volume
+        in **m³** (DuMux internal units). The Python ``richards.py``
+        wrapper applies ``* 1e6`` to give cm³; we bypass the wrapper, so
+        this helper does the conversion. Used by the Gate Ch1.PMDM.3
+        conservation test to compare ΔW_soil against
+        ``integrated_rwu_cm3`` (which is cm³ throughout the rest of the
+        coupling stack).
+        """
+        return float(self._s.getWaterVolume()) * 1.0e6
+
     def update(self, t_days: float, sink_per_cell: np.ndarray) -> None:
         sink = np.asarray(sink_per_cell, dtype=float)
         if sink.size != self.n_cells_total:

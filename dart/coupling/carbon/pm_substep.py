@@ -150,13 +150,24 @@ def solve_carbon_partitioning_pm(plant, An_per_leaf_seg, Tair_C=25.0,
     Returns:
         carbon_result dict with the same keys as
         ``QuasiSteadyPhloem.solve``, plus PM-specific instrumentation
-        from Gate Ch1.PM.3:
+        from Gate Ch1.PM.3 + plant-water conservation from Gate
+        Ch1.PMDM.3:
 
             - ``An_total_mmol_target``: caller's daily target (mmol CO2)
             - ``sum_Q_S_meso``: 24-h end Σ Q_S_Mesophyll (mmol Suc)
             - ``dQ_S_meso``, ``dQ_meso``, ``dQ_ST``: 24-h sucrose-pool
               deltas (mmol Suc/d)
             - ``mass_balance_residual_pct``
+            - ``integrated_rwu_cm3``: 24-h integrated root water uptake
+              (∑ root-segment radial fluxes for segs with cellidx≥0,
+              cm³). Negative = water left the soil → roots. Tracked
+              uniformly across all provider modes.
+            - ``integrated_transpiration_cm3``: 24-h integrated leaf
+              transpiration (∑hm.get_transpiration(), cm³). Positive.
+            - ``rwu_transpiration_residual_pct``:
+              100·|∫RWU+∫Ev|/|∫Ev| — the steady-state plant water
+              balance closure. Gate Ch1.PMDM.3 expects < 2 % under
+              well-watered DuMux IC.
 
         Returns ``None`` on solver failure (caller falls back to S5 or
         marks the plant as no-result, mirroring S5's exception path).
@@ -243,6 +254,15 @@ def solve_carbon_partitioning_pm(plant, An_per_leaf_seg, Tair_C=25.0,
     Q_meso_first = 0.0
     Q_S_meso_first = 0.0
 
+    # Gate Ch1.PMDM.3 conservation diagnostics: accumulate per-substep
+    # transpiration (sum of leaf radial fluxes) and root water uptake
+    # (sum of root-segment radial fluxes mapped to a soil cell). Tracked
+    # for every provider mode so the returned dict always exposes the
+    # plant-side water balance — meaningful for DumuxSoilPsi (where
+    # ψ_s evolves), informational for static providers.
+    integrated_transp_cm3 = 0.0
+    integrated_rwu_cm3 = 0.0
+
     sim = sim_init
     n_done = 0
     while sim <= sim_max + 1e-9:
@@ -278,6 +298,23 @@ def solve_carbon_partitioning_pm(plant, An_per_leaf_seg, Tair_C=25.0,
             push_rwu_sink_to_provider(
                 hm, float(sim), p_s, soil_psi_provider, n_cells=n_cells,
             )
+
+        # 1c. Conservation diagnostics (Gate Ch1.PMDM.3). Mirrors the
+        # manual aggregation inside push_rwu_sink_to_provider so the
+        # numbers are tracked uniformly across all provider modes (the
+        # push helper short-circuits to {} on static providers).
+        # Steady-state plant water balance: ∑(leaf Ev) ≈ −∑(root RWU);
+        # the daily integrals of both signals are returned for the
+        # G3 closure assertion.
+        ev_arr = np.asarray(hm.get_transpiration(), dtype=float)
+        integrated_transp_cm3 += float(np.sum(ev_arr)) * dt
+        out_flux_arr = np.asarray(hm.radial_fluxes(), dtype=float)
+        seg_ot_arr = np.asarray(hm.ms.organTypes, dtype=int)
+        rwu_substep_cm3_d = 0.0
+        for s_idx, c_idx in hm.ms.seg2cell.items():
+            if c_idx >= 0 and int(seg_ot_arr[s_idx]) == 2:
+                rwu_substep_cm3_d += float(out_flux_arr[s_idx])
+        integrated_rwu_cm3 += rwu_substep_cm3_d * dt
 
         # 2. Accumulate An (notebook pattern: AnSum += sum(Ag4Phloem) * dt).
         Ag = np.array(hm.Ag4Phloem)
@@ -391,6 +428,17 @@ def solve_carbon_partitioning_pm(plant, An_per_leaf_seg, Tair_C=25.0,
     else:
         mb_residual = 0.0
 
+    # Gate Ch1.PMDM.3 plant-water residual: |∫RWU + ∫Ev| / |∫Ev|.
+    # Steady-state expectation: ∑root_radial_flux_per_cell ≈ −∑Ev so the
+    # signed sum is near zero. Reported even when ∫Ev is tiny (V0 plants
+    # before leaf emergence) — guarded against div-by-zero.
+    if abs(integrated_transp_cm3) > 1e-12:
+        rwu_transp_residual = abs(
+            integrated_rwu_cm3 + integrated_transp_cm3
+        ) / abs(integrated_transp_cm3)
+    else:
+        rwu_transp_residual = 0.0
+
     # Convert sucrose → CO2 for the S5 contract. Keep root_exud_mmol_d in
     # mmol Suc (downstream AgroC export expects sucrose for kg-C-via-molar
     # conversion, matching the S5 path).
@@ -439,4 +487,10 @@ def solve_carbon_partitioning_pm(plant, An_per_leaf_seg, Tair_C=25.0,
         "dQ_meso": float(dQ_meso),
         "dQ_ST": float(dQ_ST),
         "mass_balance_residual_pct": float(mb_residual * 100.0),
+        # Gate Ch1.PMDM.3 conservation diagnostics (24-h integrals) -------
+        # ∫Ev > 0 (water leaves leaves), ∫RWU < 0 (water leaves soil into
+        # roots); the signed sum should be ~0 at steady state.
+        "integrated_rwu_cm3": float(integrated_rwu_cm3),
+        "integrated_transpiration_cm3": float(integrated_transp_cm3),
+        "rwu_transpiration_residual_pct": float(rwu_transp_residual * 100.0),
     }
