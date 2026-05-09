@@ -384,6 +384,53 @@ def make_provider(
     raise ValueError(f"Unknown soil_mode={mode!r}; use fixed/bucket/dumux")
 
 
+def make_provider_pool(
+    mode: str,
+    n_plants: int,
+    soil_psi_cm: float = -500.0,
+    **kwargs,
+) -> list:
+    """Build a per-plant pool of ``SoilPsiProvider`` instances (Gate Ch1.PMDM.5).
+
+    Mirrors the upstream-canonical ``example8b_phloemFlow_coupled.py`` 1:1
+    pairing of ``pl = pb.MappedPlant`` with ``s = RichardsWrapper(...)``,
+    repeated ``n_plants`` times so each persistent plant in the diurnal
+    pipeline owns its own soil column. Required for ``mode="dumux"``
+    because ``DumuxSoilPsi.update`` is stateful — sharing one instance
+    across plants would have each plant overwrite the previous plant's
+    pending sink before the next ``solveNoMPI`` fires. ``"fixed"`` and
+    ``"bucket"`` providers are stateless w.r.t. ``update`` so their
+    pool entries are functionally equivalent (independent objects, kept
+    independent for uniform downstream handling).
+
+    The pool is consumed by:
+
+      * ``run_production_series_carbon`` — paired 1:1 with
+        ``persistent_plants``; each PM call site at line ~2234 reads
+        ``pool[pi]`` and inter-day stepping advances ``pool[pi]``'s clock
+        with zero sink so soil drains continuously across DART days.
+      * ``_run_per_plant_carbon`` (parametric path) — providers persist
+        across days; plants are throwaway per day. Caller re-primes
+        ``pool[pi]._t_last_days = float(sim_day)`` before each PM call.
+
+    Args:
+        mode: 'fixed', 'bucket', or 'dumux'.
+        n_plants: Number of independent providers to construct.
+        soil_psi_cm: Initial pressure head [cm], passed to each provider.
+        **kwargs: Forwarded to each provider's ctor (e.g. ``min_b``,
+            ``max_b``, ``cell_number`` for dumux).
+
+    Returns:
+        list of length ``n_plants``, one ``SoilPsiProvider`` per plant.
+    """
+    if n_plants <= 0:
+        raise ValueError(f"n_plants must be > 0, got {n_plants}")
+    return [
+        make_provider(mode, soil_psi_cm=soil_psi_cm, **kwargs)
+        for _ in range(n_plants)
+    ]
+
+
 def push_rwu_sink_to_provider(
     hm,
     sim_time: float,
