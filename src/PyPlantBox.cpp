@@ -45,6 +45,7 @@ namespace py = pybind11;
 #include "Quaternion.h"
 #include "CatmullRomSpline.h"
 #include "PlantVisualiser.h"
+#include "leafshape.h"
 
 #include "sdf_rs.h" // todo to revise ...
 
@@ -1452,7 +1453,49 @@ PYBIND11_MODULE(plantbox, m) {
             .value("mls", ExudationModel::IntegrationType::mls )
             .export_values();
 
+    /*
+     * leafshape.h — minimal exposure for S3 acceptance smoke
+     * (PLAN_PARAMETRIC_LEAF_SHAPE_2026-05-09_REV1). S5 will add diagnostic
+     * accessors on top of this; here we expose just what the gates need:
+     * construct ParametricLeafShape, call evaluate(u, v, lmax, max_w),
+     * call sampleCanonicalGrid(n_u, n_v, lmax, max_w). MedianLeafShape is
+     * exposed as well so a Python-side comparison against the existing
+     * surface_cps consumption can be wired without going through Leaf.
+     */
+    py::class_<LeafShape, std::shared_ptr<LeafShape>>(m, "LeafShape")
+            .def("evaluate", &LeafShape::evaluate,
+                 py::arg("u"), py::arg("v"), py::arg("lmax"), py::arg("max_w"))
+            .def("sampleCanonicalGrid", &LeafShape::sampleCanonicalGrid,
+                 py::arg("n_u"), py::arg("n_v"), py::arg("lmax"), py::arg("max_w"));
 
+    py::class_<MedianLeafShape, LeafShape, std::shared_ptr<MedianLeafShape>>(m, "MedianLeafShape")
+            .def(py::init<std::vector<Vector3d>, int, int>(),
+                 py::arg("cps"), py::arg("n_u"), py::arg("n_v"))
+            .def("numCpsU", &MedianLeafShape::numCpsU)
+            .def("numCpsV", &MedianLeafShape::numCpsV)
+            .def("cps", &MedianLeafShape::cps);
+
+    py::class_<ParametricLeafShape, LeafShape, std::shared_ptr<ParametricLeafShape>>(m, "ParametricLeafShape")
+            .def(py::init<int,
+                          std::vector<double>,
+                          int,
+                          std::vector<double>,
+                          std::vector<double>,
+                          std::vector<double>,
+                          std::vector<Vector3d>,
+                          int, int>(),
+                 py::arg("rank"),
+                 py::arg("spline_knots_u"),
+                 py::arg("spline_degree"),
+                 py::arg("midrib_droop_coeffs"),
+                 py::arg("midrib_along_coeffs"),
+                 py::arg("halfwidth_coeffs"),
+                 py::arg("asym_residual_grid"),
+                 py::arg("n_u"), py::arg("n_v"))
+            .def("rank", &ParametricLeafShape::rank)
+            .def("splineDegree", &ParametricLeafShape::splineDegree)
+            .def("numCpsU", &ParametricLeafShape::numCpsU)
+            .def("numCpsV", &ParametricLeafShape::numCpsV);
 
 }
 

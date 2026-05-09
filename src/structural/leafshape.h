@@ -112,9 +112,7 @@ private:
 
 /**
  * Symmetric-spline + per-rank asymmetric residual reconstruction
- * (PLAN_PARAMETRIC_LEAF_SHAPE_2026-05-09_REV1, S0 SHIPPED). Stub here at S1
- * so the LeafShape hierarchy compiles end-to-end; evaluate() is implemented
- * in S3 once the spline math lands.
+ * (PLAN_PARAMETRIC_LEAF_SHAPE_2026-05-09_REV1, S0 SHIPPED, S3 SHIPPED).
  *
  * Field layout pinned by S0 outputs:
  *   - n_components = 33 = 11 droop + 11 along + 11 halfwidth-norm (n_cp = 11,
@@ -124,6 +122,24 @@ private:
  *     plants (only the symmetric block deviates at runtime); added on top of
  *     the symmetric reconstruction so intercept[r] reproduces XML rank r at
  *     FP precision. Without this the S0 (a) anchor gate cannot pass.
+ *   - spline_knots_u_ : clamped B-spline knot vector of length n_cp + degree +
+ *     1 = 16 for n_cp = 11, degree = 4. Identical for all three coefficient
+ *     blocks because they share the same u-station abscissas. Stored verbatim
+ *     in the S0 distribution JSON (`spline_knots_u`) so the C++ evaluator
+ *     reproduces scipy `make_interp_spline(linspace(0,1,11), y, k=4)` exactly.
+ *
+ * Reconstruction (canonical_library leaf-intrinsic frame, +x_local lateral,
+ * +y_local OOP/droop, +z_local along-midrib):
+ *
+ *     P(u, v) = ( (v - 0.5) * w(u) * max_w,
+ *                 m_y(u),
+ *                 m_z(u) ) + asym_residual(u, v)
+ *
+ * where m_y/m_z/w are degree-4 B-splines evaluated at u via De Boor's
+ * algorithm; asym_residual(u, v) is bilinear interpolation of the (n_u, n_v)
+ * residual grid using the same u_i = i / (n_u - 1), v_j = j / (n_v - 1)
+ * mapping as MedianLeafShape::evaluate. lmax is currently unused (the spline
+ * coefficients carry physical droop/along positions in cm directly).
  */
 class ParametricLeafShape : public LeafShape
 {
@@ -131,6 +147,8 @@ public:
 	ParametricLeafShape() = default;
 
 	ParametricLeafShape(int rank,
+		std::vector<double> spline_knots_u,
+		int spline_degree,
 		std::vector<double> midrib_droop_coeffs,
 		std::vector<double> midrib_along_coeffs,
 		std::vector<double> halfwidth_coeffs,
@@ -141,8 +159,10 @@ public:
 		double lmax, double max_w) const override;
 
 	int rank() const { return rank_; }
+	int splineDegree() const { return spline_degree_; }
 	int numCpsU() const { return n_u_; }
 	int numCpsV() const { return n_v_; }
+	const std::vector<double>& splineKnotsU()       const { return spline_knots_u_; }
 	const std::vector<double>& midribDroopCoeffs()  const { return midrib_droop_coeffs_; }
 	const std::vector<double>& midribAlongCoeffs()  const { return midrib_along_coeffs_; }
 	const std::vector<double>& halfwidthCoeffs()    const { return halfwidth_coeffs_; }
@@ -150,6 +170,8 @@ public:
 
 private:
 	int rank_ = -1;
+	int spline_degree_ = 0;
+	std::vector<double> spline_knots_u_;        ///< length n_cp + degree + 1
 	std::vector<double> midrib_droop_coeffs_;   ///< m_y(u) spline coefficients
 	std::vector<double> midrib_along_coeffs_;   ///< m_z(u) spline coefficients
 	std::vector<double> halfwidth_coeffs_;      ///< w(u) along +x_local, normalized
