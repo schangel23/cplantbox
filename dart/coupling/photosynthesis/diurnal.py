@@ -104,6 +104,19 @@ FIELD_FILENAME = 'plant_field.txt'
 FIELD_SEED = 42
 
 
+def _cp_donor_seed_for(seed):
+    """Map a per-plant simulation seed to a cp_donor_seed.
+
+    Default = pass-through, so each plant in a canopy gets a distinct MF3D
+    donor (per-plant leaf-shape variation). Set ``COUPLING_CP_DONOR=off`` in
+    the environment to revert to the XML's baked median CPs (no swap, no
+    variation — production behaviour before this wiring).
+    """
+    if os.environ.get("COUPLING_CP_DONOR", "on").lower() in ("off", "0", "false"):
+        return None
+    return int(seed)
+
+
 def _real_met_kwargs(sim_day):
     """Get diurnal_met_profile kwargs from real daily met data for sim_day.
 
@@ -161,6 +174,7 @@ def setup_plants_and_meshes(sim_day, output_subdir, plants=None):
         else:
             plant = grow_plant(XML_PATH, simulation_time=sim_day,
                                min_stem_nodes=50, min_leaf_nodes=20, seed=seed,
+                               cp_donor_seed=_cp_donor_seed_for(seed),
                                enable_photosynthesis=True)
 
         # Extract organs with plant prefix for unique group names
@@ -592,6 +606,7 @@ def run_single_day(sim_day, use_dart=True, timestep_min=30,
                     plant_ts = grow_plant(
                         XML_PATH, simulation_time=sim_day,
                         enable_photosynthesis=True, seed=seed,
+                        cp_donor_seed=_cp_donor_seed_for(seed),
                     )
                     iter_plants.append(plant_ts)
 
@@ -627,6 +642,7 @@ def run_single_day(sim_day, use_dart=True, timestep_min=30,
                     plant_ts = grow_plant(
                         XML_PATH, simulation_time=sim_day,
                         enable_photosynthesis=True, seed=seed,
+                        cp_donor_seed=_cp_donor_seed_for(seed),
                     )
 
                     ps_label = f"ts_{ts_label}_p{pi}" if use_dart else \
@@ -859,16 +875,35 @@ def _save_per_plant_carbon_csv(per_plant_carbon, daily_An_per_plant, day_dir,
     if not has_pm:
         return
     pm_csv = day_dir / f'per_plant_carbon_pm_day{sim_day}.csv'
+    # Header: Gate Ch1.PM.4 mass-balance fields PLUS Gate Ch1.PMDM.3
+    # plant-water conservation diagnostics PLUS Gate Ch1.PMDM.4 leaf
+    # ψ_xylem extrema. The latter six fields let pm_dumux_g5_score.py
+    # assert RWU conservation < 25 % and surface ψ_leaf without
+    # re-running the substep loop.
     pm_header = (
         'plant_idx,seed,An_total_mmol,An_total_mmol_target,'
         'sum_Q_S_meso,dQ_S_meso,dQ_meso,dQ_ST,'
-        'mass_balance_residual_pct'
+        'mass_balance_residual_pct,'
+        'integrated_rwu_cm3,integrated_transpiration_cm3,'
+        'rwu_transpiration_residual_pct,'
+        'psi_leaf_min_cm,psi_leaf_max_cm,psi_leaf_mean_cm'
     )
+    n_extra_cols = 6  # six trailing PMDM.3 + .4 fields, blank when absent
     pm_rows = []
+
+    def _fmt_or_blank(value, fmt='.4f'):
+        """Format a numeric value or emit empty string for None.
+        ψ_leaf fields can be None when the plant has no leaf nodes
+        (pre-emergence) — distinguish from a real 0.0 value."""
+        if value is None:
+            return ''
+        return format(float(value), fmt)
+
     for pi in range(N_PLANTS):
         c = per_plant_carbon[pi]
         if c is None or c.get('partitioning_source') != 'piafmunch_substep':
-            pm_rows.append(f"{pi},{FIELD_SEED+pi},,,,,,,")
+            blanks = ',' * (8 + n_extra_cols)  # 8 PM.4 + 6 PMDM extras
+            pm_rows.append(f"{pi},{FIELD_SEED+pi}{blanks}")
             continue
         pm_rows.append(
             f"{pi},{FIELD_SEED+pi},"
@@ -878,7 +913,13 @@ def _save_per_plant_carbon_csv(per_plant_carbon, daily_An_per_plant, day_dir,
             f"{c.get('dQ_S_meso',0):.4f},"
             f"{c.get('dQ_meso',0):.4f},"
             f"{c.get('dQ_ST',0):.4f},"
-            f"{c.get('mass_balance_residual_pct',0):.4f}"
+            f"{c.get('mass_balance_residual_pct',0):.4f},"
+            f"{c.get('integrated_rwu_cm3',0):.4f},"
+            f"{c.get('integrated_transpiration_cm3',0):.4f},"
+            f"{c.get('rwu_transpiration_residual_pct',0):.4f},"
+            f"{_fmt_or_blank(c.get('psi_leaf_min_cm'))},"
+            f"{_fmt_or_blank(c.get('psi_leaf_max_cm'))},"
+            f"{_fmt_or_blank(c.get('psi_leaf_mean_cm'))}"
         )
     pm_csv.write_text(pm_header + '\n' + '\n'.join(pm_rows) + '\n')
     print(f"  Per-plant carbon PM-sidecar CSV: {pm_csv}")
@@ -926,7 +967,9 @@ def _run_per_plant_carbon(daily_An_per_plant, sim_day, day_dir,
         # Grow this plant
         plant = grow_plant(XML_PATH, simulation_time=sim_day,
                            min_stem_nodes=50, min_leaf_nodes=20,
-                           seed=FIELD_SEED + pi, enable_photosynthesis=True)
+                           seed=FIELD_SEED + pi,
+                           cp_donor_seed=_cp_donor_seed_for(FIELD_SEED + pi),
+                           enable_photosynthesis=True)
 
         # Run photosynthesis at peak to get per-segment An shape
         prefix = str(day_dir / f'carbon_photo_day{sim_day}_p{pi}')
@@ -1712,6 +1755,7 @@ def run_production_series_carbon(growth_days, timestep_min=60,
         seed = FIELD_SEED + i
         plant = grow_plant(XML_PATH, simulation_time=first_day,
                            min_stem_nodes=50, min_leaf_nodes=20, seed=seed,
+                           cp_donor_seed=_cp_donor_seed_for(seed),
                            enable_photosynthesis=True)
         persistent_plants.append(plant)
         organs = plant.getOrgans()
@@ -2512,6 +2556,19 @@ def run_production_series_carbon(growth_days, timestep_min=60,
                         entry['An_total_mmol'] = c.get('An_total_mmol')
                         entry['An_total_mmol_target'] = c.get(
                             'An_total_mmol_target')
+                        # Gate Ch1.PMDM.3 plant-water conservation +
+                        # Gate Ch1.PMDM.4 leaf-ψ instrumentation. Values
+                        # can be None (psi_leaf_*) when a plant has no
+                        # leaf nodes; JSON serializes None as null.
+                        entry['integrated_rwu_cm3'] = c.get(
+                            'integrated_rwu_cm3')
+                        entry['integrated_transpiration_cm3'] = c.get(
+                            'integrated_transpiration_cm3')
+                        entry['rwu_transpiration_residual_pct'] = c.get(
+                            'rwu_transpiration_residual_pct')
+                        entry['psi_leaf_min_cm'] = c.get('psi_leaf_min_cm')
+                        entry['psi_leaf_max_cm'] = c.get('psi_leaf_max_cm')
+                        entry['psi_leaf_mean_cm'] = c.get('psi_leaf_mean_cm')
                     carbon_per_plant.append(entry)
             daily_json['carbon_partitioning'] = carbon_per_plant
             with open(json_path, 'w') as f:
