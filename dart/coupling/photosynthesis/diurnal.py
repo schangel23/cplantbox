@@ -886,7 +886,8 @@ def _save_per_plant_carbon_csv(per_plant_carbon, daily_An_per_plant, day_dir,
 
 def _run_per_plant_carbon(daily_An_per_plant, sim_day, day_dir,
                           carbon_method='auto', warm_start=None,
-                          gdd_accumulated=None, carbon_solver='s5'):
+                          gdd_accumulated=None, carbon_solver='s5',
+                          soil_psi_pool=None):
     """Run carbon partitioning independently for each of 9 plants.
 
     Args:
@@ -954,10 +955,26 @@ def _run_per_plant_carbon(daily_An_per_plant, sim_day, day_dir,
 
         try:
             if carbon_solver == 'pm':
+                # Gate Ch1.PMDM.5: re-prime per-plant provider clock to
+                # ``sim_day`` before each PM call. Path A grows plants
+                # fresh per day (throwaway), but providers in the pool
+                # persist across days so their ``_t_last_days`` may sit
+                # at a previous day. Re-priming skips the dead inter-
+                # days under parametric mode (path A has no inter-day
+                # soil advance equivalent to path B because plants are
+                # rebuilt anyway).
+                pm_provider = None
+                if soil_psi_pool is not None:
+                    pm_provider = soil_psi_pool[pi]
+                    if hasattr(pm_provider, "_t_last_days"):
+                        pm_provider._t_last_days = float(sim_day)
+                    if hasattr(pm_provider, "_pending_sink"):
+                        pm_provider._pending_sink = None
                 carbon = solve_carbon_partitioning_pm(
                     plant, An_leaf_scaled, Tair_C=25.0,
                     day=sim_day, warm_start=ws_pi,
                     gdd_accumulated=gdd_accumulated,
+                    soil_psi_provider=pm_provider,
                 )
             else:
                 carbon = solve_carbon_partitioning(
@@ -1040,6 +1057,7 @@ def run_single_day_with_carbon(sim_day, use_dart=True, timestep_min=30,
                                with_sif=False, with_dart_f=False,
                                sif_triangles=False,
                                soil_psi_provider=None,
+                               soil_psi_pool=None,
                                carbon_solver='s5'):
     """Run diurnal loop + per-plant carbon partitioning and AgroC export.
 
@@ -1100,6 +1118,7 @@ def run_single_day_with_carbon(sim_day, use_dart=True, timestep_min=30,
         carbon_method=carbon_method, warm_start=warm_start,
         gdd_accumulated=gdd_accumulated,
         carbon_solver=carbon_solver,
+        soil_psi_pool=soil_psi_pool,
     )
 
     result['daily_carbon'] = carbon_result
@@ -1302,6 +1321,7 @@ def run_production_series(growth_days, use_dart=True, timestep_min=60,
                           with_sif=False, with_dart_f=False,
                           sif_triangles=False,
                           soil_psi_provider=None,
+                          soil_psi_pool=None,
                           carbon_solver='s5'):
     """Run full production diurnal campaign with carbon + AgroC.
 
@@ -1413,6 +1433,7 @@ def run_production_series(growth_days, use_dart=True, timestep_min=60,
             with_sif=with_sif, with_dart_f=with_dart_f,
             sif_triangles=sif_triangles,
             soil_psi_provider=soil_psi_provider,
+            soil_psi_pool=soil_psi_pool,
             carbon_solver=carbon_solver,
         )
         series_results[day] = result
@@ -1617,6 +1638,7 @@ def run_production_series_carbon(growth_days, timestep_min=60,
                                   with_sif=False, with_dart_f=False,
                                   sif_triangles=False,
                                   soil_psi_provider=None,
+                                  soil_psi_pool=None,
                                   carbon_solver='s5'):
     """Production series with carbon-feedback growth.
 
@@ -1702,6 +1724,27 @@ def run_production_series_carbon(growth_days, timestep_min=60,
     print(f"\n  Switching all plants to CWLimitedGrowth (gf=3)...")
     for plant in persistent_plants:
         enable_cw_limited_growth(plant)
+
+    # --- 2b. Prime per-plant soil-ψ pool (Gate Ch1.PMDM.5) ---
+    # Mirror the upstream-canonical pl ↔ s pairing of
+    # ``example8b_phloemFlow_coupled.py`` 1:1 across N_PLANTS plants. The
+    # pool is supplied by the caller (CLI builds it via
+    # ``make_provider_pool`` with the same ``soil_mode`` + ``soil_psi_cm``
+    # used to build the read-only ``soil_psi_provider``); we only prime
+    # each provider's clock to ``first_day`` so the first PM substep
+    # observes ``dt_days = 0`` (no spurious solveNoMPI advance against
+    # the construction-time IC). For static providers the prime is a
+    # no-op.
+    if soil_psi_pool is not None:
+        if len(soil_psi_pool) != N_PLANTS:
+            raise ValueError(
+                f"soil_psi_pool length {len(soil_psi_pool)} "
+                f"!= N_PLANTS={N_PLANTS}")
+        for provider in soil_psi_pool:
+            if hasattr(provider, "_t_last_days"):
+                provider._t_last_days = float(first_day)
+            if hasattr(provider, "_pending_sink"):
+                provider._pending_sink = None
 
     # --- 3. Process each DART observation day ---
     series_results = {}
@@ -2231,11 +2274,25 @@ def run_production_series_carbon(growth_days, timestep_min=60,
                     # 24-substep loop), so the subsequent DART-day
                     # ``step_plant_carbon`` block is skipped under
                     # carbon_solver='pm' to avoid double-advancement.
+                    #
+                    # Gate Ch1.PMDM.5: thread per-plant soil-ψ provider
+                    # so PM consumes evolving ψ_s (DuMux mode) or its
+                    # static profile (fixed/bucket modes). Provider
+                    # clock was primed to ``first_day`` once after
+                    # bootstrap; previous DART day's PM loop and the
+                    # inter-day zero-sink advances below should have
+                    # left ``_t_last_days = dart_day`` already, so the
+                    # first substep observes ``dt_days = 0``.
+                    pm_provider = (
+                        soil_psi_pool[pi] if soil_psi_pool is not None
+                        else None
+                    )
                     carbon = solve_carbon_partitioning_pm(
                         plant, An_leaf_scaled, Tair_C=daily_mean_tair,
                         day=dart_day,
                         warm_start=per_plant_warm_starts[pi] or None,
                         gdd_accumulated=gdd_accumulated,
+                        soil_psi_provider=pm_provider,
                     )
                 else:
                     carbon = solve_carbon_partitioning(
@@ -2254,6 +2311,25 @@ def run_production_series_carbon(growth_days, timestep_min=60,
             except Exception as e:
                 print(f"    Plant {pi} carbon partitioning error: {e}")
                 per_plant_carbon.append(None)
+
+        # --- 3b''. Close-the-day soil advance (Gate Ch1.PMDM.5) ----------
+        # After each plant's PM substep loop returns, the provider's
+        # ``_t_last_days`` sits at ``sim_max ≈ dart_day + 1 - 0.5*dt`` with
+        # the last substep's hourly sink still pending. Mirror the smoke-
+        # script pattern (``pm_dumux_drought_smoke.py:307-309``): one
+        # ``get_profile(t_days=dart_day + 1)`` call consumes the pending
+        # sink for the remaining ``~1.5*dt`` of soil time and advances
+        # the clock to the next day's start. After this call,
+        # ``_pending_sink = None`` and ``_t_last_days = dart_day + 1`` so
+        # the inter-day zero-sink advances (and the next DART day's first
+        # PM substep) start from a clean state.
+        if carbon_solver == 'pm' and soil_psi_pool is not None:
+            for pi in range(N_PLANTS):
+                if per_plant_carbon[pi] is None:
+                    continue  # PM failed for this plant, skip soil advance
+                provider = soil_psi_pool[pi]
+                if hasattr(provider, "get_profile"):
+                    provider.get_profile(t_days=float(dart_day + 1))
 
         # --- 3b'. AgroC export per plant (same as parametric mode) ---
         if per_plant_carbon:
@@ -2328,6 +2404,28 @@ def run_production_series_carbon(growth_days, timestep_min=60,
                     print(f" p{pi}:ok", end='')
                 except Exception as e:
                     print(f" p{pi}:err({e})", end='')
+
+                # Inter-day zero-sink soil advance (Gate Ch1.PMDM.5).
+                # ``step_plant_carbon`` is the S5 quasi-steady path and
+                # does not push RWU sinks to the provider; under PM mode
+                # we still want each plant's soil column to drain (or
+                # stay static, depending on provider type) continuously
+                # across DART days. The previous DART-day's close-the-
+                # day call cleared ``_pending_sink``, so this advance
+                # runs against zero sink — mirrors the upstream
+                # ``example8b_phloemFlow_coupled.py`` pattern of soil
+                # advancing every step regardless of plant activity.
+                # No-op for ``FixedSoilPsi`` (stateless); ``BucketSoilPsi``
+                # decays exponentially toward target ψ; ``DumuxSoilPsi``
+                # runs ``solveNoMPI`` with empty source.
+                if soil_psi_pool is not None:
+                    provider = soil_psi_pool[pi]
+                    if hasattr(provider, "get_profile"):
+                        try:
+                            provider.get_profile(
+                                t_days=float(inter_day + 1))
+                        except Exception as e:
+                            print(f" p{pi}:soil-err({e})", end='')
 
             print()  # newline after all plants
 
@@ -2650,10 +2748,27 @@ Examples:
 
     # Build soil-ψ provider once and thread through all invocation paths.
     # 'fixed' is bit-identical with the legacy hardcoded -500 cm path.
-    from ..hydraulics.soil_psi import make_provider
+    from ..hydraulics.soil_psi import make_provider, make_provider_pool
     soil_psi_provider = make_provider(args.soil_mode,
                                       soil_psi_cm=args.soil_psi_cm)
     print(f"  soil_mode={args.soil_mode}  psi_init={args.soil_psi_cm} cm")
+
+    # Per-plant soil-ψ pool (Gate Ch1.PMDM.5). Only built when
+    # ``--carbon-solver=pm`` because the PM dispatch is the only path
+    # that pushes RWU sinks back to the provider; under S5, the read-only
+    # ``soil_psi_provider`` shared across all plants is sufficient. For
+    # ``dumux`` mode the pool entries are independent ``RichardsSP``
+    # instances (~few seconds each to construct, total pool build ≈
+    # 30-90 s for N_PLANTS=9). For ``fixed`` / ``bucket`` the pool is
+    # a list of cheap stateless objects.
+    soil_psi_pool = None
+    if args.carbon_solver == 'pm':
+        print(f"  Building per-plant soil-ψ pool "
+              f"(N_PLANTS={N_PLANTS}, mode={args.soil_mode})...")
+        soil_psi_pool = make_provider_pool(
+            args.soil_mode, n_plants=N_PLANTS,
+            soil_psi_cm=args.soil_psi_cm,
+        )
 
     if args.uniform:
         # Uniform baseline: skip DART/Baleno, use clearsky PAR + Tair
@@ -2676,6 +2791,7 @@ Examples:
                     with_sif=args.with_sif, with_dart_f=args.with_dart_f,
                     sif_triangles=args.sif_triangles,
                     soil_psi_provider=soil_psi_provider,
+                    soil_psi_pool=soil_psi_pool,
                     carbon_solver=args.carbon_solver,
                 )
             else:
@@ -2716,6 +2832,7 @@ Examples:
                 with_sif=args.with_sif, with_dart_f=args.with_dart_f,
                 sif_triangles=args.sif_triangles,
                 soil_psi_provider=soil_psi_provider,
+                soil_psi_pool=soil_psi_pool,
                 carbon_solver=args.carbon_solver,
             )
         elif args.with_carbon:
@@ -2734,6 +2851,7 @@ Examples:
                 with_sif=args.with_sif, with_dart_f=args.with_dart_f,
                 sif_triangles=args.sif_triangles,
                 soil_psi_provider=soil_psi_provider,
+                soil_psi_pool=soil_psi_pool,
                 carbon_solver=args.carbon_solver,
             )
         else:
