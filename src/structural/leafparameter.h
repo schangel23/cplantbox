@@ -14,6 +14,7 @@ namespace CPlantBox {
 
 class Organism;
 class LeafShape;
+class LeafShapeDistribution;
 
 /**
  * Parameters of a single leaf (created by LeafSpecificParameter)
@@ -124,6 +125,39 @@ public:
 	double Width_blades = 0.;		///< Standard deviation of leaf blade width (cm)
 	double Width_petiole = 0.;		///< width of leafe petiole (cm) = lb zone. define later a width growth rate?
 	double Width_petioles = 0.;		///< Standard deviation of leaf petiole width (cm)
+
+	/* Parametric leaf shape distribution (S4 of
+	 * PLAN_PARAMETRIC_LEAF_SHAPE_2026-05-09_REV1).
+	 *
+	 * shape_distribution_path — filesystem path to a cultivar shape JSON
+	 *   produced by `dart/coupling/scripts/fit_parametric_leaf_shape.py`.
+	 *   Empty (default) keeps the leaf on the MedianLeafShape fallback that
+	 *   the S2 lazy path in Leaf::getEffectiveSurfaceCPs already provides;
+	 *   non-empty wires every realize() output to a per-plant
+	 *   ParametricLeafShape (shared across all 15 ranks of the same plant
+	 *   when shape_variation_scale > 0; intercept[rank] verbatim when scale
+	 *   is 0). Read by readXML / written by writeXML — handled manually
+	 *   alongside surface_cp because OrganRandomParameter::bindParameter
+	 *   only supports int* / double*. */
+	std::string shape_distribution_path = "";
+	/* shape_variation_scale — D11 opt-in knob for the per-plant deviation
+	 * draw. 0.0 (default) reproduces today's per-rank median XML at
+	 * OBJ-vertex level (G8 byte-identity gate); >0 activates scale * L @ z
+	 * variation. Same trust contract as `cultivar_height_factor=1.0,
+	 * dev=0.0` for stem height: wired but inert until the user sets it. */
+	double shape_variation_scale = 0.0;
+	/* shape_rank_index — which rank of the cultivar distribution this
+	 * subType corresponds to. -1 (default) means "infer from subType":
+	 * for maize the calibrated convention is subType 2..16 → rank 0..14
+	 * (plan §S4 step 3). Set explicitly in XML when the subType numbering
+	 * differs (e.g. wheat) or when a subType maps to multiple ranks. */
+	int shape_rank_index = -1;
+	/* Loaded distribution. Populated lazily on the first realize() call
+	 * that sees a non-empty shape_distribution_path; subsequent
+	 * realize() calls (across all 15 LeafRandomParameter instances of the
+	 * same cultivar) hit the process-wide cache in
+	 * LeafShapeDistribution::load and share one instance. */
+	mutable std::shared_ptr<LeafShapeDistribution> shape_distribution_;
 	int gf = 1;				///< Growth function (1=negative exponential, 2=linear)
 	int isPseudostem = 0;				///< do the leaf sheaths make a pseudostem? (0 false, 1 true)
 	double collarLength = 0.;			///< Length of rigid collar zone where tropism is disabled [cm]

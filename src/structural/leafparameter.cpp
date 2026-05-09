@@ -2,6 +2,8 @@
 #include "leafparameter.h"
 
 #include "Organism.h"
+#include "leafshape.h"
+#include "leafshape_distribution.h"
 #include "tropism.h"
 
 #include <cmath>
@@ -10,6 +12,7 @@
 #include <assert.h>
 #include <numeric>
 #include <algorithm>
+#include <sstream>
 
 namespace CPlantBox {
 
@@ -252,7 +255,53 @@ std::shared_ptr<OrganSpecificParameter> LeafRandomParameter::realize()
     double theta_ = std::max(theta + p->randn()*thetas, 0.); // initial elongation
     double rlt_ = std::max(rlt + p->randn()*rlts, 0.); // leaf life time
     double leafArea_ = std::max(areaMax + p->randn()*areaMaxs, 0.); // radius
-    return std::make_shared<LeafSpecificParameter>(subType,lb_,la_,ln_,r_,a_,theta_,rlt_,leafArea_, hasLaterals, Width_blade_, Width_petiole_);
+    auto sp = std::make_shared<LeafSpecificParameter>(subType,lb_,la_,ln_,r_,a_,theta_,rlt_,leafArea_, hasLaterals, Width_blade_, Width_petiole_);
+
+    // Parametric leaf shape — S4 of PLAN_PARAMETRIC_LEAF_SHAPE_2026-05-09_REV1.
+    //
+    // Two reasons we deliberately do NOT pre-populate sp->shape with a
+    // MedianLeafShape in the empty-path case (a documented delta from
+    // the plan-as-written §S4 step 1):
+    //   1. The S2 lazy fallback in Leaf::getEffectiveSurfaceCPs already
+    //      builds a MedianLeafShape on first access from lrp->surface_cps;
+    //      pre-populating here would be functionally equivalent.
+    //   2. Existing D.0 XMLs without a NURBS surface_cps grid (wheat,
+    //      Brassica, modelparam_4, carbon2020, 2020-maize without the
+    //      Phase A bake) would crash MedianLeafShape's constructor on
+    //      the size != n_u*n_v check. The lazy fallback gates on that
+    //      same condition (Leaf.cpp:422-423) and returns early instead
+    //      of building a shape — preserving the legacy code path.
+    // So sp->shape stays null when shape_distribution_path is empty;
+    // D.0 6-XML invariance is preserved by the master RNG never being
+    // perturbed and the lazy MedianLeafShape path remaining live.
+    if (!shape_distribution_path.empty()) {
+        if (!shape_distribution_) {
+            shape_distribution_ = LeafShapeDistribution::load(shape_distribution_path);
+        }
+        // Rank resolution: explicit shape_rank_index wins; fall back to
+        // (subType - 2) for the maize convention (subType 2..16 → rank 0..14).
+        int rank = (shape_rank_index >= 0)
+                   ? shape_rank_index
+                   : (subType - 2);
+        if (rank < 0 || rank >= shape_distribution_->numRanks()) {
+            std::ostringstream oss;
+            oss << "LeafRandomParameter::realize: subType=" << subType
+                << " yields rank=" << rank << " which is out of range [0, "
+                << shape_distribution_->numRanks() << ") for distribution '"
+                << shape_distribution_path
+                << "'. Set shape_rank_index explicitly in the XML.";
+            throw std::out_of_range(oss.str());
+        }
+        // Per-plant deterministic z draw lives inside makeShape; same
+        // plant_seed_val across all 15 ranks of the same plant → same z
+        // (D2 per-plant coherence). makeShape uses a local std::mt19937
+        // so the master RNG stream is not perturbed.
+        const unsigned int plant_seed_val = p->getSeedVal();
+        sp->shape = shape_distribution_->makeShape(
+            rank, shape_variation_scale, plant_seed_val);
+    }
+
+    return sp;
 }
 
 
@@ -403,6 +452,12 @@ void LeafRandomParameter::readXML(tinyxml2::XMLElement* element, bool verbose)
     leafCrossSectionPhi.resize(0);
     leafCrossSectionCurv.resize(0);
     surface_cps.resize(0);
+    // Reset the parametric-shape path on every read so a successive
+    // readXML on a different XML element does not inherit a stale path
+    // from the prior element (the bindParameter doubles for scale /
+    // rank_index already round-trip via the standard hashmap path).
+    shape_distribution_path.clear();
+    shape_distribution_.reset();
     while(p) {
         std::string key = p->Attribute("name");
         if (key.compare("leafGeometry")==0)  {
@@ -475,6 +530,22 @@ void LeafRandomParameter::readXML(tinyxml2::XMLElement* element, bool verbose)
                 leafCrossSectionCurv.insert(leafCrossSectionCurv.end(), curv_.begin(), curv_.end());
             }else{
                 throw std::invalid_argument ("LeafRandomParameter::readXML: 'phi' or 'curv' tag not found in leafCrossSection parameter description");
+            }
+        }
+        if (key.compare("shape_distribution_path")==0)  {
+            // Single string-valued element:
+            //   <parameter name="shape_distribution_path" path="maize_leaf_shape_distribution.json"/>
+            // The path is resolved verbatim by LeafShapeDistribution::load
+            // at realize() time. Empty string (or attribute missing) leaves
+            // the leaf on the MedianLeafShape lazy fallback. The path is
+            // stored as a std::string because OrganRandomParameter's
+            // bindParameter API only handles int* / double* (the cultivar
+            // distribution payload is referenced by path, not inlined in
+            // XML — the JSON carries 33-dim × 15-rank intercept + 33×33
+            // Cholesky + 15 × (n_u × n_v × 3) asym residual grids, which
+            // is impractical to round-trip through XML attributes).
+            if (p->Attribute("path")) {
+                shape_distribution_path = p->Attribute("path");
             }
         }
         if (key.compare("surface_cp")==0)  {
@@ -579,6 +650,15 @@ tinyxml2::XMLElement* LeafRandomParameter::writeXML(tinyxml2::XMLDocument& doc, 
             element->InsertEndChild(c);
         }
     }
+    // Parametric leaf shape distribution path (S4 of
+    // PLAN_PARAMETRIC_LEAF_SHAPE_2026-05-09_REV1). Empty path omits the
+    // element entirely so existing D.0 XMLs round-trip byte-identical.
+    if (!shape_distribution_path.empty()) {
+        tinyxml2::XMLElement* p = doc.NewElement("parameter");
+        p->SetAttribute("name", "shape_distribution_path");
+        p->SetAttribute("path", shape_distribution_path.c_str());
+        element->InsertEndChild(p);
+    }
     // Native 2D leaf-surface CP grid (Phase A). Empty vector omits the block.
     if (!surface_cps.empty()) {
         // surface_cps is flat with u-major layout: index k = i_u * n_v + i_v.
@@ -667,6 +747,17 @@ void LeafRandomParameter::bindParameters()
     bindParameter("surface_n_v", &surface_n_v, "Surface CP grid: number of CPs across width");
     bindParameter("surface_deg_u", &surface_deg_u, "Surface CP grid: degree in u direction");
     bindParameter("surface_deg_v", &surface_deg_v, "Surface CP grid: degree in v direction");
+    // Parametric leaf shape distribution (S4 of
+    // PLAN_PARAMETRIC_LEAF_SHAPE_2026-05-09_REV1). The path field is a
+    // std::string; OrganRandomParameter::bindParameter only supports
+    // int*/double*, so the path round-trips via the manual readXML /
+    // writeXML extensions below. The two scalar knobs go through the
+    // standard hashmap path.
+    bindParameter("shape_variation_scale", &shape_variation_scale,
+                  "Per-plant shape deviation scale (D11): 0.0 = inert (intercept only), "
+                  "1.0 = full fitted variance; intermediate values dampen continuously");
+    bindParameter("shape_rank_index", &shape_rank_index,
+                  "Rank index in the cultivar shape distribution; -1 (default) infers (subType - 2)");
     // other parameters (descriptions only)
     description["leafGeometryPhi"] = "Leaf geometry parametrisation parameter";
     description["leafGeometryX"] = "Leaf geometry parametrisation";

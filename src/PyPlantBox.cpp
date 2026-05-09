@@ -46,6 +46,7 @@ namespace py = pybind11;
 #include "CatmullRomSpline.h"
 #include "PlantVisualiser.h"
 #include "leafshape.h"
+#include "leafshape_distribution.h"
 
 #include "sdf_rs.h" // todo to revise ...
 
@@ -833,7 +834,14 @@ PYBIND11_MODULE(plantbox, m) {
       .def_readwrite("surface_n_u", &LeafRandomParameter::surface_n_u)
       .def_readwrite("surface_n_v", &LeafRandomParameter::surface_n_v)
       .def_readwrite("surface_deg_u", &LeafRandomParameter::surface_deg_u)
-      .def_readwrite("surface_deg_v", &LeafRandomParameter::surface_deg_v);
+      .def_readwrite("surface_deg_v", &LeafRandomParameter::surface_deg_v)
+      // S4 — parametric shape distribution (PLAN_PARAMETRIC_LEAF_SHAPE_2026-05-09_REV1).
+      // Minimal exposure for the S4 acceptance gates; S5 will extend with
+      // diagnostic accessors for the loaded distribution and the realised
+      // LeafSpecificParameter::shape on top of this.
+      .def_readwrite("shape_distribution_path", &LeafRandomParameter::shape_distribution_path)
+      .def_readwrite("shape_variation_scale", &LeafRandomParameter::shape_variation_scale)
+      .def_readwrite("shape_rank_index", &LeafRandomParameter::shape_rank_index);
 
     py::class_<LeafSpecificParameter, OrganSpecificParameter, std::shared_ptr<LeafSpecificParameter>>(m, "LeafSpecificParameter")
             .def(py::init<>())
@@ -1474,6 +1482,28 @@ PYBIND11_MODULE(plantbox, m) {
             .def("numCpsU", &MedianLeafShape::numCpsU)
             .def("numCpsV", &MedianLeafShape::numCpsV)
             .def("cps", &MedianLeafShape::cps);
+
+    /*
+     * leafshape_distribution.h — minimal exposure for S4 acceptance smoke
+     * (PLAN_PARAMETRIC_LEAF_SHAPE_2026-05-09_REV1). S5 will extend with
+     * diagnostic accessors (per-rank intercept Vector3d view, residual grid
+     * view, cholesky factor view); here we expose just what the gates need:
+     * load(path), makeShape(rank, scale, plant_seed_val), and the small
+     * scalar accessors so the test can assert determinism and coherence.
+     */
+    py::class_<LeafShapeDistribution, std::shared_ptr<LeafShapeDistribution>>(m, "LeafShapeDistribution")
+            .def_static("load", &LeafShapeDistribution::load,
+                        py::arg("path"))
+            .def("makeShape", &LeafShapeDistribution::makeShape,
+                 py::arg("rank"), py::arg("scale"), py::arg("plant_seed_val"))
+            .def("numRanks", &LeafShapeDistribution::numRanks)
+            .def("numComponents", &LeafShapeDistribution::numComponents)
+            .def("splineDegree", &LeafShapeDistribution::splineDegree)
+            .def("numCpsU", &LeafShapeDistribution::numCpsU)
+            .def("numCpsV", &LeafShapeDistribution::numCpsV)
+            .def("path", &LeafShapeDistribution::path)
+            .def("intercept", &LeafShapeDistribution::intercept,
+                 py::arg("rank"), py::return_value_policy::reference_internal);
 
     py::class_<ParametricLeafShape, LeafShape, std::shared_ptr<ParametricLeafShape>>(m, "ParametricLeafShape")
             .def(py::init<int,
