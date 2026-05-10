@@ -1,5 +1,21 @@
 """Runtime swap of per-plant leaf surface_cps from the MF3D library.
 
+DEPRECATED — superseded by ``ParametricLeafShape`` (see
+[[PLAN_PARAMETRIC_LEAF_SHAPE_2026-05-09_REV1]]). Plant-to-plant leaf-shape
+variation is now produced by a parametric distribution drawn at
+``LeafRandomParameter::realize()`` time (per-plant coherent ``z`` keyed on the
+plant seed, applied to all 15 rank intercepts), with no donor frame in the
+pipeline. The 2026-05-09 cp_swap diagnostic
+([[DIAG_CP_SWAP_DRAW_BLEND_2026-05-09]]) showed that single-donor MF3D CP
+grids carry pose-coupled ``+y_local`` content (lamina-perpendicular curl + scan
+noise) that becomes "warble" when CPlantBox re-inserts at a leaf-insertion
+frame other than the donor's natural one — a problem the parametric path
+avoids by construction (D9 symmetric-only midline + D2 per-plant coherent
+draw). This module is retained as a legacy fallback path and will be removed
+after ``ParametricLeafShape`` proves out under Ch1 production. Default-off
+since commit ``463a367e`` (``_cp_donor_seed_for`` returns ``None`` unless
+``COUPLING_CP_DONOR=on``).
+
 Lets each plant in a canopy draw its own donor from the 520-plant
 MaizeField3D pool without regenerating the XML. Mutates
 ``LeafRandomParameter`` in memory after ``readParameters()`` and before

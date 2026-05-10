@@ -178,6 +178,13 @@ def _cp_donor_seed_for(seed):
     canopy). Set ``COUPLING_CP_DONOR=on`` in the environment to enable per-plant
     MF3D donor swap; the pipeline then passes ``seed`` through as the donor
     seed so each plant in a canopy gets a distinct donor.
+
+    DEPRECATED: per-plant leaf-shape variation is now handled by
+    ``ParametricLeafShape`` (per-plant coherent draw at ``LeafRandomParameter::
+    realize()`` time, plant-seed-keyed RNG, no donor frame in the pipeline).
+    See [[PLAN_PARAMETRIC_LEAF_SHAPE_2026-05-09_REV1]] §S7. ``COUPLING_CP_DONOR``
+    remains as a legacy fallback path; it stays default-off and will be removed
+    after the parametric model proves out under Ch1 production.
     """
     if os.environ.get("COUPLING_CP_DONOR", "off").lower() not in ("on", "1", "true"):
         return None
