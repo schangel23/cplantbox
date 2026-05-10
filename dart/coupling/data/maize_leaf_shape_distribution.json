@@ -7762,15 +7762,15 @@
     ],
     "pca_eigenvalues": [
       0.966057774424438,
-      0.6901050658906284,
-      0.6796411220304608,
-      0.6118550174383782,
+      0.006901050658906283,
+      0.006796411220304608,
+      0.006118550174383782,
       0.304255977347756,
       0.23774864119831216,
       0.15037440569697041,
       0.14792614501447407
     ],
-    "retained_variance_fraction": 0.9207071924043685,
+    "retained_variance_fraction": 0.4438732873405638,
     "total_variance": 4.114189810062621,
     "all_eigenvalues_descending": [
       0.966057774424438,
@@ -7807,7 +7807,14 @@
       3.898966978586609e-07,
       1.9873339022398158e-07
     ],
-    "regularisation_eps": 1.2467229381445227e-07
+    "regularisation_eps": 1.2467229381445227e-07,
+    "midrib_damp_factor": 0.01,
+    "midrib_damp_modes": [
+      1,
+      2,
+      3
+    ],
+    "drop_reason": "Midrib-content modes (sqrt(droop\u00b2 + along\u00b2) > 0.30 in eigenvector) have their eigenvalues multiplied by 0.01 (\u03c3 \u00d7 0.10) to dampen midrib variance to ~10% of donor pool. Eliminates the upright-leaf failure mode (Gaussian draws on droop/along axes producing leaves with reduced lateral spread; observed in canopy5_day180_pca_clamp_scale0.3 seeds 42, 45) while preserving small biological midrib variation. Per plan doc \"Post-\u03b1\" section: scale=0.1 sweep was \"small, plausible plant-to-plant shape variation\"."
   },
   "fit_residual_summary": {
     "median_sym_fit_rms_cm": 1.866541894556156e-15,
