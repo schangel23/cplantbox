@@ -890,7 +890,19 @@ tinyxml2::XMLElement *Organism::getRSMLScene(tinyxml2::XMLDocument &xmlDoc) cons
  *
  * @param seed      the random number generator seed
  */
-void Organism::setSeed(unsigned int seed) { this->gen = std::mt19937(seed); }
+void Organism::setSeed(unsigned int seed) {
+    // Keep ``seed_val`` in sync with ``gen``. Consumers that derive their
+    // own RNG from ``getSeedVal()`` (Tropism::nodeUpdate uses
+    // ``mt19937(getSeedVal() + nodeIdx + organId)``;
+    // ``LeafRandomParameter::realize`` passes ``getSeedVal()`` to
+    // ``LeafShapeDistribution::makeShape`` for the per-plant parametric
+    // shape draw) require this. Without the assignment, ``setSeed`` reseeds
+    // only the master ``gen`` while ``seed_val`` retains the time-based
+    // garbage from the constructor — derived RNGs become non-deterministic
+    // across processes even when the user supplies an explicit seed.
+    this->seed_val = seed;
+    this->gen = std::mt19937(seed);
+}
 
 /**
  * Returns the seed of the plant
