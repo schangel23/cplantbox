@@ -190,7 +190,17 @@ def _solve_lower_triangular(L: np.ndarray, b: np.ndarray) -> np.ndarray:
 def _recover_z(dist: pb.LeafShapeDistribution, sh: pb.ParametricLeafShape,
                scale: float) -> np.ndarray:
     """Recover the unit-Gaussian z that ``realize()`` drew, given a
-    ``ParametricLeafShape`` instance: coeffs = intercept[r] + scale * L @ z."""
+    ``ParametricLeafShape`` instance.
+
+    Two paths depending on the distribution's sampling mode:
+    - Legacy Cholesky (``pcaK() == 0``):
+        ``coeffs = intercept[r] + scale · L · z``  →  ``z = L^{-1} rhs``,
+        z has length ``n_components``.
+    - PCA truncation (``pcaK() > 0``, fix path α):
+        ``coeffs = intercept[r] + scale · U_K · √Λ_K · z_K`` where rows of
+        ``U_K`` are orthonormal eigenvectors. Recovery uses the
+        eigenbasis projection ``z_K = (U_K · rhs) / √Λ_K``, length ``K``.
+    """
     rank = sh.rank()
     n_cp = dist.nCpPerAxis()
     coeffs = np.empty(dist.numComponents())
@@ -198,8 +208,13 @@ def _recover_z(dist: pb.LeafShapeDistribution, sh: pb.ParametricLeafShape,
     coeffs[dist.alongBlockStart():dist.alongBlockStart() + n_cp] = sh.midribAlongCoeffs()
     coeffs[dist.halfwidthBlockStart():dist.halfwidthBlockStart() + n_cp] = sh.halfwidthCoeffs()
     intercept = np.asarray(dist.intercept(rank))
-    L = np.asarray(dist.choleskyFactor())
     rhs = (coeffs - intercept) / scale
+    if dist.pcaK() > 0:
+        U_K = np.asarray(dist.pcaComponents())              # (K, n_components)
+        eigvals = np.asarray(dist.pcaEigenvalues())         # (K,)
+        sqrt_eigvals = np.sqrt(np.maximum(eigvals, 0.0))
+        return (U_K @ rhs) / np.maximum(sqrt_eigvals, 1e-30)
+    L = np.asarray(dist.choleskyFactor())
     return _solve_lower_triangular(L, rhs)
 
 

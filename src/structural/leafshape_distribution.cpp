@@ -471,6 +471,41 @@ std::shared_ptr<LeafShapeDistribution> LeafShapeDistribution::load(const std::st
             } else if (key == "coeffs_block_layout") {
                 layout = readCoeffsBlockLayout(sc);
                 has_layout = true;
+            } else if (key == "pca_truncation") {
+                // Fix path α (PLAN_PARAMETRIC_LEAF_SHAPE_2026-05-09_REV1):
+                // top-K eigendecomposition of the pooled covariance Σ.
+                // ``null`` → fall back to cholesky_factor (legacy path).
+                // Otherwise ``{K, pca_components, pca_eigenvalues, ...}`` —
+                // ``pca_components`` is K rows × n_components (each row =
+                // eigenvector), ``pca_eigenvalues`` length K. We parse only
+                // the fields we consume; auxiliary metadata
+                // (retained_variance_fraction, all_eigenvalues_descending,
+                // ...) is skipped via skipValue().
+                if (sc.match('n')) {
+                    // null literal — three more chars: 'u', 'l', 'l'.
+                    sc.expect('u'); sc.expect('l'); sc.expect('l');
+                    out->pca_K_ = 0;
+                } else {
+                    sc.expect('{');
+                    if (!sc.match('}')) {
+                        while (true) {
+                            const std::string subkey = sc.readString();
+                            sc.expect(':');
+                            if (subkey == "K" || subkey == "n_components") {
+                                out->pca_K_ = static_cast<int>(sc.readNumber());
+                            } else if (subkey == "pca_components") {
+                                out->pca_components_ = sc.readNumberArray2D();
+                            } else if (subkey == "pca_eigenvalues") {
+                                out->pca_eigenvalues_ = sc.readNumberArray1D();
+                            } else {
+                                sc.skipValue();
+                            }
+                            if (sc.match(',')) continue;
+                            sc.expect('}');
+                            break;
+                        }
+                    }
+                }
             } else {
                 sc.skipValue();
             }
@@ -531,6 +566,39 @@ std::shared_ptr<LeafShapeDistribution> LeafShapeDistribution::load(const std::st
         if (static_cast<int>(row.size()) != out->n_components_) {
             throw std::invalid_argument(
                 "LeafShapeDistribution: cholesky_factor row width != n_components");
+        }
+    }
+
+    // PCA truncation validation (fix path α). pca_K_ == 0 → legacy Cholesky
+    // fallback (no validation needed). pca_K_ > 0 → both arrays must be
+    // shape-correct; otherwise fail loudly because the runtime would
+    // silently produce wrong shapes.
+    if (out->pca_K_ > 0) {
+        if (out->pca_K_ > out->n_components_) {
+            std::ostringstream oss;
+            oss << "LeafShapeDistribution: pca_K=" << out->pca_K_
+                << " > n_components=" << out->n_components_;
+            throw std::invalid_argument(oss.str());
+        }
+        if (static_cast<int>(out->pca_components_.size()) != out->pca_K_) {
+            std::ostringstream oss;
+            oss << "LeafShapeDistribution: pca_components has "
+                << out->pca_components_.size() << " rows; expected pca_K="
+                << out->pca_K_;
+            throw std::invalid_argument(oss.str());
+        }
+        for (const auto& row : out->pca_components_) {
+            if (static_cast<int>(row.size()) != out->n_components_) {
+                throw std::invalid_argument(
+                    "LeafShapeDistribution: pca_components row width != n_components");
+            }
+        }
+        if (static_cast<int>(out->pca_eigenvalues_.size()) != out->pca_K_) {
+            std::ostringstream oss;
+            oss << "LeafShapeDistribution: pca_eigenvalues has "
+                << out->pca_eigenvalues_.size() << " entries; expected pca_K="
+                << out->pca_K_;
+            throw std::invalid_argument(oss.str());
         }
     }
 
@@ -637,17 +705,39 @@ std::shared_ptr<ParametricLeafShape> LeafShapeDistribution::makeShape(
         // same z across all ranks of this plant (D2 per-plant coherence).
         std::mt19937 rng(plant_seed_val ^ shape_seed_salt_);
         std::normal_distribution<double> nd(0.0, 1.0);
-        std::vector<double> z(n_components_);
-        for (int i = 0; i < n_components_; ++i) z[i] = nd(rng);
 
-        // delta = scale * (L @ z); L is lower-triangular.
-        for (int i = 0; i < n_components_; ++i) {
-            double sum = 0.0;
-            const auto& row = cholesky_factor_[i];
-            for (int j = 0; j <= i; ++j) {
-                sum += row[j] * z[j];
+        if (pca_K_ > 0) {
+            // Fix path α: PCA-truncated draw. ``pca_components_`` is K rows
+            // × n_components_ (each row = one eigenvector of Σ);
+            // ``pca_eigenvalues_`` is the length-K vector of corresponding
+            // eigenvalues. Sample z_K ~ N(0, I_K) and reconstruct
+            // ``delta = U_K · √Λ_K · z_K``: scalar per-mode amplitudes
+            // (`sqrt(λ_k) · z_k`) projected back through the eigenbasis.
+            // Drops the noise modes (K dropped of N=33) responsible for
+            // root cause #2's negative halfwidth / oscillating droop /
+            // non-monotonic along.
+            std::vector<double> z_K(pca_K_);
+            for (int k = 0; k < pca_K_; ++k) z_K[k] = nd(rng);
+            for (int k = 0; k < pca_K_; ++k) {
+                const double w = scale * std::sqrt(std::max(pca_eigenvalues_[k], 0.0)) * z_K[k];
+                const auto& vec = pca_components_[k];
+                for (int i = 0; i < n_components_; ++i) {
+                    coeffs[i] += w * vec[i];
+                }
             }
-            coeffs[i] += scale * sum;
+        } else {
+            // Legacy fallback: full Cholesky draw.
+            // delta = scale * (L @ z); L is lower-triangular.
+            std::vector<double> z(n_components_);
+            for (int i = 0; i < n_components_; ++i) z[i] = nd(rng);
+            for (int i = 0; i < n_components_; ++i) {
+                double sum = 0.0;
+                const auto& row = cholesky_factor_[i];
+                for (int j = 0; j <= i; ++j) {
+                    sum += row[j] * z[j];
+                }
+                coeffs[i] += scale * sum;
+            }
         }
     }
 

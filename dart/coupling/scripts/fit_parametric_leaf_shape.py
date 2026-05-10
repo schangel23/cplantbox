@@ -680,6 +680,14 @@ def main(argv: list[str] | None = None) -> int:
                         help="cap donor count for fast smoke (0 = all)")
     parser.add_argument("--cov-eps-rel", type=float, default=1e-6,
                         help="relative regularisation: eps = cov_eps_rel * trace(Σ)/dim")
+    parser.add_argument("--pca-K", type=int, default=8,
+                        help="PCA truncation: keep top K eigenmodes of Σ. "
+                             "0 = no truncation (use full Cholesky); "
+                             "K > 0 stores `pca_components` and `pca_eigenvalues` "
+                             "in the JSON for the C++ loader (fix path α). "
+                             "Plan recommends K ≈ 5-10 (knocks out the noise "
+                             "modes that produce non-monotonic along, oscillating "
+                             "droop, negative halfwidth at scale ≥ 0.3).")
     parser.add_argument("--quiet", action="store_true")
     args = parser.parse_args(argv)
 
@@ -751,6 +759,55 @@ def main(argv: list[str] | None = None) -> int:
     L = np.linalg.cholesky(cov_reg)
     log(f"Σ shape: {cov.shape}, trace={float(np.trace(cov)):.4e},"
         f" eps={eps:.4e} (rel={args.cov_eps_rel})")
+
+    # ── 3a. PCA truncation (fix path α) ────────────────────────────────────
+    # Eigendecompose Σ and keep top K dims. The full Cholesky is retained in
+    # the JSON for backwards compat / fallback; the C++ loader prefers the
+    # PCA block when present (~30 LOC change in
+    # ``LeafShapeDistribution::makeShape``: draw ``z_K ~ N(0, I_K)`` and
+    # compute ``coeffs = intercept + scale · U_K · √Λ_K · z_K``).
+    #
+    # Knocks out the noise modes responsible for root cause #2 of the post-
+    # S8 visual review: 33-dim Gaussian without geometric constraints can
+    # sample regions producing non-monotonic along, oscillating droop, or
+    # negative halfwidth. Top K = 5–10 dominant modes are physically
+    # interpretable (overall droop magnitude, lance-vs-ovate, mid-curvature)
+    # and match the few shape modes that actually vary across cultivars in
+    # FSPM literature.
+    eigvals_asc, eigvecs_asc = np.linalg.eigh(cov_reg)
+    eigvals_full = eigvals_asc[::-1]            # descending
+    eigvecs_full = eigvecs_asc[:, ::-1]         # columns are eigenvectors
+    eigvals_full = np.maximum(eigvals_full, 0.0)
+    total_variance = float(np.sum(eigvals_full))
+    K = max(0, min(args.pca_K, N_BASIS_TOTAL))
+    if K > 0:
+        eigvecs_K = eigvecs_full[:, :K]         # (N_BASIS_TOTAL, K)
+        eigvals_K = eigvals_full[:K]            # (K,)
+        retained = float(np.sum(eigvals_K)) / max(total_variance, 1e-30)
+        log(f"PCA: K={K}/{N_BASIS_TOTAL}, retained variance="
+            f"{retained:.4f} of {total_variance:.4e}")
+        # Top-3 scree contribution for quick eyeball
+        for k in range(min(K, 5)):
+            log(f"  λ_{k+1}={eigvals_K[k]:.4e} "
+                f"(cumulative={float(np.sum(eigvals_K[:k+1]))/max(total_variance,1e-30):.4f})")
+        # Storage convention: pca_components is K rows × N_BASIS_TOTAL cols
+        # (each row = one eigenvector), so the C++ loader can iterate
+        # row-major-style ``components[k][i]`` per mode.
+        pca_components = eigvecs_K.T.tolist()
+        pca_eigenvalues = eigvals_K.tolist()
+        pca_block = {
+            "K": K,
+            "n_components": K,
+            "pca_components": pca_components,
+            "pca_eigenvalues": pca_eigenvalues,
+            "retained_variance_fraction": retained,
+            "total_variance": total_variance,
+            "all_eigenvalues_descending": eigvals_full.tolist(),
+            "regularisation_eps": eps,
+        }
+    else:
+        pca_block = None
+        log("PCA: K=0, no truncation (use full Cholesky)")
 
     # ── 4. Run acceptance gates ─────────────────────────────────────────────
     log("\n── Acceptance gates ──")
@@ -844,7 +901,7 @@ def main(argv: list[str] | None = None) -> int:
         "donor_count": len(donor_records),
         "donors_per_position": {str(p): n_per_pos[p] for p in range(N_POSITIONS)},
         "position_to_rank_mapping": {str(p): p for p in range(N_POSITIONS)},
-        "pca_truncation": None,
+        "pca_truncation": pca_block,
         "fit_residual_summary": {
             "median_sym_fit_rms_cm": gate_d_detail["median_sym_fit_rms_cm"],
             "median_sym_lossy_rms_cm_informational": gate_d_detail[

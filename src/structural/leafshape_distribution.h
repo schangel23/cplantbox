@@ -106,6 +106,16 @@ public:
     /// reconstruct the per-plant z = L^{-1} (coeffs - intercept[r]) / scale
     /// and verify D2 per-plant coherence across the 15 ranks.
     const std::vector<std::vector<double>>& choleskyFactor() const { return cholesky_factor_; }
+    /// PCA truncation (fix path α). When ``pcaK() > 0``, ``makeShape`` draws
+    /// a K-dim Gaussian instead of N_BASIS_TOTAL-dim and reconstructs the
+    /// coefficient delta as ``U_K · √Λ_K · z_K``. ``pca_components_`` is
+    /// row-major (K rows, each row = one eigenvector of dim n_components_).
+    /// ``pca_eigenvalues_`` is the length-K vector of corresponding
+    /// eigenvalues (NOT square-rooted; loader takes sqrt at sample time).
+    /// When ``pcaK() == 0``, falls back to ``cholesky_factor_``.
+    int pcaK() const { return pca_K_; }
+    const std::vector<std::vector<double>>& pcaComponents() const { return pca_components_; }
+    const std::vector<double>& pcaEigenvalues() const { return pca_eigenvalues_; }
     int droopBlockStart() const     { return droop_block_start_; }
     int alongBlockStart() const     { return along_block_start_; }
     int halfwidthBlockStart() const { return halfwidth_block_start_; }
@@ -142,6 +152,9 @@ private:
     std::vector<std::vector<double>> intercepts_;          ///< [n_ranks_][n_components_]
     std::vector<std::vector<Vector3d>> asym_residuals_;    ///< [n_ranks_][n_u_ * n_v_]
     std::vector<std::vector<double>> cholesky_factor_;     ///< [n_components_][n_components_]
+    int pca_K_ = 0;                                        ///< PCA truncation rank (0 = use full Cholesky)
+    std::vector<std::vector<double>> pca_components_;      ///< [pca_K_][n_components_]; each row = one eigenvector of Σ
+    std::vector<double> pca_eigenvalues_;                  ///< [pca_K_]; corresponding eigenvalues (NOT square-rooted)
     std::vector<double> max_w_per_rank_;                   ///< [n_ranks_]; fit-time peak half-width (cm) per rank
     std::vector<double> lmax_per_rank_;                    ///< [n_ranks_]; fit-time midrib arc length (cm) per rank (fix 2b)
     /// Salt mixed into Organism::getSeedVal() for shape draws.

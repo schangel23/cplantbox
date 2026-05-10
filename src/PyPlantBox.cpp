@@ -1535,6 +1535,11 @@ PYBIND11_MODULE(plantbox, m) {
             .def("asymResidualGrid", &LeafShapeDistribution::asymResidualGrid,
                  py::arg("rank"), py::return_value_policy::reference_internal)
             .def("choleskyFactor", &LeafShapeDistribution::choleskyFactor,
+                 py::return_value_policy::reference_internal)
+            .def("pcaK", &LeafShapeDistribution::pcaK)
+            .def("pcaComponents", &LeafShapeDistribution::pcaComponents,
+                 py::return_value_policy::reference_internal)
+            .def("pcaEigenvalues", &LeafShapeDistribution::pcaEigenvalues,
                  py::return_value_policy::reference_internal);
 
     /*
