@@ -65,6 +65,7 @@ def _build_parametric(distribution: dict, rank: int) -> pb.ParametricLeafShape:
     # so evaluate() reproduces XML at FP precision regardless of evaluate's
     # runtime max_w arg (which is now ignored on the parametric path).
     max_w_intercept = float(distribution["max_w_xml_cm"][str(rank)])
+    lmax_intercept = float(distribution["lmax_intercept_cm"][str(rank)])
     return pb.ParametricLeafShape(
         rank=rank,
         spline_knots_u=knots,
@@ -76,6 +77,7 @@ def _build_parametric(distribution: dict, rank: int) -> pb.ParametricLeafShape:
         n_u=n_u,
         n_v=n_v,
         max_w_intercept=max_w_intercept,
+        lmax_intercept=lmax_intercept,
     )
 
 
@@ -123,6 +125,7 @@ def test_s3_analytic_straight_droop_parabolic_width():
         n_u=n_u,
         n_v=n_v,
         max_w_intercept=max_w,
+        lmax_intercept=1.0,  # coefs are already in absolute cm — identity
     )
 
     rng = np.random.default_rng(123)
@@ -273,7 +276,11 @@ def test_s3_donor_round_trip(distribution: dict):
     width_c = coeffs_donor[2 * N_CP:3 * N_CP].tolist()
     # S6 max_w bake: donor's own peak half-width baked at construction
     # (replaces the previous evaluate-time max_w arg, now ignored).
+    # Fix 2b: donor's own midrib arc length baked at construction —
+    # coeffs_donor are dimensionless post-fit, multiplied through evaluate
+    # by lmax_intercept to recover absolute cm.
     max_w_donor = sym.max_w
+    lmax_donor = sym.lmax_self
     shape = pb.ParametricLeafShape(
         rank=5,
         spline_knots_u=knots,
@@ -285,6 +292,7 @@ def test_s3_donor_round_trip(distribution: dict):
         n_u=n_u,
         n_v=n_v,
         max_w_intercept=max_w_donor,
+        lmax_intercept=lmax_donor,
     )
 
     out = np.zeros((n_u, n_v, 3), dtype=np.float64)

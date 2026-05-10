@@ -399,6 +399,7 @@ std::shared_ptr<LeafShapeDistribution> LeafShapeDistribution::load(const std::st
     std::map<int, std::vector<double>> intercepts;
     std::map<int, std::vector<Vector3d>> asym_residuals;
     std::map<int, double> max_w_xml;   ///< per-rank peak half-width (cm); S6 max_w bake
+    std::map<int, double> lmax_intercept;  ///< per-rank fit-time midrib arc length (cm); fix 2b
     CoeffsBlockLayout layout;
     bool has_layout = false;
 
@@ -449,6 +450,24 @@ std::shared_ptr<LeafShapeDistribution> LeafShapeDistribution::load(const std::st
                         break;
                     }
                 }
+            } else if (key == "lmax_intercept_cm") {
+                // Fix 2b: per-rank fit-time midrib arc length (cm) — the
+                // divisor the fitter used to normalise droop + along into
+                // dimensionless shape coefficients. The C++ evaluator
+                // multiplies the splines by this scalar to recover absolute
+                // cm. Same JSON shape as max_w_xml_cm: {"0": 50.1, ...}.
+                sc.expect('{');
+                if (!sc.match('}')) {
+                    while (true) {
+                        const std::string key2 = sc.readString();
+                        sc.expect(':');
+                        const int k = std::atoi(key2.c_str());
+                        lmax_intercept.emplace(k, sc.readNumber());
+                        if (sc.match(',')) continue;
+                        sc.expect('}');
+                        break;
+                    }
+                }
             } else if (key == "coeffs_block_layout") {
                 layout = readCoeffsBlockLayout(sc);
                 has_layout = true;
@@ -494,6 +513,13 @@ std::shared_ptr<LeafShapeDistribution> LeafShapeDistribution::load(const std::st
             << " entries; expected n_ranks=" << out->n_ranks_;
         throw std::invalid_argument(oss.str());
     }
+    if (static_cast<int>(lmax_intercept.size()) != out->n_ranks_) {
+        std::ostringstream oss;
+        oss << "LeafShapeDistribution: lmax_intercept_cm has " << lmax_intercept.size()
+            << " entries; expected n_ranks=" << out->n_ranks_
+            << " (fix 2b — refit JSON via fit_parametric_leaf_shape.py)";
+        throw std::invalid_argument(oss.str());
+    }
     if (static_cast<int>(out->cholesky_factor_.size()) != out->n_components_) {
         std::ostringstream oss;
         oss << "LeafShapeDistribution: cholesky_factor has "
@@ -512,6 +538,7 @@ std::shared_ptr<LeafShapeDistribution> LeafShapeDistribution::load(const std::st
     out->intercepts_.assign(out->n_ranks_, std::vector<double>());
     out->asym_residuals_.assign(out->n_ranks_, std::vector<Vector3d>());
     out->max_w_per_rank_.assign(out->n_ranks_, 0.0);
+    out->lmax_per_rank_.assign(out->n_ranks_, 0.0);
     for (int r = 0; r < out->n_ranks_; ++r) {
         auto it = intercepts.find(r);
         if (it == intercepts.end()) {
@@ -548,6 +575,20 @@ std::shared_ptr<LeafShapeDistribution> LeafShapeDistribution::load(const std::st
             throw std::invalid_argument(oss.str());
         }
         out->max_w_per_rank_[r] = mit->second;
+
+        auto lit = lmax_intercept.find(r);
+        if (lit == lmax_intercept.end()) {
+            std::ostringstream oss;
+            oss << "LeafShapeDistribution: lmax_intercept_cm['" << r << "'] missing";
+            throw std::invalid_argument(oss.str());
+        }
+        if (!(lit->second > 0.0)) {
+            std::ostringstream oss;
+            oss << "LeafShapeDistribution: lmax_intercept_cm['" << r << "'] = "
+                << lit->second << "; expected > 0";
+            throw std::invalid_argument(oss.str());
+        }
+        out->lmax_per_rank_[r] = lit->second;
     }
 
     if (has_layout) {
@@ -626,7 +667,8 @@ std::shared_ptr<ParametricLeafShape> LeafShapeDistribution::makeShape(
         std::move(halfwidth),
         asym_residuals_[rank],   // copy — frozen across plants
         n_u_, n_v_,
-        max_w_per_rank_[rank]);  // S6 max_w bake — fit-time peak half-width
+        max_w_per_rank_[rank],   // S6 max_w bake — fit-time peak half-width
+        lmax_per_rank_[rank]);   // fix 2b — fit-time midrib arc length
 }
 
 } // namespace CPlantBox

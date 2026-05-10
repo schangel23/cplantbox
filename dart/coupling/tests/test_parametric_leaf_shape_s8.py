@@ -154,6 +154,7 @@ def _sample_intercept_grid(distribution: dict, rank: int,
     )
     residual_flat = [pb.Vector3d(*residual[iu, iv]) for iu in range(n_u) for iv in range(n_v)]
     max_w_intercept = float(distribution["max_w_xml_cm"][str(rank)])
+    lmax_intercept = float(distribution["lmax_intercept_cm"][str(rank)])
     shape = pb.ParametricLeafShape(
         rank=rank,
         spline_knots_u=knots,
@@ -165,6 +166,7 @@ def _sample_intercept_grid(distribution: dict, rank: int,
         n_u=n_u,
         n_v=n_v,
         max_w_intercept=max_w_intercept,
+        lmax_intercept=lmax_intercept,
     )
     out = np.zeros((n_u_eval, n_v_eval, 3), dtype=np.float64)
     u_vals = np.linspace(0.0, 1.0, n_u_eval)
@@ -278,11 +280,12 @@ def test_g2_donor_round_trip_symmetric_block():
     width_c = coeffs[2 * n_cp:3 * n_cp].tolist()
     zero_res = [pb.Vector3d(0.0, 0.0, 0.0) for _ in range(n_u * n_v)]
     max_w = float(d["max_w_xml_cm"][str(rank)])
+    lmax_int = float(d["lmax_intercept_cm"][str(rank)])
     shape = pb.ParametricLeafShape(
         rank=rank, spline_knots_u=knots.tolist(), spline_degree=degree,
         midrib_droop_coeffs=droop_c, midrib_along_coeffs=along_c,
         halfwidth_coeffs=width_c, asym_residual_grid=zero_res,
-        n_u=n_u, n_v=n_v, max_w_intercept=max_w,
+        n_u=n_u, n_v=n_v, max_w_intercept=max_w, lmax_intercept=lmax_int,
     )
 
     # Reference reconstruction: scipy BSpline on the SAME knot vector and
@@ -300,12 +303,14 @@ def test_g2_donor_round_trip_symmetric_block():
     for u in u_vals:
         for v in v_vals:
             out = shape.evaluate(u=float(u), v=float(v), lmax=50.0, max_w=max_w)
+            # Fix 2b: droop+along splines are dimensionless post-fit; multiply
+            # by lmax_int to recover absolute cm before comparing.
             ref = np.array([(v - 0.5) * float(width_sp(u)) * max_w,
-                            float(droop_sp(u)),
-                            float(along_sp(u))])
+                            float(droop_sp(u)) * lmax_int,
+                            float(along_sp(u)) * lmax_int])
             diffs.append([out.x - ref[0], out.y - ref[1], out.z - ref[2]])
     rms = float(np.sqrt(np.mean(np.array(diffs) ** 2)))
-    lmax_proxy = float(np.max(np.abs(coeffs[n_cp:2 * n_cp])))    # along-axis span
+    lmax_proxy = lmax_int    # along-axis span ≈ midrib arc length post-fix-2b
     assert rms <= 0.05 * lmax_proxy, (
         f"G2 FAIL: symmetric round-trip RMS {rms:.3e} cm > 5 %·lmax_proxy "
         f"{0.05 * lmax_proxy:.3e}")
@@ -345,6 +350,7 @@ def test_g3_midline_lateral_invariant_under_z_draw(distribution: dict):
         distribution["asym_residual_grids_cm"][str(rank)], dtype=np.float64)
     residual_flat = [pb.Vector3d(*residual[iu, iv]) for iu in range(n_u) for iv in range(n_v)]
     max_w = float(distribution["max_w_xml_cm"][str(rank)])
+    lmax_int = float(distribution["lmax_intercept_cm"][str(rank)])
 
     # Reference midline lateral at the intercept (zero z).
     base = pb.ParametricLeafShape(
@@ -353,7 +359,7 @@ def test_g3_midline_lateral_invariant_under_z_draw(distribution: dict):
         midrib_along_coeffs=intercept[n_cp:2 * n_cp].tolist(),
         halfwidth_coeffs=intercept[2 * n_cp:3 * n_cp].tolist(),
         asym_residual_grid=residual_flat,
-        n_u=n_u, n_v=n_v, max_w_intercept=max_w,
+        n_u=n_u, n_v=n_v, max_w_intercept=max_w, lmax_intercept=lmax_int,
     )
     v_mid = n_v // 2
     u_eval = np.linspace(0.0, 1.0, n_u)
@@ -373,7 +379,7 @@ def test_g3_midline_lateral_invariant_under_z_draw(distribution: dict):
             midrib_along_coeffs=coeffs[n_cp:2 * n_cp].tolist(),
             halfwidth_coeffs=coeffs[2 * n_cp:3 * n_cp].tolist(),
             asym_residual_grid=residual_flat,
-            n_u=n_u, n_v=n_v, max_w_intercept=max_w,
+            n_u=n_u, n_v=n_v, max_w_intercept=max_w, lmax_intercept=lmax_int,
         )
         for iu, u in enumerate(u_eval):
             x = sh.evaluate(u=float(u), v=float(v_mid) / (n_v - 1),
@@ -639,6 +645,7 @@ def test_g7_metric4_halfwidth_profile(distribution: dict, rank: int):
     knots = np.asarray(distribution["spline_knots_u"], dtype=np.float64)
     width_sp = BSpline(knots, width_c, degree)
     max_w = float(distribution["max_w_xml_cm"][str(rank)])
+    lmax_int = float(distribution["lmax_intercept_cm"][str(rank)])
     n_u = distribution["n_u"]; n_v = distribution["n_v"]
     residual = np.asarray(
         distribution["asym_residual_grids_cm"][str(rank)], dtype=np.float64)
@@ -649,7 +656,7 @@ def test_g7_metric4_halfwidth_profile(distribution: dict, rank: int):
         midrib_along_coeffs=intercept[n_cp:2 * n_cp].tolist(),
         halfwidth_coeffs=intercept[2 * n_cp:3 * n_cp].tolist(),
         asym_residual_grid=res_flat,
-        n_u=n_u, n_v=n_v, max_w_intercept=max_w,
+        n_u=n_u, n_v=n_v, max_w_intercept=max_w, lmax_intercept=lmax_int,
     )
 
     # P_x(u, v) = (v - 0.5) * w(u) * max_w + bilinear_residual_x(u, v).

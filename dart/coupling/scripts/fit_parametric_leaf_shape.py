@@ -115,6 +115,21 @@ class SymmetricComponents:
     along: np.ndarray       # (N_U,)  midline +z_local (cm)
     halfwidth_norm: np.ndarray  # (N_U,)  in [0, 1] — w(u)/max_w
     max_w: float            # cm — peak half-width across u (per-leaf or per-rank)
+    lmax_self: float        # cm — midrib polyline arc length (collar→tip in (y,z))
+
+
+def midrib_arc_length(droop: np.ndarray, along: np.ndarray) -> float:
+    """Polyline arc length of the midrib in the (y_local, z_local) plane.
+
+    The midrib's natural length — equal to ``along[-1]`` for a straight leaf,
+    and approximately the leaf's true length for a drooping one (always
+    >= euclidean distance from collar to tip). Used as the per-leaf size
+    scale for normalising droop + along into dimensionless shape coefficients
+    (PLAN_PARAMETRIC_LEAF_SHAPE_2026-05-09_REV1 fix 2b — "Refit dimensionless").
+    """
+    dy = np.diff(droop)
+    dz = np.diff(along)
+    return float(np.sum(np.sqrt(dy ** 2 + dz ** 2)))
 
 
 def extract_symmetric(cps_local: np.ndarray) -> SymmetricComponents:
@@ -145,20 +160,30 @@ def extract_symmetric(cps_local: np.ndarray) -> SymmetricComponents:
     if max_w < 1e-9:
         raise ValueError("degenerate leaf: max half-width is zero")
     halfwidth_norm = half_w_raw / max_w
+    lmax_self = midrib_arc_length(droop, along)
+    if lmax_self < 1e-9:
+        raise ValueError("degenerate leaf: midrib arc length is zero")
     return SymmetricComponents(
         droop=droop, along=along, halfwidth_norm=halfwidth_norm, max_w=max_w,
+        lmax_self=lmax_self,
     )
 
 
 def fit_intercept(sym: SymmetricComponents) -> np.ndarray:
-    """Fit degree-4 splines on (droop, along, halfwidth) at U_VALS.
+    """Fit degree-4 splines on dimensionless (droop/lmax, along/lmax, halfwidth/max_w).
 
-    Returns a (3 * N_CP,) flat coefficient vector ``[droop | along | width]``.
+    Returns a (3 * N_CP,) flat coefficient vector ``[droop_norm | along_norm |
+    width_norm]``, all dimensionless. Per-leaf size enters at evaluation time
+    via the lmax / max_w multipliers (fix 2b: shape decoupled from size).
+
     With ``n_cp = N_U`` and ``make_interp_spline(k=4)``, the fit is exact
-    interpolation at machine epsilon (verified empirically at 5e-16).
+    interpolation at machine epsilon. Multiplying the reconstructed splines
+    by ``sym.lmax_self`` and ``sym.max_w`` reproduces the input grid bit-for-bit.
     """
-    droop_sp = make_interp_spline(U_VALS, sym.droop, k=SPLINE_DEGREE)
-    along_sp = make_interp_spline(U_VALS, sym.along, k=SPLINE_DEGREE)
+    droop_norm = sym.droop / sym.lmax_self
+    along_norm = sym.along / sym.lmax_self
+    droop_sp = make_interp_spline(U_VALS, droop_norm, k=SPLINE_DEGREE)
+    along_sp = make_interp_spline(U_VALS, along_norm, k=SPLINE_DEGREE)
     width_sp = make_interp_spline(U_VALS, sym.halfwidth_norm, k=SPLINE_DEGREE)
     coeffs = np.concatenate([droop_sp.c, along_sp.c, width_sp.c])
     if coeffs.shape != (N_BASIS_TOTAL,):
@@ -169,6 +194,7 @@ def fit_intercept(sym: SymmetricComponents) -> np.ndarray:
 def evaluate_symmetric(
     coeffs: np.ndarray,
     max_w: float,
+    lmax: float,
     u_grid: np.ndarray | None = None,
     v_grid: np.ndarray | None = None,
 ) -> np.ndarray:
@@ -177,14 +203,18 @@ def evaluate_symmetric(
     Args:
         coeffs: ``(3 * N_CP,)`` flat coefficient vector from
             :func:`fit_intercept` or a sampled ``intercept + L @ z``.
-        max_w: per-rank peak half-width in cm (used to scale the
-            normalised width back to physical units).
+            All three blocks are dimensionless (fix 2b).
+        max_w: per-rank peak half-width in cm — multiplies the
+            normalised half-width back to physical lateral units.
+        lmax: per-rank midrib arc length in cm — multiplies the
+            normalised droop + along splines back to physical units.
         u_grid: optional ``(M_u,)`` u-stations (default U_VALS).
         v_grid: optional ``(M_v,)`` v-stations (default V_VALS).
 
     Returns:
-        ``(M_u, M_v, 3)`` array. Lateral component is identically zero
-        on the midline (``v = 0.5``); the model is symmetric in v.
+        ``(M_u, M_v, 3)`` array in absolute cm. Lateral component is
+        identically zero on the midline (``v = 0.5``); the model is
+        symmetric in v.
     """
     if coeffs.shape != (N_BASIS_TOTAL,):
         raise ValueError(f"expected ({N_BASIS_TOTAL},) coeffs, got {coeffs.shape}")
@@ -202,8 +232,8 @@ def evaluate_symmetric(
     v_arr = V_VALS if v_grid is None else np.asarray(v_grid, dtype=np.float64)
     out = np.zeros((u_arr.size, v_arr.size, 3), dtype=np.float64)
     for iu, u in enumerate(u_arr):
-        m_y = float(droop_sp(u))
-        m_z = float(along_sp(u))
+        m_y = float(droop_sp(u)) * lmax
+        m_z = float(along_sp(u)) * lmax
         w = float(width_sp(u))
         for iv, v in enumerate(v_arr):
             out[iu, iv, 0] = (v - 0.5) * w * max_w
@@ -212,16 +242,18 @@ def evaluate_symmetric(
     return out
 
 
-def compute_asym_residual(xml_grid: np.ndarray, intercept: np.ndarray, max_w: float) -> np.ndarray:
-    """Per-rank frozen asymmetric residual grid.
+def compute_asym_residual(xml_grid: np.ndarray, intercept: np.ndarray,
+                          max_w: float, lmax: float) -> np.ndarray:
+    """Per-rank frozen asymmetric residual grid (in absolute cm).
 
-    ``asym_residual[r] = XML_grid[r] - evaluate_symmetric(intercept[r], max_w[r])``
+    ``asym_residual[r] = XML_grid[r] - evaluate_symmetric(intercept[r], max_w, lmax)``
 
     At runtime, ``evaluate(intercept[r], scale=0) = sym_recon + asym_residual[r]``
-    reproduces ``XML_grid[r]`` bit-for-bit. Sampling deviations only
+    reproduces ``XML_grid[r]`` bit-for-bit when called with the same
+    ``max_w`` and ``lmax`` baked at fit time. Sampling deviations only
     perturbs ``sym_recon``; the residual stays frozen.
     """
-    sym_recon = evaluate_symmetric(intercept, max_w)
+    sym_recon = evaluate_symmetric(intercept, max_w, lmax)
     return xml_grid - sym_recon
 
 
@@ -377,19 +409,18 @@ def process_donor_leaf(
     discarded = discarded_content_metrics(cps_local)
 
     # Gate (d) — symmetric spline-fit RMS at u-stations only (compare
-    # extracted donor sym components against the spline re-evaluation).
-    # With make_interp_spline(k=4) and n_cp = N_U, this is exact
-    # interpolation at machine epsilon. The metric tests "are the
-    # splines flexible enough to fit the symmetric component well",
-    # NOT how lossy the symmetric projection is overall (D9 explicitly
-    # discards asymmetric content).
+    # extracted donor sym components against the spline re-evaluation,
+    # in physical cm). With make_interp_spline(k=4) and n_cp = N_U, this is
+    # exact interpolation at machine epsilon. Coefs are dimensionless
+    # post-fix-2b; multiply droop/along splines by lmax_self to compare
+    # against extracted (cm) values.
     droop_c = coeffs[0:N_CP]
     along_c = coeffs[N_CP:2 * N_CP]
     width_c = coeffs[2 * N_CP:3 * N_CP]
     knots = make_interp_spline(U_VALS, np.zeros(N_U), k=SPLINE_DEGREE).t
     SP = type(make_interp_spline(U_VALS, np.zeros(N_U), k=SPLINE_DEGREE))
-    droop_re = SP(knots, droop_c, SPLINE_DEGREE)(U_VALS)
-    along_re = SP(knots, along_c, SPLINE_DEGREE)(U_VALS)
+    droop_re = SP(knots, droop_c, SPLINE_DEGREE)(U_VALS) * sym.lmax_self
+    along_re = SP(knots, along_c, SPLINE_DEGREE)(U_VALS) * sym.lmax_self
     width_re = SP(knots, width_c, SPLINE_DEGREE)(U_VALS)
     fit_residual = np.concatenate([
         droop_re - sym.droop,
@@ -400,7 +431,7 @@ def process_donor_leaf(
 
     # Informational: full grid lossy reconstruction (carries discarded
     # asymmetric content; not the gate-(d) metric).
-    sym_recon = evaluate_symmetric(coeffs, sym.max_w)
+    sym_recon = evaluate_symmetric(coeffs, sym.max_w, sym.lmax_self)
     sym_lossy_rms = float(np.sqrt(np.mean((cps_local - sym_recon) ** 2)))
 
     return DonorRecord(
@@ -421,6 +452,7 @@ def gate_a_per_rank_anchor(
     intercepts: list[np.ndarray],
     asym_residuals: list[np.ndarray],
     max_w_xml: list[float],
+    lmax_intercept: list[float],
     xml_grids: list[np.ndarray],
 ) -> tuple[bool, list[dict]]:
     """For each rank r, evaluate(intercept[r], scale=0) + asym_residual[r] reproduces
@@ -429,7 +461,7 @@ def gate_a_per_rank_anchor(
     results = []
     all_pass = True
     for r in range(N_RANKS):
-        sym_recon = evaluate_symmetric(intercepts[r], max_w_xml[r])
+        sym_recon = evaluate_symmetric(intercepts[r], max_w_xml[r], lmax_intercept[r])
         full_recon = sym_recon + asym_residuals[r]
         diff = full_recon - xml_grids[r]
         max_abs = float(np.max(np.abs(diff)))
@@ -442,6 +474,7 @@ def gate_a_per_rank_anchor(
 def gate_b_pose_invariance(
     intercepts: list[np.ndarray],
     max_w_xml: list[float],
+    lmax_intercept: list[float],
     rng_seed: int = 1234,
     n_synthetic: int = 1000,
     cholesky_factor: np.ndarray | None = None,
@@ -457,7 +490,7 @@ def gate_b_pose_invariance(
     mid = N_V // 2
     max_abs_intercepts = 0.0
     for r in range(N_RANKS):
-        sym = evaluate_symmetric(intercepts[r], max_w_xml[r])
+        sym = evaluate_symmetric(intercepts[r], max_w_xml[r], lmax_intercept[r])
         max_abs_intercepts = max(max_abs_intercepts, float(np.max(np.abs(sym[:, mid, 0]))))
     rng = np.random.default_rng(rng_seed)
     max_abs_synth = 0.0
@@ -465,7 +498,7 @@ def gate_b_pose_invariance(
         for _ in range(n_synthetic):
             z = rng.standard_normal(N_BASIS_TOTAL)
             sample = intercepts[0] + cholesky_factor @ z
-            sym = evaluate_symmetric(sample, max_w_xml[0])
+            sym = evaluate_symmetric(sample, max_w_xml[0], lmax_intercept[0])
             max_abs_synth = max(max_abs_synth, float(np.max(np.abs(sym[:, mid, 0]))))
     pass_intercepts = max_abs_intercepts <= 1e-12
     pass_synth = max_abs_synth <= 1e-12
@@ -656,19 +689,22 @@ def main(argv: list[str] | None = None) -> int:
 
     # ── 1. XML side: per-rank intercepts + asym residuals ───────────────────
     log(f"Reading XML: {args.xml}")
-    xml_grids, lmax_xml, leaf_names = load_xml_leaf_grids(args.xml)
+    xml_grids, lmax_xml_param, leaf_names = load_xml_leaf_grids(args.xml)
     intercepts: list[np.ndarray] = []
     asym_residuals: list[np.ndarray] = []
     max_w_xml: list[float] = []
+    lmax_intercept: list[float] = []  # arc-length midrib lmax per rank (fix 2b)
     for r, grid in enumerate(xml_grids):
         sym = extract_symmetric(grid)
         intercept = fit_intercept(sym)
-        asym = compute_asym_residual(grid, intercept, sym.max_w)
+        asym = compute_asym_residual(grid, intercept, sym.max_w, sym.lmax_self)
         intercepts.append(intercept)
         asym_residuals.append(asym)
         max_w_xml.append(sym.max_w)
+        lmax_intercept.append(sym.lmax_self)
         log(f"  rank {r:2d} ({leaf_names[r]:>16}): max_w_xml={sym.max_w:6.3f} cm,"
-            f" lmax={lmax_xml[r]:6.2f} cm,"
+            f" lmax_arc={sym.lmax_self:6.2f} cm,"
+            f" lmax_param={lmax_xml_param[r]:6.2f} cm,"
             f" |asym|_max={float(np.max(np.abs(asym))):.4f} cm")
 
     # ── 2. MF3D donors: project + extract + fit ─────────────────────────────
@@ -719,7 +755,7 @@ def main(argv: list[str] | None = None) -> int:
     # ── 4. Run acceptance gates ─────────────────────────────────────────────
     log("\n── Acceptance gates ──")
     gate_a_pass, gate_a_detail = gate_a_per_rank_anchor(
-        intercepts, asym_residuals, max_w_xml, xml_grids,
+        intercepts, asym_residuals, max_w_xml, lmax_intercept, xml_grids,
     )
     log(f"  (a) per-rank anchor (FP precision): {'PASS' if gate_a_pass else 'FAIL'}")
     for d in gate_a_detail:
@@ -727,7 +763,7 @@ def main(argv: list[str] | None = None) -> int:
         log(f"      {marker} rank {d['rank']:2d}: max|err|={d['max_abs_cm']:.3e} cm")
 
     gate_b_pass, gate_b_detail = gate_b_pose_invariance(
-        intercepts, max_w_xml, cholesky_factor=L,
+        intercepts, max_w_xml, lmax_intercept, cholesky_factor=L,
     )
     log(f"  (b) midline lateral = 0 by construction: {'PASS' if gate_b_pass else 'FAIL'}"
         f" (intercepts max={gate_b_detail['max_abs_midline_lateral_intercepts_cm']:.3e},"
@@ -744,7 +780,7 @@ def main(argv: list[str] | None = None) -> int:
         f" |mid_drift|={gate_c_detail['midline_lateral_drift_abs_population_mean_cm']:.3f} cm,"
         f" |asym|={gate_c_detail['per_side_asymmetry_abs_population_mean_cm']:.3f} cm)")
 
-    lmax_proxy = float(np.mean(lmax_xml))
+    lmax_proxy = float(np.mean(lmax_xml_param))
     gate_d_pass, gate_d_detail = gate_d_per_donor_reconstruction(
         donor_records, lmax_proxy,
     )
@@ -796,7 +832,8 @@ def main(argv: list[str] | None = None) -> int:
         "n_ranks": N_RANKS,
         "intercepts": {str(r): intercepts[r].tolist() for r in range(N_RANKS)},
         "max_w_xml_cm": {str(r): max_w_xml[r] for r in range(N_RANKS)},
-        "lmax_xml_cm": {str(r): lmax_xml[r] for r in range(N_RANKS)},
+        "lmax_intercept_cm": {str(r): lmax_intercept[r] for r in range(N_RANKS)},
+        "lmax_xml_cm": {str(r): lmax_xml_param[r] for r in range(N_RANKS)},
         "leaf_names": {str(r): leaf_names[r] for r in range(N_RANKS)},
         "asym_residual_grids_cm": {
             str(r): asym_residuals[r].tolist() for r in range(N_RANKS)

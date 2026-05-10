@@ -154,7 +154,8 @@ public:
 		std::vector<double> halfwidth_coeffs,
 		std::vector<Vector3d> asym_residual_grid,
 		int n_u, int n_v,
-		double max_w_intercept);
+		double max_w_intercept,
+		double lmax_intercept);
 
 	Vector3d evaluate(double u, double v,
 		double lmax, double max_w) const override;
@@ -172,6 +173,16 @@ public:
 	/// is therefore ignored on the parametric path; per-plant width
 	/// variation comes from the halfwidth coefficient block.
 	double maxWIntercept() const { return max_w_intercept_; }
+	/// Per-rank fit-time midrib arc length (cm) the fitter normalised against.
+	/// evaluate() multiplies the dimensionless droop + along splines by this
+	/// scalar to produce absolute-cm midrib coordinates. Plumbed from the
+	/// JSON `lmax_intercept_cm` field via LeafShapeDistribution::makeShape
+	/// (PLAN_PARAMETRIC_LEAF_SHAPE_2026-05-09_REV1 fix 2b — "Refit
+	/// dimensionless"). Decouples shape variance from leaf size: per-plant
+	/// deviations live in normalised shape-space and get scaled to physical
+	/// units at evaluate time, so MF3D-vs-XML lmax mismatch stops swamping
+	/// the intercept at shape_variation_scale = 1.
+	double lmaxIntercept() const { return lmax_intercept_; }
 	const std::vector<double>& splineKnotsU()       const { return spline_knots_u_; }
 	const std::vector<double>& midribDroopCoeffs()  const { return midrib_droop_coeffs_; }
 	const std::vector<double>& midribAlongCoeffs()  const { return midrib_along_coeffs_; }
@@ -189,6 +200,7 @@ private:
 	int n_u_ = 0;
 	int n_v_ = 0;
 	double max_w_intercept_ = 0.0;              ///< per-rank fit-time max_w (cm); S6 max_w bake
+	double lmax_intercept_ = 0.0;               ///< per-rank fit-time arc length (cm); fix 2b
 };
 
 } // namespace CPlantBox

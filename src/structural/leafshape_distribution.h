@@ -117,6 +117,12 @@ public:
     /// Plumbed into ParametricLeafShape::max_w_intercept_ by makeShape;
     /// see PLAN_PARAMETRIC_LEAF_SHAPE_2026-05-09_REV1 §S6 (S6.fix).
     double maxWPerRank(int rank) const { return max_w_per_rank_.at(rank); }
+    /// Per-rank fit-time midrib arc length (cm), parsed from the JSON
+    /// `lmax_intercept_cm` map. The fitter normalised the droop + along
+    /// coefficient blocks by this scalar per rank (fix 2b), so the C++
+    /// evaluator multiplies dimensionless splines by it to recover
+    /// absolute-cm midrib coordinates.
+    double lmaxPerRank(int rank) const { return lmax_per_rank_.at(rank); }
 
 private:
     // Construction is private; use load() so the cache is consistent.
@@ -137,6 +143,7 @@ private:
     std::vector<std::vector<Vector3d>> asym_residuals_;    ///< [n_ranks_][n_u_ * n_v_]
     std::vector<std::vector<double>> cholesky_factor_;     ///< [n_components_][n_components_]
     std::vector<double> max_w_per_rank_;                   ///< [n_ranks_]; fit-time peak half-width (cm) per rank
+    std::vector<double> lmax_per_rank_;                    ///< [n_ranks_]; fit-time midrib arc length (cm) per rank (fix 2b)
     /// Salt mixed into Organism::getSeedVal() for shape draws.
     /// Decouples the shape-z stream from any other plant-level draws so
     /// that running with shape_variation_scale > 0 does not perturb
