@@ -857,6 +857,15 @@ PYBIND11_MODULE(plantbox, m) {
             .def_readwrite("laterals", &LeafSpecificParameter::laterals)
             .def_readwrite("laterals", &LeafSpecificParameter::width_blade)
             .def_readwrite("laterals", &LeafSpecificParameter::width_petiole)
+            // S5 — realised LeafShape pointer set by LeafRandomParameter::realize()
+            // (or lazily by Leaf::getEffectiveSurfaceCPs on default-fallback XMLs).
+            // None when the lazy MedianLeafShape has not yet materialised; otherwise
+            // a MedianLeafShape (default XMLs / scale=0 fallback) or
+            // ParametricLeafShape (cultivar distribution loaded). G9 Spy 2 reads
+            // this per blade to assert isinstance(ParametricLeafShape) when the
+            // distribution is wired and to recover the per-plant z from the
+            // realised coefficient blocks.
+            .def_readwrite("shape", &LeafSpecificParameter::shape)
 			.def("getK",&LeafSpecificParameter::getK)
             .def("nob",&LeafSpecificParameter::nob);
     /*
@@ -1491,6 +1500,15 @@ PYBIND11_MODULE(plantbox, m) {
      * load(path), makeShape(rank, scale, plant_seed_val), and the small
      * scalar accessors so the test can assert determinism and coherence.
      */
+    /*
+     * leafshape_distribution.h — diagnostic accessors (S5).
+     * In addition to the S4 minimal surface, expose: spline knot vector,
+     * per-rank asym residual grid, Cholesky factor of the pooled covariance,
+     * and the coefficient block layout. These are what G9 Spy 1/2
+     * (PLAN_PARAMETRIC_LEAF_SHAPE_2026-05-09_REV1 §S8) reads to verify per-plant
+     * z coherence: z = L^{-1} (coeffs - intercept[r]) / scale; the same z
+     * must drop out across all 15 ranks of one plant.
+     */
     py::class_<LeafShapeDistribution, std::shared_ptr<LeafShapeDistribution>>(m, "LeafShapeDistribution")
             .def_static("load", &LeafShapeDistribution::load,
                         py::arg("path"))
@@ -1501,10 +1519,26 @@ PYBIND11_MODULE(plantbox, m) {
             .def("splineDegree", &LeafShapeDistribution::splineDegree)
             .def("numCpsU", &LeafShapeDistribution::numCpsU)
             .def("numCpsV", &LeafShapeDistribution::numCpsV)
+            .def("nCpPerAxis", &LeafShapeDistribution::nCpPerAxis)
+            .def("droopBlockStart", &LeafShapeDistribution::droopBlockStart)
+            .def("alongBlockStart", &LeafShapeDistribution::alongBlockStart)
+            .def("halfwidthBlockStart", &LeafShapeDistribution::halfwidthBlockStart)
             .def("path", &LeafShapeDistribution::path)
             .def("intercept", &LeafShapeDistribution::intercept,
-                 py::arg("rank"), py::return_value_policy::reference_internal);
+                 py::arg("rank"), py::return_value_policy::reference_internal)
+            .def("splineKnotsU", &LeafShapeDistribution::splineKnotsU,
+                 py::return_value_policy::reference_internal)
+            .def("asymResidualGrid", &LeafShapeDistribution::asymResidualGrid,
+                 py::arg("rank"), py::return_value_policy::reference_internal)
+            .def("choleskyFactor", &LeafShapeDistribution::choleskyFactor,
+                 py::return_value_policy::reference_internal);
 
+    /*
+     * leafshape.h ParametricLeafShape — S5 extends with read-only coefficient
+     * accessors so G9 Spy 2 can recover the per-plant z that constructed the
+     * realised LeafSpecificParameter::shape and assert D2 coherence across
+     * ranks of the same plant.
+     */
     py::class_<ParametricLeafShape, LeafShape, std::shared_ptr<ParametricLeafShape>>(m, "ParametricLeafShape")
             .def(py::init<int,
                           std::vector<double>,
@@ -1525,7 +1559,17 @@ PYBIND11_MODULE(plantbox, m) {
             .def("rank", &ParametricLeafShape::rank)
             .def("splineDegree", &ParametricLeafShape::splineDegree)
             .def("numCpsU", &ParametricLeafShape::numCpsU)
-            .def("numCpsV", &ParametricLeafShape::numCpsV);
+            .def("numCpsV", &ParametricLeafShape::numCpsV)
+            .def("splineKnotsU", &ParametricLeafShape::splineKnotsU,
+                 py::return_value_policy::reference_internal)
+            .def("midribDroopCoeffs", &ParametricLeafShape::midribDroopCoeffs,
+                 py::return_value_policy::reference_internal)
+            .def("midribAlongCoeffs", &ParametricLeafShape::midribAlongCoeffs,
+                 py::return_value_policy::reference_internal)
+            .def("halfwidthCoeffs", &ParametricLeafShape::halfwidthCoeffs,
+                 py::return_value_policy::reference_internal)
+            .def("asymResidualGrid", &ParametricLeafShape::asymResidualGrid,
+                 py::return_value_policy::reference_internal);
 
 }
 

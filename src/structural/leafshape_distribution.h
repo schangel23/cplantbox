@@ -99,6 +99,17 @@ public:
     const std::vector<double>& intercept(int rank) const { return intercepts_.at(rank); }
     /// Read-only access to per-rank asym residual grid (length n_u_ * n_v_).
     const std::vector<Vector3d>& asymResidualGrid(int rank) const { return asym_residuals_.at(rank); }
+    /// Lower-triangular Cholesky factor L of the pooled covariance Σ
+    /// (n_components_ × n_components_, row-major). Diagnostic only — the
+    /// runtime per-plant draw uses it internally inside makeShape; G9 Spy 2
+    /// (PLAN_PARAMETRIC_LEAF_SHAPE_2026-05-09_REV1 §S8) needs read access to
+    /// reconstruct the per-plant z = L^{-1} (coeffs - intercept[r]) / scale
+    /// and verify D2 per-plant coherence across the 15 ranks.
+    const std::vector<std::vector<double>>& choleskyFactor() const { return cholesky_factor_; }
+    int droopBlockStart() const     { return droop_block_start_; }
+    int alongBlockStart() const     { return along_block_start_; }
+    int halfwidthBlockStart() const { return halfwidth_block_start_; }
+    int nCpPerAxis() const          { return n_cp_per_axis_; }
 
 private:
     // Construction is private; use load() so the cache is consistent.
