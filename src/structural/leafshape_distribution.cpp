@@ -398,6 +398,7 @@ std::shared_ptr<LeafShapeDistribution> LeafShapeDistribution::load(const std::st
 
     std::map<int, std::vector<double>> intercepts;
     std::map<int, std::vector<Vector3d>> asym_residuals;
+    std::map<int, double> max_w_xml;   ///< per-rank peak half-width (cm); S6 max_w bake
     CoeffsBlockLayout layout;
     bool has_layout = false;
 
@@ -430,6 +431,24 @@ std::shared_ptr<LeafShapeDistribution> LeafShapeDistribution::load(const std::st
                 asym_residuals = readIntKeyedAsymResidualMap(sc, out->n_u_, out->n_v_);
             } else if (key == "cholesky_factor") {
                 out->cholesky_factor_ = sc.readNumberArray2D();
+            } else if (key == "max_w_xml_cm") {
+                // S6 max_w bake: per-rank fit-time peak half-width (cm).
+                // JSON shape: { "0": 2.57, "1": 3.43, ..., "14": 4.85 } —
+                // string-keyed dict of scalars (not arrays). Inline parser
+                // mirrors readIntKeyedNumberArray1DMap but reads readNumber()
+                // instead of readNumberArray1D().
+                sc.expect('{');
+                if (!sc.match('}')) {
+                    while (true) {
+                        const std::string key2 = sc.readString();
+                        sc.expect(':');
+                        const int k = std::atoi(key2.c_str());
+                        max_w_xml.emplace(k, sc.readNumber());
+                        if (sc.match(',')) continue;
+                        sc.expect('}');
+                        break;
+                    }
+                }
             } else if (key == "coeffs_block_layout") {
                 layout = readCoeffsBlockLayout(sc);
                 has_layout = true;
@@ -469,6 +488,12 @@ std::shared_ptr<LeafShapeDistribution> LeafShapeDistribution::load(const std::st
             << " entries; expected n_ranks=" << out->n_ranks_;
         throw std::invalid_argument(oss.str());
     }
+    if (static_cast<int>(max_w_xml.size()) != out->n_ranks_) {
+        std::ostringstream oss;
+        oss << "LeafShapeDistribution: max_w_xml_cm has " << max_w_xml.size()
+            << " entries; expected n_ranks=" << out->n_ranks_;
+        throw std::invalid_argument(oss.str());
+    }
     if (static_cast<int>(out->cholesky_factor_.size()) != out->n_components_) {
         std::ostringstream oss;
         oss << "LeafShapeDistribution: cholesky_factor has "
@@ -486,6 +511,7 @@ std::shared_ptr<LeafShapeDistribution> LeafShapeDistribution::load(const std::st
     // Repack intercepts and residuals into rank-indexed contiguous vectors.
     out->intercepts_.assign(out->n_ranks_, std::vector<double>());
     out->asym_residuals_.assign(out->n_ranks_, std::vector<Vector3d>());
+    out->max_w_per_rank_.assign(out->n_ranks_, 0.0);
     for (int r = 0; r < out->n_ranks_; ++r) {
         auto it = intercepts.find(r);
         if (it == intercepts.end()) {
@@ -508,6 +534,20 @@ std::shared_ptr<LeafShapeDistribution> LeafShapeDistribution::load(const std::st
             throw std::invalid_argument(oss.str());
         }
         out->asym_residuals_[r] = std::move(ait->second);
+
+        auto mit = max_w_xml.find(r);
+        if (mit == max_w_xml.end()) {
+            std::ostringstream oss;
+            oss << "LeafShapeDistribution: max_w_xml_cm['" << r << "'] missing";
+            throw std::invalid_argument(oss.str());
+        }
+        if (!(mit->second > 0.0)) {
+            std::ostringstream oss;
+            oss << "LeafShapeDistribution: max_w_xml_cm['" << r << "'] = "
+                << mit->second << "; expected > 0";
+            throw std::invalid_argument(oss.str());
+        }
+        out->max_w_per_rank_[r] = mit->second;
     }
 
     if (has_layout) {
@@ -585,7 +625,8 @@ std::shared_ptr<ParametricLeafShape> LeafShapeDistribution::makeShape(
         std::move(along),
         std::move(halfwidth),
         asym_residuals_[rank],   // copy — frozen across plants
-        n_u_, n_v_);
+        n_u_, n_v_,
+        max_w_per_rank_[rank]);  // S6 max_w bake — fit-time peak half-width
 }
 
 } // namespace CPlantBox

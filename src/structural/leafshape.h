@@ -153,7 +153,8 @@ public:
 		std::vector<double> midrib_along_coeffs,
 		std::vector<double> halfwidth_coeffs,
 		std::vector<Vector3d> asym_residual_grid,
-		int n_u, int n_v);
+		int n_u, int n_v,
+		double max_w_intercept);
 
 	Vector3d evaluate(double u, double v,
 		double lmax, double max_w) const override;
@@ -162,6 +163,15 @@ public:
 	int splineDegree() const { return spline_degree_; }
 	int numCpsU() const { return n_u_; }
 	int numCpsV() const { return n_v_; }
+	/// Per-rank peak half-width (cm) the fitter normalised against (= the
+	/// XML grid's grid-derived max half-width for this rank). evaluate()
+	/// uses this constant for the lateral term (v - 0.5) * w(u) * max_w
+	/// instead of the runtime-passed `max_w` arg, so the parametric path
+	/// reproduces the XML surface_cps grid bit-for-bit at scale = 0
+	/// (S6 D11 baseline guarantee). The runtime `max_w` arg of evaluate()
+	/// is therefore ignored on the parametric path; per-plant width
+	/// variation comes from the halfwidth coefficient block.
+	double maxWIntercept() const { return max_w_intercept_; }
 	const std::vector<double>& splineKnotsU()       const { return spline_knots_u_; }
 	const std::vector<double>& midribDroopCoeffs()  const { return midrib_droop_coeffs_; }
 	const std::vector<double>& midribAlongCoeffs()  const { return midrib_along_coeffs_; }
@@ -178,6 +188,7 @@ private:
 	std::vector<Vector3d> asym_residual_grid_;  ///< (n_u * n_v) frozen residual; S0 delta #2
 	int n_u_ = 0;
 	int n_v_ = 0;
+	double max_w_intercept_ = 0.0;              ///< per-rank fit-time max_w (cm); S6 max_w bake
 };
 
 } // namespace CPlantBox

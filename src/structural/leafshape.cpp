@@ -174,7 +174,8 @@ ParametricLeafShape::ParametricLeafShape(int rank,
 	std::vector<double> midrib_along_coeffs,
 	std::vector<double> halfwidth_coeffs,
 	std::vector<Vector3d> asym_residual_grid,
-	int n_u, int n_v)
+	int n_u, int n_v,
+	double max_w_intercept)
 	: rank_(rank)
 	, spline_degree_(spline_degree)
 	, spline_knots_u_(std::move(spline_knots_u))
@@ -184,6 +185,7 @@ ParametricLeafShape::ParametricLeafShape(int rank,
 	, asym_residual_grid_(std::move(asym_residual_grid))
 	, n_u_(n_u)
 	, n_v_(n_v)
+	, max_w_intercept_(max_w_intercept)
 {
 	if (n_u_ < 2 || n_v_ < 2) {
 		throw std::invalid_argument(
@@ -214,7 +216,7 @@ ParametricLeafShape::ParametricLeafShape(int rank,
 }
 
 Vector3d ParametricLeafShape::evaluate(
-	double u, double v, double /*lmax*/, double max_w) const
+	double u, double v, double /*lmax*/, double /*max_w*/) const
 {
 	// Clamp parametric coordinates into [0, 1]; canonical callers stay in range.
 	const double uc = std::min(std::max(u, 0.0), 1.0);
@@ -228,7 +230,14 @@ Vector3d ParametricLeafShape::evaluate(
 	const double w   = evalBSpline(spline_knots_u_, halfwidth_coeffs_,
 		spline_degree_, uc);
 
-	const double sym_x = (vc - 0.5) * w * max_w;
+	// S6 max_w bake: lateral term uses the per-rank fit-time max_w that the
+	// fitter normalised against (= XML grid's grid-derived peak half-width
+	// for this rank), NOT the runtime `max_w` arg. lrp->Width_blade differs
+	// from the XML-grid peak by ~7% on maize (Width_blade is the named
+	// scalar used by area/volume math, not the grid normaliser). Without
+	// this bake, scale=0 reconstruction drifts ~3 mm from XML surface_cps
+	// and the S6 D11 baseline guarantee fails.
+	const double sym_x = (vc - 0.5) * w * max_w_intercept_;
 	const double sym_y = m_y;
 	const double sym_z = m_z;
 

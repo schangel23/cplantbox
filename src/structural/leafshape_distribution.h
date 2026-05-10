@@ -110,6 +110,13 @@ public:
     int alongBlockStart() const     { return along_block_start_; }
     int halfwidthBlockStart() const { return halfwidth_block_start_; }
     int nCpPerAxis() const          { return n_cp_per_axis_; }
+    /// Per-rank fit-time peak half-width (cm), parsed from the JSON
+    /// `max_w_xml_cm` map. The fitter normalised the halfwidth coefficient
+    /// block by this scalar per rank, so reproducing XML rank r at
+    /// scale = 0 requires evaluating the lateral term with this value.
+    /// Plumbed into ParametricLeafShape::max_w_intercept_ by makeShape;
+    /// see PLAN_PARAMETRIC_LEAF_SHAPE_2026-05-09_REV1 §S6 (S6.fix).
+    double maxWPerRank(int rank) const { return max_w_per_rank_.at(rank); }
 
 private:
     // Construction is private; use load() so the cache is consistent.
@@ -129,6 +136,7 @@ private:
     std::vector<std::vector<double>> intercepts_;          ///< [n_ranks_][n_components_]
     std::vector<std::vector<Vector3d>> asym_residuals_;    ///< [n_ranks_][n_u_ * n_v_]
     std::vector<std::vector<double>> cholesky_factor_;     ///< [n_components_][n_components_]
+    std::vector<double> max_w_per_rank_;                   ///< [n_ranks_]; fit-time peak half-width (cm) per rank
     /// Salt mixed into Organism::getSeedVal() for shape draws.
     /// Decouples the shape-z stream from any other plant-level draws so
     /// that running with shape_variation_scale > 0 does not perturb

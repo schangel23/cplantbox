@@ -1526,6 +1526,8 @@ PYBIND11_MODULE(plantbox, m) {
             .def("path", &LeafShapeDistribution::path)
             .def("intercept", &LeafShapeDistribution::intercept,
                  py::arg("rank"), py::return_value_policy::reference_internal)
+            .def("maxWPerRank", &LeafShapeDistribution::maxWPerRank,
+                 py::arg("rank"))
             .def("splineKnotsU", &LeafShapeDistribution::splineKnotsU,
                  py::return_value_policy::reference_internal)
             .def("asymResidualGrid", &LeafShapeDistribution::asymResidualGrid,
@@ -1547,7 +1549,8 @@ PYBIND11_MODULE(plantbox, m) {
                           std::vector<double>,
                           std::vector<double>,
                           std::vector<Vector3d>,
-                          int, int>(),
+                          int, int,
+                          double>(),
                  py::arg("rank"),
                  py::arg("spline_knots_u"),
                  py::arg("spline_degree"),
@@ -1555,11 +1558,13 @@ PYBIND11_MODULE(plantbox, m) {
                  py::arg("midrib_along_coeffs"),
                  py::arg("halfwidth_coeffs"),
                  py::arg("asym_residual_grid"),
-                 py::arg("n_u"), py::arg("n_v"))
+                 py::arg("n_u"), py::arg("n_v"),
+                 py::arg("max_w_intercept"))
             .def("rank", &ParametricLeafShape::rank)
             .def("splineDegree", &ParametricLeafShape::splineDegree)
             .def("numCpsU", &ParametricLeafShape::numCpsU)
             .def("numCpsV", &ParametricLeafShape::numCpsV)
+            .def("maxWIntercept", &ParametricLeafShape::maxWIntercept)
             .def("splineKnotsU", &ParametricLeafShape::splineKnotsU,
                  py::return_value_policy::reference_internal)
             .def("midribDroopCoeffs", &ParametricLeafShape::midribDroopCoeffs,
