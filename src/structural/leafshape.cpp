@@ -229,8 +229,19 @@ Vector3d ParametricLeafShape::evaluate(
 		spline_degree_, uc);
 	const double m_z = evalBSpline(spline_knots_u_, midrib_along_coeffs_,
 		spline_degree_, uc);
-	const double w   = evalBSpline(spline_knots_u_, halfwidth_coeffs_,
+	double w   = evalBSpline(spline_knots_u_, halfwidth_coeffs_,
 		spline_degree_, uc);
+	// (β)-lite: clamp halfwidth at evaluate time. Two ranks (rank 9 and
+	// rank 14 in the maize bake) carry intercept halfwidth coefficients
+	// whose B-spline interpolant crosses zero at some u-station. Negative
+	// width mirrors the lateral term ((v - 0.5) · w · max_w) and produces
+	// a self-intersecting leaf surface — geometrically nonsense. Clamping
+	// to 0 collapses the leaf to a pinched midline in the bad u-region
+	// (same midline-point repeated across v); visually a thin pinch
+	// instead of a flipped surface. Independent of fix path α: PCA cannot
+	// fix calibration-level intercept pathology because it operates on
+	// the *deviation* from the intercept, not the intercept itself.
+	if (w < 0.0) w = 0.0;
 
 	// S6 max_w bake: lateral term uses the per-rank fit-time max_w that the
 	// fitter normalised against (= XML grid's grid-derived peak half-width
