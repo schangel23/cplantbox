@@ -400,13 +400,29 @@ def test_g3_midline_lateral_invariant_under_z_draw(distribution: dict):
 
 @pytest.fixture(scope="module")
 def canopy_scale1() -> dict:
-    """10 plants at scale=1.0, day 80. Rank-keyed CP-grid lists."""
+    """10 plants at scale=1.0, day 80. Rank-keyed CP-grid lists.
+
+    Filters out leaves below 50 % maturity (ρ = length/lmax < 0.5). Under δ
+    of PLAN_PARAMETRIC_LEAF_SHAPE_2026-05-09_REV1 (post-S8) the parametric
+    deviation enters ``getEffectiveSurfaceCPs`` as ``ρ · (parametric −
+    median)``: emerging/whorl leaves (ρ ≈ 0) are uniform across plants by
+    design (real maize emerging leaves all look the same; the parametric
+    "character" of a plant only becomes visible as leaves mature). G4
+    measures plant-to-plant distinguishability in the rendered output, so
+    it must restrict to leaves where ρ is large enough for the deviation
+    to manifest.
+    """
     canopy: dict[int, list[np.ndarray]] = {}
     for seed in CANOPY_SEEDS:
         plant = _grow(seed=seed, days=CANOPY_DAYS, mutate=_set_scale(1.0))
         for leaf in _leaves(plant):
             sp = leaf.param()
             if not isinstance(sp.shape, pb.ParametricLeafShape):
+                continue
+            lrp = leaf.getLeafRandomParameter()
+            mature_length = max(float(lrp.lmax), 1e-9)
+            rho = float(leaf.getLength(True)) / mature_length
+            if rho < 0.5:
                 continue
             rank = sp.shape.rank()
             grid = _cps_grid(leaf)

@@ -400,18 +400,27 @@ std::vector<Vector3d> buildFlatTemplate(
 } // anonymous
 
 /**
- * Maturity-dependent shape blend. Mature leaves (m >= kYoungFadeEnd) return
- * the LeafShape's mature CP grid unchanged. Younger leaves blend toward a flat
- * template (zero y, straight +z midrib) with weight
+ * Maturity-dependent shape blend. Native CPlantBox blend interpolates from a
+ * flat young template (zero y, straight +z midrib) toward the XML median CP
+ * grid (``lrp->surface_cps``) with weight
  *     alpha = (1 - m/kYoungFadeEnd)^kYoungExp,  m = length / lmax in [0,1].
  *
- * S2 of PLAN_PARAMETRIC_LEAF_SHAPE_2026-05-09_REV1: the mature grid is now
- * sourced from ``param()->shape->sampleCanonicalGrid(n_u, n_v, ...)`` rather
- * than from ``lrp->surface_cps`` directly. Default fallback (no parametric
- * distribution) lazily builds a ``MedianLeafShape`` from the LRP's surface_cps;
- * its ``sampleCanonicalGrid`` returns a byte-identical copy at matching
- * (n_u, n_v) so D.0 6-XML invariance (gate G1) holds at the byte level. The
- * maturity blend stays layered on top, exactly as before.
+ * S2 of PLAN_PARAMETRIC_LEAF_SHAPE_2026-05-09_REV1: a ``LeafShape`` evaluator
+ * (default fallback ``MedianLeafShape`` lazily built from surface_cps) supplies
+ * the mature CP grid via ``sampleCanonicalGrid``.
+ *
+ * δ of PLAN_PARAMETRIC_LEAF_SHAPE_2026-05-09_REV1 (post-S8 calibration):
+ * the native blend's mature endpoint is the XML median (not the parametric
+ * draw); the parametric deviation ``parametric - median`` is added linearly
+ * in ρ = m on top. Young leaves (ρ ≈ 0) ignore the perturbation (all plants
+ * look the same as they emerge); mature leaves (ρ → 1) get the full
+ * deviation; intermediate ρ scales the deviation smoothly with the same
+ * maturity ratio that drives the native blend, eliminating the
+ * "doubly-narrow-then-mature" non-gradual transition observed at
+ * shape_variation_scale = 0.3 between day 125 and day 135 of the VR-stages
+ * row. For ``MedianLeafShape`` (no parametric XML wired) and for
+ * ``ParametricLeafShape`` at scale = 0, ``parametric == median`` so the
+ * deviation vanishes and D.0 6-XML byte-identity / G1 / G8 still hold.
  */
 std::vector<Vector3d> Leaf::getEffectiveSurfaceCPs() const
 {
@@ -429,26 +438,47 @@ std::vector<Vector3d> Leaf::getEffectiveSurfaceCPs() const
 		sp->shape = std::make_shared<MedianLeafShape>(
 			lrp->surface_cps, n_u, n_v);
 	}
-	std::vector<Vector3d> mature = sp->shape->sampleCanonicalGrid(
+	std::vector<Vector3d> parametric = sp->shape->sampleCanonicalGrid(
 		n_u, n_v, lrp->lmax, lrp->Width_blade);
-	if ((int)mature.size() != n_u * n_v) return lrp->surface_cps;
+	if ((int)parametric.size() != n_u * n_v) return lrp->surface_cps;
 
+	// δ: native blend uses XML median as mature endpoint, parametric deviation
+	// added on top. Median ≡ lrp->surface_cps; we never overwrite it.
+	const std::vector<Vector3d>& median = lrp->surface_cps;
 	const double mature_length = std::max(lrp->lmax, 1e-9);
 	const double m = std::min(std::max(getLength(true) / mature_length, 0.0), 1.0);
-	if (m >= kYoungFadeEnd) return mature; // early-out for mature
-	double alpha = std::pow(1.0 - m / kYoungFadeEnd, kYoungExp);
-	alpha = std::min(std::max(alpha, 0.0), 1.0);
-	if (alpha < 1e-6) return mature;
-	auto flat = buildFlatTemplate(mature, n_u, n_v);
-	std::vector<Vector3d> out(mature.size());
-	const double w_mat = 1.0 - alpha;
+
+	std::vector<Vector3d> blended = median;  // mature endpoint of native blend
+	if (m < kYoungFadeEnd) {
+		double alpha = std::pow(1.0 - m / kYoungFadeEnd, kYoungExp);
+		alpha = std::min(std::max(alpha, 0.0), 1.0);
+		if (alpha >= 1e-6) {
+			auto flat = buildFlatTemplate(median, n_u, n_v);
+			const double w_mat = 1.0 - alpha;
+			for (size_t i = 0; i < blended.size(); ++i) {
+				const Vector3d& a = median[i];
+				const Vector3d& b = flat[i];
+				blended[i] = Vector3d(
+					w_mat * a.x + alpha * b.x,
+					w_mat * a.y + alpha * b.y,
+					w_mat * a.z + alpha * b.z);
+			}
+		}
+	}
+
+	// δ additive deviation: + ρ · (parametric − median). Zero by construction
+	// for MedianLeafShape (parametric == median byte-identically via the S2
+	// fast path) and for ParametricLeafShape at scale=0 (within ≤ 1e-9 cm by
+	// the D10 anchor).
+	std::vector<Vector3d> out(blended.size());
 	for (size_t i = 0; i < out.size(); ++i) {
-		const Vector3d& a = mature[i];
-		const Vector3d& b = flat[i];
+		const Vector3d& bl = blended[i];
+		const Vector3d& pv = parametric[i];
+		const Vector3d& mv = median[i];
 		out[i] = Vector3d(
-			w_mat * a.x + alpha * b.x,
-			w_mat * a.y + alpha * b.y,
-			w_mat * a.z + alpha * b.z);
+			bl.x + m * (pv.x - mv.x),
+			bl.y + m * (pv.y - mv.y),
+			bl.z + m * (pv.z - mv.z));
 	}
 	return out;
 }
