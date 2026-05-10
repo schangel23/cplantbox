@@ -314,37 +314,28 @@ def test_scale_zero_reproduces_xml_surface_cps(distribution, max_w_xml_cm):
 
 def _patch_xml_with_distribution(src_xml: Path, dst_xml: Path,
                                   scale: float) -> None:
-    """Copy maize_calibrated.xml to dst_xml; insert
-    shape_distribution_path / shape_variation_scale / shape_rank_index
-    parameters into every LeafRandomParameter, with shape_rank_index set
-    to (subType - 2) to match the maize convention.
+    """Copy maize_calibrated.xml to dst_xml; mutate every
+    `<parameter name="shape_variation_scale" value=...>` to the requested
+    scale.
 
-    maize_calibrated.xml uses `<leaf name="..." subType="N">...</leaf>`
-    elements (CPlantBox's per-organ-type tag form, picked up by
-    OrganRandomParameter::readXML on each child). The patch injects three
-    `<parameter>` children right after the opening `<leaf ...>` so they
-    sit alongside the rest of the LRP fields.
+    Post-S6 the canonical maize XML already carries `shape_distribution_path`
+    + `shape_variation_scale=0.0` + `shape_rank_index` on every leaf RP
+    (the S6 bake). This patcher therefore only needs to override
+    shape_variation_scale; the path and rank index come from the bake. An
+    older revision of this helper INJECTED the three params anew after the
+    opening `<leaf>` tag, which created duplicates with the baked params —
+    XML readXML kept the LAST occurrence (the baked scale=0.0), so the
+    patched scale=1.0 was silently overridden.
     """
-    text = src_xml.read_text()
     import re
-    pattern = re.compile(r'(<leaf\s+name="[^"]+"\s+subType="(\d+)"\s*>)')
-
-    def inject(match: "re.Match[str]") -> str:
-        opening = match.group(1)
-        sub = int(match.group(2))
-        rank = sub - 2
-        return (
-            opening
-            + f'\n    <parameter name="shape_distribution_path" path="{DIST_JSON}"/>'
-            + f'\n    <parameter name="shape_variation_scale" value="{scale}"/>'
-            + f'\n    <parameter name="shape_rank_index" value="{rank}"/>'
-        )
-
-    new_text, n = pattern.subn(inject, text)
+    text = src_xml.read_text()
+    pattern = re.compile(
+        r'(<parameter name="shape_variation_scale" value=")[^"]*(" />)')
+    new_text, n = pattern.subn(rf'\g<1>{scale}\g<2>', text)
     if n == 0:
         raise RuntimeError(
-            "_patch_xml_with_distribution: regex matched zero <leaf> blocks; "
-            "XML format may have changed.")
+            "_patch_xml_with_distribution: no shape_variation_scale parameters "
+            "found in src_xml; expected the S6 bake to be present.")
     dst_xml.write_text(new_text)
 
 

@@ -330,6 +330,9 @@
         <parameter name="tropismN" value="3" />
         <parameter name="tropismS" value="0.020050125313283207" />
         <parameter name="tt_emergence" value="0" />
+        <parameter name="shape_distribution_path" path="dart/coupling/data/maize_leaf_shape_distribution.json"/>
+        <parameter name="shape_variation_scale" value="0.0" />
+        <parameter name="shape_rank_index" value="0" />
         <parameter name="leafGeometry" phi="-4" x="0.83999999999999997" />
         <parameter name="leafGeometry" phi="-3.2000000000000002" x="0.82999999999999996" />
         <parameter name="leafGeometry" phi="-2.3999999999999999" x="0.84999999999999998" />
@@ -450,6 +453,9 @@
         <parameter name="tropismN" value="3" />
         <parameter name="tropismS" value="0.025448235974551765" />
         <parameter name="tt_emergence" value="57.899999999999999" />
+        <parameter name="shape_distribution_path" path="dart/coupling/data/maize_leaf_shape_distribution.json"/>
+        <parameter name="shape_variation_scale" value="0.0" />
+        <parameter name="shape_rank_index" value="1" />
         <parameter name="leafGeometry" phi="-4" x="0.83999999999999997" />
         <parameter name="leafGeometry" phi="-3.2000000000000002" x="0.82999999999999996" />
         <parameter name="leafGeometry" phi="-2.3999999999999999" x="0.84999999999999998" />
@@ -570,6 +576,9 @@
         <parameter name="tropismN" value="3" />
         <parameter name="tropismS" value="0.027333333333333331" />
         <parameter name="tt_emergence" value="115.8" />
+        <parameter name="shape_distribution_path" path="dart/coupling/data/maize_leaf_shape_distribution.json"/>
+        <parameter name="shape_variation_scale" value="0.0" />
+        <parameter name="shape_rank_index" value="2" />
         <parameter name="leafGeometry" phi="-4" x="0.83999999999999997" />
         <parameter name="leafGeometry" phi="-3.2000000000000002" x="0.82999999999999996" />
         <parameter name="leafGeometry" phi="-2.3999999999999999" x="0.84999999999999998" />
@@ -690,6 +699,9 @@
         <parameter name="tropismN" value="3" />
         <parameter name="tropismS" value="0.025999999999999999" />
         <parameter name="tt_emergence" value="173.69999999999999" />
+        <parameter name="shape_distribution_path" path="dart/coupling/data/maize_leaf_shape_distribution.json"/>
+        <parameter name="shape_variation_scale" value="0.0" />
+        <parameter name="shape_rank_index" value="3" />
         <parameter name="leafGeometry" phi="-4" x="0.83999999999999997" />
         <parameter name="leafGeometry" phi="-3.2000000000000002" x="0.82999999999999996" />
         <parameter name="leafGeometry" phi="-2.3999999999999999" x="0.84999999999999998" />
@@ -810,6 +822,9 @@
         <parameter name="tropismN" value="3" />
         <parameter name="tropismS" value="0.024666666666666667" />
         <parameter name="tt_emergence" value="231.59999999999999" />
+        <parameter name="shape_distribution_path" path="dart/coupling/data/maize_leaf_shape_distribution.json"/>
+        <parameter name="shape_variation_scale" value="0.0" />
+        <parameter name="shape_rank_index" value="4" />
         <parameter name="leafGeometry" phi="-4" x="0.81000000000000005" />
         <parameter name="leafGeometry" phi="-3.2000000000000002" x="0.80000000000000004" />
         <parameter name="leafGeometry" phi="-2.3999999999999999" x="0.81000000000000005" />
@@ -930,6 +945,9 @@
         <parameter name="tropismN" value="3" />
         <parameter name="tropismS" value="0.023333333333333331" />
         <parameter name="tt_emergence" value="289.5" />
+        <parameter name="shape_distribution_path" path="dart/coupling/data/maize_leaf_shape_distribution.json"/>
+        <parameter name="shape_variation_scale" value="0.0" />
+        <parameter name="shape_rank_index" value="5" />
         <parameter name="leafGeometry" phi="-4" x="0.81999999999999995" />
         <parameter name="leafGeometry" phi="-3.2000000000000002" x="0.81999999999999995" />
         <parameter name="leafGeometry" phi="-2.3999999999999999" x="0.84999999999999998" />
@@ -1050,6 +1068,9 @@
         <parameter name="tropismN" value="3" />
         <parameter name="tropismS" value="0.021999999999999999" />
         <parameter name="tt_emergence" value="347.39999999999998" />
+        <parameter name="shape_distribution_path" path="dart/coupling/data/maize_leaf_shape_distribution.json"/>
+        <parameter name="shape_variation_scale" value="0.0" />
+        <parameter name="shape_rank_index" value="6" />
         <parameter name="leafGeometry" phi="-4" x="0.79000000000000004" />
         <parameter name="leafGeometry" phi="-3.2000000000000002" x="0.80000000000000004" />
         <parameter name="leafGeometry" phi="-2.3999999999999999" x="0.81999999999999995" />
@@ -1170,6 +1191,9 @@
         <parameter name="tropismN" value="3" />
         <parameter name="tropismS" value="0.020666666666666667" />
         <parameter name="tt_emergence" value="405.30000000000001" />
+        <parameter name="shape_distribution_path" path="dart/coupling/data/maize_leaf_shape_distribution.json"/>
+        <parameter name="shape_variation_scale" value="0.0" />
+        <parameter name="shape_rank_index" value="7" />
         <parameter name="leafGeometry" phi="-4" x="0.81000000000000005" />
         <parameter name="leafGeometry" phi="-3.2000000000000002" x="0.82999999999999996" />
         <parameter name="leafGeometry" phi="-2.3999999999999999" x="0.84999999999999998" />
@@ -1290,6 +1314,9 @@
         <parameter name="tropismN" value="3" />
         <parameter name="tropismS" value="0.019333333333333334" />
         <parameter name="tt_emergence" value="463.19999999999999" />
+        <parameter name="shape_distribution_path" path="dart/coupling/data/maize_leaf_shape_distribution.json"/>
+        <parameter name="shape_variation_scale" value="0.0" />
+        <parameter name="shape_rank_index" value="8" />
         <parameter name="leafGeometry" phi="-4" x="0.81999999999999995" />
         <parameter name="leafGeometry" phi="-3.2000000000000002" x="0.82999999999999996" />
         <parameter name="leafGeometry" phi="-2.3999999999999999" x="0.85999999999999999" />
@@ -1410,6 +1437,9 @@
         <parameter name="tropismN" value="3" />
         <parameter name="tropismS" value="0.017999999999999999" />
         <parameter name="tt_emergence" value="521.10000000000002" />
+        <parameter name="shape_distribution_path" path="dart/coupling/data/maize_leaf_shape_distribution.json"/>
+        <parameter name="shape_variation_scale" value="0.0" />
+        <parameter name="shape_rank_index" value="9" />
         <parameter name="leafGeometry" phi="-4" x="0.81000000000000005" />
         <parameter name="leafGeometry" phi="-3.2000000000000002" x="0.80000000000000004" />
         <parameter name="leafGeometry" phi="-2.3999999999999999" x="0.81999999999999995" />
@@ -1530,6 +1560,9 @@
         <parameter name="tropismN" value="3" />
         <parameter name="tropismS" value="0.016666666666666666" />
         <parameter name="tt_emergence" value="579" />
+        <parameter name="shape_distribution_path" path="dart/coupling/data/maize_leaf_shape_distribution.json"/>
+        <parameter name="shape_variation_scale" value="0.0" />
+        <parameter name="shape_rank_index" value="10" />
         <parameter name="leafGeometry" phi="-4" x="0.81999999999999995" />
         <parameter name="leafGeometry" phi="-3.2000000000000002" x="0.82999999999999996" />
         <parameter name="leafGeometry" phi="-2.3999999999999999" x="0.88" />
@@ -1650,6 +1683,9 @@
         <parameter name="tropismN" value="3" />
         <parameter name="tropismS" value="0.015333333333333332" />
         <parameter name="tt_emergence" value="636.89999999999998" />
+        <parameter name="shape_distribution_path" path="dart/coupling/data/maize_leaf_shape_distribution.json"/>
+        <parameter name="shape_variation_scale" value="0.0" />
+        <parameter name="shape_rank_index" value="11" />
         <parameter name="leafGeometry" phi="-4" x="0.81999999999999995" />
         <parameter name="leafGeometry" phi="-3.2000000000000002" x="0.81999999999999995" />
         <parameter name="leafGeometry" phi="-2.3999999999999999" x="0.84999999999999998" />
@@ -1770,6 +1806,9 @@
         <parameter name="tropismN" value="3" />
         <parameter name="tropismS" value="0.013999999999999999" />
         <parameter name="tt_emergence" value="694.79999999999995" />
+        <parameter name="shape_distribution_path" path="dart/coupling/data/maize_leaf_shape_distribution.json"/>
+        <parameter name="shape_variation_scale" value="0.0" />
+        <parameter name="shape_rank_index" value="12" />
         <parameter name="leafGeometry" phi="-4" x="0.81999999999999995" />
         <parameter name="leafGeometry" phi="-3.2000000000000002" x="0.81999999999999995" />
         <parameter name="leafGeometry" phi="-2.3999999999999999" x="0.85999999999999999" />
@@ -1890,6 +1929,9 @@
         <parameter name="tropismN" value="3" />
         <parameter name="tropismS" value="0.012666666666666663" />
         <parameter name="tt_emergence" value="752.69999999999993" />
+        <parameter name="shape_distribution_path" path="dart/coupling/data/maize_leaf_shape_distribution.json"/>
+        <parameter name="shape_variation_scale" value="0.0" />
+        <parameter name="shape_rank_index" value="13" />
         <parameter name="leafGeometry" phi="-4" x="0.80000000000000004" />
         <parameter name="leafGeometry" phi="-3.2000000000000002" x="0.81000000000000005" />
         <parameter name="leafGeometry" phi="-2.3999999999999999" x="0.83999999999999997" />
@@ -2010,6 +2052,9 @@
         <parameter name="tropismN" value="3" />
         <parameter name="tropismS" value="0.011333333333333331" />
         <parameter name="tt_emergence" value="810.60000000000002" />
+        <parameter name="shape_distribution_path" path="dart/coupling/data/maize_leaf_shape_distribution.json"/>
+        <parameter name="shape_variation_scale" value="0.0" />
+        <parameter name="shape_rank_index" value="14" />
         <parameter name="leafGeometry" phi="-4" x="0.75" />
         <parameter name="leafGeometry" phi="-3.2000000000000002" x="0.77000000000000002" />
         <parameter name="leafGeometry" phi="-2.3999999999999999" x="0.80000000000000004" />

@@ -61,6 +61,10 @@ def _build_parametric(distribution: dict, rank: int) -> pb.ParametricLeafShape:
         distribution["asym_residual_grids_cm"][str(rank)], dtype=np.float64
     )  # (n_u, n_v, 3)
     residual_flat = [pb.Vector3d(*residual[iu, iv]) for iu in range(n_u) for iv in range(n_v)]
+    # S6 max_w bake: ParametricLeafShape baked with per-rank max_w_xml_cm
+    # so evaluate() reproduces XML at FP precision regardless of evaluate's
+    # runtime max_w arg (which is now ignored on the parametric path).
+    max_w_intercept = float(distribution["max_w_xml_cm"][str(rank)])
     return pb.ParametricLeafShape(
         rank=rank,
         spline_knots_u=knots,
@@ -71,6 +75,7 @@ def _build_parametric(distribution: dict, rank: int) -> pb.ParametricLeafShape:
         asym_residual_grid=residual_flat,
         n_u=n_u,
         n_v=n_v,
+        max_w_intercept=max_w_intercept,
     )
 
 
@@ -105,6 +110,8 @@ def test_s3_analytic_straight_droop_parabolic_width():
     knots = droop_sp.t.tolist()
 
     residual = [pb.Vector3d(0.0, 0.0, 0.0) for _ in range(n_u * n_v)]
+    max_w = 2.7  # cm; baked at construction (S6 max_w bake — evaluate's
+                 # runtime max_w arg is ignored on the parametric path)
     shape = pb.ParametricLeafShape(
         rank=0,
         spline_knots_u=knots,
@@ -115,16 +122,16 @@ def test_s3_analytic_straight_droop_parabolic_width():
         asym_residual_grid=residual,
         n_u=n_u,
         n_v=n_v,
+        max_w_intercept=max_w,
     )
 
-    max_w = 2.7  # cm; arbitrary scale
     rng = np.random.default_rng(123)
     test_pts = rng.uniform(size=(200, 2))
     test_pts = np.vstack([test_pts, [[0.0, 0.0], [1.0, 1.0], [0.5, 0.5]]])
 
     max_abs = 0.0
     for (u, v) in test_pts:
-        out = shape.evaluate(u=float(u), v=float(v), lmax=50.0, max_w=max_w)
+        out = shape.evaluate(u=float(u), v=float(v), lmax=50.0, max_w=999.0)
         # Reference uses scipy BSpline at the same (u) — equivalent by construction
         m_y = float(droop_sp(u))
         m_z = float(along_sp(u))
@@ -264,6 +271,9 @@ def test_s3_donor_round_trip(distribution: dict):
     droop_c = coeffs_donor[0:N_CP].tolist()
     along_c = coeffs_donor[N_CP:2 * N_CP].tolist()
     width_c = coeffs_donor[2 * N_CP:3 * N_CP].tolist()
+    # S6 max_w bake: donor's own peak half-width baked at construction
+    # (replaces the previous evaluate-time max_w arg, now ignored).
+    max_w_donor = sym.max_w
     shape = pb.ParametricLeafShape(
         rank=5,
         spline_knots_u=knots,
@@ -274,15 +284,14 @@ def test_s3_donor_round_trip(distribution: dict):
         asym_residual_grid=residual_flat,
         n_u=n_u,
         n_v=n_v,
+        max_w_intercept=max_w_donor,
     )
 
-    # Use this donor's own peak half-width as max_w (sym.max_w from extractor)
-    max_w_donor = sym.max_w
     out = np.zeros((n_u, n_v, 3), dtype=np.float64)
     for iu, u in enumerate(U_VALS):
         for iv in range(n_v):
             v = iv / (n_v - 1)
-            p = shape.evaluate(u=float(u), v=float(v), lmax=50.0, max_w=max_w_donor)
+            p = shape.evaluate(u=float(u), v=float(v), lmax=50.0, max_w=999.0)
             out[iu, iv] = (p.x, p.y, p.z)
 
     # Compare to raw donor local-frame CPs with off-midline +y_local excluded:
