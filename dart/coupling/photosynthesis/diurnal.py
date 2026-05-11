@@ -2366,13 +2366,34 @@ def run_production_series_carbon(growth_days, timestep_min=60,
                 per_plant_carbon.append(None)
                 continue
 
+            # Pick the per-plant soil-ψ provider: pool entry under PM
+            # dispatch (Gate Ch1.PMDM.5), else the read-only shared
+            # provider built in ``main()``. Same object is fed into
+            # BOTH the peak-noon prep solve (``run_photosynthesis``
+            # below) and the PM substep loop
+            # (``solve_carbon_partitioning_pm`` further down) so they
+            # observe the same ψ_s state. Plumbing here closes a
+            # sibling code path missed by 1068cc99 — the prep solve
+            # used to call ``run_photosynthesis`` with no provider,
+            # falling back to ``FixedSoilPsi(n_cells=100)`` at
+            # ``grow.py:run_photosynthesis``. With the 150-cell plant
+            # grid that 1068cc99 installed, that fallback tripped the
+            # same ``__n=146 >= size=100`` OOB the PM substep call
+            # used to. See PLAN_PIAFMUNCH_DUMUX_COUPLING_2026-05-09
+            # §G5 "2026-05-11 server smoke bug #2 sibling site".
+            pm_provider = (
+                soil_psi_pool[pi] if soil_psi_pool is not None
+                else soil_psi_provider
+            )
+
             # Run photosynthesis at peak on persistent plant to get
             # per-segment An shape for carbon partitioning
             carbon_prefix = str(day_dir / f'carbon_photo_day{dart_day}_p{pi}')
             hm = run_photosynthesis(
                 plant, sim_time=dart_day,
                 output_prefix=carbon_prefix,
-                par_umol=1000.0, tair_c=daily_mean_tair)
+                par_umol=1000.0, tair_c=daily_mean_tair,
+                soil_psi_provider=pm_provider)
 
             if hm is None:
                 per_plant_carbon.append(None)
@@ -2402,10 +2423,9 @@ def run_production_series_carbon(growth_days, timestep_min=60,
                     # inter-day zero-sink advances below should have
                     # left ``_t_last_days = dart_day`` already, so the
                     # first substep observes ``dt_days = 0``.
-                    pm_provider = (
-                        soil_psi_pool[pi] if soil_psi_pool is not None
-                        else None
-                    )
+                    # ``pm_provider`` was bound just above the peak-noon
+                    # prep solve so both calls share the same provider
+                    # object and observe the same ψ_s state.
                     carbon = solve_carbon_partitioning_pm(
                         plant, An_leaf_scaled, Tair_C=daily_mean_tair,
                         day=dart_day,
