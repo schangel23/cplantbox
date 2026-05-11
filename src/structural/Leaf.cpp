@@ -49,8 +49,11 @@ Leaf::Leaf(std::shared_ptr<Organism> plant, int type, double delay,  std::shared
 	ageDependentTropism = getLeafRandomParameter()->f_tf->ageSwitch > 0;
 	// Calculate the rotation of the leaves. The code begins here needs to be rewritten, because another following project will work on the leaves. The code here is just temporally used to get some nice visualizations. When someone rewrites the code, please take "gimbal lock" into consideration.
 	//Rewritten Begin:
+	// Symmetric ± draw centred on the rank's InitBeta: (rand()-0.5)*2 ∈ [-1, +1],
+	// so betaDev=0.1 ⇒ jitter range ±18°, population mean unchanged across plants
+	// (previously one-sided rand ∈ [0,1) biased every leaf by +π·betaDev/2).
 	beta = getleafphytomerID(param()->subType)*M_PI*getLeafRandomParameter()->rotBeta
-			+ M_PI*plant->rand()*getLeafRandomParameter()->betaDev ;  //+ ; //2 * M_PI*plant->rand(); // initial rotation
+			+ M_PI*(plant->rand() - 0.5)*2.0*getLeafRandomParameter()->betaDev ;  // initial rotation
 	beta = beta + getLeafRandomParameter()->initBeta*M_PI;
 	if (getLeafRandomParameter()->initBeta >0 && getLeafRandomParameter()->subType==2 && getLeafRandomParameter()->lnf==5 && getleafphytomerID(2)%4==2) {
 		beta = beta + getLeafRandomParameter()->initBeta*M_PI;

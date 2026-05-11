@@ -58,8 +58,11 @@ Stem::Stem(std::shared_ptr<Organism> plant, int type, double delay,  std::shared
 		std::static_pointer_cast<Stem>(parent)->addPhytomerId(p->subType);
 		phytomerId = std::static_pointer_cast<Stem>(parent)->getphytomerId(p->subType);
 	}
+	// Symmetric ± draw centred on the rank's InitBeta: (rand()-0.5)*2 ∈ [-1, +1],
+	// so betaDev=0.1 ⇒ jitter range ±18°, population mean unchanged (previously
+	// one-sided rand ∈ [0,1) biased every phytomer by +π·betaDev/2).
 	double beta = phytomerId*M_PI*getStemRandomParameter()->rotBeta +
-			M_PI*plant->rand()*getStemRandomParameter()->betaDev;
+			M_PI*(plant->rand() - 0.5)*2.0*getStemRandomParameter()->betaDev;
 	beta = beta + getStemRandomParameter()->initBeta*M_PI;
 	if (getStemRandomParameter()->initBeta >0 && phytomerId ){
 		beta = beta + getStemRandomParameter()->initBeta*M_PI;
