@@ -2889,13 +2889,13 @@ def extract_organs_for_lofter(plant, min_stem_nodes=50, min_leaf_nodes=20,
         # Band-width taper (15 % at base → 5 % at tip), same as the NURBS
         # path. Quad-ribbon lofter resamples to its own n_cross-1 strips.
         if species == 'maize':
-            _midrib_band_per_u_qr = np.linspace(0.075, 0.025, n_skel)
+            _midrib_band_per_u_qr = np.linspace(0.0075, 0.0025, n_skel)
         else:
             _midrib_band_per_u_qr = np.full(n_skel, 0.025)
         spline_features = {
             'gutter_depths': gutter_depths,
             'midrib_amps_cm': midrib_amps_cm,
-            'midrib_half_width': 0.10,
+            'midrib_half_width': 0.01,
             'midrib_band_v_frac': _midrib_band_per_u_qr,
         }
         for attr_phi, attr_val, key in [
