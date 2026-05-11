@@ -232,7 +232,7 @@
         <parameter name="theta" value="0" />
         <parameter name="tropismAge" value="0" />
         <parameter name="tropismN" value="1.5" />
-        <parameter name="tropismS" value="0.02" />
+        <parameter name="tropismS" value="0" />
         <parameter name="tt_cessation" value="-1" />
         <parameter name="tt_emergence" value="1200" />
         <parameter name="successor" ruleId="0" numLat="1" where="" subType="21" organType="3" percentage="1" />
