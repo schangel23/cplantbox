@@ -466,6 +466,52 @@ def _subdivide_skeleton(skeleton, widths, target_spacing=0.5):
     return new_skeleton, new_widths, orig_segment_map
 
 
+def _resample_skeleton_exact(skeleton, widths, target_spacing):
+    """Resample a skeleton at exact target_spacing (cubic spline, both directions).
+
+    Unlike ``_subdivide_skeleton`` which only upsamples, this always
+    resamples to ``target_spacing`` — coarsens if the source is finer,
+    refines if coarser. Used for stems/tassels via the
+    ``stem_target_spacing`` knob, where the CPlantBox segment skeleton
+    is far finer (~0.1 cm) than Baleno needs on a radiative-only organ.
+
+    Returns ``(new_skeleton, new_widths, orig_segment_map)`` with the
+    same shape contract as ``_subdivide_skeleton``.
+    """
+    skeleton = np.asarray(skeleton, dtype=np.float64)
+    widths = np.asarray(widths, dtype=np.float64)
+    n = len(skeleton)
+    if n < 3:
+        return skeleton, widths, np.arange(max(n - 1, 0), dtype=np.int32)
+
+    diffs = np.diff(skeleton, axis=0)
+    seg_lengths = np.linalg.norm(diffs, axis=1)
+    total_length = seg_lengths.sum()
+    if total_length < 1e-12:
+        return skeleton, widths, np.arange(max(n - 1, 0), dtype=np.int32)
+
+    cumulative = np.concatenate([[0.0], np.cumsum(seg_lengths)])
+
+    # Always at least 3 output points so the loft has wall geometry.
+    m = max(3, int(np.ceil(total_length / target_spacing)) + 1)
+
+    cs_x = CubicSpline(cumulative, skeleton[:, 0])
+    cs_y = CubicSpline(cumulative, skeleton[:, 1])
+    cs_z = CubicSpline(cumulative, skeleton[:, 2])
+    cs_w = CubicSpline(cumulative, widths)
+
+    new_arc = np.linspace(0, total_length, m)
+    new_skeleton = np.column_stack([cs_x(new_arc), cs_y(new_arc), cs_z(new_arc)])
+    new_widths = cs_w(new_arc)
+    new_widths = np.maximum(new_widths, 0.15)
+
+    new_seg_midpoints = (new_arc[:-1] + new_arc[1:]) / 2.0
+    orig_segment_map = np.searchsorted(cumulative, new_seg_midpoints, side="right") - 1
+    orig_segment_map = np.clip(orig_segment_map, 0, n - 2).astype(np.int32)
+
+    return new_skeleton, new_widths, orig_segment_map
+
+
 def _loft_leaf(organ):
     """Loft a leaf organ into ribbon geometry with optional cross-sectional curvature.
 
@@ -1928,16 +1974,22 @@ def loft_organs(organs, stem_sides=8, subdivide=True, target_spacing=0.5,
             # Stems/tassels can use a coarser spacing than leaves: they're
             # radiative-only for Baleno (no Vcmax), so over-tessellating them
             # buys nothing. stem_target_spacing=None preserves bit-identity
-            # with the pre-knob behaviour.
+            # with the pre-knob behaviour (upsample-only via
+            # _subdivide_skeleton). When set, stems/tassels resample to
+            # the exact target via _resample_skeleton_exact, which can
+            # coarsen as well as refine.
             organ_otype = organ.get("type")
             if (organ_otype in ("stem", "root")
                     and stem_target_spacing is not None):
-                _spacing = stem_target_spacing
+                skel, wid, orig_seg_map = _resample_skeleton_exact(
+                    organ["skeleton"], organ["widths"],
+                    target_spacing=stem_target_spacing,
+                )
             else:
-                _spacing = target_spacing
-            skel, wid, orig_seg_map = _subdivide_skeleton(
-                organ["skeleton"], organ["widths"], target_spacing=_spacing
-            )
+                skel, wid, orig_seg_map = _subdivide_skeleton(
+                    organ["skeleton"], organ["widths"],
+                    target_spacing=target_spacing,
+                )
             organ = dict(organ, skeleton=skel, widths=wid,
                          _orig_segment_map=orig_seg_map)
         else:
