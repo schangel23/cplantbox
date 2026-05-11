@@ -1833,6 +1833,7 @@ def _loft_stem(organ, n_sides=8, rounded_top=False):
 
 
 def loft_organs(organs, stem_sides=8, subdivide=True, target_spacing=0.5,
+                stem_target_spacing=None,
                 smooth=True, smooth_iterations=3, use_nurbs_backend=False,
                 nurbs_n_u_eval=30, nurbs_n_v_eval=21,
                 with_tassel_billboards=True, tassel_billboard_seed=42):
@@ -1847,7 +1848,15 @@ def loft_organs(organs, stem_sides=8, subdivide=True, target_spacing=0.5,
             - name: optional label
         stem_sides: Number of sides for stem cylinder cross-sections.
         subdivide: If True, upsample coarse skeletons via cubic spline.
-        target_spacing: Target spacing in cm for skeleton subdivision.
+        target_spacing: Target spacing in cm for skeleton subdivision (leaves,
+            sheaths, roots, and stems when ``stem_target_spacing`` is None).
+        stem_target_spacing: Optional override applied to stem/tassel
+            (``otype in {"stem", "root"}``) skeletons before subdivision.
+            ``None`` (default) reuses ``target_spacing`` — bit-identical
+            to the pre-knob behaviour. Set higher (e.g. 2.0 cm) to coarsen
+            stem/tassel tubes without touching leaf-blade density; useful
+            for Baleno where stem and tassel are radiative-only and don't
+            need the fine longitudinal tessellation that leaves do.
         smooth: If True, apply Laplacian smoothing to the final mesh.
         smooth_iterations: Number of Laplacian smoothing passes.
         use_nurbs_backend: If True, loft leaves with the canonical 11x5
@@ -1916,8 +1925,18 @@ def loft_organs(organs, stem_sides=8, subdivide=True, target_spacing=0.5,
                 max(0, orig_skel_n - 1), dtype=np.int32,
             )
         elif subdivide:
+            # Stems/tassels can use a coarser spacing than leaves: they're
+            # radiative-only for Baleno (no Vcmax), so over-tessellating them
+            # buys nothing. stem_target_spacing=None preserves bit-identity
+            # with the pre-knob behaviour.
+            organ_otype = organ.get("type")
+            if (organ_otype in ("stem", "root")
+                    and stem_target_spacing is not None):
+                _spacing = stem_target_spacing
+            else:
+                _spacing = target_spacing
             skel, wid, orig_seg_map = _subdivide_skeleton(
-                organ["skeleton"], organ["widths"], target_spacing=target_spacing
+                organ["skeleton"], organ["widths"], target_spacing=_spacing
             )
             organ = dict(organ, skeleton=skel, widths=wid,
                          _orig_segment_map=orig_seg_map)
