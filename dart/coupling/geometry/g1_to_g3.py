@@ -40,7 +40,7 @@ class G3Mesh:
     def __init__(self, vertices, indices, normals, uvs, organ_ids,
                  segment_ids=None, organ_meta=None,
                  quad_indices=None, quad_organ_ids=None,
-                 organ_cps=None, is_midrib=None):
+                 organ_cps=None, is_midrib=None, is_cap=None):
         self.vertices = np.asarray(vertices, dtype=np.float64)
         self.indices = np.asarray(indices, dtype=np.int32)
         self.normals = np.asarray(normals, dtype=np.float64)
@@ -62,6 +62,13 @@ class G3Mesh:
         self.is_midrib = (np.asarray(is_midrib, dtype=bool)
                           if is_midrib is not None
                           else np.zeros(len(self.indices), dtype=bool))
+        # Per-triangle end-cap flag: True for tube/dome end-cap tris. These
+        # are small but well-shaped (not slivers), so they're exempt from
+        # the degenerate-triangle filter — otherwise narrow tassel tips
+        # would lose their caps and read as open holes.
+        self.is_cap = (np.asarray(is_cap, dtype=bool)
+                       if is_cap is not None
+                       else np.zeros(len(self.indices), dtype=bool))
 
     @property
     def n_vertices(self):
@@ -1603,13 +1610,14 @@ def _loft_stem(organ, n_sides=8, rounded_top=False):
     Internode modulation: if 'node_heights_z' is provided in the organ
     dict, modulates the radius to create visible internode segments.
 
-    When ``rounded_top`` is True (tassel branches/spike), the flat top cap
-    is replaced by a small dome (one intermediate ring + apex) and the
-    last two skeleton-point widths are floored at 0.20 cm so the dome
-    triangles survive the 1e-3 cm² degenerate-triangle filter.
+    When ``rounded_top`` is True (tassel branches/spike), the flat top
+    cap is replaced by a small dome (one intermediate ring + apex). Cap
+    triangles are flagged so the caller can keep them exempt from the
+    degenerate-triangle filter — otherwise narrow tassel tips would lose
+    their caps and read as open holes.
 
     Returns:
-        (vertices, indices, normals, uvs, organ_ids)
+        (vertices, indices, normals, uvs, organ_ids, segment_ids, is_cap)
     """
     skeleton = np.asarray(organ["skeleton"], dtype=np.float64)
     widths = np.asarray(organ["widths"], dtype=np.float64)
@@ -1622,11 +1630,6 @@ def _loft_stem(organ, n_sides=8, rounded_top=False):
     # 1.8 cm short of their skeleton tip, while the anther billboards (which
     # use the full skeleton) extend past the remaining tube.
     widths = np.maximum(widths, 0.08)
-    if rounded_top and n >= 2:
-        # Without this, dome-cap triangles on tassel tips (r ≈ 0.04 cm)
-        # fall under the 1e-3 cm² filter and the tip reads as open.
-        widths = widths.copy()
-        widths[-2:] = np.maximum(widths[-2:], 0.20)
 
     # Apply internode modulation if leaf attachment heights are provided
     node_heights_z = organ.get("node_heights_z")
@@ -1706,23 +1709,29 @@ def _loft_stem(organ, n_sides=8, rounded_top=False):
         dome_ring_start = n_ring_verts + 1
         apex_idx = dome_ring_start + n_sides
         r_top = widths[-1] / 2.0
+        # Oblate-spheroid cap: horizontal radius r_top, vertical half-axis
+        # ``cap_aspect * r_top``.  cap_aspect < 1 squashes the dome into a
+        # flat smooth cap instead of a full hemisphere ("blob").
+        cap_aspect = 0.5
         cos_a = np.cos(np.pi / 4.0)
         sin_a = np.sin(np.pi / 4.0)
         # Reuse the parallel-transported frame from the final ring step.
         # ``binormal``, ``normal``, ``t`` at this point in the loop body
         # correspond to skeleton index ``n - 1``.
-        dome_center = skeleton[-1] + r_top * sin_a * t
         for j in range(n_sides):
             a = angles[j]
             direction = np.cos(a) * binormal + np.sin(a) * normal
             idx = dome_ring_start + j
-            vertices[idx] = dome_center + (r_top * cos_a) * direction
-            # Hemispherical normal: blend radial + tangent (axis).
-            nrm = cos_a * direction + sin_a * t
+            vertices[idx] = (skeleton[-1]
+                            + (r_top * cos_a) * direction
+                            + (r_top * sin_a * cap_aspect) * t)
+            # Oblate-spheroid normal: scale tangent component by 1/aspect
+            # so the normal still points along the local surface.
+            nrm = cos_a * direction + (sin_a / cap_aspect) * t
             nrm /= np.linalg.norm(nrm) + 1e-12
             normals_arr[idx] = nrm
             uvs[idx] = [1.0, a / (2.0 * np.pi)]
-        vertices[apex_idx] = skeleton[-1] + r_top * t
+        vertices[apex_idx] = skeleton[-1] + (r_top * cap_aspect) * t
         normals_arr[apex_idx] = t
         uvs[apex_idx] = [1.0, 0.5]
     else:
@@ -1808,7 +1817,14 @@ def _loft_stem(organ, n_sides=8, rounded_top=False):
 
     organ_ids = np.full(len(indices), organ_id, dtype=np.int32)
 
-    return vertices, indices, normals_arr, uvs, organ_ids, segment_ids
+    # Cap triangles (everything after the wall strip) are flagged so the
+    # degenerate-triangle filter can exempt them; they're small but not
+    # slivers, and stripping them is what makes narrow tassel tips look
+    # open.
+    is_cap = np.zeros(len(indices), dtype=bool)
+    is_cap[n_wall_tris:] = True
+
+    return vertices, indices, normals_arr, uvs, organ_ids, segment_ids, is_cap
 
 
 def loft_organs(organs, stem_sides=8, subdivide=True, target_spacing=0.5,
@@ -1854,11 +1870,13 @@ def loft_organs(organs, stem_sides=8, subdivide=True, target_spacing=0.5,
     all_quad_indices = []
     all_quad_organ_ids = []
     all_midrib = []  # per-organ per-tri bool masks; concat into mesh.is_midrib
+    all_is_cap = []  # per-organ per-tri bool masks; concat into mesh.is_cap
     organ_cps: dict = {}
     organ_meta = []
     vertex_offset = 0
 
     for organ in organs:
+        cap_tags = None  # per-tri bool array; only set by stem lofter
         # Compute original arc-lengths before subdivision (for mapping JSON)
         orig_skeleton = np.asarray(organ["skeleton"], dtype=np.float64)
         orig_diffs = np.diff(orig_skeleton, axis=0)
@@ -1950,7 +1968,7 @@ def loft_organs(organs, stem_sides=8, subdivide=True, target_spacing=0.5,
             rounded = organ.get("name", "").startswith(
                 ("tassel_spike_", "tassel_branch_")
             )
-            verts, idxs, norms, uvs, oids, sids = _loft_stem(
+            verts, idxs, norms, uvs, oids, sids, cap_tags = _loft_stem(
                 organ, n_sides=stem_sides, rounded_top=rounded,
             )
         else:
@@ -1968,6 +1986,12 @@ def loft_organs(organs, stem_sides=8, subdivide=True, target_spacing=0.5,
             all_midrib.append(midrib_tags)
         else:
             all_midrib.append(np.zeros(len(idxs), dtype=bool))
+        # Per-tri end-cap mask: only stems set this (cap tris exempt from
+        # the degenerate-triangle filter so narrow tassel tips stay closed).
+        if cap_tags is not None and len(cap_tags) == len(idxs):
+            all_is_cap.append(cap_tags)
+        else:
+            all_is_cap.append(np.zeros(len(idxs), dtype=bool))
         if qidxs is not None:
             all_quad_indices.append(qidxs + vertex_offset)
             all_quad_organ_ids.append(qoids)
@@ -1997,6 +2021,7 @@ def loft_organs(organs, stem_sides=8, subdivide=True, target_spacing=0.5,
         quad_organ_ids=quad_oid,
         organ_cps=organ_cps,
         is_midrib=np.concatenate(all_midrib) if all_midrib else None,
+        is_cap=np.concatenate(all_is_cap) if all_is_cap else None,
     )
 
     if smooth:
@@ -2045,7 +2070,10 @@ def _remove_degenerate_triangles(mesh, min_area_cm2=0.001):
     v2 = verts[mesh.indices[:, 2]]
     areas = 0.5 * np.linalg.norm(np.cross(v1 - v0, v2 - v0), axis=1)
 
-    keep = areas >= min_area_cm2
+    # Cap triangles are small but well-shaped (not slivers), so they're
+    # exempt from the filter — otherwise narrow tassel tips lose their
+    # caps and read as open holes.
+    keep = (areas >= min_area_cm2) | mesh.is_cap
     n_removed = int(np.sum(~keep))
 
     if n_removed > 0:
@@ -2064,6 +2092,7 @@ def _remove_degenerate_triangles(mesh, min_area_cm2=0.001):
         quad_organ_ids=mesh.quad_organ_ids,
         organ_cps=mesh.organ_cps,
         is_midrib=mesh.is_midrib[keep],
+        is_cap=mesh.is_cap[keep],
     )
 
 
@@ -2267,4 +2296,5 @@ def _laplacian_smooth(mesh, iterations=3, lambda_factor=0.5):
                   quad_indices=mesh.quad_indices,
                   quad_organ_ids=mesh.quad_organ_ids,
                   organ_cps=mesh.organ_cps,
-                  is_midrib=mesh.is_midrib.copy())
+                  is_midrib=mesh.is_midrib.copy(),
+                  is_cap=mesh.is_cap.copy())

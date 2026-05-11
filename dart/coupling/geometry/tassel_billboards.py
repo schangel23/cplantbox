@@ -21,22 +21,25 @@ import numpy as np
 
 
 SPIKELET_SPACING_CM = 0.35
-SPIKELET_LEN_CM = 0.50
-SPIKELET_WIDTH_CM = 0.15
+SPIKELET_LEN_CM = 0.35
+SPIKELET_WIDTH_CM = 0.08
 SPIKELET_TIP_SCALE = 0.85
 SPIKELET_AZIMUTHS = 3
 SPIKELETS_PER_AZIMUTH = 2
-# Radial outward beats gravity so the 3 azimuthal spikelets at each arc
-# step spread around the stem instead of all collapsing to a downward
-# bundle (the "one-sided" look in earlier renders).
-SPIKELET_HANG_FRAC = 0.40
-SPIKELET_OUTWARD_FRAC = 0.60
+# Spikelet direction: bias along the local stem tangent so the anthers
+# read as a feathery plume following the branch curve, with a small
+# radial kick to spread the 3 azimuthal copies around the stem.
+SPIKELET_ALONG_FRAC = 0.70
+SPIKELET_OUTWARD_FRAC = 0.30
+SPIKELET_HANG_FRAC = 0.0
 SPIKELET_JITTER_DEG = 12.0
 SPIKELET_PAIR_OFFSET_CM = 0.08
 SPIKELET_CROSS_BILLBOARD = True
 
-SPIKE_SPIKELET_START_FRAC = 0.12
-BRANCH_SPIKELET_START_FRAC = 0.08
+# Leave the peduncle (lower 30 % of the central spike) bare — real maize
+# tassels have a smooth glabrous peduncle below the lowest branch.
+SPIKE_SPIKELET_START_FRAC = 0.30
+BRANCH_SPIKELET_START_FRAC = 0.10
 
 SPIKE_PREFIX = "tassel_spike_"
 BRANCH_PREFIX = "tassel_branch_"
@@ -93,7 +96,13 @@ def spikelet_billboards(skeleton: np.ndarray, start_frac: float,
             phi = 2 * np.pi * k / SPIKELET_AZIMUTHS + az_jitter
             radial = np.cos(phi) * bi + np.sin(phi) * no
 
-            base_dir = SPIKELET_OUTWARD_FRAC * radial + SPIKELET_HANG_FRAC * gravity
+            # Bias along the local stem tangent so anthers lay along the
+            # branch curve (feathery plume), with a small outward kick to
+            # spread the 3 azimuthal copies around the stem. Gravity term
+            # is opt-in (default 0).
+            base_dir = (SPIKELET_ALONG_FRAC * tan
+                        + SPIKELET_OUTWARD_FRAC * radial
+                        + SPIKELET_HANG_FRAC * gravity)
             base_dir /= np.linalg.norm(base_dir) + 1e-12
 
             pair_axis = np.cross(base_dir, radial)
@@ -221,6 +230,13 @@ def append_tassel_billboards(mesh, organ_dicts, seed: int | None = 42,
     if hasattr(mesh, "is_midrib"):
         mesh.is_midrib = np.concatenate([
             mesh.is_midrib,
+            np.zeros(n_new_tris, dtype=bool),
+        ])
+    # Billboards are not end caps either — extend with False so the
+    # degenerate-triangle filter still culls any over-thin anther quads.
+    if hasattr(mesh, "is_cap"):
+        mesh.is_cap = np.concatenate([
+            mesh.is_cap,
             np.zeros(n_new_tris, dtype=bool),
         ])
 
