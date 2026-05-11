@@ -40,7 +40,7 @@ class G3Mesh:
     def __init__(self, vertices, indices, normals, uvs, organ_ids,
                  segment_ids=None, organ_meta=None,
                  quad_indices=None, quad_organ_ids=None,
-                 organ_cps=None, is_midrib=None, is_cap=None):
+                 organ_cps=None, is_midrib=None, filter_exempt=None):
         self.vertices = np.asarray(vertices, dtype=np.float64)
         self.indices = np.asarray(indices, dtype=np.int32)
         self.normals = np.asarray(normals, dtype=np.float64)
@@ -62,12 +62,14 @@ class G3Mesh:
         self.is_midrib = (np.asarray(is_midrib, dtype=bool)
                           if is_midrib is not None
                           else np.zeros(len(self.indices), dtype=bool))
-        # Per-triangle end-cap flag: True for tube/dome end-cap tris. These
-        # are small but well-shaped (not slivers), so they're exempt from
-        # the degenerate-triangle filter — otherwise narrow tassel tips
-        # would lose their caps and read as open holes.
-        self.is_cap = (np.asarray(is_cap, dtype=bool)
-                       if is_cap is not None
+        # Per-triangle exemption flag: True for tris that bypass the
+        # degenerate-triangle filter.  Stems (tube walls + caps) set this
+        # True for every tri — the filter targets leaf-tip slivers that
+        # diverge the Baleno solver, and stem geometry isn't the offender.
+        # Without the exemption, narrow tassel tips lose cap *and* wall
+        # tris and read as a leaky tube with open holes.
+        self.filter_exempt = (np.asarray(filter_exempt, dtype=bool)
+                       if filter_exempt is not None
                        else np.zeros(len(self.indices), dtype=bool))
 
     @property
@@ -1611,13 +1613,17 @@ def _loft_stem(organ, n_sides=8, rounded_top=False):
     dict, modulates the radius to create visible internode segments.
 
     When ``rounded_top`` is True (tassel branches/spike), the flat top
-    cap is replaced by a small dome (one intermediate ring + apex). Cap
-    triangles are flagged so the caller can keep them exempt from the
-    degenerate-triangle filter — otherwise narrow tassel tips would lose
-    their caps and read as open holes.
+    cap is replaced by a small dome (one intermediate ring + apex).
+
+    All returned triangles are flagged ``filter_exempt=True`` so the
+    caller skips them in the degenerate-triangle filter. The filter
+    exists for leaf-tip slivers (Baleno solver divergence); stem tube
+    walls + caps are well-shaped and shouldn't be culled, otherwise
+    narrow tassel tubes lose wall AND cap tris and read as leaky tubes
+    with visible holes.
 
     Returns:
-        (vertices, indices, normals, uvs, organ_ids, segment_ids, is_cap)
+        (vertices, indices, normals, uvs, organ_ids, segment_ids, filter_exempt)
     """
     skeleton = np.asarray(organ["skeleton"], dtype=np.float64)
     widths = np.asarray(organ["widths"], dtype=np.float64)
@@ -1817,14 +1823,13 @@ def _loft_stem(organ, n_sides=8, rounded_top=False):
 
     organ_ids = np.full(len(indices), organ_id, dtype=np.int32)
 
-    # Cap triangles (everything after the wall strip) are flagged so the
-    # degenerate-triangle filter can exempt them; they're small but not
-    # slivers, and stripping them is what makes narrow tassel tips look
-    # open.
-    is_cap = np.zeros(len(indices), dtype=bool)
-    is_cap[n_wall_tris:] = True
+    # The degenerate-triangle filter exists for leaf tips (Baleno solver
+    # divergence); tube wall and cap tris on stems are well-shaped, so
+    # the whole stem is exempt.  Without this, narrow tassel tips drop
+    # cap tris AND adjacent wall tris, leaving visible holes/gaps.
+    filter_exempt = np.ones(len(indices), dtype=bool)
 
-    return vertices, indices, normals_arr, uvs, organ_ids, segment_ids, is_cap
+    return vertices, indices, normals_arr, uvs, organ_ids, segment_ids, filter_exempt
 
 
 def loft_organs(organs, stem_sides=8, subdivide=True, target_spacing=0.5,
@@ -1870,7 +1875,7 @@ def loft_organs(organs, stem_sides=8, subdivide=True, target_spacing=0.5,
     all_quad_indices = []
     all_quad_organ_ids = []
     all_midrib = []  # per-organ per-tri bool masks; concat into mesh.is_midrib
-    all_is_cap = []  # per-organ per-tri bool masks; concat into mesh.is_cap
+    all_filter_exempt = []  # per-organ per-tri bool masks; concat into mesh.filter_exempt
     organ_cps: dict = {}
     organ_meta = []
     vertex_offset = 0
@@ -1986,12 +1991,13 @@ def loft_organs(organs, stem_sides=8, subdivide=True, target_spacing=0.5,
             all_midrib.append(midrib_tags)
         else:
             all_midrib.append(np.zeros(len(idxs), dtype=bool))
-        # Per-tri end-cap mask: only stems set this (cap tris exempt from
-        # the degenerate-triangle filter so narrow tassel tips stay closed).
+        # Per-tri filter-exemption mask: only stems set this (whole stem
+        # exempt from the degenerate-triangle filter so narrow tassel
+        # tubes stay watertight — walls AND caps).
         if cap_tags is not None and len(cap_tags) == len(idxs):
-            all_is_cap.append(cap_tags)
+            all_filter_exempt.append(cap_tags)
         else:
-            all_is_cap.append(np.zeros(len(idxs), dtype=bool))
+            all_filter_exempt.append(np.zeros(len(idxs), dtype=bool))
         if qidxs is not None:
             all_quad_indices.append(qidxs + vertex_offset)
             all_quad_organ_ids.append(qoids)
@@ -2021,7 +2027,7 @@ def loft_organs(organs, stem_sides=8, subdivide=True, target_spacing=0.5,
         quad_organ_ids=quad_oid,
         organ_cps=organ_cps,
         is_midrib=np.concatenate(all_midrib) if all_midrib else None,
-        is_cap=np.concatenate(all_is_cap) if all_is_cap else None,
+        filter_exempt=np.concatenate(all_filter_exempt) if all_filter_exempt else None,
     )
 
     if smooth:
@@ -2073,7 +2079,7 @@ def _remove_degenerate_triangles(mesh, min_area_cm2=0.001):
     # Cap triangles are small but well-shaped (not slivers), so they're
     # exempt from the filter — otherwise narrow tassel tips lose their
     # caps and read as open holes.
-    keep = (areas >= min_area_cm2) | mesh.is_cap
+    keep = (areas >= min_area_cm2) | mesh.filter_exempt
     n_removed = int(np.sum(~keep))
 
     if n_removed > 0:
@@ -2092,7 +2098,7 @@ def _remove_degenerate_triangles(mesh, min_area_cm2=0.001):
         quad_organ_ids=mesh.quad_organ_ids,
         organ_cps=mesh.organ_cps,
         is_midrib=mesh.is_midrib[keep],
-        is_cap=mesh.is_cap[keep],
+        filter_exempt=mesh.filter_exempt[keep],
     )
 
 
@@ -2297,4 +2303,4 @@ def _laplacian_smooth(mesh, iterations=3, lambda_factor=0.5):
                   quad_organ_ids=mesh.quad_organ_ids,
                   organ_cps=mesh.organ_cps,
                   is_midrib=mesh.is_midrib.copy(),
-                  is_cap=mesh.is_cap.copy())
+                  filter_exempt=mesh.filter_exempt.copy())

@@ -273,9 +273,9 @@ def append_tassel_billboards(mesh, organ_dicts, seed: int | None = 42,
         ])
     # Billboards are not end caps either — extend with False so the
     # degenerate-triangle filter still culls any over-thin anther quads.
-    if hasattr(mesh, "is_cap"):
-        mesh.is_cap = np.concatenate([
-            mesh.is_cap,
+    if hasattr(mesh, "filter_exempt"):
+        mesh.filter_exempt = np.concatenate([
+            mesh.filter_exempt,
             np.zeros(n_new_tris, dtype=bool),
         ])
 
