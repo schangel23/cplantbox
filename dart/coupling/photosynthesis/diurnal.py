@@ -2239,9 +2239,19 @@ def run_production_series_carbon(growth_days, timestep_min=60,
                     print(f"    Iterative coupling error: {e}")
                     traceback.print_exc()
 
-            elif (baleno_setup is not None
-                  and clearsky_par_wm2 >= MIN_PAR_FOR_BALENO):
-                # Non-iterative Baleno: single pass for Tleaf
+            elif baleno_setup is not None:
+                # Non-iterative Baleno: single pass for Tleaf.
+                # No PAR threshold — matches the explicit decision in
+                # commit 49d32e9c (March 19): Baleno runs for every
+                # daylight timestep when the setup is available. The
+                # sibling iterative branch above (line ~2111) and the
+                # ``run_diurnal`` Baleno path (line ~595) follow the
+                # same pattern. The orphan ``MIN_PAR_FOR_BALENO`` guard
+                # this branch used to carry was unreachable until the
+                # ``.ori`` early-exit in ``run_production_series_carbon``
+                # was fixed by commit e6b10957 — see
+                # PLAN_PIAFMUNCH_DUMUX_COUPLING_2026-05-09 §G5
+                # "2026-05-09 (final)".
                 try:
                     if step_i > 0:
                         update_baleno_datetime_and_rerun_I(
