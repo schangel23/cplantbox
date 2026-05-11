@@ -21,13 +21,16 @@ import numpy as np
 
 
 SPIKELET_SPACING_CM = 0.35
-SPIKELET_LEN_CM = 0.65
-SPIKELET_WIDTH_CM = 0.06
-SPIKELET_TIP_SCALE = 0.75
+SPIKELET_LEN_CM = 0.50
+SPIKELET_WIDTH_CM = 0.15
+SPIKELET_TIP_SCALE = 0.85
 SPIKELET_AZIMUTHS = 3
 SPIKELETS_PER_AZIMUTH = 2
-SPIKELET_HANG_FRAC = 0.80
-SPIKELET_OUTWARD_FRAC = 0.30
+# Radial outward beats gravity so the 3 azimuthal spikelets at each arc
+# step spread around the stem instead of all collapsing to a downward
+# bundle (the "one-sided" look in earlier renders).
+SPIKELET_HANG_FRAC = 0.40
+SPIKELET_OUTWARD_FRAC = 0.60
 SPIKELET_JITTER_DEG = 12.0
 SPIKELET_PAIR_OFFSET_CM = 0.08
 SPIKELET_CROSS_BILLBOARD = True
@@ -119,15 +122,22 @@ def spikelet_billboards(skeleton: np.ndarray, start_frac: float,
 
                 width_axes = [wa, wb] if SPIKELET_CROSS_BILLBOARD else [wa]
 
+                # Six perimeter vertices on an ellipse with major axis L
+                # along spike_dir, minor axis W along width_dir.  Fan-
+                # triangulated from the base vertex (v0).  Reads as an
+                # oval silhouette from any angle when paired with the
+                # perpendicular cross billboard.
+                phis = (np.pi, 2.0 * np.pi / 3.0, np.pi / 3.0,
+                        0.0, -np.pi / 3.0, -2.0 * np.pi / 3.0)
                 for width_dir in width_axes:
-                    base_l = p_base - 0.5 * W * width_dir
-                    base_r = p_base + 0.5 * W * width_dir
-                    tip_l  = p_base + L * spike_dir - 0.35 * W * width_dir
-                    tip_r  = p_base + L * spike_dir + 0.35 * W * width_dir
+                    center = p_base + 0.5 * L * spike_dir
                     v0 = len(verts)
-                    verts.extend([base_l, base_r, tip_r, tip_l])
-                    tris.append([v0, v0 + 1, v0 + 2])
-                    tris.append([v0, v0 + 2, v0 + 3])
+                    for phi in phis:
+                        verts.append(center
+                                     + 0.5 * L * np.cos(phi) * spike_dir
+                                     + 0.5 * W * np.sin(phi) * width_dir)
+                    for k in range(1, 5):
+                        tris.append([v0, v0 + k, v0 + k + 1])
 
     return (np.asarray(verts, dtype=np.float64),
             np.asarray(tris, dtype=np.int64))

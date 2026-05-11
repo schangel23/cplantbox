@@ -1593,7 +1593,7 @@ def _clip_stem_above_top_leaf(organ, pad=0.0, min_stub=1.0):
     return new_organ
 
 
-def _loft_stem(organ, n_sides=8):
+def _loft_stem(organ, n_sides=8, rounded_top=False):
     """Loft a stem organ into cylindrical tube geometry with end caps.
 
     Creates rings of vertices at each skeleton point, connected by
@@ -1602,6 +1602,11 @@ def _loft_stem(organ, n_sides=8):
 
     Internode modulation: if 'node_heights_z' is provided in the organ
     dict, modulates the radius to create visible internode segments.
+
+    When ``rounded_top`` is True (tassel branches/spike), the flat top cap
+    is replaced by a small dome (one intermediate ring + apex) and the
+    last two skeleton-point widths are floored at 0.20 cm so the dome
+    triangles survive the 1e-3 cm² degenerate-triangle filter.
 
     Returns:
         (vertices, indices, normals, uvs, organ_ids)
@@ -1617,6 +1622,11 @@ def _loft_stem(organ, n_sides=8):
     # 1.8 cm short of their skeleton tip, while the anther billboards (which
     # use the full skeleton) extend past the remaining tube.
     widths = np.maximum(widths, 0.08)
+    if rounded_top and n >= 2:
+        # Without this, dome-cap triangles on tassel tips (r ≈ 0.04 cm)
+        # fall under the 1e-3 cm² filter and the tip reads as open.
+        widths = widths.copy()
+        widths[-2:] = np.maximum(widths[-2:], 0.20)
 
     # Apply internode modulation if leaf attachment heights are provided
     node_heights_z = organ.get("node_heights_z")
@@ -1632,9 +1642,15 @@ def _loft_stem(organ, n_sides=8):
     # Angles around the tube
     angles = np.linspace(0, 2 * np.pi, n_sides, endpoint=False)
 
-    # Allocate ring vertices + 2 cap center vertices
+    # Allocate ring vertices + cap vertices.  For a flat top cap the extra
+    # is just 2 centers (bottom + top).  For ``rounded_top``, the top cap
+    # is a dome: 1 intermediate ring of ``n_sides`` + 1 apex.
     n_ring_verts = n * n_sides
-    n_total_verts = n_ring_verts + 2  # +2 for bottom and top cap centers
+    if rounded_top:
+        n_cap_extra = 1 + n_sides + 1  # bot center + dome ring + apex
+    else:
+        n_cap_extra = 2  # bot center + top center
+    n_total_verts = n_ring_verts + n_cap_extra
     vertices = np.empty((n_total_verts, 3))
     normals_arr = np.empty((n_total_verts, 3))
     uvs = np.empty((n_total_verts, 2))
@@ -1678,22 +1694,51 @@ def _loft_stem(organ, n_sides=8):
             normals_arr[idx] = direction  # outward-pointing
             uvs[idx] = [arc[i], a / (2.0 * np.pi)]
 
-    # Cap center vertices
+    # Cap vertices.  Bottom is always a flat fan-center.  Top is either
+    # a flat fan-center, or for ``rounded_top`` a dome (intermediate ring
+    # at radius r·cos(π/4) elevated by r·sin(π/4) along tangent, plus an
+    # apex at skeleton[-1] + r·tangent).
     bot_center_idx = n_ring_verts
-    top_center_idx = n_ring_verts + 1
     vertices[bot_center_idx] = skeleton[0]
-    vertices[top_center_idx] = skeleton[-1]
-    # Cap normals point along the tangent (inward for bottom, outward for top)
     normals_arr[bot_center_idx] = -tangents[0]
-    normals_arr[top_center_idx] = tangents[-1]
     uvs[bot_center_idx] = [0.0, 0.5]
-    uvs[top_center_idx] = [1.0, 0.5]
+    if rounded_top:
+        dome_ring_start = n_ring_verts + 1
+        apex_idx = dome_ring_start + n_sides
+        r_top = widths[-1] / 2.0
+        cos_a = np.cos(np.pi / 4.0)
+        sin_a = np.sin(np.pi / 4.0)
+        # Reuse the parallel-transported frame from the final ring step.
+        # ``binormal``, ``normal``, ``t`` at this point in the loop body
+        # correspond to skeleton index ``n - 1``.
+        dome_center = skeleton[-1] + r_top * sin_a * t
+        for j in range(n_sides):
+            a = angles[j]
+            direction = np.cos(a) * binormal + np.sin(a) * normal
+            idx = dome_ring_start + j
+            vertices[idx] = dome_center + (r_top * cos_a) * direction
+            # Hemispherical normal: blend radial + tangent (axis).
+            nrm = cos_a * direction + sin_a * t
+            nrm /= np.linalg.norm(nrm) + 1e-12
+            normals_arr[idx] = nrm
+            uvs[idx] = [1.0, a / (2.0 * np.pi)]
+        vertices[apex_idx] = skeleton[-1] + r_top * t
+        normals_arr[apex_idx] = t
+        uvs[apex_idx] = [1.0, 0.5]
+    else:
+        top_center_idx = n_ring_verts + 1
+        vertices[top_center_idx] = skeleton[-1]
+        normals_arr[top_center_idx] = tangents[-1]
+        uvs[top_center_idx] = [1.0, 0.5]
 
     # Build triangle strips between consecutive rings
     # Winding order: counter-clockwise when viewed from outside
     n_segments = n - 1
     n_wall_tris = 2 * n_segments * n_sides
-    n_cap_tris = 2 * n_sides  # bottom + top cap fans
+    if rounded_top:
+        n_cap_tris = n_sides + 2 * n_sides + n_sides  # bot fan + dome wall + apex fan
+    else:
+        n_cap_tris = 2 * n_sides  # bottom + top cap fans
     n_total_tris = n_wall_tris + n_cap_tris
 
     indices = np.empty((n_total_tris, 3), dtype=np.int32)
@@ -1728,15 +1773,38 @@ def _loft_stem(organ, n_sides=8):
         segment_ids[tri_idx] = 0
         tri_idx += 1
 
-    # Top cap: fan from center to last ring (winding faces upward)
+    # Top cap: either a flat fan (default) or a dome (rounded_top).
     last_ring_start = (n - 1) * n_sides
     last_sid = (n - 2) if orig_seg_map is None else int(orig_seg_map[-1])
-    for j in range(n_sides):
-        j_next = (j + 1) % n_sides
-        indices[tri_idx] = [top_center_idx, last_ring_start + j,
-                            last_ring_start + j_next]
-        segment_ids[tri_idx] = last_sid
-        tri_idx += 1
+    if rounded_top:
+        # Wall quads: last tube ring → dome ring (2 tris per side).
+        for j in range(n_sides):
+            j_next = (j + 1) % n_sides
+            c0 = last_ring_start + j
+            c1 = last_ring_start + j_next
+            d0 = dome_ring_start + j
+            d1 = dome_ring_start + j_next
+            indices[tri_idx] = [c0, c1, d0]
+            indices[tri_idx + 1] = [c1, d1, d0]
+            segment_ids[tri_idx] = last_sid
+            segment_ids[tri_idx + 1] = last_sid
+            tri_idx += 2
+        # Apex fan: dome ring → apex.
+        for j in range(n_sides):
+            j_next = (j + 1) % n_sides
+            indices[tri_idx] = [dome_ring_start + j,
+                                dome_ring_start + j_next,
+                                apex_idx]
+            segment_ids[tri_idx] = last_sid
+            tri_idx += 1
+    else:
+        # Flat fan from center to last ring (winding faces upward).
+        for j in range(n_sides):
+            j_next = (j + 1) % n_sides
+            indices[tri_idx] = [top_center_idx, last_ring_start + j,
+                                last_ring_start + j_next]
+            segment_ids[tri_idx] = last_sid
+            tri_idx += 1
 
     organ_ids = np.full(len(indices), organ_id, dtype=np.int32)
 
@@ -1876,8 +1944,14 @@ def loft_organs(organs, stem_sides=8, subdivide=True, target_spacing=0.5,
             # by the sheath mesh at the top leaf.
             if otype == "stem":
                 organ = _clip_stem_above_top_leaf(organ, pad=0.0)
+            # Tassel spike and branches end in free air, so close their tip
+            # with a small dome instead of the default tiny flat disc that
+            # gets stripped by the degenerate-triangle filter.
+            rounded = organ.get("name", "").startswith(
+                ("tassel_spike_", "tassel_branch_")
+            )
             verts, idxs, norms, uvs, oids, sids = _loft_stem(
-                organ, n_sides=stem_sides,
+                organ, n_sides=stem_sides, rounded_top=rounded,
             )
         else:
             raise ValueError(f"Unknown organ type: {otype!r}")
