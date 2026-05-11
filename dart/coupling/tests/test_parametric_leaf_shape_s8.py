@@ -20,7 +20,7 @@ Gate inventory (each test function name carries its Gn marker):
   G3 — Symmetric-projection invariance under per-plant draw (D9 contract)
   G4 — 10-seed canopy variation, mean pairwise CP RMS > 5 %·lmax per rank
   G5 — Subsumed by G1; pinned as a regression smoke
-  G6 — Legacy ``surface_cps`` setter still works (cp_swap fallback path)
+  G6 — Legacy ``surface_cps`` setter still works (MedianLeafShape fallback)
   G7 — Per-rank distribution-mean reproduces XML grid: 15 ranks × 6 metrics
   G8 — 10-plant canopy OBJ-vertex byte-identity at scale=0
   G9 — End-to-end realize() → extractor spy chain (Spies 1, 2, 3, 4)
@@ -521,14 +521,13 @@ def test_g5_post_s6_default_render_invariant():
 
 
 # ===========================================================================
-# G6 — Legacy ``surface_cps`` setter still works (cp_swap fallback path)
+# G6 — Legacy ``surface_cps`` setter still works (MedianLeafShape fallback)
 # ===========================================================================
 
 def test_g6_legacy_surface_cps_setter():
-    """Plan §G6 / §D7: Python-side direct ``lrp.surface_cps`` overrides
-    (the cp_swap legacy path) keep working as long as the user also strips
-    ``shape_distribution_path`` (which is the cp_swap-pattern requirement,
-    since the parametric path takes precedence when wired). The S2 lazy
+    """Plan §G6 / §D7: Python-side direct ``lrp.surface_cps`` overrides keep
+    working as long as the user also strips ``shape_distribution_path``
+    (since the parametric path takes precedence when wired). The S2 lazy
     ``MedianLeafShape`` fallback then reads the overridden CPs and the
     resulting ``getEffectiveSurfaceCPs`` returns them.
     """
@@ -538,7 +537,7 @@ def test_g6_legacy_surface_cps_setter():
     def mutator(plant: pb.MappedPlant) -> None:
         for st in range(2, 17):
             lrp = plant.getOrganRandomParameter(4, st)
-            lrp.shape_distribution_path = ""        # cp_swap precondition
+            lrp.shape_distribution_path = ""        # legacy-path precondition
         lrp = plant.getOrganRandomParameter(4, target_st)
         # Snapshot the original CPs as plain (x, y, z) tuples BEFORE the
         # override. ``list(lrp.surface_cps)`` returns Vector3d *references*
@@ -564,8 +563,8 @@ def test_g6_legacy_surface_cps_setter():
     assert np.allclose(diff_x, 0.5, atol=1e-9), (
         f"G6 FAIL: surface_cps override didn't propagate to "
         f"getEffectiveSurfaceCPs; max |Δx - 0.5| = "
-        f"{float(np.max(np.abs(diff_x - 0.5))):.3e} cm. cp_swap-style "
-        "legacy path is broken by S6 wiring.")
+        f"{float(np.max(np.abs(diff_x - 0.5))):.3e} cm. Legacy "
+        "surface_cps fallback is broken by S6 wiring.")
 
 
 _G6_BASE: list[np.ndarray] = []

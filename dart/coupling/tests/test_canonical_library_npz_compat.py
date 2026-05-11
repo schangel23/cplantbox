@@ -5,7 +5,7 @@ surface_cps derived from it) were built with an early version of
 to_local_frame that did NOT rotate each leaf's tip into the canonical
 (+y, +z) half-plane and did NOT apply the _default_tip_bounds filter.
 Mixing that frame with the post-rotate frame on the same plant produces
-crumbled meshes (cp_swap → XML frame mismatch).
+a frame mismatch when the NPZ-derived library is used to rebake XML CPs.
 
 This test pins the recovered NPZ-build recipe so future refactors of
 to_local_frame don't silently break frame compatibility with the XML.
@@ -82,8 +82,8 @@ def test_npz_compat_build_bit_identical_to_baked_npz():
         err_msg=(
             "build_from_maizefield3d(NPZ-compat) drifted from the baked "
             "NPZ — to_local_frame's pre-aggregation transform changed. "
-            "cp_swap injects donor CPs into XML CPs that live in the NPZ "
-            "frame; any drift here will crumble swapped meshes."
+            "Any drift here will break XML CPs that were originally baked "
+            "from this frame."
         ),
     )
 

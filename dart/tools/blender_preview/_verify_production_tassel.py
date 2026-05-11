@@ -5,11 +5,6 @@ Runs the real production pipeline (``extract_organs_for_lofter`` +
 VT-capped, day-88 plant. Writes a full-plant OBJ to
 ``blender_preview/stages/``.
 
-Difference from production ``grow_plant``: skips ``apply_donor_cps`` to
-dodge a known heap-corruption interaction with the uncommitted
-``maize_calibrated.xml`` (LRP ``surface_cps`` setters double-modifying
-baked XML CPs). Tracked separately.
-
 The VT cap is now XML-native (``use_thermal_cessation=1, tt_cessation=1000``
 on mainstem subType 1) and fires via real met forcing — no in-script
 delayNG patch needed.

@@ -171,26 +171,6 @@ def _diagnose_ori_missing(simu, dart_obj_paths):
     )
 
 
-def _cp_donor_seed_for(seed):
-    """Map a per-plant simulation seed to a cp_donor_seed.
-
-    Default = ``None`` (no swap, XML's baked median CPs for every plant in the
-    canopy). Set ``COUPLING_CP_DONOR=on`` in the environment to enable per-plant
-    MF3D donor swap; the pipeline then passes ``seed`` through as the donor
-    seed so each plant in a canopy gets a distinct donor.
-
-    DEPRECATED: per-plant leaf-shape variation is now handled by
-    ``ParametricLeafShape`` (per-plant coherent draw at ``LeafRandomParameter::
-    realize()`` time, plant-seed-keyed RNG, no donor frame in the pipeline).
-    See [[PLAN_PARAMETRIC_LEAF_SHAPE_2026-05-09_REV1]] §S7. ``COUPLING_CP_DONOR``
-    remains as a legacy fallback path; it stays default-off and will be removed
-    after the parametric model proves out under Ch1 production.
-    """
-    if os.environ.get("COUPLING_CP_DONOR", "off").lower() not in ("on", "1", "true"):
-        return None
-    return int(seed)
-
-
 def _real_met_kwargs(sim_day):
     """Get diurnal_met_profile kwargs from real daily met data for sim_day.
 
@@ -248,7 +228,6 @@ def setup_plants_and_meshes(sim_day, output_subdir, plants=None):
         else:
             plant = grow_plant(XML_PATH, simulation_time=sim_day,
                                min_stem_nodes=50, min_leaf_nodes=20, seed=seed,
-                               cp_donor_seed=_cp_donor_seed_for(seed),
                                enable_photosynthesis=True)
 
         # Extract organs with plant prefix for unique group names
@@ -693,7 +672,6 @@ def run_single_day(sim_day, use_dart=True, timestep_min=30,
                     plant_ts = grow_plant(
                         XML_PATH, simulation_time=sim_day,
                         enable_photosynthesis=True, seed=seed,
-                        cp_donor_seed=_cp_donor_seed_for(seed),
                     )
                     iter_plants.append(plant_ts)
 
@@ -729,7 +707,6 @@ def run_single_day(sim_day, use_dart=True, timestep_min=30,
                     plant_ts = grow_plant(
                         XML_PATH, simulation_time=sim_day,
                         enable_photosynthesis=True, seed=seed,
-                        cp_donor_seed=_cp_donor_seed_for(seed),
                     )
 
                     ps_label = f"ts_{ts_label}_p{pi}" if use_dart else \
@@ -1055,7 +1032,6 @@ def _run_per_plant_carbon(daily_An_per_plant, sim_day, day_dir,
         plant = grow_plant(XML_PATH, simulation_time=sim_day,
                            min_stem_nodes=50, min_leaf_nodes=20,
                            seed=FIELD_SEED + pi,
-                           cp_donor_seed=_cp_donor_seed_for(FIELD_SEED + pi),
                            enable_photosynthesis=True)
 
         # Run photosynthesis at peak to get per-segment An shape
@@ -1842,7 +1818,6 @@ def run_production_series_carbon(growth_days, timestep_min=60,
         seed = FIELD_SEED + i
         plant = grow_plant(XML_PATH, simulation_time=first_day,
                            min_stem_nodes=50, min_leaf_nodes=20, seed=seed,
-                           cp_donor_seed=_cp_donor_seed_for(seed),
                            enable_photosynthesis=True)
         persistent_plants.append(plant)
         organs = plant.getOrgans()

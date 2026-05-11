@@ -29,7 +29,6 @@ from ..config import HYDRAULICS_PATH, DEFAULT_XML, get_hydraulics_json, get_phot
 from ..geometry import loft_organs, G3Mesh, extract_organs_for_lofter
 from ..geometry.cplantbox_adapter import get_plantsim_feature_kwargs_from_env
 from ..prospect_params import get_chl_per_segment, vcmax25_from_cab
-from .cp_swap import apply_donor_cps
 
 
 FA_KINETICS_PATH = Path(__file__).resolve().parent.parent / "data" / "phase_III_per_rank.json"
@@ -341,7 +340,6 @@ def setup_successor_where(plant):
 
 
 def init_plant(xml_path=None, seed=None, enable_photosynthesis=True,
-               cp_donor_seed=None, cp_donor_mode="draw_coherent",
                soil_min_b=DEFAULT_SOIL_MIN_B,
                soil_max_b=DEFAULT_SOIL_MAX_B,
                soil_cell_number=DEFAULT_SOIL_CELL_NUMBER):
@@ -354,13 +352,6 @@ def init_plant(xml_path=None, seed=None, enable_photosynthesis=True,
         xml_path: Path to calibrated XML. Defaults to DEFAULT_XML.
         seed: Optional random seed for reproducibility.
         enable_photosynthesis: Enable soil grid for photosynthesis (default True).
-        cp_donor_seed: If set, swap leaf surface_cps (and lmax/Width_blade/
-            areaMax) for a donor drawn from the MF3D canonical library.
-            Lets a canopy render N plants with per-plant leaf-shape variation
-            without regenerating the XML. None → use whatever CPs are in XML.
-        cp_donor_mode: Reducer for the donor draw. ``"draw_coherent"`` (default)
-            picks a single MF3D plant covering all positions; ``"draw"`` draws
-            independently per position; ``"median"`` uses the pool median.
         soil_min_b, soil_max_b, soil_cell_number: 3D rectangular grid for the
             soil seg→cell mapping (cm, cm, ints). Defaults to a 1×1×100
             vertical column with **±50 cm lateral OOD bounds** (Phase 3.5):
@@ -381,10 +372,6 @@ def init_plant(xml_path=None, seed=None, enable_photosynthesis=True,
 
     if seed is not None:
         plant.setSeed(seed)
-
-    if cp_donor_seed is not None:
-        apply_donor_cps(plant, donor_seed=cp_donor_seed, mode=cp_donor_mode,
-                        verbose=False)
 
     if enable_photosynthesis:
         depth = float(soil_max_b[2] - soil_min_b[2])
@@ -422,8 +409,6 @@ def init_plant(xml_path=None, seed=None, enable_photosynthesis=True,
 
 def grow_plant(xml_path, simulation_time, min_stem_nodes=50, min_leaf_nodes=20,
                enable_photosynthesis=False, seed=None,
-               cp_donor_seed=None, cp_donor_mode="draw_coherent",
-               cp_donor_smooth_alpha=1.0,
                daily_met=None, T_air_default=25.0,
                mutate_lrp_pre_init=None,
                soil_min_b=DEFAULT_SOIL_MIN_B,
@@ -432,12 +417,6 @@ def grow_plant(xml_path, simulation_time, min_stem_nodes=50, min_leaf_nodes=20,
     """Grow a CPlantBox plant from calibrated XML.
 
     Args:
-        cp_donor_seed: Optional seed selecting an MF3D donor plant whose
-            per-position leaf surface_cps (plus lmax / Width_blade / areaMax)
-            are swapped into this plant before ``initialize()``. Leaves the
-            XML on disk untouched. None → use the XML's baked-in CPs.
-        cp_donor_mode: Donor reducer mode (``"draw_coherent"``, ``"draw"``,
-            or ``"median"``).
         daily_met: Optional pre-loaded daily-met dict (``sim_day -> {T_mean_C,
             T_min_C, T_max_C, ...}``) from ``load_daily_met()``. When None,
             ``get_daily_met()`` auto-loads the default daily-met CSV
@@ -463,8 +442,6 @@ def grow_plant(xml_path, simulation_time, min_stem_nodes=50, min_leaf_nodes=20,
     print(f"  Simulation time: {simulation_time} days")
     if seed is not None:
         print(f"  Seed: {seed}")
-    if cp_donor_seed is not None:
-        print(f"  CP donor: mode={cp_donor_mode}, seed={cp_donor_seed}")
     if enable_photosynthesis:
         print(f"  Photosynthesis: ENABLED (soil grid active)")
 
@@ -473,11 +450,6 @@ def grow_plant(xml_path, simulation_time, min_stem_nodes=50, min_leaf_nodes=20,
 
     if seed is not None:
         plant.setSeed(seed)
-
-    if cp_donor_seed is not None:
-        apply_donor_cps(plant, donor_seed=cp_donor_seed, mode=cp_donor_mode,
-                        smooth_alpha=cp_donor_smooth_alpha,
-                        verbose=True)
 
     # Final pre-initialize hook for tests / harnesses that need to flip
     # LRP fields before f_gf is minted in plant.initialize() →
@@ -922,13 +894,6 @@ def main():
                        help='(deprecated — PhloemFluxPython is now the default solver)')
     parser.add_argument('--include-roots-in-mesh', action='store_true',
                        help='Include root geometry in G3 mesh export (default: shoot only)')
-    parser.add_argument('--cp-donor-seed', type=int, default=None,
-                       help='Seed selecting an MF3D donor plant whose leaf CPs '
-                            'overwrite the XML defaults at runtime. None → no swap.')
-    parser.add_argument('--cp-donor-mode', type=str, default='draw_coherent',
-                       choices=['draw_coherent', 'draw', 'median'],
-                       help='Donor reducer mode (default: draw_coherent — one '
-                            'MF3D plant covers all positions).')
     parser.add_argument('--no-auto-stage', action='store_true',
                        help='Disable automatic V-stage label appending to '
                             'output prefix (default: append _V<n> or '
@@ -960,8 +925,6 @@ def main():
         min_stem_nodes=preset['min_stem_nodes'],
         min_leaf_nodes=preset['min_leaf_nodes'],
         enable_photosynthesis=args.photosynthesis,
-        cp_donor_seed=args.cp_donor_seed,
-        cp_donor_mode=args.cp_donor_mode,
     )
 
     # Auto-stage label: append phenology stage to output prefix so output

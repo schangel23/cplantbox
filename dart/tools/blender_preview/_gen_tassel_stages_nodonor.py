@@ -1,9 +1,7 @@
-"""Stage progression without donor CP swap — for Blender preview.
+"""Stage progression for Blender preview.
 
-Same six stages as ``_gen_tassel_stages.py`` but skips ``apply_donor_cps``
-to avoid a heap-corruption pybind11 interaction currently seen with the
-uncommitted ``maize_calibrated.xml``. Leaves use the XML's baked
-surface_cps directly — good enough for visual inspection.
+Six representative tassel-emergence stages on the production XML, using
+the parametric leaf-shape path. Output: full-plant OBJ per stage.
 
 Run:
     cd /home/lukas/PHD/CPlantBox

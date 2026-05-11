@@ -13,10 +13,13 @@ Run:
 """
 from __future__ import annotations
 
+import os
 import sys
 import time
 import traceback
 from pathlib import Path
+
+import plantbox as pb
 
 from dart.coupling.config import DEFAULT_XML
 from dart.coupling.geometry import extract_organs_for_lofter, loft_organs
@@ -33,9 +36,23 @@ from dart.coupling.growth.phenology import (
 # Output: canonical pipeline location (resolves regardless of CWD).
 # Script lives at dart/tools/blender_preview/<name>.py → parents[3] = project root.
 PROJECT_ROOT = Path(__file__).resolve().parents[3]
-OUT_DIR = PROJECT_ROOT / "dart" / "coupling" / "output" / "vr_stages"
+OUT_DIR = Path(os.environ.get("COUPLING_VR_OUTDIR",
+                              PROJECT_ROOT / "dart" / "coupling" / "output" / "vr_stages"))
 
 SEED = 42
+
+# Optional override for parametric-leaf-shape verification:
+# `shape_variation_scale` at runtime via mutate_lrp_pre_init.
+SHAPE_SCALE_OVERRIDE = os.environ.get("COUPLING_SHAPE_SCALE")  # e.g. "0" or "1.0"
+
+
+def _set_shape_scale(scale: float):
+    """Pre-init hook: override shape_variation_scale on every maize leaf RP."""
+    def _hook(plant: pb.MappedPlant) -> None:
+        for st in range(2, 17):
+            lrp = plant.getOrganRandomParameter(4, st)
+            lrp.shape_variation_scale = scale
+    return _hook
 
 # Day picks under FA-on Juelich met (tassel emerges day ~125, mature day ~150
 # under calibrated stem TT cessation). Vegetative spaced denser early, sparser
@@ -64,11 +81,14 @@ def grow_one(day: int) -> dict | None:
     t0 = time.time()
     print(f"\n=== Day {day:3d} (seed {SEED}) ===")
 
+    mutate = (_set_shape_scale(float(SHAPE_SCALE_OVERRIDE))
+              if SHAPE_SCALE_OVERRIDE is not None else None)
     plant = grow_plant(
         str(DEFAULT_XML),
         simulation_time=day,
         seed=SEED,
         enable_photosynthesis=False,   # geometry-only, much faster
+        mutate_lrp_pre_init=mutate,
     )
 
     label = detect_v_stage(plant)
