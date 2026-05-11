@@ -46,9 +46,14 @@ BRANCH_PREFIX = "tassel_branch_"
 
 
 def spikelet_billboards(skeleton: np.ndarray, start_frac: float,
-                        rng: np.random.Generator
+                        rng: np.random.Generator,
+                        start_arc_cm: float | None = None,
                         ) -> tuple[np.ndarray, np.ndarray]:
     """Generate anther-like cross-billboards along a skeleton.
+
+    ``start_arc_cm`` overrides ``start_frac * total_len`` when provided —
+    used for the central spike, where the peduncle should stay bare up to
+    the first branch attachment regardless of total spike length.
 
     Returns ``(verts, tris)``; ``verts`` is ``(V, 3)``, ``tris`` is
     ``(T, 3)`` with vertex indices local to the returned ``verts`` array.
@@ -63,8 +68,11 @@ def spikelet_billboards(skeleton: np.ndarray, start_frac: float,
     if total_len < 2 * SPIKELET_SPACING_CM:
         return np.empty((0, 3)), np.empty((0, 3), dtype=np.int64)
 
-    arcs = np.arange(start_frac * total_len, total_len * 0.98,
-                     SPIKELET_SPACING_CM)
+    start_arc = (start_arc_cm if start_arc_cm is not None
+                 else start_frac * total_len)
+    if start_arc >= total_len * 0.98:
+        return np.empty((0, 3)), np.empty((0, 3), dtype=np.int64)
+    arcs = np.arange(start_arc, total_len * 0.98, SPIKELET_SPACING_CM)
     verts: list[np.ndarray] = []
     tris: list[list[int]] = []
     gravity = np.array([0.0, 0.0, -1.0])
@@ -181,10 +189,40 @@ def append_tassel_billboards(mesh, organ_dicts, seed: int | None = 42,
     vertex_offset = len(mesh.vertices)
     n_spike = n_branch = 0
 
+    # Project each branch's base point onto the spike skeleton to find the
+    # arc-length where it attaches. The highest such arc is the top of the
+    # branch whorl — below that, the central rachis stays bare (peduncle +
+    # branch zone), and only the spike above the whorl carries spikelets.
+    spike_organs = [o for o in organ_dicts
+                    if o.get("name", "").startswith(SPIKE_PREFIX)
+                    and o.get("skeleton") is not None]
+    branch_organs = [o for o in organ_dicts
+                     if o.get("name", "").startswith(BRANCH_PREFIX)
+                     and o.get("skeleton") is not None]
+    spike_start_arcs: dict[int, float] = {}
+    for spike in spike_organs:
+        spike_skel = np.asarray(spike["skeleton"], dtype=np.float64)
+        if len(spike_skel) < 2 or not branch_organs:
+            continue
+        spike_seg_len = np.linalg.norm(np.diff(spike_skel, axis=0), axis=1)
+        spike_arc = np.concatenate([[0.0], np.cumsum(spike_seg_len)])
+        max_arc = 0.0
+        for branch in branch_organs:
+            base = np.asarray(branch["skeleton"], dtype=np.float64)[0]
+            d2 = np.sum((spike_skel - base) ** 2, axis=1)
+            idx = int(np.argmin(d2))
+            arc_at = float(spike_arc[idx])
+            if arc_at > max_arc:
+                max_arc = arc_at
+        if max_arc > 0.0:
+            spike_start_arcs[int(spike["organ_id"])] = max_arc
+
     for organ in organ_dicts:
         name = organ.get("name", "")
+        start_arc_cm: float | None = None
         if name.startswith(SPIKE_PREFIX):
             start_frac = SPIKE_SPIKELET_START_FRAC
+            start_arc_cm = spike_start_arcs.get(int(organ["organ_id"]))
             n_spike += 1
         elif name.startswith(BRANCH_PREFIX):
             start_frac = BRANCH_SPIKELET_START_FRAC
@@ -196,7 +234,8 @@ def append_tassel_billboards(mesh, organ_dicts, seed: int | None = 42,
         if skeleton is None:
             continue
 
-        v, t = spikelet_billboards(np.asarray(skeleton), start_frac, rng)
+        v, t = spikelet_billboards(np.asarray(skeleton), start_frac, rng,
+                                   start_arc_cm=start_arc_cm)
         if len(v) == 0:
             continue
 
