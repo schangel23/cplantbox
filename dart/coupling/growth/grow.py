@@ -40,6 +40,17 @@ FA_KINETICS_PATH = Path(__file__).resolve().parent.parent / "data" / "phase_III_
 # all 15 leaves have collared (closes the ba2188fd dangling-rank bug).
 FA_DEFAULT_MAX_RANK = 15
 
+# Default 3D soil grid for setRectangularGrid + DumuxSoilPsi. The same triplet
+# must drive both the plant's seg→cell mapping (via setRectangularGrid below)
+# and the SoilPsiProvider's rsx vector (via make_provider_pool); if they
+# disagree on prod(cell_number), hm.solve raises ``__n=146 >= size=100`` at
+# the first PM substep. Exported so diurnal.py:main() can build the soil-ψ
+# pool with a grid spec that matches the plant's. See
+# PLAN_PIAFMUNCH_DUMUX_COUPLING_2026-05-09 §G5 "2026-05-09 (final)" bug #2.
+DEFAULT_SOIL_MIN_B = (-50.0, -50.0, -150.0)
+DEFAULT_SOIL_MAX_B = (50.0, 50.0, 0.0)
+DEFAULT_SOIL_CELL_NUMBER = (1, 1, 150)
+
 
 def enable_fa_on_mainstem(plant, kinetics_path=None, max_rank=FA_DEFAULT_MAX_RANK,
                           verbose=False):
@@ -331,9 +342,9 @@ def setup_successor_where(plant):
 
 def init_plant(xml_path=None, seed=None, enable_photosynthesis=True,
                cp_donor_seed=None, cp_donor_mode="draw_coherent",
-               soil_min_b=(-50.0, -50.0, -150.0),
-               soil_max_b=(50.0, 50.0, 0.0),
-               soil_cell_number=(1, 1, 150)):
+               soil_min_b=DEFAULT_SOIL_MIN_B,
+               soil_max_b=DEFAULT_SOIL_MAX_B,
+               soil_cell_number=DEFAULT_SOIL_CELL_NUMBER):
     """Create and initialize a plant without growing. For carbon-limited mode.
 
     Same setup as grow_plant() but stops after initialize().
@@ -415,9 +426,9 @@ def grow_plant(xml_path, simulation_time, min_stem_nodes=50, min_leaf_nodes=20,
                cp_donor_smooth_alpha=1.0,
                daily_met=None, T_air_default=25.0,
                mutate_lrp_pre_init=None,
-               soil_min_b=(-50.0, -50.0, -150.0),
-               soil_max_b=(50.0, 50.0, 0.0),
-               soil_cell_number=(1, 1, 150)):
+               soil_min_b=DEFAULT_SOIL_MIN_B,
+               soil_max_b=DEFAULT_SOIL_MAX_B,
+               soil_cell_number=DEFAULT_SOIL_CELL_NUMBER):
     """Grow a CPlantBox plant from calibrated XML.
 
     Args:

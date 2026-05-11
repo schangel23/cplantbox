@@ -2911,10 +2911,39 @@ Examples:
 
     # Build soil-ψ provider once and thread through all invocation paths.
     # 'fixed' is bit-identical with the legacy hardcoded -500 cm path.
+    #
+    # Grid spec: the provider's rsx vector is indexed by the same cellidx
+    # that ``MappedSegments::setRectangularGrid`` assigns to each segment
+    # inside ``grow_plant``. Both sides must agree on
+    # ``prod(cell_number)`` or ``hm.solve`` raises an OOB range-check
+    # (``__n=N >= size=M``) at the first PM substep. We import the
+    # ``DEFAULT_SOIL_*`` triplet from ``growth/grow.py`` so the two
+    # sides stay locked together.
     from ..hydraulics.soil_psi import make_provider, make_provider_pool
+    from ..growth.grow import (
+        DEFAULT_SOIL_MIN_B, DEFAULT_SOIL_MAX_B, DEFAULT_SOIL_CELL_NUMBER,
+    )
+
+    _n_cells_total = int(
+        DEFAULT_SOIL_CELL_NUMBER[0]
+        * DEFAULT_SOIL_CELL_NUMBER[1]
+        * DEFAULT_SOIL_CELL_NUMBER[2]
+    )
+    if args.soil_mode == "dumux":
+        _grid_kwargs = dict(
+            min_b=DEFAULT_SOIL_MIN_B,
+            max_b=DEFAULT_SOIL_MAX_B,
+            cell_number=DEFAULT_SOIL_CELL_NUMBER,
+        )
+    else:
+        # FixedSoilPsi / BucketSoilPsi take a flat ``n_cells`` scalar.
+        _grid_kwargs = dict(n_cells=_n_cells_total)
+
     soil_psi_provider = make_provider(args.soil_mode,
-                                      soil_psi_cm=args.soil_psi_cm)
-    print(f"  soil_mode={args.soil_mode}  psi_init={args.soil_psi_cm} cm")
+                                      soil_psi_cm=args.soil_psi_cm,
+                                      **_grid_kwargs)
+    print(f"  soil_mode={args.soil_mode}  psi_init={args.soil_psi_cm} cm  "
+          f"n_cells_total={_n_cells_total}")
 
     # Per-plant soil-ψ pool (Gate Ch1.PMDM.5). Only built when
     # ``--carbon-solver=pm`` because the PM dispatch is the only path
@@ -2931,6 +2960,7 @@ Examples:
         soil_psi_pool = make_provider_pool(
             args.soil_mode, n_plants=N_PLANTS,
             soil_psi_cm=args.soil_psi_cm,
+            **_grid_kwargs,
         )
 
     if args.uniform:
