@@ -620,7 +620,7 @@ def _leaf_wave_params(leaf_length, rng, position=None, deformation_stats=None,
     # phase_L, phase_R drawn independently) so the two blade edges undulate
     # out-of-sync instead of moving as a rigid ribbon.
     normal_amp = leaf_length * rng.uniform(0.080, 0.150) * intensity
-    normal_freq = rng.uniform(3.0, 5.0)
+    normal_freq = rng.uniform(4.0, 6.5)
     normal_phase_L = rng.uniform(0, 2 * np.pi)
     normal_phase_R = rng.uniform(0, 2 * np.pi)
     normal_phase = normal_phase_L  # legacy key kept for back-compat
