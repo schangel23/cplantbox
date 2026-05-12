@@ -2497,10 +2497,22 @@ def run_production_series_carbon(growth_days, timestep_min=60,
                 agroc_ts = None
                 if carbon is not None:
                     try:
+                        # Same provider as the peak-noon prep + PM substep
+                        # so the AgroC export sees consistent ψ_s state.
+                        # Without this kwarg ``run_photosynthesis`` falls
+                        # back to ``FixedSoilPsi(n_cells=100)`` against the
+                        # 150-cell plant grid → ``__n=146 >= size=100``
+                        # OOB (Gate Ch1.PMDM.5 server smoke, sibling of
+                        # the 354e5edb call site).
+                        agroc_pm_provider = (
+                            soil_psi_pool[pi] if soil_psi_pool is not None
+                            else soil_psi_provider
+                        )
                         hm_agroc = run_photosynthesis(
                             plant, sim_time=dart_day,
                             output_prefix=None,
-                            par_umol=1000.0, tair_c=daily_mean_tair)
+                            par_umol=1000.0, tair_c=daily_mean_tair,
+                            soil_psi_provider=agroc_pm_provider)
                         lai = extract_lai_profile(plant, n_bins=10)
                         agroc_ts = export_agroc_timestep(
                             plant, hm_agroc, carbon, lai,
@@ -2601,10 +2613,24 @@ def run_production_series_carbon(growth_days, timestep_min=60,
                 if daily_An_mol <= 0:
                     continue
 
+                # Same provider as the rest of the carbon-feedback path.
+                # Under ``--carbon-solver=s5`` ``soil_psi_pool`` is None
+                # (only built for the PM dispatch), so this falls back to
+                # the shared ``soil_psi_provider`` — which ``main()``
+                # already sized to 150 cells via ``_grid_kwargs``
+                # (1068cc99). Closes the third emitter of the Gate
+                # Ch1.PMDM.5 OOB on the S5 dispatch path.
+                s5_pm_provider = (
+                    soil_psi_pool[pi] if soil_psi_pool is not None
+                    else soil_psi_provider
+                )
+
                 # Get per-segment An shape from persistent plant
                 hm = run_photosynthesis(
                     plant, sim_time=dart_day,
-                    output_prefix=None, par_umol=1000.0, tair_c=daily_mean_tair)
+                    output_prefix=None, par_umol=1000.0,
+                    tair_c=daily_mean_tair,
+                    soil_psi_provider=s5_pm_provider)
                 if hm is None:
                     continue
 
