@@ -816,7 +816,7 @@
         <parameter name="sl_ratio" value="0.40000000000000002" />
         <parameter name="t_col_emp_Cd" value="370" />
         <parameter name="tau_extension_n" value="347.39999999999998" />
-        <parameter name="theta" value="0.49170306255655005" dev="0.073755459383482505" />
+        <parameter name="theta" value="0.65973445725385655" dev="0.098960168588078484" />
         <parameter name="tropismAge" value="14.5" />
         <parameter name="tropismExponent" value="1" />
         <parameter name="tropismN" value="3" />
@@ -1062,7 +1062,7 @@
         <parameter name="sl_ratio" value="0.40000000000000002" />
         <parameter name="t_col_emp_Cd" value="484" />
         <parameter name="tau_extension_n" value="463.19999999999999" />
-        <parameter name="theta" value="0.46757917275270316" dev="0.070136875912905475" />
+        <parameter name="theta" value="0.68417015173997141" dev="0.10262552276099572" />
         <parameter name="tropismAge" value="12.699999999999999" />
         <parameter name="tropismExponent" value="1" />
         <parameter name="tropismN" value="3" />
