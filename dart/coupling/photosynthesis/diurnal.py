@@ -1034,10 +1034,22 @@ def _run_per_plant_carbon(daily_An_per_plant, sim_day, day_dir,
                            seed=FIELD_SEED + pi,
                            enable_photosynthesis=True)
 
+        # Pick the per-plant provider for the prep solve. Same shape as
+        # ``run_production_series_carbon`` — pool entry under PM dispatch,
+        # else None (parametric path has no shared read-only provider in
+        # its signature). Closes the parametric-mode emitter at the same
+        # line that was flagged in 2026-05-12 server diagnosis but never
+        # exercised under the carbon-feedback smoke.
+        parametric_pm_provider = (
+            soil_psi_pool[pi] if soil_psi_pool is not None
+            else None
+        )
+
         # Run photosynthesis at peak to get per-segment An shape
         prefix = str(day_dir / f'carbon_photo_day{sim_day}_p{pi}')
         hm = run_photosynthesis(plant, sim_time=sim_day, output_prefix=prefix,
-                                par_umol=1000.0, tair_c=25.0)
+                                par_umol=1000.0, tair_c=25.0,
+                                soil_psi_provider=parametric_pm_provider)
 
         if hm is None:
             print(f"    Plant {pi}: photosynthesis failed, skipped")
@@ -1681,7 +1693,8 @@ def _plot_growth_series(series_dir, growth_days, series_results):
 # ============================================================================
 # Carbon-feedback growth mode
 # ============================================================================
-def compute_daily_an_uniform(plant, sim_day, tair_c=25.0):
+def compute_daily_an_uniform(plant, sim_day, tair_c=25.0,
+                              soil_psi_provider=None):
     """Compute daily-integrated An for one plant using clearsky PAR.
 
     Uses peak-hour photosynthesis at clearsky max, scaled by a cosine
@@ -1691,6 +1704,18 @@ def compute_daily_an_uniform(plant, sim_day, tair_c=25.0):
         plant: pb.MappedPlant (grown, with photosynthesis enabled).
         sim_day: Simulation day (days since sowing).
         tair_c: Air temperature [C].
+        soil_psi_provider: optional ``SoilPsiProvider`` threaded into
+            ``run_photosynthesis``. When None (default),
+            ``run_photosynthesis`` falls back to
+            ``FixedSoilPsi(n_cells=100)`` — which tripped the same
+            ``__n=146 >= size=100`` OOB the carbon-feedback path was
+            hitting (Gate Ch1.PMDM.5 server smoke 2026-05-12, 4th
+            emitter surfaced when ``run_production_series_carbon``'s
+            inter-day fill loop reached this helper for the first time
+            under ``--soil-mode=dumux``). Callers under the carbon-
+            feedback path must thread the same per-plant provider that
+            ``solve_carbon_partitioning_pm`` is using so the inter-day
+            fill An is computed against the live ψ_s state.
 
     Returns:
         An_leaf: np.array, mol CO2/d per leaf segment (daily integrated).
@@ -1718,7 +1743,8 @@ def compute_daily_an_uniform(plant, sim_day, tair_c=25.0):
     # Run photosynthesis at peak PAR
     hm = run_photosynthesis(plant, sim_time=sim_day,
                             output_prefix=None,
-                            par_umol=peak_par_umol, tair_c=tair_c)
+                            par_umol=peak_par_umol, tair_c=tair_c,
+                            soil_psi_provider=soil_psi_provider)
     if hm is None:
         return np.zeros(0)
 
@@ -2549,9 +2575,22 @@ def run_production_series_carbon(growth_days, timestep_min=60,
             for pi in range(N_PLANTS):
                 plant = persistent_plants[pi]
 
+                # Same provider the per-day PM substep uses; without it,
+                # ``run_photosynthesis`` falls back to
+                # ``FixedSoilPsi(n_cells=100)`` against the 150-cell
+                # plant grid and the inter-day fill solve degenerates to
+                # ``hm=None``, leaving fill-day growth without a
+                # carbon-feedback signal under ``--soil-mode=dumux``
+                # (Gate Ch1.PMDM.5 server smoke 2026-05-12, 4th emitter).
+                interday_pm_provider = (
+                    soil_psi_pool[pi] if soil_psi_pool is not None
+                    else soil_psi_provider
+                )
+
                 # Uniform photosynthesis for this inter-day
                 An_daily = compute_daily_an_uniform(
-                    plant, inter_day, tair_c=daily_mean_tair)
+                    plant, inter_day, tair_c=daily_mean_tair,
+                    soil_psi_provider=interday_pm_provider)
 
                 if len(An_daily) == 0:
                     print(f" p{pi}:skip", end='')

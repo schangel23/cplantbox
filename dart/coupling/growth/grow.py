@@ -625,7 +625,14 @@ def run_photosynthesis(plant, sim_time, output_prefix,
     """
     print(f"\n=== Photosynthesis Solve ===")
     print(f"  PAR={par_umol} umol m-2 s-1, T={tair_c}°C, RH={rh*100:.0f}%")
-    print(f"  Soil psi={soil_psi_cm} cm  (hydraulics: couvreur2012 / C4 params)")
+    # ``soil_psi`` banner emitted *after* the provider resolution below,
+    # so it reflects the actual rsx-driving state (provider min/max or
+    # the legacy ``FixedSoilPsi`` fallback) rather than the function's
+    # ``soil_psi_cm`` default — which can read misleadingly as
+    # ``Soil psi=-500.0 cm`` even when a DuMux provider is supplying
+    # the rsx vector. Cosmetic-only diagnosis from the 2026-05-12 G5
+    # server smoke; solve itself was always correct.
+    print(f"  Hydraulics: couvreur2012 / C4 params")
 
     from plantbox.functional.phloem_flux import PhloemFluxPython
     from plantbox.functional.PlantHydraulicParameters import PlantHydraulicParameters
@@ -661,6 +668,10 @@ def run_photosynthesis(plant, sim_time, output_prefix,
         soil_psi_provider = FixedSoilPsi(psi_cm=soil_psi_cm)
     n_cells = int(soil_psi_provider.n_cells_total)
     p_s = soil_psi_provider.get_profile(t_days=float(sim_time), depth_cm=n_cells)
+    # Resolved-state banner (see comment above the print block).
+    print(f"  Soil psi: {type(soil_psi_provider).__name__} "
+          f"(n_cells={n_cells}, "
+          f"range=[{float(p_s.min()):.1f}, {float(p_s.max()):.1f}] cm)")
 
     # --- Weather ---
     es = hm.get_es(tair_c)
