@@ -807,7 +807,7 @@
         <parameter name="lag_exp_n" value="135.77058776259162" />
         <parameter name="lb" value="0" />
         <parameter name="ldelay" value="0" />
-        <parameter name="lmax" value="73.799999999999997" />
+        <parameter name="lmax" value="73.799999999999997" dev="5.904" />
         <parameter name="ln" value="1" />
         <parameter name="phyllochron_tt" value="57.899999999999999" />
         <parameter name="r" value="4.4470000000000001" />
@@ -816,7 +816,7 @@
         <parameter name="sl_ratio" value="0.40000000000000002" />
         <parameter name="t_col_emp_Cd" value="370" />
         <parameter name="tau_extension_n" value="347.39999999999998" />
-        <parameter name="theta" value="0.65973445725385655" dev="0.098960168588078484" />
+        <parameter name="theta" value="0.65973445725385655" dev="0.052778756580308525" />
         <parameter name="tropismAge" value="14.5" />
         <parameter name="tropismExponent" value="1" />
         <parameter name="tropismN" value="3" />
@@ -930,7 +930,7 @@
         <parameter name="lag_exp_n" value="222.4940621251107" />
         <parameter name="lb" value="0" />
         <parameter name="ldelay" value="0" />
-        <parameter name="lmax" value="77.400000000000006" />
+        <parameter name="lmax" value="77.400000000000006" dev="6.192" />
         <parameter name="ln" value="1" />
         <parameter name="phyllochron_tt" value="57.899999999999999" />
         <parameter name="r" value="4.992" />
@@ -939,7 +939,7 @@
         <parameter name="sl_ratio" value="0.40000000000000002" />
         <parameter name="t_col_emp_Cd" value="429" />
         <parameter name="tau_extension_n" value="405.30000000000001" />
-        <parameter name="theta" value="0.61225467074800555" dev="0.091838200612200827" />
+        <parameter name="theta" value="0.61225467074800555" dev="0.048980373659840444" />
         <parameter name="tropismAge" value="13.699999999999999" />
         <parameter name="tropismExponent" value="1" />
         <parameter name="tropismN" value="3" />
@@ -1053,7 +1053,7 @@
         <parameter name="lag_exp_n" value="190.44384054635896" />
         <parameter name="lb" value="0" />
         <parameter name="ldelay" value="0" />
-        <parameter name="lmax" value="78.900000000000006" />
+        <parameter name="lmax" value="78.900000000000006" dev="6.312" />
         <parameter name="ln" value="1" />
         <parameter name="phyllochron_tt" value="57.899999999999999" />
         <parameter name="r" value="5.5460000000000003" />
@@ -1062,7 +1062,7 @@
         <parameter name="sl_ratio" value="0.40000000000000002" />
         <parameter name="t_col_emp_Cd" value="484" />
         <parameter name="tau_extension_n" value="463.19999999999999" />
-        <parameter name="theta" value="0.68417015173997141" dev="0.10262552276099572" />
+        <parameter name="theta" value="0.68417015173997141" dev="0.054733612139197713" />
         <parameter name="tropismAge" value="12.699999999999999" />
         <parameter name="tropismExponent" value="1" />
         <parameter name="tropismN" value="3" />
@@ -1176,7 +1176,7 @@
         <parameter name="lag_exp_n" value="255.79293376792626" />
         <parameter name="lb" value="0" />
         <parameter name="ldelay" value="0" />
-        <parameter name="lmax" value="75.700000000000003" />
+        <parameter name="lmax" value="75.700000000000003" dev="6.056" />
         <parameter name="ln" value="1" />
         <parameter name="phyllochron_tt" value="57.899999999999999" />
         <parameter name="r" value="5.7599999999999998" />
@@ -1185,7 +1185,7 @@
         <parameter name="sl_ratio" value="0.40000000000000002" />
         <parameter name="t_col_emp_Cd" value="533.5" />
         <parameter name="tau_extension_n" value="521.10000000000002" />
-        <parameter name="theta" value="0.63082006122008516" dev="0.094623009183012766" />
+        <parameter name="theta" value="0.63082006122008516" dev="0.050465604897606813" />
         <parameter name="tropismAge" value="12" />
         <parameter name="tropismExponent" value="1" />
         <parameter name="tropismN" value="3" />
@@ -1299,7 +1299,7 @@
         <parameter name="lag_exp_n" value="337.07301446295821" />
         <parameter name="lb" value="0" />
         <parameter name="ldelay" value="0" />
-        <parameter name="lmax" value="70.400000000000006" />
+        <parameter name="lmax" value="70.400000000000006" dev="5.632" />
         <parameter name="ln" value="1" />
         <parameter name="phyllochron_tt" value="57.899999999999999" />
         <parameter name="r" value="5.8810000000000002" />
@@ -1308,7 +1308,7 @@
         <parameter name="sl_ratio" value="0.40000000000000002" />
         <parameter name="t_col_emp_Cd" value="558" />
         <parameter name="tau_extension_n" value="579" />
-        <parameter name="theta" value="0.86257029118347828" dev="0.12938554367752172" />
+        <parameter name="theta" value="0.86257029118347828" dev="0.069005623294678263" />
         <parameter name="tropismAge" value="12" />
         <parameter name="tropismExponent" value="1" />
         <parameter name="tropismN" value="3" />
