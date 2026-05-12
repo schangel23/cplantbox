@@ -232,8 +232,23 @@ def _apply_deformations(
         phase_legacy = float(organ.get("wave_normal_phase", 0.0))
         phase_L = float(organ.get("wave_normal_phase_L", phase_legacy))
         phase_R = float(organ.get("wave_normal_phase_R", phase_legacy))
-        offsets_L = wave_amp * ramp * np.sin(2.0 * np.pi * freq * arc_frac + phase_L)
-        offsets_R = wave_amp * ramp * np.sin(2.0 * np.pi * freq * arc_frac + phase_R)
+        # Tip taper on the wave ramp: fade to zero over the last 15 % of arc
+        # so the hard tip pinch at u=1 (cps_local[-1, :, :] := midrib) has
+        # nothing high-amplitude to collapse. Without this the penultimate
+        # row carries the full sine peak and the final pinch yanks the tip
+        # back to the midrib over one CP step → visible hook/kink.
+        tip_off = np.clip((1.0 - arc_frac) / 0.15, 0.0, 1.0)
+        # Per-station local width: wave_amp is set proportional to leaf
+        # length (build_wave_params) but the blade tapers to ~1 % width by
+        # the tip, so a uniform amp produces a displacement that is many
+        # blade-widths large near the apex. Scale by the input CP's half-
+        # width relative to its peak so wave shrinks naturally with width.
+        edge_off = np.linalg.norm(cps[:, 0, :] - cps[:, N_V // 2, :], axis=1)
+        w_max = float(edge_off.max()) if edge_off.size else 0.0
+        width_frac = (edge_off / w_max) if w_max > 1e-6 else np.ones_like(edge_off)
+        station_gain = ramp * tip_off * width_frac
+        offsets_L = wave_amp * station_gain * np.sin(2.0 * np.pi * freq * arc_frac + phase_L)
+        offsets_R = wave_amp * station_gain * np.sin(2.0 * np.pi * freq * arc_frac + phase_R)
         for j in range(N_V):
             v = _V_PARAMS[j]
             offsets_j = (1.0 - v) * offsets_L + v * offsets_R
