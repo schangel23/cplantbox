@@ -42,15 +42,6 @@ from .canonical_cp_grid import (
 # Sentinel for "no deformation applied to this CP column".
 _V_PARAMS = np.linspace(0.0, 1.0, N_V)  # (5,) canonical v positions
 
-# Tip-straighten knob — attenuates the leaf-local droop axis (y-component)
-# of the CP grid over the last 15 % of arc so the apex flattens. The
-# parametric leaf-shape's m_y(u) spline carries an MF3D-baked downward tip
-# arch (anatomically correct for mature maize), which on a 70+ cm
-# cantilever reads as ~10–15 cm of tip drop and can look excessive on
-# rendered blades. 0.0 = no change (bit-identical). 1.0 = perfectly
-# straighten the last 15 % of arc.
-NURBS_TIP_STRAIGHTEN = float(os.environ.get("NURBS_TIP_STRAIGHTEN", "0.0"))
-
 # Tip monotone-z knob — clamps the midrib's leaf-local +z component
 # (along-axis) so it never decreases between consecutive u-stations.
 # The parametric leaf shape's m_z(u) spline overshoots in the last 25 %
@@ -486,17 +477,6 @@ def loft_leaf_nurbs(
             # an oval blunt instead of a point.
             if not rounded_tip:
                 cps_local[-1, :, :] = midrib_col[-1, 0, :]
-
-            # Optional tip-straighten: attenuate the droop axis (y-local) over
-            # the last 15 % of arc so the apex doesn't curl down as steeply.
-            # See module-level NURBS_TIP_STRAIGHTEN constant.
-            if NURBS_TIP_STRAIGHTEN > 0.0 and not rounded_tip:
-                u_rows = np.linspace(0.0, 1.0, cps_local.shape[0])
-                for i, u in enumerate(u_rows):
-                    if u > 0.85:
-                        t = (u - 0.85) / 0.15
-                        atten = 1.0 - NURBS_TIP_STRAIGHTEN * t
-                        cps_local[i, :, 1] *= atten
 
         # Muted procedural deformations in leaf-local frame. The base shape
         # already carries the data-driven blade curvature; this pass adds
