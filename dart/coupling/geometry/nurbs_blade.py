@@ -51,6 +51,18 @@ _V_PARAMS = np.linspace(0.0, 1.0, N_V)  # (5,) canonical v positions
 # straighten the last 15 % of arc.
 NURBS_TIP_STRAIGHTEN = float(os.environ.get("NURBS_TIP_STRAIGHTEN", "0.0"))
 
+# Tip monotone-z knob — clamps the midrib's leaf-local +z component
+# (along-axis) so it never decreases between consecutive u-stations.
+# The parametric leaf shape's m_z(u) spline overshoots in the last 25 %
+# of arc because the knot vector has a wide 0.25-wide gap with no
+# interior knots between u=0.75 and u=1.0; the resulting fit can curve
+# the midrib backwards (J-hook), producing the "drastic tip droop"
+# artifact on mature blades. When enabled, any row whose midrib z would
+# go below the previous max is shifted forward in +z to maintain
+# monotonicity; the entire cross-section moves with its midrib.
+# 0 = disabled (bit-identical default). 1 = enabled.
+NURBS_TIP_MONOTONE_Z = bool(int(os.environ.get("NURBS_TIP_MONOTONE_Z", "0")))
+
 
 def _compute_arc_lengths(skeleton: np.ndarray) -> np.ndarray:
     diffs = np.diff(skeleton, axis=0)
@@ -388,6 +400,24 @@ def loft_leaf_nurbs(
         cps_local[..., 0] *= width_maturity   # lateral (blade width)
         cps_local[..., 1] *= scale            # droop axis
         cps_local[..., 2] *= scale            # midrib-along-tangent
+
+        if NURBS_TIP_MONOTONE_Z:
+            # Monotonise the midrib's along-axis (z-local). The parametric
+            # leaf-shape spline overshoots in the last 25 % of arc and can
+            # curve the midrib backward in +z (J-hook), producing the
+            # drastic tip-droop artifact on mature blades. Force m_z to
+            # be non-decreasing along u by shifting every row whose midrib
+            # z falls below the running max forward in z to match it; the
+            # full cross-section moves with its midrib so the offset CPs
+            # stay attached.
+            mid_col_idx = cps_local.shape[1] // 2
+            z_max_so_far = float(cps_local[0, mid_col_idx, 2])
+            for i in range(1, cps_local.shape[0]):
+                z_mid_i = float(cps_local[i, mid_col_idx, 2])
+                if z_mid_i < z_max_so_far:
+                    cps_local[i, :, 2] += (z_max_so_far - z_mid_i)
+                else:
+                    z_max_so_far = z_mid_i
 
         # Tip taper (mirror of the legacy path in cplantbox_adapter.py:991):
         # library-path CPs inherit the scanned plant's tip profile directly.
