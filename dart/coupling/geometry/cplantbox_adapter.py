@@ -652,6 +652,13 @@ def _leaf_wave_params(leaf_length, rng, position=None, deformation_stats=None,
         edge_ruffle_amp *= scale
         fold_amp *= scale
 
+    if NURBS_WAVE_GAIN != 1.0:
+        normal_amp *= NURBS_WAVE_GAIN
+        lateral_amp *= NURBS_WAVE_GAIN
+        edge_ruffle_amp *= NURBS_WAVE_GAIN
+        fold_amp *= NURBS_WAVE_GAIN
+        curl_amp *= NURBS_WAVE_GAIN
+
     return {
         "wave_normal_amp": normal_amp,
         "wave_normal_freq": normal_freq,
@@ -1074,6 +1081,15 @@ SENESCENCE_FREQ_BOOST = 0.5
 # senescent leaves should not get *more* wave than mature ones.
 NURBS_WAVE_MUTE_BASELINE = 0.85
 NURBS_CURL_MUTE_BASELINE = 0.85
+
+# Global wave-gain multiplier applied inside build_wave_params() to the five
+# amplitude knobs (wave_normal_amp, wave_lateral_amp, edge_ruffle_amp,
+# fold_amp, curl_amp). 1.0 is bit-identical; >1.0 amplifies wave/curl/ruffle
+# on every leaf. Mature bias is preserved by the upstream `intensity`
+# (length-based) and downstream `nurbs_maturity**0.6` damping in the lofter,
+# so young/whorl leaves stay attenuated even at high gain. Does NOT touch
+# twist_max (rotation, not amplitude) or gutter_depths (set elsewhere).
+NURBS_WAVE_GAIN = 1.0
 
 
 def _senescence_progress(position, plant_tt, species="maize"):
