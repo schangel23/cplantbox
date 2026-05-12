@@ -101,7 +101,8 @@ def solve_carbon_partitioning_pm(plant, An_per_leaf_seg, Tair_C=25.0,
                                   pm_filename=None,
                                   pm_atol=1e-6, pm_rtol=1e-4,
                                   Vmaxloading=0.20, beta_loading=2.0,
-                                  solver=32, soil_psi_provider=None):
+                                  solver=32, soil_psi_provider=None,
+                                  inject_an_target=False):
     """Run a 24-substep PiafMunch loop and return an S5-shaped carbon dict.
 
     Args:
@@ -146,6 +147,23 @@ def solve_carbon_partitioning_pm(plant, An_per_leaf_seg, Tair_C=25.0,
             responsible for aligning ``provider._t_last_days`` with
             ``day`` before this function is called (the production
             diurnal pipeline owns this in G5).
+        inject_an_target: when ``True``, rescale ``hm.Ag4Phloem`` after
+            every per-substep ``hm.solve`` so the substep-integrated
+            ``AnSum_suc`` matches the daily-uniform rate implied by
+            ``An_per_leaf_seg`` (the diurnal-pipeline integral). Closes
+            the design mismatch where PM's internal photosynthesis runs
+            at constant ``par_umol`` for 24 h and over-produces by
+            ~25× relative to the diurnal-integrated daily An (see
+            ``PLAN_PIAFMUNCH_DUMUX_COUPLING_2026-05-09 §G5
+            "2026-05-11 (final-2)"``). The native FvCB solve still runs
+            (its xylem-water solution drives transpiration / RWU /
+            ψ_leaf — that path is unaffected); only the phloem-loading
+            input ``Ag4Phloem`` is overridden. Native FvCB's per-node
+            shape is preserved (Vcmax-dominated above light saturation,
+            so PAR=600 vs PAR=1000 give near-identical shape); only
+            the total magnitude is forced to the diurnal target.
+            Default ``False`` for backwards compatibility with the
+            calibration tests and ``pm_notebook_loop`` pattern.
 
     Returns:
         carbon_result dict with the same keys as
@@ -261,6 +279,20 @@ def solve_carbon_partitioning_pm(plant, An_per_leaf_seg, Tair_C=25.0,
     Q_meso_first = 0.0
     Q_S_meso_first = 0.0
 
+    # Diurnal An target (mmol Suc/d, plant-total daily-uniform rate). Used
+    # only when ``inject_an_target=True``; otherwise the substep loop's
+    # native FvCB result drives Ag4Phloem and the value is unused.
+    # Convention: ``sum(An_per_leaf_seg) * 1000`` is the daily An in mmol
+    # CO2 (mol→mmol); dividing by SUC_TO_CO2 = 12 converts to mmol Suc.
+    # Treating the daily total as a constant rate over a 1-day window
+    # gives a per-substep instantaneous rate equal to the daily total
+    # (in mmol Suc/d units), so substep integration with dt=1/n_substeps
+    # over n_substeps substeps reproduces the daily target.
+    an_target_mmol_suc_per_day = (
+        float(np.sum(An_per_leaf_seg)) * 1000.0 / SUC_TO_CO2
+        if inject_an_target else 0.0
+    )
+
     # Gate Ch1.PMDM.3 conservation diagnostics: accumulate per-substep
     # transpiration (sum of leaf radial fluxes) and root water uptake
     # (sum of root-segment radial fluxes mapped to a soil cell). Tracked
@@ -355,6 +387,22 @@ def solve_carbon_partitioning_pm(plant, An_per_leaf_seg, Tair_C=25.0,
                     psi_leaf_max_cm = sub_max
                 psi_leaf_mean_sum += float(np.mean(leaf_psi))
                 psi_leaf_mean_count += 1
+
+        # 1e. Optional Ag4Phloem injection (Gate Ch1.PMDM.5 G5.3 fix).
+        # Override the constant-PAR FvCB output with the diurnal-pipeline
+        # daily An, rescaling per-node so the substep-integrated AnSum_suc
+        # reproduces the daily target. Shape (per-node weighting) is
+        # preserved from native FvCB; only the magnitude is forced.
+        # ``hm.Ag4Phloem`` is bound to a C++ vector via the
+        # ``def_readwrite`` pybind exposure (see PyPlantBox.cpp:1287);
+        # assigning a Python list overwrites the underlying vector,
+        # which ``hm.startPM`` then reads as the per-node loading rate.
+        if inject_an_target and an_target_mmol_suc_per_day > 0:
+            ag_native = np.asarray(hm.Ag4Phloem, dtype=float)
+            current_total = float(np.sum(ag_native))
+            if current_total > 1e-12:
+                scale = an_target_mmol_suc_per_day / current_total
+                hm.Ag4Phloem = (ag_native * scale).tolist()
 
         # 2. Accumulate An (notebook pattern: AnSum += sum(Ag4Phloem) * dt).
         Ag = np.array(hm.Ag4Phloem)

@@ -1081,6 +1081,7 @@ def _run_per_plant_carbon(daily_An_per_plant, sim_day, day_dir,
                     day=sim_day, warm_start=ws_pi,
                     gdd_accumulated=gdd_accumulated,
                     soil_psi_provider=pm_provider,
+                    inject_an_target=True,
                 )
             else:
                 carbon = solve_carbon_partitioning(
@@ -2432,6 +2433,7 @@ def run_production_series_carbon(growth_days, timestep_min=60,
                         warm_start=per_plant_warm_starts[pi] or None,
                         gdd_accumulated=gdd_accumulated,
                         soil_psi_provider=pm_provider,
+                        inject_an_target=True,
                     )
                 else:
                     carbon = solve_carbon_partitioning(

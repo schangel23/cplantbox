@@ -144,6 +144,53 @@ def test_pm_v3_24substep_smoke(v3_plant):
         f"{result['stem_storage_mmol']:.3f}")
 
 
+def test_pm_inject_an_target_matches_diurnal_total(v3_plant):
+    """Gate Ch1.PMDM.5 G5.3 fix: ``inject_an_target=True`` rescales the
+    per-substep ``Ag4Phloem`` so the substep-integrated ``An_total_mmol``
+    matches the diurnal-pipeline target ``An_total_mmol_target`` within
+    tight tolerance. Closes the design mismatch where PM's native FvCB
+    runs at constant ``par_umol`` for 24 h and over-produces by ~25×
+    relative to the diurnal-integrated daily An (PLAN_PIAFMUNCH_DUMUX_
+    COUPLING_2026-05-09 §G5 "2026-05-11 (final-2)"). Backwards
+    compatibility: ``inject_an_target=False`` (default) preserves the
+    legacy constant-PAR behaviour exercised by every other test in this
+    file.
+
+    The test uses an above-maintenance injection (25 mmol CO2/d ≈
+    natural V3 PAR-600 production) so PM's mass-balance closes within
+    the usual 5% gate. Below-maintenance injection (e.g. 1-2 mmol CO2/d,
+    which is what the Ch1 diurnal pipeline produces for early V-stage
+    maize) is a legitimate carbon-limited regime where PM correctly
+    reports the supply / demand imbalance as a non-zero mb residual —
+    that's PM honestly diagnosing starvation, not a code bug. Covered
+    informally by production smokes; not asserted here so the test
+    remains a clean unit test of the injection mechanism itself.
+    """
+    An = _synth_an_per_leaf(v3_plant, an_total_mol=0.025)  # 25 mmol CO2/d
+    result = solve_carbon_partitioning_pm(
+        v3_plant, An, Tair_C=20.75, day=21,
+        n_substeps=24, inject_an_target=True,
+    )
+    assert result is not None, "PM solver returned None under injection"
+    target = result["An_total_mmol_target"]
+    produced = result["An_total_mmol"]
+    assert target > 0, f"target should be positive, got {target}"
+    assert produced > 0, f"produced should be positive, got {produced}"
+    rel_err = abs(produced - target) / target
+    assert rel_err < 0.01, (  # 1% — scaling is per-substep multiplicative
+        f"injection failed: target={target:.4f} mmol CO2, "
+        f"produced={produced:.4f} mmol CO2, rel_err={rel_err:.2%}"
+    )
+    # Mass balance closes under above-maintenance injection.
+    mb = abs(result["mass_balance_residual_pct"])
+    assert mb < 5.0, (
+        f"PM mass-balance residual under injection {mb:.2f}% exceeds 5%; "
+        f"AnSum={result['total_An_mmol_suc']:.3f}, "
+        f"Rm={result['Rm_total_mmol']:.3f}, "
+        f"Rg={result['Rg_total_mmol']:.3f}"
+    )
+
+
 def test_pm_idempotent_wrap_does_not_clobber_demand():
     """Lock #6 + #9 wrap policy: running PM on a plant that's already
     been wrapped (e.g. by run_production_series_carbon's bootstrap)
