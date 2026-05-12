@@ -1089,7 +1089,7 @@ NURBS_CURL_MUTE_BASELINE = 0.85
 # (length-based) and downstream `nurbs_maturity**0.6` damping in the lofter,
 # so young/whorl leaves stay attenuated even at high gain. Does NOT touch
 # twist_max (rotation, not amplitude) or gutter_depths (set elsewhere).
-NURBS_WAVE_GAIN = 1.0
+NURBS_WAVE_GAIN = float(os.environ.get("NURBS_WAVE_GAIN", "1.0"))
 
 
 def _senescence_progress(position, plant_tt, species="maize"):
