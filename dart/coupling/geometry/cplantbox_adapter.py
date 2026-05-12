@@ -2186,8 +2186,14 @@ def extract_organs_for_lofter(plant, min_stem_nodes=50, min_leaf_nodes=20,
                 # young_morph='off' gives ym_fade_end=None which skips
                 # the whole block, leaving mature regression bit-identical.
                 THETA_YOUNG_FROM_STEM = math.radians(5.0)  # near-vertical = 5° off stem axis (was 8°, pushed for tighter whorl)
-                M_YOUNG_LO = 0.95   # below: fully young theta (collar emergence at m≈0.95)
-                M_YOUNG_HI = 0.99   # above: fully mature theta_rank (4% smoothing window)
+                # Window widened 2026-05-12 from [0.95, 0.99] → [0.80, 1.00]: the
+                # 4 % window was C¹ continuous but invisible because FA growth
+                # lands maturity at 0.92 one day and 1.00 the next, skipping the
+                # interior entirely → leaf snapped from vertical to splayed in
+                # one render frame (slot-3 world dx pop 5.16 → 31.78 cm at
+                # day 57→58, see DIAG_MAIZE_LEAF_BOTTOM_HEAVY_2026-05-12).
+                M_YOUNG_LO = 0.80   # below: fully young theta
+                M_YOUNG_HI = 1.00   # above: fully mature theta_rank
                 collar_tangent_out = np.array([tangent.x, tangent.y, tangent.z],
                                               dtype=np.float64)
                 # Seedling first leaf: use the tropism-evolved skeleton
