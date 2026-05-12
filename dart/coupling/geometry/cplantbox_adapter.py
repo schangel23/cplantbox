@@ -979,19 +979,18 @@ def _slerp_tangent(t_curr: np.ndarray, t_par: np.ndarray, alpha: float) -> np.nd
     return out / n if n > 1e-12 else t_curr
 
 
-# Per-position GDD onset for the senescence wave. Onsets propagate from base
-# to top at ~150 °Cd per leaf rank, so positions 0–2 senesce around V7–V11
-# (700–1000 °Cd) and the wave reaches the ear-zone leaves (pos 6–8) only
-# around VT/R1 (1600–1900 °Cd). At physiological maturity (~R6, TT ≈ 1900
-# °Cd) about half the canopy is actively senescing while the upper leaves
-# are still healthy — matches the field-observed acropetal senescence
-# pattern. Beyond pos 15 the dict returns None and ``_senescence_progress``
-# stays at 0 (CPlantBox shoot tops out at 16 leaves under FA-on calibration).
+# Per-position GDD onset for the senescence wave. Only the two basal leaves
+# (positions 0 and 1) carry visible senescent deformation in the render —
+# this matches the field-observed pattern where the very lowest blades
+# brown and droop first while the rest of the canopy stays green well past
+# physiological maturity. Positions 2+ omitted from the dict so
+# ``_senescence_progress`` returns 0 for them (no senescence rotation,
+# no wave/freq boost, no width/length shrink). CPlantBox shoot tops out
+# at 16 leaves under FA-on calibration; this is intentionally a flat-top
+# trim, not an off-by-onset.
 MAIZE_SENESCENCE_ONSET_TT = {
-    0: 700.0,  1:  850.0,  2: 1000.0,  3: 1150.0,
-    4: 1300.0, 5: 1450.0,  6: 1600.0,  7: 1750.0,
-    8: 1900.0, 9: 2050.0, 10: 2200.0, 11: 2350.0,
-   12: 2500.0, 13: 2650.0, 14: 2800.0, 15: 2950.0,
+    0: 700.0,
+    1: 850.0,
 }
 # GDD span R1 → R4. Drives the senescence-progress scalar ρ ∈ [0, 1].
 SENESCENCE_SPAN_TT = 800.0
@@ -1026,16 +1025,16 @@ SENESCENCE_BASAL_FLOOR = 0.0
 # that naturally emerges at +60° drops toward horizontal then below.
 MIDRIB_ROLL_DEG = 0.0                  # disabled — no midrib-axis flip
 SENESCENCE_DROOP_BASE_DEG = 0.0        # no immediate snap; pitch ramps from 0
-SENESCENCE_DROOP_PROGRESS_DEG = 90.0   # ρ=1 → 90° pitch (a +60° leaf reaches
-                                        # -30° world pitch; basal leaves drape
-                                        # toward / onto the soil)
+SENESCENCE_DROOP_PROGRESS_DEG = 45.0   # ρ=1 → 45° pitch (halved from 90°);
+                                        # basal leaves drop to horizontal-ish
+                                        # rather than draping onto the soil
 # Arch flattening — perpendicular (local +y) component of CPs scaled by
 # (1 - FLATTEN·√ρ). Sqrt curve flattens FAST in the moderate-ρ band
 # (0.3–0.7) where pitch is enough to look senescent but the natural arch
 # is still big enough to read as a J-hook. Low-ρ leaves (just senescing)
 # keep most of their arch so they still look alive-ish.
 # 0.0 = keep natural arch; 1.0 = fully flatten at ρ=1.
-SENESCENCE_ARCH_FLATTEN = 1.0
+SENESCENCE_ARCH_FLATTEN = 0.5
 # Wilting strength: factor on wave/curl/ruffle/fold amps vs. mature
 # baseline, scaled (1 + BOOST·ρ). With BOOST=0.5 + RHO_CEILING=1.0 the
 # effective max is 1.5×. Softened from 1.5 (which gave 2.5× and still
@@ -1044,7 +1043,7 @@ SENESCENCE_ARCH_FLATTEN = 1.0
 # an angular quantity and the lofter rotates the cross-section frame
 # globally — boosting past ~70° flips the blade on its side and yields
 # a midrib ridge with flat triangulated cheeks.
-SENESCENCE_WILT_BOOST = 0.5
+SENESCENCE_WILT_BOOST = 0.25
 # Width/size collapse (Item 6, PLAN_GEOMETRY_FIDELITY_2026-04-22). At ρ=1 the
 # blade shrinks to the floor. Width shrink applied to cps_local x-axis
 # (lateral) and to the legacy widths array. Length shrink applied to cps_local
@@ -1068,7 +1067,7 @@ SENESCENCE_GROUND_Z = -200.0
 # 1.5× → wave freq ~5.3, curl freq ~3.0. Softened from 1.5 (which hit
 # 2.5× = ~9 cycles/blade and produced fractal crinkle the n_cross=5–7
 # tessellation couldn't resolve, surfacing as triangulated shards).
-SENESCENCE_FREQ_BOOST = 0.5
+SENESCENCE_FREQ_BOOST = 0.25
 # Baseline wave mute applied to NURBS-backend leaves (even mature/turgid).
 # Original value 0.35 was calibrated when the library CPs were assumed to
 # carry most of the surface detail, but mature blades looked glassy-smooth.
