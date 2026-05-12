@@ -1076,7 +1076,7 @@ SENESCENCE_FREQ_BOOST = 0.5
 # twist baseline. The earlier ρ-lerp toward 1.0 was removed because
 # stacked on top of WILT_BOOST it pushed senescent amps to ~3× mature —
 # senescent leaves should not get *more* wave than mature ones.
-NURBS_WAVE_MUTE_BASELINE = 0.85
+NURBS_WAVE_MUTE_BASELINE = 1.0
 NURBS_CURL_MUTE_BASELINE = 0.85
 
 # Global wave-gain multiplier applied inside build_wave_params() to the two
