@@ -652,9 +652,11 @@ def _leaf_wave_params(leaf_length, rng, position=None, deformation_stats=None,
         edge_ruffle_amp *= scale
         fold_amp *= scale
 
-    if NURBS_WAVE_GAIN != 1.0:
-        normal_amp *= NURBS_WAVE_GAIN
-        lateral_amp *= NURBS_WAVE_GAIN
+    # NURBS_WAVE_GAIN is no longer applied here. It is applied in
+    # nurbs_blade._apply_deformations, gated by per-leaf maturity AND
+    # plant TT so the gain only amplifies mature blades on mature plants
+    # and leaves young blades / young plants on their calibrated profile.
+    # Default gain=1.0 remains a no-op everywhere.
 
     return {
         "wave_normal_amp": normal_amp,
@@ -1079,17 +1081,10 @@ SENESCENCE_FREQ_BOOST = 0.5
 NURBS_WAVE_MUTE_BASELINE = 1.0
 NURBS_CURL_MUTE_BASELINE = 0.85
 
-# Global wave-gain multiplier applied inside build_wave_params() to the two
-# undulation knobs (wave_normal_amp, wave_lateral_amp). 1.0 is bit-identical;
-# >1.0 amplifies the sinusoidal blade undulation on every leaf. Mature bias
-# is preserved by the upstream `intensity` (length-based) and downstream
-# `nurbs_maturity**0.6` damping in the lofter, so young/whorl leaves stay
-# attenuated even at high gain.
-#
-# Does NOT touch curl_amp, edge_ruffle_amp, or fold_amp: those have
-# tip-concentrated spatial ramps (curl uses a squared tip ramp; ruffle/fold
-# ramp toward the apex) so scaling them with the wave gain produces visible
-# tip artifacts. Use the per-field knob if you also want those amplified.
+# NURBS_WAVE_GAIN now lives in nurbs_blade.py (applied inside
+# _apply_deformations, gated by per-leaf maturity + plant TT so gain
+# affects mature blades on mature plants only). Constant kept here for
+# back-compat / discoverability.
 NURBS_WAVE_GAIN = float(os.environ.get("NURBS_WAVE_GAIN", "1.0"))
 
 
@@ -2605,6 +2600,7 @@ def extract_organs_for_lofter(plant, min_stem_nodes=50, min_leaf_nodes=20,
                     "mature_length": mature_length,
                     "current_length": current_length,
                     "maturity_fraction": nurbs_maturity,
+                    "plant_tt_cd": plant_tt,
                     "skeleton": current_skel,
                     "stem_radius_cm": stem_radius_cm,
                     "sheath_length_cm": sheath_length_cm,

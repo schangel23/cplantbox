@@ -54,6 +54,27 @@ _V_PARAMS = np.linspace(0.0, 1.0, N_V)  # (5,) canonical v positions
 # 0 = disabled (bit-identical default). 1 = enabled.
 NURBS_TIP_MONOTONE_Z = bool(int(os.environ.get("NURBS_TIP_MONOTONE_Z", "0")))
 
+# Global wave-amplitude multiplier applied inside _apply_deformations,
+# gated by per-leaf maturity + plant TT so the gain only amplifies mature
+# blades on mature plants. Default 1.0 collapses the gate to identity
+# (bit-identical). Touches wave_normal_amp only (the lateral knob is
+# quad-ribbon-only and not read on the NURBS path); curl, ruffle, fold
+# are excluded because their tip-concentrated ramps produce apex artifacts
+# under uniform scaling.
+NURBS_WAVE_GAIN = float(os.environ.get("NURBS_WAVE_GAIN", "1.0"))
+# Smoothstep cut-in points for the per-leaf maturity gate:
+#   maturity ≤ WAVE_GAIN_MATURITY_LO  → leaf-gate = 0
+#   maturity ≥ WAVE_GAIN_MATURITY_HI  → leaf-gate = 1
+WAVE_GAIN_MATURITY_LO = 0.5
+WAVE_GAIN_MATURITY_HI = 0.9
+# Smoothstep cut-in points for the plant-stage (TT) gate, in °Cd. The
+# effective gain is gated by BOTH per-leaf maturity AND plant TT, so even
+# a fully-mature lower-canopy leaf gets no gain until the plant itself has
+# advanced past the LO threshold. Defaults: silent below V8 (~700 °Cd),
+# full gain by tasselling (~1300 °Cd, V15+).
+WAVE_GAIN_TT_LO = 800.0
+WAVE_GAIN_TT_HI = 1300.0
+
 
 def _compute_arc_lengths(skeleton: np.ndarray) -> np.ndarray:
     diffs = np.diff(skeleton, axis=0)
@@ -223,6 +244,31 @@ def _apply_deformations(
     maturity = max(0.0, min(1.0, maturity))
     unfurl = maturity ** 0.6
 
+    # Wave gain gated by BOTH per-leaf maturity AND plant TT, multiplied.
+    # Default gain=1.0 → effective_gain ≡ 1.0 (bit-identical). Missing
+    # plant_tt_cd (legacy callers) collapses the TT gate to 1.0 so the
+    # path remains backwards-compatible.
+    if NURBS_WAVE_GAIN != 1.0:
+        t_leaf = (maturity - WAVE_GAIN_MATURITY_LO) / max(
+            1e-9, WAVE_GAIN_MATURITY_HI - WAVE_GAIN_MATURITY_LO
+        )
+        t_leaf = max(0.0, min(1.0, t_leaf))
+        leaf_gate = t_leaf * t_leaf * (3.0 - 2.0 * t_leaf)
+
+        plant_tt = organ.get("plant_tt_cd")
+        if plant_tt is None:
+            plant_gate = 1.0
+        else:
+            t_plant = (float(plant_tt) - WAVE_GAIN_TT_LO) / max(
+                1e-9, WAVE_GAIN_TT_HI - WAVE_GAIN_TT_LO
+            )
+            t_plant = max(0.0, min(1.0, t_plant))
+            plant_gate = t_plant * t_plant * (3.0 - 2.0 * t_plant)
+
+        effective_gain = 1.0 + (NURBS_WAVE_GAIN - 1.0) * leaf_gate * plant_gate
+    else:
+        effective_gain = 1.0
+
     # 1. Gutter depression on the midrib CP.
     gutter_depths = organ.get("gutter_depths")
     if gutter_depths is not None:
@@ -247,7 +293,7 @@ def _apply_deformations(
     # Each blade edge gets its own sine; cross-section interpolates linearly
     # from L (v=0) to R (v=1) so the midrib (v=0.5) sees the mean. When
     # phase_L == phase_R this collapses to the legacy rigid centre shift.
-    wave_amp = float(organ.get("wave_normal_amp", 0.0)) * unfurl
+    wave_amp = float(organ.get("wave_normal_amp", 0.0)) * unfurl * effective_gain
     if wave_amp != 0.0:
         freq = float(organ.get("wave_normal_freq", 3.5))
         phase_legacy = float(organ.get("wave_normal_phase", 0.0))
