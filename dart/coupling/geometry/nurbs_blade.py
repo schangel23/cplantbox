@@ -197,6 +197,14 @@ def _apply_deformations(
     ramp = np.clip((arc_frac - ramp_onset) / max(1e-6, 1.0 - ramp_onset), 0.0, 1.0)
     ramp = ramp * ramp  # quadratic: smooth start
 
+    # Tip-taper applied to deformations that peak at u=1 and that the hard
+    # tip pinch (cps_local[-1] := midrib) would otherwise collapse over one
+    # CP step, producing visible apex artifacts. Fades to zero over the last
+    # 15 % of arc. Applies to wave_normal, curl, twist; gutter is untouched
+    # because at u=1 the pinch collapses the whole row to a single point so
+    # gutter just shifts that one point along the midrib.
+    tip_off = np.clip((1.0 - arc_frac) / 0.15, 0.0, 1.0)
+
     # Maturity scaling (young leaves unfurl smoothly).
     maturity = float(organ.get("maturity_fraction", 1.0))
     maturity = max(0.0, min(1.0, maturity))
@@ -232,12 +240,6 @@ def _apply_deformations(
         phase_legacy = float(organ.get("wave_normal_phase", 0.0))
         phase_L = float(organ.get("wave_normal_phase_L", phase_legacy))
         phase_R = float(organ.get("wave_normal_phase_R", phase_legacy))
-        # Tip taper on the wave ramp: fade to zero over the last 15 % of arc
-        # so the hard tip pinch at u=1 (cps_local[-1, :, :] := midrib) has
-        # nothing high-amplitude to collapse. Without this the penultimate
-        # row carries the full sine peak and the final pinch yanks the tip
-        # back to the midrib over one CP step → visible hook/kink.
-        tip_off = np.clip((1.0 - arc_frac) / 0.15, 0.0, 1.0)
         # Per-station local width: wave_amp is set proportional to leaf
         # length (build_wave_params) but the blade tapers to ~1 % width by
         # the tip, so a uniform amp produces a displacement that is many
@@ -258,7 +260,7 @@ def _apply_deformations(
     # 3. Axial twist.
     twist_max = float(organ.get("twist_max", 0.0)) * unfurl
     if abs(twist_max) > 1e-6:
-        twist_angles = twist_max * ramp  # radians
+        twist_angles = twist_max * ramp * tip_off  # radians; clean tip
         for i in range(N_U):
             ang = twist_angles[i]
             if abs(ang) < 1e-9:
@@ -283,7 +285,7 @@ def _apply_deformations(
         curl_onset = float(organ.get("curl_onset", ramp_onset))
         curl_ramp = np.clip((arc_frac - curl_onset) / max(1e-6, 1.0 - curl_onset),
                             0.0, 1.0)
-        curl_ramp = curl_ramp ** 2
+        curl_ramp = curl_ramp ** 2 * tip_off  # fade to zero in the last 15 % of arc
         factors = curl_amp * curl_ramp * np.sin(2.0 * np.pi * freq * arc_frac + phase)
         for i in range(N_U):
             cps[i, 0] += (-factors[i]) * normals[i]
