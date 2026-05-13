@@ -620,13 +620,13 @@ def _leaf_wave_params(leaf_length, rng, position=None, deformation_stats=None,
     # falls; the midrib (v=0.5) stays on its skeleton. A small higher-mode
     # ripple (sin(2πv), antisymmetric S-curve) rides on top with its own
     # freq + phase to break up the rocking and add corrugation.
-    normal_amp = leaf_length * rng.uniform(0.080, 0.150) * intensity
+    normal_amp = leaf_length * rng.uniform(0.120, 0.225) * intensity
     normal_freq = rng.uniform(4.0, 6.5)
     normal_phase = rng.uniform(0, 2 * np.pi)
-    # Ripple overlay: amplitude is a small fraction of the rocking amp,
+    # Ripple overlay: amplitude is a fraction of the rocking amp,
     # frequency slightly off the rocking freq so the modes beat rather
     # than reinforce, phase independent.
-    ripple_amp_frac = rng.uniform(0.15, 0.30) * intensity
+    ripple_amp_frac = rng.uniform(0.20, 0.40) * intensity
     ripple_freq = normal_freq * rng.uniform(0.9, 1.4)
     ripple_phase = rng.uniform(0, 2 * np.pi)
 
