@@ -43,6 +43,7 @@ from dart.coupling.scripts.pm_an_rm_gap_probe import (  # noqa: E402
     probe_baleno,
     probe_psi_init,
     probe_loading,
+    probe_khyd_meso,
     _write_sidecar,
 )
 
@@ -290,9 +291,88 @@ def test_vmaxloading_probe_monotonicity():
     # The multiplier must actually do work: Rg(×100) should be at least
     # 1.5× Rg(×1). A flatter ratio means Cmeso/Mloading saturation kicks
     # in very early or the override silently no-ops.
+    #
+    # **2026-05-13 nile result**: this assertion FAILS as expected — Rg is
+    # flat (~0.04) across the entire ×1 → ×1000 sweep, falsifying the
+    # Vmaxloading-is-the-bottleneck hypothesis. The probe captures the
+    # falsification in the sidecar; the assertion is left as a sentinel
+    # so any future change that DOES make Vmaxloading the bottleneck
+    # would surface here. xfail-mark when the test infra supports it,
+    # but for now the FAIL is the diagnostic signal — see
+    # ``pm_an_rm_gap_loading.json`` and probe 5 (kHyd_S_Mesophyll) for
+    # the actual bottleneck.
     span = rg_at_100 / rg_at_1 if rg_at_1 > 0 else 0.0
     assert span > 1.5, (
         f"Rg(×100)/Rg(×1) = {span:.3f}, expected > 1.5. Either Vmaxloading "
         "override no-ops or Cmeso depletion saturates the flux very early "
-        "(reduce per-leaf An or rerun with widened multiplier grid)."
+        "(reduce per-leaf An or rerun with widened multiplier grid). "
+        "2026-05-13 known FAIL: Vmaxloading is not the production "
+        "bottleneck — see probe 5 (kHyd_S_Mesophyll meso-starch trap)."
+    )
+
+
+# ---------------------------------------------------------------------------
+# Probe 5 — kHyd_S_Mesophyll sensitivity (post probe-4 falsification)
+# ---------------------------------------------------------------------------
+
+@pytest.mark.slow
+def test_khyd_meso_probe_monotonicity():
+    """Rg must respond monotonically to opening the meso-starch trap.
+
+    The maize JSON ships ``kHyd_S_Mesophyll = 0.0`` (one-way Q_S_Mesophyll
+    sink), while ``k_S_Mesophyll = 1.0`` drains Q_meso → Q_S_meso at
+    1 d⁻¹. With no hydrolysis back to Q_meso, sucrose loaded by Q_Fl
+    gets trapped before it can reach Q_Gr — Rg starves regardless of
+    An supply. Probe 5 tests whether opening this trap restores Rg
+    response. Sweep ``kHyd_S_Mesophyll`` ∈ {0, 0.1, 1.0, 10.0} d⁻¹
+    and require that at least one positive value produces Rg > 1.5×
+    the baseline (kHyd=0) Rg.
+
+    A FAIL means the meso-starch trap is NOT the bottleneck either
+    — the calibration arc has to look further downstream
+    (k_S_ST / kHyd_S_ST sieve-tube starch dynamics, or the Rg solver
+    gate inside ``solve_carbon_partitioning`` itself).
+
+    A PASS means kHyd_S_Mesophyll is the right knob to retune in
+    Step 7, and the sidecar reports the kHyd value at which Rg
+    crosses V3 daily demand (~5 mmol Suc/d).
+    """
+    result = probe_khyd_meso(khyd_values=[0.0, 1.0, 10.0])
+    _write_sidecar(result)
+    rows = [r for r in result["rows"] if r["Rg_total_mmol"] is not None]
+    assert len(rows) >= 3, (
+        f"kHyd_meso probe lost rows to solver failure; got {len(rows)}/3. "
+        "Inspect probe sidecar for details."
+    )
+    rg_at_0 = next(r["Rg_total_mmol"] for r in rows
+                   if r["khyd_s_mesophyll"] == 0.0)
+    rg_at_1 = next(r["Rg_total_mmol"] for r in rows
+                   if r["khyd_s_mesophyll"] == 1.0)
+    rg_at_10 = next(r["Rg_total_mmol"] for r in rows
+                    if r["khyd_s_mesophyll"] == 10.0)
+
+    # Monotone-non-decreasing in kHyd (more hydrolysis = more remobilised
+    # sucrose available for Rg). 5% slack for substrate non-linearity.
+    assert rg_at_1 >= rg_at_0 * 0.95, (
+        f"Rg(kHyd=1) = {rg_at_1:.4f} < Rg(kHyd=0) = {rg_at_0:.4f} — "
+        "opening the meso-starch trap shouldn't reduce Rg."
+    )
+    assert rg_at_10 >= rg_at_1 * 0.95, (
+        f"Rg(kHyd=10) = {rg_at_10:.4f} < Rg(kHyd=1) = {rg_at_1:.4f} — "
+        "monotonicity broken between kHyd=1 and kHyd=10."
+    )
+
+    # The override must actually do work: at least one positive kHyd
+    # should give Rg ≥ 1.5× the trap-baseline. If this fails, the
+    # meso-starch trap is not the bottleneck and the calibration arc
+    # has to look further downstream (next candidates: sieve-tube
+    # starch dynamics or the Rg solver gate). The probe sidecar
+    # surfaces the diagnostic interpretation; pytest just flags the
+    # sensitivity status.
+    span = rg_at_10 / rg_at_0 if rg_at_0 > 0 else float("inf")
+    assert span > 1.5, (
+        f"Rg(kHyd=10)/Rg(kHyd=0) = {span:.3f}, expected > 1.5. The "
+        "meso-starch trap is not the bottleneck either — look at "
+        "k_S_ST / kHyd_S_ST (sieve-tube starch) or the Rg solver "
+        "downstream of Q_S_meso. See pm_an_rm_gap_khyd_meso.json."
     )

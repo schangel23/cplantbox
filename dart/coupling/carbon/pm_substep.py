@@ -104,7 +104,8 @@ def solve_carbon_partitioning_pm(plant, An_per_leaf_seg, Tair_C=25.0,
                                   solver=32, soil_psi_provider=None,
                                   inject_an_target=False,
                                   krm1_multiplier=None,
-                                  vmaxloading_multiplier=None):
+                                  vmaxloading_multiplier=None,
+                                  khyd_s_mesophyll_override=None):
     """Run a 24-substep PiafMunch loop and return an S5-shaped carbon dict.
 
     Args:
@@ -175,6 +176,25 @@ def solve_carbon_partitioning_pm(plant, An_per_leaf_seg, Tair_C=25.0,
             ``None`` leaves the production value untouched. See
             ``PLAN_CH1_PHLOEM_CALIBRATION_2026-05-13`` step 2 finding for
             the choice of Vmaxloading over Mloading / beta_loading.
+            **Probe-4 result**: Rg is flat across multipliers ×1 → ×1000
+            (sidecar ``pm_an_rm_gap_loading.json``), so Vmaxloading is
+            NOT the production bottleneck — the bottleneck is downstream
+            (see ``khyd_s_mesophyll_override``).
+        khyd_s_mesophyll_override: optional absolute override for the
+            mesophyll-starch hydrolysis rate ``hm.kHyd_S_Mesophyll``
+            (units d⁻¹). The JSON ships ``kHyd_S_Mesophyll = 0.0``, which
+            with ``k_S_Mesophyll = 1.0`` makes Q_S_Mesophyll a one-way
+            sink: any sucrose loaded by Q_Fl is trapped as meso-starch
+            and never reaches Q_Gr (PiafMunch ``odepack.cpp:220``).
+            Used by probe 5 to sweep kHyd_S_Mesophyll ∈ {0, 0.1, 1.0,
+            10.0} and locate the Rg crossover at V3 daily demand. Direct
+            value (not multiplier) because the JSON value is 0, and
+            multiplying 0 doesn't help. Default ``None`` leaves the
+            JSON value (which `pm_substep` reads via
+            ``read_phloem_parameters``) untouched. See
+            ``PLAN_CH1_PHLOEM_CALIBRATION_2026-05-13`` step 5 finding for
+            the falsification of the Vmaxloading hypothesis and the
+            pivot to meso-starch hydrolysis.
 
     Returns:
         carbon_result dict with the same keys as
@@ -270,6 +290,24 @@ def solve_carbon_partitioning_pm(plant, An_per_leaf_seg, Tair_C=25.0,
         hm.Vmaxloading = Vmaxloading
     hm.beta_loading = beta_loading
     hm.solver = solver
+    # Optional kHyd_S_Mesophyll absolute override (Ch1 phloem-loading
+    # retune probe 5). The JSON ships kHyd_S_Mesophyll = 0.0 d⁻¹, which
+    # with k_S_Mesophyll = 1.0 d⁻¹ makes Q_S_Mesophyll a one-way sink:
+    # sucrose enters at rate k_S_Mesophyll·(Cmeso − C_targMeso)·vol_meso
+    # and never leaves (kHyd_S_Mesophyll · Q_S_Mesophyll = 0 × anything
+    # = 0). Probe 4 falsified the Vmaxloading hypothesis by showing Rg
+    # flat across ×1–×1000 multipliers — the bottleneck is downstream
+    # of loading, in the meso-starch trap. Direct attribute writeback
+    # via the PyPlantBox ``def_readwrite`` binding at PyPlantBox.cpp:1404
+    # (mirrors the hm.Vmaxloading = ... pattern above). Default ``None``
+    # leaves the JSON value untouched so production runs are bit-identical
+    # with pre-probe behaviour.
+    if khyd_s_mesophyll_override is not None:
+        try:
+            hm.kHyd_S_Mesophyll = float(khyd_s_mesophyll_override)
+        except Exception as e:
+            print(f"  PM-substep: kHyd_S_Mesophyll override failed ({e}); "
+                  "using JSON default")
 
     sim_init = float(day)
     dt = 1.0 / float(n_substeps)

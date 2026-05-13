@@ -47,8 +47,19 @@ candidate causes:
       Rg, Rm, An, Rg/V3_demand, mass-balance residual. V3 daily
       growth demand under FA targets is ~5 mmol/day; locate the
       multiplier M* at which Rg first crosses that threshold.
-      M* is the candidate Vmaxloading retune for the maize JSON
-      (step 7 of PLAN_CH1_PHLOEM_CALIBRATION_2026-05-13).
+      **2026-05-13 nile result**: Rg flat across ×1 → ×1000;
+      Vmaxloading is NOT the production bottleneck. Findings
+      drove probe 5 (meso-starch trap).
+
+  Probe 5 — kHyd_S_Mesophyll sweep (Ch1 phloem-loading retune,
+      post probe-4 falsification)
+      Sweep ``khyd_s_mesophyll_override`` ∈ {0, 0.1, 1.0, 10.0} d⁻¹
+      on the same V3 plant under production conditions. The JSON
+      ships kHyd_S_Mesophyll=0, making Q_S_Mesophyll a one-way
+      sink (sucrose enters via k_S_Mesophyll=1.0 d⁻¹ but cannot
+      hydrolyse back). Probe 5 tests whether opening that trap
+      lets Rg respond to An supply. Locate the kHyd value at which
+      Rg first crosses V3 daily demand (~5 mmol/day).
 
 Each probe writes a JSON sidecar to tests/fixtures/pm_an_rm_gap_<probe>.json
 and prints a unified comparison table.
@@ -59,6 +70,7 @@ Usage (from /home/lukas/PHD/CPlantBox)::
     cpbenv/bin/python dart/coupling/scripts/pm_an_rm_gap_probe.py --probe krm1
     cpbenv/bin/python dart/coupling/scripts/pm_an_rm_gap_probe.py --probe psi_init
     cpbenv/bin/python dart/coupling/scripts/pm_an_rm_gap_probe.py --probe loading
+    cpbenv/bin/python dart/coupling/scripts/pm_an_rm_gap_probe.py --probe khyd_meso
 
 On the local box without rosi_richards, --probe psi_init skips
 automatically (gracefully reports "rosi_richards unavailable").
@@ -529,6 +541,95 @@ def probe_loading(multipliers=None) -> dict:
 
 
 # ---------------------------------------------------------------------------
+# Probe 5 — kHyd_S_Mesophyll sweep (post probe-4 falsification)
+# ---------------------------------------------------------------------------
+
+def probe_khyd_meso(khyd_values=None) -> dict:
+    if khyd_values is None:
+        khyd_values = [0.0, 0.1, 1.0, 10.0]
+    rows = []
+    print()
+    print("=" * 78)
+    print("Probe 5 — kHyd_S_Mesophyll sweep (post probe-4 falsification)")
+    print("=" * 78)
+    print(f"  V3 plant, day={V3_DAY}, Tair={TAIR_C}°C, "
+          f"FixedSoilPsi(-300 cm), advance_plant=True")
+    print(f"  Production conditions: PAR=120 (Baleno hourly-mean), "
+          f"inject_an_target=True")
+    print(f"  kHyd_S_Mesophyll values (× JSON default 0.0 d⁻¹): "
+          f"{khyd_values}")
+    print(f"  V3 demand threshold: Rg ≈ {V3_DEMAND_MMOL} mmol Suc/day")
+    print(f"  Hypothesis: opening the meso-starch trap "
+          f"(kHyd_S_Meso > 0) lets Rg respond to An supply.")
+    print()
+    for kh in khyd_values:
+        plant = _fresh_v3_plant()
+        An = _synth_an_per_leaf(plant, BALENO_DIURNAL_AN_MOL)
+        t0 = time.time()
+        result = solve_carbon_partitioning_pm(
+            plant,
+            An,
+            Tair_C=TAIR_C,
+            day=V3_DAY,
+            n_substeps=24,
+            advance_plant=True,
+            soil_psi_provider=FixedSoilPsi(psi_cm=-300.0, n_cells=150),
+            par_umol=120.0,
+            inject_an_target=True,
+            khyd_s_mesophyll_override=kh,
+        )
+        dt = time.time() - t0
+        row = _summarise(f"khyd_meso={kh}", result)
+        row["wall_s"] = round(dt, 1)
+        row["khyd_s_mesophyll"] = kh
+        if row["Rg_total_mmol"] is not None:
+            row["Rg_over_v3_demand"] = row["Rg_total_mmol"] / V3_DEMAND_MMOL
+        else:
+            row["Rg_over_v3_demand"] = None
+        rows.append(row)
+        if result is not None:
+            print(f"  kHyd={kh:5.2f}  An={row['An_total_mmol_internal']:8.3f}  "
+                  f"Rm={row['Rm_total_mmol']:8.3f}  Rg={row['Rg_total_mmol']:8.3f}  "
+                  f"Rg/V3={row['Rg_over_v3_demand']:6.3f}  "
+                  f"mb={row['mass_balance_residual_pct']:5.2f}%  "
+                  f"({dt:.0f}s)")
+        else:
+            print(f"  kHyd={kh:5.2f}  PM solver FAILED  ({dt:.0f}s)")
+
+    # Crossover-locate Rg ≥ V3_DEMAND_MMOL: at what kHyd does Rg first
+    # cross the V3 daily growth demand threshold?
+    crossover = None
+    for r in rows:
+        if r["Rg_total_mmol"] is None:
+            continue
+        if r["Rg_total_mmol"] >= V3_DEMAND_MMOL and crossover is None:
+            crossover = r["khyd_s_mesophyll"]
+    print()
+    if crossover is not None:
+        print(f"  Rg ≥ {V3_DEMAND_MMOL} mmol/d first crossed at "
+              f"kHyd_S_Mesophyll = {crossover:.2f} d⁻¹")
+        print(f"  → Step-7 candidate JSON patch: kHyd_S_Mesophyll "
+              f"0.0 → {crossover:.2f} d⁻¹")
+    else:
+        # Even if Rg doesn't cross V3 demand inside the sweep, monotonicity
+        # is the falsification flag — if Rg(kHyd=10) > Rg(kHyd=0) the trap
+        # IS the bottleneck (just needs wider sweep); if Rg stays flat,
+        # something deeper is gating.
+        rg_vals = [r["Rg_total_mmol"] for r in rows
+                   if r["Rg_total_mmol"] is not None]
+        if len(rg_vals) >= 2 and rg_vals[-1] > rg_vals[0] * 1.5:
+            print(f"  Rg < {V3_DEMAND_MMOL} mmol/d inside swept range, but "
+                  f"Rg({rg_vals[-1]:.3f}) > 1.5x Rg({rg_vals[0]:.3f}) — "
+                  "kHyd_S_Meso IS sensitive; widen the sweep upward.")
+        else:
+            print(f"  Rg < {V3_DEMAND_MMOL} mmol/d AND flat in kHyd — "
+                  "meso-starch trap is not the bottleneck either; "
+                  "next candidates: k_S_ST / kHyd_S_ST (sieve-tube starch),"
+                  " or the Rg solver gate downstream of Q_S_meso.")
+    return {"probe": "khyd_meso", "rows": rows}
+
+
+# ---------------------------------------------------------------------------
 # Driver
 # ---------------------------------------------------------------------------
 
@@ -544,7 +645,8 @@ def _write_sidecar(result: dict):
 def main():
     parser = argparse.ArgumentParser(description="Ch2 An↔Rm gap probes")
     parser.add_argument("--probe",
-                        choices=("all", "krm1", "baleno", "psi_init", "loading"),
+                        choices=("all", "krm1", "baleno", "psi_init",
+                                 "loading", "khyd_meso"),
                         default="all")
     parser.add_argument("--no-sidecar", action="store_true",
                         help="skip JSON sidecar writes (console-only output)")
@@ -561,6 +663,8 @@ def main():
             results.append(r)
     if args.probe in ("all", "loading"):
         results.append(probe_loading())
+    if args.probe in ("all", "khyd_meso"):
+        results.append(probe_khyd_meso())
 
     if not args.no_sidecar:
         print()
