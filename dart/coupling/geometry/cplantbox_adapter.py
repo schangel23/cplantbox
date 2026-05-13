@@ -614,16 +614,21 @@ def _leaf_wave_params(leaf_length, rng, position=None, deformation_stats=None,
         curl_onset = 0.15
         ramp_onset = 0.15
 
-    # Vertical undulation — midrib stays mostly straight (always hand-tuned,
-    # not captured by cross-section analysis).
-    # Independent L/R phases mirror bltree.lsy:9-10 (ZLeft, ZRight with
-    # phase_L, phase_R drawn independently) so the two blade edges undulate
-    # out-of-sync instead of moving as a rigid ribbon.
+    # Vertical undulation — abaxial/adaxial rocking. The NURBS deformation
+    # block (nurbs_blade._apply_deformations) applies a cos(πv) profile
+    # across the blade width so one half rises while the parallel half
+    # falls; the midrib (v=0.5) stays on its skeleton. A small higher-mode
+    # ripple (sin(2πv), antisymmetric S-curve) rides on top with its own
+    # freq + phase to break up the rocking and add corrugation.
     normal_amp = leaf_length * rng.uniform(0.080, 0.150) * intensity
     normal_freq = rng.uniform(4.0, 6.5)
-    normal_phase_L = rng.uniform(0, 2 * np.pi)
-    normal_phase_R = rng.uniform(0, 2 * np.pi)
-    normal_phase = normal_phase_L  # legacy key kept for back-compat
+    normal_phase = rng.uniform(0, 2 * np.pi)
+    # Ripple overlay: amplitude is a small fraction of the rocking amp,
+    # frequency slightly off the rocking freq so the modes beat rather
+    # than reinforce, phase independent.
+    ripple_amp_frac = rng.uniform(0.15, 0.30) * intensity
+    ripple_freq = normal_freq * rng.uniform(0.9, 1.4)
+    ripple_phase = rng.uniform(0, 2 * np.pi)
 
     # Lateral sway — very subtle (always hand-tuned)
     lateral_amp = leaf_length * rng.uniform(0.003, 0.008) * intensity
@@ -662,8 +667,15 @@ def _leaf_wave_params(leaf_length, rng, position=None, deformation_stats=None,
         "wave_normal_amp": normal_amp,
         "wave_normal_freq": normal_freq,
         "wave_normal_phase": normal_phase,
-        "wave_normal_phase_L": normal_phase_L,
-        "wave_normal_phase_R": normal_phase_R,
+        # Back-compat for the legacy quad-ribbon path (g1_to_g3._loft_leaf):
+        # set L/R to antiphase so even that code path gets rocking instead
+        # of the historical rigid-ribbon lift. NURBS path ignores these keys.
+        "wave_normal_phase_L": normal_phase,
+        "wave_normal_phase_R": normal_phase + np.pi,
+        # Corrugation overlay (mode-2 antisymmetric ridge across width).
+        "wave_ripple_amp_frac": ripple_amp_frac,
+        "wave_ripple_freq": ripple_freq,
+        "wave_ripple_phase": ripple_phase,
         "wave_lateral_amp": lateral_amp,
         "wave_lateral_freq": lateral_freq,
         "wave_lateral_phase": lateral_phase,
@@ -2364,6 +2376,10 @@ def extract_organs_for_lofter(plant, min_stem_nodes=50, min_leaf_nodes=20,
                     # senescent blades crinkle at high spatial frequency.
                     wave_params['wave_normal_freq'] = float(
                         wave_params.get('wave_normal_freq', 3.5)
+                    ) * freq_boost
+                    wave_params['wave_ripple_freq'] = float(
+                        wave_params.get('wave_ripple_freq',
+                                        wave_params['wave_normal_freq'] * 1.3)
                     ) * freq_boost
                     wave_params['curl_freq'] = float(
                         wave_params.get('curl_freq', 2.0)

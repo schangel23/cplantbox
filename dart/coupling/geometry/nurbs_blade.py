@@ -289,16 +289,24 @@ def _apply_deformations(
     # flat painted feature. ``midrib_amps_cm`` is still consumed
     # downstream as the trigger / gate for the optical-stripe mask.
 
-    # 2. Wave normal — independent L/R phases (bltree.lsy:9-10 ZLeft/ZRight).
-    # Each blade edge gets its own sine; cross-section interpolates linearly
-    # from L (v=0) to R (v=1) so the midrib (v=0.5) sees the mean. When
-    # phase_L == phase_R this collapses to the legacy rigid centre shift.
+    # 2. Wave normal — abaxial/adaxial rocking + small higher-mode overlay.
+    # Cross-section profile is purely antisymmetric about the midrib so one
+    # half rises while the parallel half falls (no rigid-ribbon lift). The
+    # midrib (v=0.5) stays on its skeleton. Two modes ride along the leaf:
+    #   rocking (mode 1):  prof_rock(v) = cos(π·v)        →  +1 / 0 / -1
+    #   ripple  (mode 2):  prof_rip(v)  = sin(2π·v)       →  0 / +1 / 0 / -1 / 0
+    # Each mode has its own freq + phase along u; ripple amplitude is a
+    # small fraction of the rocking amplitude (see wave_ripple_amp_frac).
+    # Higher-k modes alias on the 5-CP v-axis, so the overlay tops out at
+    # the S-curve (k=2) — sufficient for visible abaxial/adaxial corrugation
+    # without over-modeling for the CP resolution.
     wave_amp = float(organ.get("wave_normal_amp", 0.0)) * unfurl * effective_gain
     if wave_amp != 0.0:
         freq = float(organ.get("wave_normal_freq", 3.5))
-        phase_legacy = float(organ.get("wave_normal_phase", 0.0))
-        phase_L = float(organ.get("wave_normal_phase_L", phase_legacy))
-        phase_R = float(organ.get("wave_normal_phase_R", phase_legacy))
+        phase = float(organ.get("wave_normal_phase", 0.0))
+        ripple_amp_frac = float(organ.get("wave_ripple_amp_frac", 0.20))
+        ripple_freq = float(organ.get("wave_ripple_freq", freq * 1.3))
+        ripple_phase = float(organ.get("wave_ripple_phase", phase))
         # Per-station local width: wave_amp is set proportional to leaf
         # length (build_wave_params) but the blade tapers to ~1 % width by
         # the tip, so a uniform amp produces a displacement that is many
@@ -308,11 +316,15 @@ def _apply_deformations(
         w_max = float(edge_off.max()) if edge_off.size else 0.0
         width_frac = (edge_off / w_max) if w_max > 1e-6 else np.ones_like(edge_off)
         station_gain = ramp * tip_off * width_frac
-        offsets_L = wave_amp * station_gain * np.sin(2.0 * np.pi * freq * arc_frac + phase_L)
-        offsets_R = wave_amp * station_gain * np.sin(2.0 * np.pi * freq * arc_frac + phase_R)
+        rock_u = wave_amp * station_gain * np.sin(
+            2.0 * np.pi * freq * arc_frac + phase)
+        rip_u = wave_amp * ripple_amp_frac * station_gain * np.sin(
+            2.0 * np.pi * ripple_freq * arc_frac + ripple_phase)
         for j in range(N_V):
             v = _V_PARAMS[j]
-            offsets_j = (1.0 - v) * offsets_L + v * offsets_R
+            prof_rock = np.cos(np.pi * v)
+            prof_rip = np.sin(2.0 * np.pi * v)
+            offsets_j = prof_rock * rock_u + prof_rip * rip_u
             for i in range(N_U):
                 cps[i, j] += offsets_j[i] * normals[i]
 
