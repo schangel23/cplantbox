@@ -40,6 +40,16 @@ candidate causes:
       smoke's --soil-psi-cm -300 is over-stressing early-V plants
       enough to depress An below realistic field rates.
 
+  Probe 4 — Vmaxloading sweep (Ch1 phloem-loading retune)
+      Sweep ``vmaxloading_multiplier`` ∈ {1, 10, 100, 1000} on the
+      same V3 plant under production conditions (PAR=120,
+      inject_an_target=True, FixedSoilPsi(-300, 150)). Report
+      Rg, Rm, An, Rg/V3_demand, mass-balance residual. V3 daily
+      growth demand under FA targets is ~5 mmol/day; locate the
+      multiplier M* at which Rg first crosses that threshold.
+      M* is the candidate Vmaxloading retune for the maize JSON
+      (step 7 of PLAN_CH1_PHLOEM_CALIBRATION_2026-05-13).
+
 Each probe writes a JSON sidecar to tests/fixtures/pm_an_rm_gap_<probe>.json
 and prints a unified comparison table.
 
@@ -48,6 +58,7 @@ Usage (from /home/lukas/PHD/CPlantBox)::
     cpbenv/bin/python dart/coupling/scripts/pm_an_rm_gap_probe.py
     cpbenv/bin/python dart/coupling/scripts/pm_an_rm_gap_probe.py --probe krm1
     cpbenv/bin/python dart/coupling/scripts/pm_an_rm_gap_probe.py --probe psi_init
+    cpbenv/bin/python dart/coupling/scripts/pm_an_rm_gap_probe.py --probe loading
 
 On the local box without rosi_richards, --probe psi_init skips
 automatically (gracefully reports "rosi_richards unavailable").
@@ -437,6 +448,87 @@ def probe_psi_init(psi_values=None) -> Optional[dict]:
 
 
 # ---------------------------------------------------------------------------
+# Probe 4 — Vmaxloading sweep (Ch1 phloem-loading retune)
+# ---------------------------------------------------------------------------
+
+# V3 daily growth demand under FA targets (Lacointe/WOFOST anchor, refined
+# in step 6 literature audit). ~5 mmol Suc/day for a V3 maize plant; this
+# is the Rg threshold the probe locates the multiplier crossover against.
+V3_DEMAND_MMOL = 5.0
+
+
+def probe_loading(multipliers=None) -> dict:
+    if multipliers is None:
+        multipliers = [1.0, 10.0, 100.0, 1000.0]
+    rows = []
+    print()
+    print("=" * 78)
+    print("Probe 4 — Vmaxloading sweep (Ch1 phloem-loading retune)")
+    print("=" * 78)
+    print(f"  V3 plant, day={V3_DAY}, Tair={TAIR_C}°C, "
+          f"FixedSoilPsi(-300 cm), advance_plant=True")
+    print(f"  Production conditions: PAR=120 (Baleno hourly-mean), "
+          f"inject_an_target=True")
+    print(f"  Multipliers (× pm_substep.py Vmaxloading default = 0.20): "
+          f"{multipliers}")
+    print(f"  V3 demand threshold: Rg ≈ {V3_DEMAND_MMOL} mmol Suc/day")
+    print()
+    for m in multipliers:
+        plant = _fresh_v3_plant()
+        An = _synth_an_per_leaf(plant, BALENO_DIURNAL_AN_MOL)
+        t0 = time.time()
+        result = solve_carbon_partitioning_pm(
+            plant,
+            An,
+            Tair_C=TAIR_C,
+            day=V3_DAY,
+            n_substeps=24,
+            advance_plant=True,
+            soil_psi_provider=FixedSoilPsi(psi_cm=-300.0, n_cells=150),
+            par_umol=120.0,
+            inject_an_target=True,
+            vmaxloading_multiplier=m,
+        )
+        dt = time.time() - t0
+        row = _summarise(f"vmaxloading×{m}", result)
+        row["wall_s"] = round(dt, 1)
+        row["multiplier"] = m
+        if row["Rg_total_mmol"] is not None:
+            row["Rg_over_v3_demand"] = row["Rg_total_mmol"] / V3_DEMAND_MMOL
+        else:
+            row["Rg_over_v3_demand"] = None
+        rows.append(row)
+        if result is not None:
+            print(f"  Vmax×{m:6.1f}  An={row['An_total_mmol_internal']:8.3f}  "
+                  f"Rm={row['Rm_total_mmol']:8.3f}  Rg={row['Rg_total_mmol']:8.3f}  "
+                  f"Rg/V3={row['Rg_over_v3_demand']:6.3f}  "
+                  f"mb={row['mass_balance_residual_pct']:5.2f}%  "
+                  f"({dt:.0f}s)")
+        else:
+            print(f"  Vmax×{m:6.1f}  PM solver FAILED  ({dt:.0f}s)")
+
+    # Crossover-locate Rg ≥ V3_DEMAND_MMOL: at what multiplier does Rg
+    # first cross the V3 daily growth demand threshold?
+    crossover = None
+    for r in rows:
+        if r["Rg_total_mmol"] is None:
+            continue
+        if r["Rg_total_mmol"] >= V3_DEMAND_MMOL and crossover is None:
+            crossover = r["multiplier"]
+    print()
+    if crossover is not None:
+        print(f"  Rg ≥ {V3_DEMAND_MMOL} mmol/d first crossed at "
+              f"Vmaxloading×{crossover:.1f}")
+        print(f"  → Calibrated Vmaxloading ≈ 0.20 × {crossover:.1f} = "
+              f"{0.20 * crossover:.3f} mmol Suc cm⁻¹ d⁻¹ (step-7 candidate)")
+    else:
+        print(f"  Rg < {V3_DEMAND_MMOL} mmol/d across the entire swept range — "
+              "phloem loading does not close the demand gap alone; widen the "
+              "probe range or revisit Mloading / beta_loading.")
+    return {"probe": "loading", "rows": rows}
+
+
+# ---------------------------------------------------------------------------
 # Driver
 # ---------------------------------------------------------------------------
 
@@ -451,7 +543,8 @@ def _write_sidecar(result: dict):
 
 def main():
     parser = argparse.ArgumentParser(description="Ch2 An↔Rm gap probes")
-    parser.add_argument("--probe", choices=("all", "krm1", "baleno", "psi_init"),
+    parser.add_argument("--probe",
+                        choices=("all", "krm1", "baleno", "psi_init", "loading"),
                         default="all")
     parser.add_argument("--no-sidecar", action="store_true",
                         help="skip JSON sidecar writes (console-only output)")
@@ -466,6 +559,8 @@ def main():
         r = probe_psi_init()
         if r is not None:
             results.append(r)
+    if args.probe in ("all", "loading"):
+        results.append(probe_loading())
 
     if not args.no_sidecar:
         print()

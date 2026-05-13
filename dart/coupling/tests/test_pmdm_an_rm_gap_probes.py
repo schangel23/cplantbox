@@ -42,6 +42,7 @@ from dart.coupling.scripts.pm_an_rm_gap_probe import (  # noqa: E402
     probe_krm1,
     probe_baleno,
     probe_psi_init,
+    probe_loading,
     _write_sidecar,
 )
 
@@ -233,4 +234,65 @@ def test_psi_init_monotone_stress():
         f"ψ_leaf_min at -1000 ({psi_leaf_1000:.1f}) is not more negative "
         f"than at -100 ({psi_leaf_100:.1f}) — DumuxSoilPsi may not be "
         f"differentiating IC properly."
+    )
+
+
+# ---------------------------------------------------------------------------
+# Probe 4 — Vmaxloading monotonicity (Ch1 phloem-loading retune)
+# ---------------------------------------------------------------------------
+
+@pytest.mark.slow
+def test_vmaxloading_probe_monotonicity():
+    """Rg must be monotone-non-decreasing in the Vmaxloading multiplier.
+
+    PM phloem loading flux is
+        Q_Fl = Vmaxloading · len_leaf · Cmeso/(Mloading+Cmeso)
+                            · exp(-CSTi · beta_loading)
+    (PiafMunch2.cpp:201). Raising the Vmaxloading multiplier should
+    raise the per-leaf loading rate and therefore raise the daily Rg
+    integral, until either mesophyll-sucrose depletion (Cmeso → 0) or
+    sieve-tube self-feedback (high CSTi → exp(-βCSTi) → 0) saturates
+    the flux. The probe sweeps {1, 10, 100} × the production default;
+    Rg should rise monotonically across this range under V3 conditions.
+
+    A FAIL here means either ``vmaxloading_multiplier`` is silently
+    no-oping (flat Rg vs multiplier), or the JSON/kwarg layering
+    bug noted in PLAN_CH1_PHLOEM_CALIBRATION_2026-05-13 step 2 has
+    regressed (``hm.Vmaxloading = ...`` no longer hits the C++ side).
+
+    Pass/fail on the *scientific* question — does the multiplier
+    crossover at Rg ≈ 5 mmol/day land near a literature-anchored value?
+    — is read off the sidecar JSON in step 5, not gated here.
+    """
+    result = probe_loading(multipliers=[1.0, 10.0, 100.0])
+    _write_sidecar(result)
+    rows = [r for r in result["rows"] if r["Rg_total_mmol"] is not None]
+    assert len(rows) >= 3, (
+        f"Vmaxloading probe lost rows to solver failure; got {len(rows)}/3. "
+        "Inspect probe sidecar for details."
+    )
+    rg_at_1 = next(r["Rg_total_mmol"] for r in rows if r["multiplier"] == 1.0)
+    rg_at_10 = next(r["Rg_total_mmol"] for r in rows if r["multiplier"] == 10.0)
+    rg_at_100 = next(r["Rg_total_mmol"] for r in rows if r["multiplier"] == 100.0)
+
+    # Monotone-non-decreasing with 5 % slack for substrate non-linearity
+    # (mirrors the krm1 test's tolerance pattern; Q_Fl is saturable in
+    # Cmeso so a tiny non-monotonicity near the saturation knee is OK).
+    assert rg_at_10 >= rg_at_1 * 0.95, (
+        f"Rg(Vmax×10) = {rg_at_10:.4f} < Rg(Vmax×1) = {rg_at_1:.4f} — "
+        "loading multiplier appears to be no-oping or sign-flipped."
+    )
+    assert rg_at_100 >= rg_at_10 * 0.95, (
+        f"Rg(Vmax×100) = {rg_at_100:.4f} < Rg(Vmax×10) = {rg_at_10:.4f} — "
+        "loading monotonicity broken between 10× and 100×."
+    )
+
+    # The multiplier must actually do work: Rg(×100) should be at least
+    # 1.5× Rg(×1). A flatter ratio means Cmeso/Mloading saturation kicks
+    # in very early or the override silently no-ops.
+    span = rg_at_100 / rg_at_1 if rg_at_1 > 0 else 0.0
+    assert span > 1.5, (
+        f"Rg(×100)/Rg(×1) = {span:.3f}, expected > 1.5. Either Vmaxloading "
+        "override no-ops or Cmeso depletion saturates the flux very early "
+        "(reduce per-leaf An or rerun with widened multiplier grid)."
     )
