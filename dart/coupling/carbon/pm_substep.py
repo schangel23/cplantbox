@@ -103,7 +103,8 @@ def solve_carbon_partitioning_pm(plant, An_per_leaf_seg, Tair_C=25.0,
                                   Vmaxloading=0.20, beta_loading=2.0,
                                   solver=32, soil_psi_provider=None,
                                   inject_an_target=False,
-                                  krm1_multiplier=None):
+                                  krm1_multiplier=None,
+                                  vmaxloading_multiplier=None):
     """Run a 24-substep PiafMunch loop and return an S5-shaped carbon dict.
 
     Args:
@@ -165,6 +166,15 @@ def solve_carbon_partitioning_pm(plant, An_per_leaf_seg, Tair_C=25.0,
             the total magnitude is forced to the diurnal target.
             Default ``False`` for backwards compatibility with the
             calibration tests and ``pm_notebook_loop`` pattern.
+        vmaxloading_multiplier: optional uniform multiplier on the
+            ``Vmaxloading`` kwarg before it is pushed to ``hm.Vmaxloading``.
+            Mirrors ``krm1_multiplier`` (Ch2 An↔Rm probe). Used by probe 4
+            (``pm_an_rm_gap_probe.py``) to sweep the phloem-loading rate
+            constant and locate the multiplier at which Rg crosses the V3
+            daily growth demand (~5 mmol/d under FA targets). Default
+            ``None`` leaves the production value untouched. See
+            ``PLAN_CH1_PHLOEM_CALIBRATION_2026-05-13`` step 2 finding for
+            the choice of Vmaxloading over Mloading / beta_loading.
 
     Returns:
         carbon_result dict with the same keys as
@@ -243,7 +253,21 @@ def solve_carbon_partitioning_pm(plant, An_per_leaf_seg, Tair_C=25.0,
             print(f"  PM-substep: Krm1 override failed ({e}); using JSON default")
     hm.atol = pm_atol
     hm.rtol = pm_rtol
-    hm.Vmaxloading = Vmaxloading
+    # Optional Vmaxloading diagnostic override (Ch1 phloem-loading retune
+    # probe). Multiplies the per-call ``Vmaxloading`` kwarg by
+    # ``vmaxloading_multiplier`` before pushing to PiafMunch. Mirrors the
+    # ``krm1_multiplier`` plumbing pattern above; default ``None`` leaves
+    # the kwarg untouched so production runs are bit-identical with
+    # pre-probe behaviour. Used by
+    # ``dart/coupling/scripts/pm_an_rm_gap_probe.py`` (probe 4) to sweep
+    # the maize phloem-loading rate constant and locate the multiplier at
+    # which Rg ≈ V3 daily demand. See
+    # ``PLAN_CH1_PHLOEM_CALIBRATION_2026-05-13`` step 2 finding for why
+    # Vmaxloading is the rate-limiting knob (PiafMunch2.cpp:201).
+    if vmaxloading_multiplier is not None:
+        hm.Vmaxloading = float(Vmaxloading) * float(vmaxloading_multiplier)
+    else:
+        hm.Vmaxloading = Vmaxloading
     hm.beta_loading = beta_loading
     hm.solver = solver
 
