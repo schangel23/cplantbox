@@ -128,12 +128,13 @@ def test_baleno_aggregation_ratio_sane():
     result = probe_baleno()
     _write_sidecar(result)
     rows = [r for r in result["rows"] if r["An_total_mmol_internal"] is not None]
-    assert len(rows) == 2, (
-        f"Baleno probe expected 2 rows, got {len(rows)}. Solver may have "
-        "failed on one variant."
+    assert len(rows) == 3, (
+        f"Baleno probe expected 3 rows (PAR=600 native, inject, PAR=120 "
+        f"native), got {len(rows)}. Solver may have failed on one variant."
     )
     row_a = next(r for r in rows if r["label"] == "constant_par600_native_fvcb")
     row_b = next(r for r in rows if r["label"] == "inject_target_baleno_diurnal")
+    row_c = next(r for r in rows if r["label"] == "constant_par120_native_fvcb")
 
     an_internal_a = row_a["An_total_mmol_internal"]
     an_target = row_b["An_total_mmol_target"]
@@ -148,6 +149,24 @@ def test_baleno_aggregation_ratio_sane():
         f"a ratio > 500 means the An_per_leaf_seg scaling convention "
         f"is broken or canopy/PAR conditions changed dramatically. "
         f"The 173× nile measurement (2026-05-13) sits well inside the band."
+    )
+
+    # PAR-sensitivity sanity: An(PAR=120) must be measurable and not
+    # exceed An(PAR=600) (light-response monotonicity). The interpretive
+    # value (linear vs saturated regime) is read off the sidecar, not
+    # gated here.
+    an_internal_c = row_c["An_total_mmol_internal"]
+    assert an_internal_c > 0, (
+        f"PM An at PAR=120 = {an_internal_c} — FvCB returned zero/negative "
+        "An at low light; either Vcmax is misconfigured or the substep "
+        "loop bailed silently."
+    )
+    par_ratio = an_internal_c / an_internal_a
+    assert 0.05 < par_ratio < 1.10, (
+        f"An(PAR=120) / An(PAR=600) = {par_ratio:.3f}, outside the "
+        "[0.05, 1.10] sanity band. Below 0.05 → PM under-responds to low "
+        "light pathologically; above 1.10 → light response is inverted "
+        "(non-physical)."
     )
 
 

@@ -14,17 +14,24 @@ candidate causes:
       under representative An, WOFOST Krm1 is over-calibrated at V3
       cumulative-GDD scale.
 
-  Probe 2 — Baleno aggregation cross-check
-      Two PM calls on the same V3 plant:
-        (a) inject_an_target=False  → PM's native FvCB at constant
-            par_umol=600 for 24 h drives Ag4Phloem.
-        (b) inject_an_target=True   → Ag4Phloem rescaled so AnSum_suc
-            matches a Baleno-shaped diurnal An target (passed in via
-            An_per_leaf_seg).
-      Compare An_total_mmol_pm_internal vs the diurnal-realistic target.
-      A ratio ≈ 1 rules out a Baleno-integration discrepancy; a ratio
-      far from 1 (the docstring claims ~25× at par_umol=600) localises
-      the gap to the constant-PAR FvCB integration shape.
+  Probe 2 — Baleno aggregation cross-check (3 rows after 2026-05-13)
+      Three PM calls on the same V3 plant:
+        (a) inject_an_target=False, par_umol=600  → PM's native FvCB
+            at constant peak PAR drives Ag4Phloem. Reference for the
+            "PM constant-PAR over-production" magnitude (173× at V3
+            day-21 per 2026-05-13 nile measurement).
+        (b) inject_an_target=True, par_umol=600   → Ag4Phloem rescaled
+            so AnSum_suc matches a Baleno-shaped diurnal An target.
+            Asserts wiring correctness of the inject path.
+        (c) inject_an_target=False, par_umol=120  → PM native FvCB at
+            Baleno-representative diurnal-mean PAR. Disambiguation row:
+            if An(120) ≈ 0.2 × An(600) → PM is linear in PAR, the over-
+            count is constant-PAR-vs-diurnal duration. If An(120) ≈
+            An(600) → PM is light-saturated below 600, the over-count
+            is from somewhere else (FvCB constants, leaf-area, 24-h
+            vs daylight duration).
+      Compares An_total_mmol_pm_internal vs the diurnal-realistic
+      target AND the (c)/(a) ratio to disambiguate cause.
 
   Probe 3 — ψ_init sweep
       DumuxSoilPsi at ψ_init ∈ {-100, -200, -300, -500, -1000} cm,
@@ -271,6 +278,37 @@ def probe_baleno() -> dict:
               f"An_target={row_b['An_total_mmol_target']:8.3f}  "
               f"Rm/An={row_b['Rm_over_An']:6.3f}  ({dt_b:.0f}s)")
 
+    # (c) PM-internal FvCB at low PAR=120 — disambiguation row.
+    # Tests the assumption that the (a) over-production is a constant-PAR
+    # convention issue (PM stays at peak 600 µmol/m²/s for 24 h) and that
+    # a Baleno-representative *mean* PAR (~120 µmol/m²/s, the typical
+    # diurnal average over daylight hours) would give an An roughly
+    # one-fifth of (a)'s 302 mmol/day if PM's FvCB is linear in PAR below
+    # saturation. If An stays close to (a) → PM is light-saturated below
+    # 600 and the over-count comes from a different mechanism (FvCB
+    # constants, leaf-area integration, duration over a 24-h window with
+    # no dark period subtracted).
+    plant_c = _fresh_v3_plant()
+    An_c = _synth_an_per_leaf(plant_c, BALENO_DIURNAL_AN_MOL)
+    t0 = time.time()
+    res_c = solve_carbon_partitioning_pm(
+        plant_c, An_c, Tair_C=TAIR_C, day=V3_DAY, n_substeps=24,
+        advance_plant=True,
+        soil_psi_provider=FixedSoilPsi(psi_cm=-300.0, n_cells=150),
+        inject_an_target=False,
+        par_umol=120.0,
+    )
+    dt_c = time.time() - t0
+    row_c = _summarise("constant_par120_native_fvcb", res_c)
+    row_c["wall_s"] = round(dt_c, 1)
+    row_c["par_umol"] = 120.0
+    row_c["inject_an_target"] = False
+    rows.append(row_c)
+    if res_c:
+        print(f"  (c) PM native FvCB @ PAR=120  An_internal={row_c['An_total_mmol_internal']:8.3f}  "
+              f"An_target={row_c['An_total_mmol_target']:8.3f}  "
+              f"Rm/An={row_c['Rm_over_An']:6.3f}  ({dt_c:.0f}s)")
+
     if res_a and res_b:
         # The smoking gun: PM-internal An (constant PAR=600 for 24 h) /
         # diurnal-shape target. A ratio ≫ 1 quantifies the documented
@@ -281,8 +319,39 @@ def probe_baleno() -> dict:
         print(f"  PM-internal-An / Baleno-diurnal-target = {ratio:.3f}")
         print(f"  → constant-PAR PM over-produces An by {ratio:.1f}× relative "
               f"to a Baleno-integrated diurnal day.")
-        print("  (Documented in PLAN line 1297-1298; option (c) inject path"
-              " was shipped to force PM phloem-loading to the diurnal value.)")
+        print("  (V3 day-21 baseline: 173× per 2026-05-13 nile measurement;"
+              " v3 ~25× was day-130 leaf-area-scaled.)")
+
+    if res_a and res_c:
+        # PAR-sensitivity disambiguation. The expected linear-regime ratio
+        # is 120/600 = 0.20 — i.e. An at PAR=120 should be ~one-fifth of
+        # An at PAR=600 if PM's FvCB is unsaturated at PAR=600.
+        par_ratio = (row_c["An_total_mmol_internal"]
+                     / row_a["An_total_mmol_internal"])
+        print()
+        print(f"  An(PAR=120) / An(PAR=600) = {par_ratio:.3f}  "
+              f"(linear expectation: 0.20)")
+        if par_ratio < 0.40:
+            print("  → PM FvCB IS roughly linear in PAR at V3 day-21; the "
+                  "173× over-production comes from the constant-PAR=600 "
+                  "convention. Baleno's hourly-mean PAR (~120) is the "
+                  "physically correct driver; PM's constant-peak-600 "
+                  "convention over-shoots by ~5× from light intensity "
+                  "alone, plus another ~35× from the 24-h-vs-daylight "
+                  "duration mismatch.")
+        elif par_ratio > 0.80:
+            print("  → PM FvCB is LIGHT-SATURATED below PAR=600 at V3 day-21; "
+                  "An is insensitive to PAR in this regime, so the 173× "
+                  "over-production lives somewhere other than light "
+                  "intensity (FvCB Vcmax/Jmax constants, leaf-area "
+                  "integration, or the 24-h duration with no dark "
+                  "period subtracted). Baleno hourly-aggregation cross-"
+                  "check needed: compare PM-internal An vs Σ(Baleno hourly An).")
+        else:
+            print("  → PM FvCB is partially saturated at PAR=120; the gap "
+                  "is a mix of PAR sensitivity and FvCB constants. Reduce "
+                  "PAR further (~30) to fully de-light or audit Vcmax/Jmax.")
+
     return {"probe": "baleno", "rows": rows}
 
 
