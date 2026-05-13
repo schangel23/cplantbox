@@ -1,0 +1,70 @@
+{
+  "probe": "loading",
+  "rows": [
+    {
+      "label": "vmaxloading\u00d71.0",
+      "ok": true,
+      "An_total_mmol_internal": 1.7420000000000004,
+      "An_total_mmol_target": 1.7420000000000002,
+      "Rm_total_mmol": 0.8016656943589281,
+      "Rg_total_mmol": 0.06174167506185308,
+      "Rm_over_An": 0.46019844681913197,
+      "psi_leaf_min_cm": -884.3098915973776,
+      "mass_balance_residual_pct": 31.4486381779631,
+      "Q_Grmax_total_mmol": 0.22670184257180145,
+      "Rg_over_Q_Grmax": 0.2723474779094402,
+      "wall_s": 114.9,
+      "multiplier": 1.0,
+      "Rg_over_v3_demand": 0.012348335012370617
+    },
+    {
+      "label": "vmaxloading\u00d710.0",
+      "ok": true,
+      "An_total_mmol_internal": 1.7420000000000004,
+      "An_total_mmol_target": 1.7420000000000002,
+      "Rm_total_mmol": 1.138717663887741,
+      "Rg_total_mmol": 0.06396389842317012,
+      "Rm_over_An": 0.6536840780067398,
+      "psi_leaf_min_cm": -884.3109406135858,
+      "mass_balance_residual_pct": 47.11091714300885,
+      "Q_Grmax_total_mmol": 0.22670184257179357,
+      "Rg_over_Q_Grmax": 0.28214988328960566,
+      "wall_s": 122.7,
+      "multiplier": 10.0,
+      "Rg_over_v3_demand": 0.012792779684634024
+    },
+    {
+      "label": "vmaxloading\u00d7100.0",
+      "ok": true,
+      "An_total_mmol_internal": 1.7420000000000004,
+      "An_total_mmol_target": 1.7420000000000002,
+      "Rm_total_mmol": 1.2302374746599494,
+      "Rg_total_mmol": 0.06058241949908987,
+      "Rm_over_An": 0.7062212828128296,
+      "psi_leaf_min_cm": -884.3083540530203,
+      "mass_balance_residual_pct": 74.86175224145397,
+      "Q_Grmax_total_mmol": 0.22670184257181725,
+      "Rg_over_Q_Grmax": 0.26723390869616714,
+      "wall_s": 126.0,
+      "multiplier": 100.0,
+      "Rg_over_v3_demand": 0.012116483899817974
+    },
+    {
+      "label": "vmaxloading\u00d71000.0",
+      "ok": true,
+      "An_total_mmol_internal": 1.7420000000000004,
+      "An_total_mmol_target": 1.7420000000000002,
+      "Rm_total_mmol": 1.2505562914439725,
+      "Rg_total_mmol": 0.05926534487103487,
+      "Rm_over_An": 0.7178853567416603,
+      "psi_leaf_min_cm": -884.3075780769769,
+      "mass_balance_residual_pct": 32.852737889806605,
+      "Q_Grmax_total_mmol": 0.22670184257180112,
+      "Rg_over_Q_Grmax": 0.2614241869351561,
+      "wall_s": 115.5,
+      "multiplier": 1000.0,
+      "Rg_over_v3_demand": 0.011853068974206973
+    }
+  ],
+  "day": 30
+}
