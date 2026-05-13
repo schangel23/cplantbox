@@ -27,7 +27,6 @@ Usage (from /home/lukas/PHD/CPlantBox)::
 from __future__ import annotations
 
 import argparse
-import json
 import sys
 import time
 from pathlib import Path
@@ -44,6 +43,10 @@ from dart.coupling.growth.carbon_growth import (  # noqa: E402
     inject_cw_gr,
 )
 from dart.coupling.carbon.dvs_partitioning import get_daily_met  # noqa: E402
+from dart.coupling.tests.baselines._oracle_compare import (  # noqa: E402
+    per_organ_snapshot,
+    compare_against_oracle,
+)
 
 ORACLE_PATH = FIXTURES_DIR / "oracle_fa_no_carbon_day130.json"
 SEED = 7
@@ -166,97 +169,6 @@ def grow_with_carbon(bootstrap_day: int):
     return plant
 
 
-def per_organ_snapshot(plant) -> dict:
-    out = {}
-    # Use getOrgans(-1, all=True) to include pre-emergence (len=0) leaves
-    # so the §G3 comparison sees ALL spawned organs, not just emerged ones.
-    for o in plant.getOrgans(-1, True):
-        out[str(o.getId())] = {
-            "organ_type": int(o.organType()),
-            "subType": int(o.getParameter("subType")),
-            "realised_length": round(float(o.getLength()), 6),
-            "insertion_z": round(float(list(o.getNodes())[0].z) if len(o.getNodes()) else 0.0, 6),
-            "dl_backlog": round(float(o.dl_backlog), 6),
-        }
-    return out
-
-
-def compare_against_oracle(snap: dict) -> tuple[bool, list[str]]:
-    with ORACLE_PATH.open() as f:
-        oracle = json.load(f)
-
-    failures = []
-    notes = []
-
-    # Mainstem top z drift (use mainstem realised_length as proxy — same metric
-    # the oracle stores).
-    oracle_mainstem = next(
-        (v for v in oracle["organs"].values()
-         if v["organ_type"] == 3 and v["subType"] == 1),
-        None,
-    )
-    snap_mainstem = next(
-        (v for v in snap.values()
-         if v["organ_type"] == 3 and v["subType"] == 1),
-        None,
-    )
-    if oracle_mainstem and snap_mainstem:
-        delta = snap_mainstem["realised_length"] - oracle_mainstem["realised_length"]
-        line = (f"mainstem realised: oracle={oracle_mainstem['realised_length']:.4f} cm, "
-                f"with-carbon={snap_mainstem['realised_length']:.4f} cm, "
-                f"Δ={delta:+.4f} cm")
-        notes.append(line)
-        if abs(delta) > TOL_MAINSTEM_CM:
-            failures.append(f"  FAIL: |mainstem delta| {abs(delta):.4f} > {TOL_MAINSTEM_CM} cm")
-
-    # Per-leaf drift (use realised_length, ≤ 1%). Match by subType — both
-    # paths produce one leaf per FA subType (4..16) on the mainstem; raw
-    # organ IDs differ between paths because lateral creation order shifts
-    # slightly under bootstrap-then-carbon vs all-no-carbon, but the
-    # (subType → realised_length) mapping is the comparable invariant.
-    def _by_subtype(snapshot):
-        out = {}
-        for v in snapshot.values():
-            if v["organ_type"] != 4:
-                continue
-            st = v["subType"]
-            # If multiple organs share a subType (basal scalars at st=2/3),
-            # keep the longest one — that's the "primary" leaf at that rank.
-            if st not in out or v["realised_length"] > out[st]["realised_length"]:
-                out[st] = v
-        return out
-
-    oracle_by_st = _by_subtype(oracle["organs"])
-    snap_by_st = _by_subtype(snap)
-    n_leaf_pass = 0
-    n_leaf_fail = 0
-    for st, ov in sorted(oracle_by_st.items()):
-        ol = ov["realised_length"]
-        if ol <= 0:
-            continue
-        sv = snap_by_st.get(st)
-        if sv is None:
-            failures.append(
-                f"  FAIL: leaf subType={st} missing from with-carbon snapshot "
-                f"(oracle had length {ol:.2f} cm)")
-            n_leaf_fail += 1
-            continue
-        sl = sv["realised_length"]
-        pct = 100.0 * abs(sl - ol) / ol
-        line = (f"  leaf st={st}: oracle={ol:.4f} cm, with-carbon={sl:.4f} cm, "
-                f"drift={pct:.2f}%")
-        if pct > TOL_LEAF_PCT:
-            failures.append(line + f" > {TOL_LEAF_PCT}%  FAIL")
-            n_leaf_fail += 1
-        else:
-            notes.append(line)
-            n_leaf_pass += 1
-    notes.append(f"per-leaf parity: {n_leaf_pass} pass, {n_leaf_fail} fail "
-                 f"(tol={TOL_LEAF_PCT}%)")
-
-    return (len(failures) == 0), notes + failures
-
-
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--bootstrap-day", type=int, default=30,
@@ -270,7 +182,11 @@ def main():
 
     plant = grow_with_carbon(args.bootstrap_day)
     snap = per_organ_snapshot(plant)
-    ok, lines = compare_against_oracle(snap)
+    ok, lines = compare_against_oracle(
+        snap, ORACLE_PATH,
+        tol_leaf_pct=TOL_LEAF_PCT,
+        tol_mainstem_cm=TOL_MAINSTEM_CM,
+    )
 
     print()
     print("=" * 70)
