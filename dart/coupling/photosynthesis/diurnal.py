@@ -1045,10 +1045,15 @@ def _run_per_plant_carbon(daily_An_per_plant, sim_day, day_dir,
             else None
         )
 
-        # Run photosynthesis at peak to get per-segment An shape
+        # Run photosynthesis at peak to get per-segment An shape.
+        # PAR=120 = Baleno hourly-mean daylight (2026-05-13
+        # disambiguation, pm_an_rm_gap_baleno.json: An(120)/An(600)=0.171,
+        # linear regime). Constant-peak PAR over-counts daily An by ~6x
+        # and confounds loading-rate calibration; all par_umol sites in
+        # this file follow the hourly-mean convention.
         prefix = str(day_dir / f'carbon_photo_day{sim_day}_p{pi}')
         hm = run_photosynthesis(plant, sim_time=sim_day, output_prefix=prefix,
-                                par_umol=1000.0, tair_c=25.0,
+                                par_umol=120.0, tair_c=25.0,
                                 soil_psi_provider=parametric_pm_provider)
 
         if hm is None:
@@ -1128,7 +1133,7 @@ def _run_per_plant_carbon(daily_An_per_plant, sim_day, day_dir,
             try:
                 agroc_ts = export_agroc_timestep(
                     plant, hm, carbon, lai,
-                    day=sim_day, par_umol=1000.0, tair_c=25.0,
+                    day=sim_day, par_umol=120.0, tair_c=25.0,
                 )
             except Exception as e:
                 print(f"    Plant {pi} AgroC export error: {e}")
@@ -2419,7 +2424,7 @@ def run_production_series_carbon(growth_days, timestep_min=60,
             hm = run_photosynthesis(
                 plant, sim_time=dart_day,
                 output_prefix=carbon_prefix,
-                par_umol=1000.0, tair_c=daily_mean_tair,
+                par_umol=120.0, tair_c=daily_mean_tair,
                 soil_psi_provider=pm_provider)
 
             if hm is None:
@@ -2539,12 +2544,12 @@ def run_production_series_carbon(growth_days, timestep_min=60,
                         hm_agroc = run_photosynthesis(
                             plant, sim_time=dart_day,
                             output_prefix=None,
-                            par_umol=1000.0, tair_c=daily_mean_tair,
+                            par_umol=120.0, tair_c=daily_mean_tair,
                             soil_psi_provider=agroc_pm_provider)
                         lai = extract_lai_profile(plant, n_bins=10)
                         agroc_ts = export_agroc_timestep(
                             plant, hm_agroc, carbon, lai,
-                            day=dart_day, par_umol=1000.0,
+                            day=dart_day, par_umol=120.0,
                             tair_c=daily_mean_tair,
                         )
                     except Exception as e:
@@ -2669,7 +2674,7 @@ def run_production_series_carbon(growth_days, timestep_min=60,
                 # Get per-segment An shape from persistent plant
                 hm = run_photosynthesis(
                     plant, sim_time=dart_day,
-                    output_prefix=None, par_umol=1000.0,
+                    output_prefix=None, par_umol=120.0,
                     tair_c=daily_mean_tair,
                     soil_psi_provider=s5_pm_provider)
                 if hm is None:
