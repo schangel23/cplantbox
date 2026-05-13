@@ -102,7 +102,8 @@ def solve_carbon_partitioning_pm(plant, An_per_leaf_seg, Tair_C=25.0,
                                   pm_atol=1e-6, pm_rtol=1e-4,
                                   Vmaxloading=0.20, beta_loading=2.0,
                                   solver=32, soil_psi_provider=None,
-                                  inject_an_target=False):
+                                  inject_an_target=False,
+                                  krm1_multiplier=None):
     """Run a 24-substep PiafMunch loop and return an S5-shaped carbon dict.
 
     Args:
@@ -220,6 +221,26 @@ def solve_carbon_partitioning_pm(plant, An_per_leaf_seg, Tair_C=25.0,
     hm = PhloemFluxPython(plant, params_h, psiXylInit=-500, ciInit=350e-6)
     hm.read_photosynthesis_parameters(filename=get_photosynthesis_json())
     hm.read_phloem_parameters(filename=get_phloem_json())
+
+    # Optional Krm1 diagnostic override (Ch2 An↔Rm gap probe). Multiplies
+    # the scalar maintenance-respiration coefficient by ``krm1_multiplier``
+    # using PiafMunch's flat-scalar setter form ``hm.setKrm1([[value]])``
+    # (matches the legacy diagnostic pattern at
+    # ``scripts/pm_grow_plant_compat_D2.py:122`` / ``pm_qgr_shortfall_D4.py:112``).
+    # The JSON's per-organ-type (root/stem/leaf) values are NOT preserved
+    # by this code path — the scalar override replaces all three with a
+    # single value scaled from the leaf coefficient (0.030 d⁻¹), which is
+    # the dominant term for above-ground biomass. Adequate for Ch2 gap
+    # diagnosis; finer per-organ-type sweep would need a richer setter.
+    # Default ``None`` leaves the JSON values untouched so production
+    # runs are bit-identical with pre-probe behaviour.
+    if krm1_multiplier is not None:
+        m = float(krm1_multiplier)
+        wofost_leaf_default = 0.030  # d⁻¹, dominant per-organ-type coef
+        try:
+            hm.setKrm1([[wofost_leaf_default * m]])
+        except Exception as e:
+            print(f"  PM-substep: Krm1 override failed ({e}); using JSON default")
     hm.atol = pm_atol
     hm.rtol = pm_rtol
     hm.Vmaxloading = Vmaxloading
