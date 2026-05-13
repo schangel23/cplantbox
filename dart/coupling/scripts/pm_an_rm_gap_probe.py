@@ -104,6 +104,12 @@ from dart.coupling.hydraulics.soil_psi import (  # noqa: E402
 V3_DAY = 21
 SEED = 42
 TAIR_C = 20.75  # matches test_g5_acceptance.BABST_MET T_mean
+# Probe day can be overridden per-call (default = V3_DAY) so probes 4 + 5
+# can be re-run at G6-fast bootstrap day-30 to disambiguate plant-age
+# vs structural bottlenecks. The 2026-05-13 falsifications at V3_DAY=21
+# (Rg flat across Vmaxloading ×1→×1000 AND kHyd_S_Meso 0→10) leave
+# open whether Q_Grmax scales with plant age enough to flip the
+# min(Fu_lim, Q_Grmax) clip from Q_Grmax-limited to loading-limited.
 # Constant met fixture mirroring test_g5_acceptance — same V3 plant state.
 BABST_MET = {
     d: {"T_mean_C": 20.75, "T_min_C": 19.0, "T_max_C": 22.0,
@@ -119,11 +125,11 @@ BABST_MET = {
 BALENO_DIURNAL_AN_MOL = 0.001742  # mol CO2/plant/day
 
 
-def _fresh_v3_plant():
-    """Fresh V3 maize plant, default Krm1, no CW wrapping yet."""
+def _fresh_v3_plant(day: int = V3_DAY):
+    """Fresh maize plant grown to ``day``, default Krm1, no CW wrapping yet."""
     return grow_plant(
         xml_path=str(DEFAULT_XML),
-        simulation_time=V3_DAY,
+        simulation_time=day,
         min_stem_nodes=10,
         min_leaf_nodes=4,
         enable_photosynthesis=True,
@@ -154,12 +160,21 @@ def _summarise(label: str, result: Optional[dict]) -> dict:
             "Rm_over_An": None,
             "psi_leaf_min_cm": None,
             "mass_balance_residual_pct": None,
+            "Q_Grmax_total_mmol": None,
+            "Rg_over_Q_Grmax": None,
         }
     an_int = float(result["An_total_mmol"])
     an_tgt = float(result["An_total_mmol_target"])
     rm = float(result["Rm_total_mmol"])
     rg = float(result["Rg_total_mmol"])
     rm_over_an = rm / an_int if abs(an_int) > 1e-9 else None
+    # Q_Grmax cap diagnostic (Step 5b reframe): Rg = min(Fu_lim, Q_Grmax) at
+    # PiafMunch2.cpp:208; if Rg/Q_Grmax ≈ 1, the growth-capacity cap is
+    # binding (CW-wrap-driven). If Rg/Q_Grmax << 1, Fu_lim (Michaelis-Menten
+    # gated by CSTi/(CSTi+KMfu)) is the binding constraint.
+    qg = result.get("Q_Grmax_node")
+    qg_total = float(np.sum(qg)) if qg is not None else None
+    rg_over_qg = (rg / qg_total) if qg_total and qg_total > 1e-9 else None
     return {
         "label": label,
         "ok": True,
@@ -170,6 +185,8 @@ def _summarise(label: str, result: Optional[dict]) -> dict:
         "Rm_over_An": rm_over_an,
         "psi_leaf_min_cm": result.get("psi_leaf_min_cm"),
         "mass_balance_residual_pct": float(result["mass_balance_residual_pct"]),
+        "Q_Grmax_total_mmol": qg_total,
+        "Rg_over_Q_Grmax": rg_over_qg,
     }
 
 
@@ -469,15 +486,15 @@ def probe_psi_init(psi_values=None) -> Optional[dict]:
 V3_DEMAND_MMOL = 5.0
 
 
-def probe_loading(multipliers=None) -> dict:
+def probe_loading(multipliers=None, day: int = V3_DAY) -> dict:
     if multipliers is None:
         multipliers = [1.0, 10.0, 100.0, 1000.0]
     rows = []
     print()
     print("=" * 78)
-    print("Probe 4 — Vmaxloading sweep (Ch1 phloem-loading retune)")
+    print(f"Probe 4 — Vmaxloading sweep (Ch1 phloem-loading retune) @ day={day}")
     print("=" * 78)
-    print(f"  V3 plant, day={V3_DAY}, Tair={TAIR_C}°C, "
+    print(f"  Plant day={day}, Tair={TAIR_C}°C, "
           f"FixedSoilPsi(-300 cm), advance_plant=True")
     print(f"  Production conditions: PAR=120 (Baleno hourly-mean), "
           f"inject_an_target=True")
@@ -486,14 +503,14 @@ def probe_loading(multipliers=None) -> dict:
     print(f"  V3 demand threshold: Rg ≈ {V3_DEMAND_MMOL} mmol Suc/day")
     print()
     for m in multipliers:
-        plant = _fresh_v3_plant()
+        plant = _fresh_v3_plant(day=day)
         An = _synth_an_per_leaf(plant, BALENO_DIURNAL_AN_MOL)
         t0 = time.time()
         result = solve_carbon_partitioning_pm(
             plant,
             An,
             Tair_C=TAIR_C,
-            day=V3_DAY,
+            day=day,
             n_substeps=24,
             advance_plant=True,
             soil_psi_provider=FixedSoilPsi(psi_cm=-300.0, n_cells=150),
@@ -511,9 +528,13 @@ def probe_loading(multipliers=None) -> dict:
             row["Rg_over_v3_demand"] = None
         rows.append(row)
         if result is not None:
+            qg = row.get("Q_Grmax_total_mmol")
+            rg_qg = row.get("Rg_over_Q_Grmax")
+            qg_str = f"{qg:8.3f}" if qg is not None else "    None"
+            rg_qg_str = f"{rg_qg:6.3f}" if rg_qg is not None else " None "
             print(f"  Vmax×{m:6.1f}  An={row['An_total_mmol_internal']:8.3f}  "
                   f"Rm={row['Rm_total_mmol']:8.3f}  Rg={row['Rg_total_mmol']:8.3f}  "
-                  f"Rg/V3={row['Rg_over_v3_demand']:6.3f}  "
+                  f"Q_Grmax={qg_str}  Rg/Q_Grmax={rg_qg_str}  "
                   f"mb={row['mass_balance_residual_pct']:5.2f}%  "
                   f"({dt:.0f}s)")
         else:
@@ -537,7 +558,7 @@ def probe_loading(multipliers=None) -> dict:
         print(f"  Rg < {V3_DEMAND_MMOL} mmol/d across the entire swept range — "
               "phloem loading does not close the demand gap alone; widen the "
               "probe range or revisit Mloading / beta_loading.")
-    return {"probe": "loading", "rows": rows}
+    return {"probe": "loading", "rows": rows, "day": day}
 
 
 # ---------------------------------------------------------------------------
@@ -648,6 +669,9 @@ def main():
                         choices=("all", "krm1", "baleno", "psi_init",
                                  "loading", "khyd_meso"),
                         default="all")
+    parser.add_argument("--day", type=int, default=None,
+                        help="plant simulation day (default V3_DAY=21). "
+                             "Use 30 to mirror G6-fast bootstrap.")
     parser.add_argument("--no-sidecar", action="store_true",
                         help="skip JSON sidecar writes (console-only output)")
     args = parser.parse_args()
@@ -661,8 +685,9 @@ def main():
         r = probe_psi_init()
         if r is not None:
             results.append(r)
+    probe_day = args.day if args.day is not None else V3_DAY
     if args.probe in ("all", "loading"):
-        results.append(probe_loading())
+        results.append(probe_loading(day=probe_day))
     if args.probe in ("all", "khyd_meso"):
         results.append(probe_khyd_meso())
 
