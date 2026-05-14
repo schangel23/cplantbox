@@ -250,6 +250,13 @@ def main():
                         help="rescale Ag4Phloem to daily-uniform synthetic An "
                              "target (closer to diurnal-realistic supply; "
                              "expected to fail oracle tolerance — diagnostic mode)")
+    parser.add_argument("--krm1-multiplier", type=float, default=None,
+                        help="scalar multiplier on WOFOST leaf Krm1 (0.030 "
+                             "d⁻¹) applied to every PM substep via "
+                             "hm.setKrm1([[0.030 * m]]). Default None leaves "
+                             "JSON values untouched. Used for α-clip "
+                             "diagnostic sweeps (e.g. 0.1 / 0.3) over the "
+                             "G6-fast horizon.")
     parser.add_argument("--tol-leaf-pct", type=float, default=TOL_LEAF_PCT)
     parser.add_argument("--tol-mainstem-cm", type=float, default=TOL_MAINSTEM_CM)
     parser.add_argument("--skip-leaves-shorter-than-cm", type=float, default=0.0,
@@ -269,6 +276,7 @@ def main():
         args.soil_mode,
         args.soil_psi_cm,
         args.inject_an_target,
+        krm1_multiplier=args.krm1_multiplier,
     )
     snap = per_organ_snapshot(plant)
     ok, lines = compare_against_oracle(
