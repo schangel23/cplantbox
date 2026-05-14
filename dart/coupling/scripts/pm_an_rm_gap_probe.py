@@ -61,6 +61,19 @@ candidate causes:
       lets Rg respond to An supply. Locate the kHyd value at which
       Rg first crosses V3 daily demand (~5 mmol/day).
 
+  Probe 6 — Krm1 sweep under production conditions at G6-fast
+      bootstrap day (PLAN_CH1_CARBON_DEMAND_2026-05-14 Fix α)
+      Sweep ``krm1_multiplier`` ∈ {0.1, 0.3, 1.0, 3.0} on a
+      day-30 plant under production conditions (PAR=120,
+      inject_an_target=True, FixedSoilPsi(-300)). The 2026-05-08
+      Krm1 WOFOST anchor was calibrated against Amthor 2000's
+      day-55 ~2.5 mmol Suc/d band for a 50 g DM plant; day-30
+      plants are ~10× less biomass and the day-30 sidecar
+      (5f323360) showed Q_Rmmax sitting above Fu_lim. Probe 6
+      locates the crossover where Rg approaches Q_Grmax and
+      branches on the three α-decision outcomes (α-clean /
+      α-staged / α-clip-elsewhere).
+
 Each probe writes a JSON sidecar to tests/fixtures/pm_an_rm_gap_<probe>.json
 and prints a unified comparison table.
 
@@ -71,6 +84,7 @@ Usage (from /home/lukas/PHD/CPlantBox)::
     cpbenv/bin/python dart/coupling/scripts/pm_an_rm_gap_probe.py --probe psi_init
     cpbenv/bin/python dart/coupling/scripts/pm_an_rm_gap_probe.py --probe loading
     cpbenv/bin/python dart/coupling/scripts/pm_an_rm_gap_probe.py --probe khyd_meso
+    cpbenv/bin/python dart/coupling/scripts/pm_an_rm_gap_probe.py --probe krm1_prod
 
 On the local box without rosi_richards, --probe psi_init skips
 automatically (gracefully reports "rosi_richards unavailable").
@@ -698,6 +712,123 @@ def probe_khyd_meso(khyd_values=None) -> dict:
 
 
 # ---------------------------------------------------------------------------
+# Probe 6 — Krm1 sweep under production conditions at G6-fast bootstrap day
+# ---------------------------------------------------------------------------
+
+# Day-30 sidecar shows Rm absorbing every additional mmol An into a
+# Q_Rmmax clip that sits above Fu_lim (5f323360, ce1e07e0). The
+# 2026-05-08 Krm1 anchor (Gate Ch1.PM.1) was calibrated against
+# Amthor 2000's day-55 WOFOST coefficients. Day-30 plants are ~10×
+# less biomass; Krm1 × ρ_s × seg_vol is linear in biomass so Q_Rmmax
+# *should* scale down naturally, but the probe surfaces it sitting
+# above Fu_lim anyway. Probe 6 sweeps krm1_multiplier ∈ {0.1, 0.3,
+# 1.0, 3.0} at day-30 under production conditions (PAR=120,
+# inject_an_target=True, FixedSoilPsi(-300)) to localise the
+# crossover where Rg approaches Q_Grmax and identify which of the
+# three α-branches in PLAN_CH1_CARBON_DEMAND_2026-05-14 fires:
+#   α-clean        — single global multiplier closes the gap → JSON patch
+#   α-staged       — multiplier is age-dependent → phenology-gated modifier
+#   α-clip-elsewhere — Rg ≪ Q_Grmax even at Rm → 0 → third bottleneck
+
+def probe_krm1_prod(multipliers=None, day: int = 30) -> dict:
+    """Probe 6: Krm1 sweep at G6-fast bootstrap day under production conditions.
+
+    Mirrors ``probe_loading`` (probe 4): same FixedSoilPsi(-300), same
+    PAR=120 (Baleno hourly-mean), same ``inject_an_target=True``, same
+    table layout (Rg, Q_Grmax, Rg/Q_Grmax, MB). The key difference: the
+    diagnostic kwarg is ``krm1_multiplier`` instead of
+    ``vmaxloading_multiplier``. Result is written to
+    ``pm_an_rm_gap_krm1_day30.json`` (filename derived from the
+    ``probe`` key below).
+    """
+    if multipliers is None:
+        multipliers = [0.1, 0.3, 1.0, 3.0]
+    rows = []
+    print()
+    print("=" * 78)
+    print(f"Probe 6 — Krm1 sweep under production conditions @ day={day}")
+    print("=" * 78)
+    print(f"  Plant day={day}, Tair={TAIR_C}°C, "
+          f"FixedSoilPsi(-300 cm), advance_plant=True")
+    print(f"  Production conditions: PAR=120 (Baleno hourly-mean), "
+          f"inject_an_target=True")
+    print(f"  Multipliers (× WOFOST root=0.012, stem=0.015, leaf=0.030 d⁻¹): "
+          f"{multipliers}")
+    print()
+    for m in multipliers:
+        plant = _fresh_v3_plant(day=day)
+        An = _synth_an_per_leaf(plant, BALENO_DIURNAL_AN_MOL)
+        t0 = time.time()
+        result = solve_carbon_partitioning_pm(
+            plant,
+            An,
+            Tair_C=TAIR_C,
+            day=day,
+            n_substeps=24,
+            advance_plant=True,
+            soil_psi_provider=FixedSoilPsi(psi_cm=-300.0, n_cells=150),
+            par_umol=120.0,
+            inject_an_target=True,
+            krm1_multiplier=m,
+        )
+        dt = time.time() - t0
+        row = _summarise(f"krm1×{m}", result)
+        row["wall_s"] = round(dt, 1)
+        row["multiplier"] = m
+        rows.append(row)
+        if result is not None:
+            qg = row.get("Q_Grmax_total_mmol")
+            rg_qg = row.get("Rg_over_Q_Grmax")
+            qg_str = f"{qg:8.3f}" if qg is not None else "    None"
+            rg_qg_str = f"{rg_qg:6.3f}" if rg_qg is not None else " None "
+            mb_ne = row.get("mb_residual_no_exud_pct")
+            mb_ne_str = f"{mb_ne:5.2f}%" if mb_ne is not None else "   None"
+            print(f"  Krm1×{m:5.2f}  An={row['An_total_mmol_internal']:8.3f}  "
+                  f"Rm={row['Rm_total_mmol']:8.3f}  Rg={row['Rg_total_mmol']:8.3f}  "
+                  f"Q_Grmax={qg_str}  Rg/Q_Grmax={rg_qg_str}  "
+                  f"Rm/An={row['Rm_over_An']:6.3f}  "
+                  f"mb={row['mass_balance_residual_pct']:5.2f}%  "
+                  f"mb_no_exud={mb_ne_str}  ({dt:.0f}s)")
+        else:
+            print(f"  Krm1×{m:5.2f}  PM solver FAILED  ({dt:.0f}s)")
+
+    # α decision branches.
+    finite = [r for r in rows if r["Rg_over_Q_Grmax"] is not None]
+    if finite:
+        best = max(finite, key=lambda r: r["Rg_over_Q_Grmax"])
+        print()
+        print(f"  Max Rg/Q_Grmax = {best['Rg_over_Q_Grmax']:.3f} at "
+              f"Krm1×{best['multiplier']:.2f}")
+        if best["Rg_over_Q_Grmax"] >= 0.90:
+            # α-clean: a single multiplier brings Rg into ≥90% of its cap;
+            # ship the multiplier as a phloem_parameters_maize2026.json edit.
+            print(f"  → α-clean: Krm1×{best['multiplier']:.2f} closes the "
+                  f"demand-side gap (Rg ≥ 0.9 × Q_Grmax). Patch JSON Krm1 row.")
+        else:
+            # α-staged or α-clip-elsewhere: check if Rm trends to 0 monotonically
+            # AND Rg stays << Q_Grmax → third bottleneck exists.
+            rm_min = min(r["Rm_total_mmol"] for r in finite
+                         if r["Rm_total_mmol"] is not None)
+            rg_max = max(r["Rg_total_mmol"] for r in finite
+                         if r["Rg_total_mmol"] is not None)
+            qg_total = best["Q_Grmax_total_mmol"]
+            if (rm_min < 0.05 * best["An_total_mmol_internal"]
+                    and qg_total and rg_max < 0.50 * qg_total):
+                print(f"  → α-clip-elsewhere: Rm → ~0 at Krm1×{rm_min:.3f} but "
+                      f"Rg still ≪ Q_Grmax ({rg_max:.3f} < 0.5 × {qg_total:.3f}). "
+                      "Third bottleneck between Fu_lim and Q_Grmax — open new "
+                      "diag for Q_Gtot_dot integrator dynamics / unit mismatch "
+                      "in CW→Q_Grmax wire.")
+            else:
+                print("  → α-staged candidate: no single multiplier hits "
+                      "Rg/Q_Grmax ≥ 0.9 cleanly. Need age-dependence — "
+                      "compare against the day-21 probe sidecar AND the "
+                      "day-55 WOFOST anchor to fit a phenology-gated "
+                      "modifier in pm_substep.py.")
+    return {"probe": "krm1_day30", "rows": rows, "day": day}
+
+
+# ---------------------------------------------------------------------------
 # Driver
 # ---------------------------------------------------------------------------
 
@@ -714,7 +845,7 @@ def main():
     parser = argparse.ArgumentParser(description="Ch2 An↔Rm gap probes")
     parser.add_argument("--probe",
                         choices=("all", "krm1", "baleno", "psi_init",
-                                 "loading", "khyd_meso"),
+                                 "loading", "khyd_meso", "krm1_prod"),
                         default="all")
     parser.add_argument("--day", type=int, default=None,
                         help="plant simulation day (default V3_DAY=21). "
@@ -737,6 +868,12 @@ def main():
         results.append(probe_loading(day=probe_day))
     if args.probe in ("all", "khyd_meso"):
         results.append(probe_khyd_meso())
+    # Probe 6 — default to day-30 (G6-fast bootstrap) unless --day is supplied;
+    # this is the bootstrap age at which probes 4 + 5 falsified the
+    # supply-side hypothesis (5f323360 day-30 sidecar).
+    if args.probe in ("all", "krm1_prod"):
+        krm1_prod_day = args.day if args.day is not None else 30
+        results.append(probe_krm1_prod(day=krm1_prod_day))
 
     if not args.no_sidecar:
         print()
