@@ -148,7 +148,16 @@ def _synth_an_per_leaf(plant, an_total_mol: float) -> np.ndarray:
 
 
 def _summarise(label: str, result: Optional[dict]) -> dict:
-    """Extract the headline carbon-balance fields from a PM result."""
+    """Extract the headline carbon-balance fields from a PM result.
+
+    Step-1 (Fix 0) extension: also surface the three storage-pool deltas
+    (dQ_S_meso, dQ_meso, dQ_ST) and the exudation flux so the sidecar can
+    be independently audited against the plan's MB formula
+    ``(An − Rm − Rg − dQ_storage_total) / An``. The PM solver already
+    folds storage + exudation into ``mass_balance_residual_pct`` at
+    pm_substep.py:594-600; surfacing the components lets a reader confirm
+    where the 31-75% leak surfaced at day-30 (5f323360 sidecar) lives.
+    """
     if result is None:
         return {
             "label": label,
@@ -160,8 +169,14 @@ def _summarise(label: str, result: Optional[dict]) -> dict:
             "Rm_over_An": None,
             "psi_leaf_min_cm": None,
             "mass_balance_residual_pct": None,
+            "mb_residual_no_exud_pct": None,
             "Q_Grmax_total_mmol": None,
             "Rg_over_Q_Grmax": None,
+            "dQ_S_meso_mmol_co2": None,
+            "dQ_meso_mmol_co2": None,
+            "dQ_ST_mmol_co2": None,
+            "dQ_storage_total_mmol_co2": None,
+            "Exud_total_mmol_co2": None,
         }
     an_int = float(result["An_total_mmol"])
     an_tgt = float(result["An_total_mmol_target"])
@@ -175,6 +190,27 @@ def _summarise(label: str, result: Optional[dict]) -> dict:
     qg = result.get("Q_Grmax_node")
     qg_total = float(np.sum(qg)) if qg is not None else None
     rg_over_qg = (rg / qg_total) if qg_total and qg_total > 1e-9 else None
+    # Storage pools — raw fields are mmol Suc (pm_substep.py:662-664); convert
+    # to mmol CO2 (S = SUC_TO_CO2 = 12) so they are unit-consistent with
+    # An / Rm / Rg in this sidecar. Exudation comes pre-converted as
+    # total_loading_mmol (pm_substep.py:648).
+    suc_to_co2 = 12.0
+    dq_s_meso_co2 = float(result.get("dQ_S_meso", 0.0)) * suc_to_co2
+    dq_meso_co2 = float(result.get("dQ_meso", 0.0)) * suc_to_co2
+    dq_st_co2 = float(result.get("dQ_ST", 0.0)) * suc_to_co2
+    dq_storage_co2 = dq_s_meso_co2 + dq_meso_co2 + dq_st_co2
+    exud_co2 = float(result.get("total_loading_mmol", 0.0))
+    # Plan-formula MB residual: (An − Rm − Rg − dStorage) / An, exudation
+    # *not* subtracted. Compare against mass_balance_residual_pct (which
+    # *does* subtract exudation, pm_substep.py:596-598) to localise the
+    # leak: if mb_residual_no_exud is small and the official one is large,
+    # exudation is the leak; if both are large the leak is elsewhere
+    # (Q_W wall pool, solve.cpp internals, integrator drift — see plan
+    # §"Open questions to flag").
+    if abs(an_int) > 1e-9:
+        mb_no_exud = (an_int - rm - rg - dq_storage_co2) / an_int * 100.0
+    else:
+        mb_no_exud = None
     return {
         "label": label,
         "ok": True,
@@ -185,8 +221,14 @@ def _summarise(label: str, result: Optional[dict]) -> dict:
         "Rm_over_An": rm_over_an,
         "psi_leaf_min_cm": result.get("psi_leaf_min_cm"),
         "mass_balance_residual_pct": float(result["mass_balance_residual_pct"]),
+        "mb_residual_no_exud_pct": mb_no_exud,
         "Q_Grmax_total_mmol": qg_total,
         "Rg_over_Q_Grmax": rg_over_qg,
+        "dQ_S_meso_mmol_co2": dq_s_meso_co2,
+        "dQ_meso_mmol_co2": dq_meso_co2,
+        "dQ_ST_mmol_co2": dq_st_co2,
+        "dQ_storage_total_mmol_co2": dq_storage_co2,
+        "Exud_total_mmol_co2": exud_co2,
     }
 
 
@@ -532,10 +574,15 @@ def probe_loading(multipliers=None, day: int = V3_DAY) -> dict:
             rg_qg = row.get("Rg_over_Q_Grmax")
             qg_str = f"{qg:8.3f}" if qg is not None else "    None"
             rg_qg_str = f"{rg_qg:6.3f}" if rg_qg is not None else " None "
+            mb_ne = row.get("mb_residual_no_exud_pct")
+            mb_ne_str = f"{mb_ne:5.2f}%" if mb_ne is not None else "   None"
             print(f"  Vmax×{m:6.1f}  An={row['An_total_mmol_internal']:8.3f}  "
                   f"Rm={row['Rm_total_mmol']:8.3f}  Rg={row['Rg_total_mmol']:8.3f}  "
                   f"Q_Grmax={qg_str}  Rg/Q_Grmax={rg_qg_str}  "
                   f"mb={row['mass_balance_residual_pct']:5.2f}%  "
+                  f"mb_no_exud={mb_ne_str}  "
+                  f"dQ_stor={row['dQ_storage_total_mmol_co2']:7.3f}  "
+                  f"Exud={row['Exud_total_mmol_co2']:7.3f}  "
                   f"({dt:.0f}s)")
         else:
             print(f"  Vmax×{m:6.1f}  PM solver FAILED  ({dt:.0f}s)")
