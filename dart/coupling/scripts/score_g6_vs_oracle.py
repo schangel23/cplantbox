@@ -35,6 +35,7 @@ DAY_RE = re.compile(
     r"organs=(?P<organs>\d+),\s+"
     r"leaves=(?P<leaves_emerged>\d+)/(?P<leaves_total>\d+),\s+"
     r"PM fails=(?P<pm_fails>\d+)/(?P<pm_calls>\d+)"
+    r"(?:,\s+An=(?P<an>[-\d.]+)\s+Rm=(?P<rm>[-\d.]+)\s+Rg=(?P<rg>[-\d.]+))?"
 )
 PHASE3_DONE_RE = re.compile(
     r"Phase 3 done in (?P<wall>\d+)s \((?P<calls>\d+) PM calls, (?P<fails>\d+) failures\)"
@@ -70,6 +71,9 @@ def parse_log(text: str) -> dict:
             "leaves_total": int(m["leaves_total"]),
             "pm_fails": int(m["pm_fails"]),
             "pm_calls": int(m["pm_calls"]),
+            "An_mmol_co2": float(m["an"]) if m["an"] is not None else None,
+            "Rm_mmol_co2": float(m["rm"]) if m["rm"] is not None else None,
+            "Rg_mmol_co2": float(m["rg"]) if m["rg"] is not None else None,
         }
         for m in DAY_RE.finditer(text)
     ]
@@ -154,12 +158,53 @@ def score(
         f"({n_missing} missing; floor {leaf_floor}/{oracle_leaves})",
     ))
 
-    # 4. flux bands — not yet emitted
-    criteria.append((
-        "flux_bands", "N/A",
-        "runner does not emit per-day GPP/Rm/Rg; "
-        "needs solve_carbon_partitioning_pm result-dict logging.",
-    ))
+    # 4. flux bands — physically-plausible carbon trajectory
+    flux_days = [d for d in parsed["days"] if d["An_mmol_co2"] is not None]
+    if not flux_days:
+        criteria.append(("flux_bands", "N/A",
+                         "runner did not log per-day An/Rm/Rg "
+                         "(pre-instrumentation log)"))
+    else:
+        problems = []
+        for d in flux_days:
+            an, rm, rg = d["An_mmol_co2"], d["Rm_mmol_co2"], d["Rg_mmol_co2"]
+            if an <= 0:
+                problems.append(f"d{d['day']} An<=0 ({an:.3f})")
+            if rg < 0:
+                problems.append(f"d{d['day']} Rg<0 ({rg:.3f})")
+            if rm < 0:
+                problems.append(f"d{d['day']} Rm<0 ({rm:.3f})")
+            if an > 0 and rm / an > 5.0:
+                problems.append(f"d{d['day']} Rm/An={rm/an:.2f}>5 (runaway maint resp)")
+        # Final-day Rg must clear a non-collapsed threshold (Path B target
+        # was 0.957 mmol CO2/d at single-day day-30; expect day-130 >=
+        # that as a minimum for a non-collapsed run).
+        final = flux_days[-1]
+        rg_floor = 0.5  # mmol CO2/d, conservative non-collapsed Path B threshold
+        if final["Rg_mmol_co2"] < rg_floor:
+            problems.append(
+                f"d{final['day']} Rg={final['Rg_mmol_co2']:.3f} < {rg_floor} "
+                f"(collapsed-growth signature)"
+            )
+        if problems:
+            criteria.append(("flux_bands", "FAIL",
+                             "; ".join(problems[:6]) +
+                             ("" if len(problems) <= 6
+                              else f" (+{len(problems) - 6} more)")))
+        else:
+            an_range = (min(d["An_mmol_co2"] for d in flux_days),
+                        max(d["An_mmol_co2"] for d in flux_days))
+            rm_range = (min(d["Rm_mmol_co2"] for d in flux_days),
+                        max(d["Rm_mmol_co2"] for d in flux_days))
+            rg_range = (min(d["Rg_mmol_co2"] for d in flux_days),
+                        max(d["Rg_mmol_co2"] for d in flux_days))
+            criteria.append((
+                "flux_bands", "PASS",
+                f"An∈[{an_range[0]:.2f},{an_range[1]:.2f}] "
+                f"Rm∈[{rm_range[0]:.2f},{rm_range[1]:.2f}] "
+                f"Rg∈[{rg_range[0]:.2f},{rg_range[1]:.2f}] mmol CO2/d "
+                f"(no negatives, no Rm/An>5, final Rg >= {rg_floor})"
+            ))
 
     overall = "PASS" if all(s in ("PASS", "N/A") for _, s, _ in criteria) else "FAIL"
     return {"overall": overall, "criteria": criteria}
@@ -170,7 +215,8 @@ def horizon_table(parsed: dict, horizons) -> str:
     rows = [
         "Trajectory milestones (from per-10-day status lines):",
         f"  {'day':>5} {'wall_s':>8} {'mb%':>8} {'organs':>8} "
-        f"{'leaves':>11} {'PM_fails':>10}",
+        f"{'leaves':>11} {'PM_fails':>10} "
+        f"{'An':>7} {'Rm':>7} {'Rg':>7} (mmol CO2/d)",
     ]
     for h in horizons:
         d = by_day.get(h)
@@ -180,9 +226,12 @@ def horizon_table(parsed: dict, horizons) -> str:
         mb = "FAIL" if d["mb_pct"] is None else f"{d['mb_pct']:.2f}"
         leaves = f"{d['leaves_emerged']:>3}/{d['leaves_total']:<3}"
         fails = f"{d['pm_fails']:>3}/{d['pm_calls']:<5}"
+        an = "  --   " if d["An_mmol_co2"] is None else f"{d['An_mmol_co2']:>7.3f}"
+        rm = "  --   " if d["Rm_mmol_co2"] is None else f"{d['Rm_mmol_co2']:>7.3f}"
+        rg = "  --   " if d["Rg_mmol_co2"] is None else f"{d['Rg_mmol_co2']:>7.3f}"
         rows.append(
             f"  {d['day']:>5} {d['wall_s']:>8} {mb:>8} {d['organs']:>8} "
-            f"{leaves:>11} {fails:>10}"
+            f"{leaves:>11} {fails:>10} {an} {rm} {rg}"
         )
     return "\n".join(rows)
 
