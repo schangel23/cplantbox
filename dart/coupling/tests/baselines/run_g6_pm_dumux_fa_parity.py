@@ -226,10 +226,15 @@ def grow_with_pm(
             )
             mb_str = (f"mb={result['mass_balance_residual_pct']:.2f}%"
                       if result else "mb=FAIL")
+            flux_str = ""
+            if result is not None:
+                flux_str = (f", An={result['An_total_mmol']:.3f} "
+                            f"Rm={result['Rm_total_mmol']:.3f} "
+                            f"Rg={result['Rg_total_mmol']:.3f} mmol_CO2/d")
             print(f"  day {sim_day}: ok ({elapsed:.0f}s), {mb_str}, "
                   f"organs={len(all_organs)}, "
                   f"leaves={n_leaves_emerged}/{n_leaves_all}, "
-                  f"PM fails={n_pm_fail}/{n_pm_calls}")
+                  f"PM fails={n_pm_fail}/{n_pm_calls}{flux_str}")
 
     print(f"Phase 3 done in {time.time() - t0:.0f}s "
           f"({n_pm_calls} PM calls, {n_pm_fail} failures)")
