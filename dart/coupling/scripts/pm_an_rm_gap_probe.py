@@ -61,6 +61,19 @@ candidate causes:
       lets Rg respond to An supply. Locate the kHyd value at which
       Rg first crosses V3 daily demand (~5 mmol/day).
 
+  Probe 7 — krm2 sweep under production conditions at G6-fast
+      bootstrap day (DIAG_CH1_HM_SOLVE_UNDER_BETA_PRIME_2026-05-14 Q2)
+      Sweep ``krm2_multiplier`` ∈ {0.1, 0.3, 1.0, 3.0} on a day-30
+      plant under production conditions (PAR=120,
+      inject_an_target=True, FixedSoilPsi(-300), β'+tight). Tests
+      whether reducing the CSTi-coupled Rm amplifier
+      (`Q_Rmmax_ = (Q_Rmmax + krm2·CSTi) · Q10`, PiafMunch2.cpp:205)
+      is a less destabilising α-substitute than krm1×0.1 (which
+      unlocks Rg single-day but diverges hm.solve multi-day in the
+      G6-fast loop). Decision: krm2-clean (Rg responds, no choke)
+      → DEPLOY-A JSON patch; krm2-flat (Rg insensitive) → divergence
+      is upstream of Rm-priority split → DEPLOY-B Python mitigation.
+
   Probe 6 — Krm1 sweep under production conditions at G6-fast
       bootstrap day (PLAN_CH1_CARBON_DEMAND_2026-05-14 Fix α)
       Sweep ``krm1_multiplier`` ∈ {0.1, 0.3, 1.0, 3.0} on a
@@ -85,6 +98,7 @@ Usage (from /home/lukas/PHD/CPlantBox)::
     cpbenv/bin/python dart/coupling/scripts/pm_an_rm_gap_probe.py --probe loading
     cpbenv/bin/python dart/coupling/scripts/pm_an_rm_gap_probe.py --probe khyd_meso
     cpbenv/bin/python dart/coupling/scripts/pm_an_rm_gap_probe.py --probe krm1_prod
+    cpbenv/bin/python dart/coupling/scripts/pm_an_rm_gap_probe.py --probe krm2_prod
 
 On the local box without rosi_richards, --probe psi_init skips
 automatically (gracefully reports "rosi_richards unavailable").
@@ -873,6 +887,144 @@ def probe_krm1_prod(multipliers=None, day: int = 30,
 
 
 # ---------------------------------------------------------------------------
+# Probe 7 — krm2 sweep under production conditions at G6-fast bootstrap day
+# ---------------------------------------------------------------------------
+
+# Probe 6 (krm1_multiplier sweep at day-30 under β'+tight) found α-clip-
+# elsewhere: Krm1×0.1 unlocks Rg (10× boost vs β'-only baseline in the
+# single-day case) BUT the same α destabilises the FvCB-gs-ψ Newton
+# iteration in the G6-fast multi-day loop (4 of 5 days diverge at
+# Photosynthesis.cpp:144). Probe 7 tests whether ``krm2_multiplier`` is
+# a less destabilising α-substitute.
+#
+# Rationale (PiafMunch2.cpp:205): Q_Rmmax_ = (Q_Rmmax + krm2·CSTi) · Q10.
+# Reducing krm2 cools the CSTi-coupled Rm-priority amplifier directly,
+# leaving the WOFOST-anchored Krm1 baseline intact. The hypothesis is
+# that the constant-term reduction in Krm1 destabilises FvCB more than
+# the CSTi-coupled reduction in krm2 because Krm1 enters the Rm baseline
+# at every node uniformly (perturbing the Newton initial state envelope
+# more aggressively), while krm2 only enters where sieve-tube
+# concentration is non-negligible (more localised perturbation).
+#
+# Decision branches (mirrors plan-doc Q2-4):
+#   krm2-clean — Rg climbs proportional to krm2 reduction without
+#                integrator choke → krm2 is the α-substitute. Flag
+#                DEPLOY-A (JSON patch).
+#   krm2-flat  — Rg doesn't move with krm2 → divergence is upstream of
+#                the Rm-priority split, in the FvCB-gs-ψ coupling
+#                itself. Flag DEPLOY-B (Python-only mitigation from
+#                Q1-4 finding).
+
+def probe_krm2_prod(multipliers=None, day: int = 30,
+                    pm_atol: float = 1e-9, pm_rtol: float = 1e-6) -> dict:
+    """Probe 7: krm2 sweep at G6-fast bootstrap day under production conditions.
+
+    Mirrors ``probe_krm1_prod`` (probe 6): same FixedSoilPsi(-300), same
+    PAR=120 (Baleno hourly-mean), same ``inject_an_target=True``, same
+    table layout (Rg, Q_Grmax, Rg/Q_Grmax, MB). The diagnostic kwarg is
+    ``krm2_multiplier``. Result is written to
+    ``pm_an_rm_gap_krm2_day30.json`` (filename derived from the
+    ``probe`` key below).
+    """
+    if multipliers is None:
+        multipliers = [0.1, 0.3, 1.0, 3.0]
+    rows = []
+    print()
+    print("=" * 78)
+    print(f"Probe 7 — krm2 sweep under production conditions @ day={day}")
+    print("=" * 78)
+    print(f"  Plant day={day}, Tair={TAIR_C}°C, "
+          f"FixedSoilPsi(-300 cm), advance_plant=True")
+    print(f"  Production conditions: PAR=120 (Baleno hourly-mean), "
+          f"inject_an_target=True")
+    print(f"  Multipliers (× leaf-default 4e-5 from "
+          f"phloem_parameters_maize2026.json Krm2 row 2): {multipliers}")
+    print()
+    for m in multipliers:
+        plant = _fresh_v3_plant(day=day)
+        An = _synth_an_per_leaf(plant, BALENO_DIURNAL_AN_MOL)
+        t0 = time.time()
+        result = solve_carbon_partitioning_pm(
+            plant,
+            An,
+            Tair_C=TAIR_C,
+            day=day,
+            n_substeps=24,
+            advance_plant=True,
+            soil_psi_provider=FixedSoilPsi(psi_cm=-300.0, n_cells=150),
+            par_umol=120.0,
+            inject_an_target=True,
+            krm2_multiplier=m,
+            pm_atol=pm_atol,
+            pm_rtol=pm_rtol,
+        )
+        dt = time.time() - t0
+        row = _summarise(f"krm2×{m}", result)
+        row["wall_s"] = round(dt, 1)
+        row["multiplier"] = m
+        rows.append(row)
+        if result is not None:
+            qg = row.get("Q_Grmax_total_mmol")
+            rg_qg = row.get("Rg_over_Q_Grmax")
+            qg_str = f"{qg:8.3f}" if qg is not None else "    None"
+            rg_qg_str = f"{rg_qg:6.3f}" if rg_qg is not None else " None "
+            mb_ne = row.get("mb_residual_no_exud_pct")
+            mb_ne_str = f"{mb_ne:5.2f}%" if mb_ne is not None else "   None"
+            print(f"  krm2×{m:5.2f}  An={row['An_total_mmol_internal']:8.3f}  "
+                  f"Rm={row['Rm_total_mmol']:8.3f}  Rg={row['Rg_total_mmol']:8.3f}  "
+                  f"Q_Grmax={qg_str}  Rg/Q_Grmax={rg_qg_str}  "
+                  f"Rm/An={row['Rm_over_An']:6.3f}  "
+                  f"mb={row['mass_balance_residual_pct']:5.2f}%  "
+                  f"mb_no_exud={mb_ne_str}  ({dt:.0f}s)")
+        else:
+            print(f"  krm2×{m:5.2f}  PM solver FAILED  ({dt:.0f}s)")
+
+    # krm2-clean vs krm2-flat decision (plan-doc Q2-4):
+    # - clean: Rg increases as krm2 decreases (CSTi-coupled Rm amplifier
+    #   is cooled, Fu_lim feeds Rg). Spread Rg(min mult) / Rg(max mult)
+    #   > 1.5× is the standard "knob does work" sensitivity threshold
+    #   (mirrors test_vmaxloading_probe_monotonicity).
+    # - flat: spread ≤ 1.5 → CSTi term is not the gating amplifier;
+    #   divergence is upstream of Rm-priority split (FvCB Newton itself).
+    finite = [r for r in rows if r["Rg_total_mmol"] is not None]
+    print()
+    if len(finite) >= 2:
+        # Sort by multiplier ascending; Rg should be larger at SMALLER
+        # multipliers (less Rm absorption → more Rg).
+        rg_sorted_by_mult = sorted(
+            finite, key=lambda r: r["multiplier"],
+        )
+        rg_at_min = rg_sorted_by_mult[0]["Rg_total_mmol"]
+        rg_at_max = rg_sorted_by_mult[-1]["Rg_total_mmol"]
+        if rg_at_max > 0:
+            spread = rg_at_min / rg_at_max
+        else:
+            spread = float("inf") if rg_at_min > 0 else 1.0
+        print(f"  Rg(krm2×{rg_sorted_by_mult[0]['multiplier']:.2f}) / "
+              f"Rg(krm2×{rg_sorted_by_mult[-1]['multiplier']:.2f}) "
+              f"= {spread:.3f}")
+        n_fail = len([r for r in rows if r["Rg_total_mmol"] is None])
+        if n_fail > 0:
+            print(f"  Solver failures: {n_fail}/{len(rows)} rows. "
+                  "Indicates krm2 also drives integrator choke under "
+                  "production β'+α conditions.")
+        if spread > 1.5 and n_fail == 0:
+            print("  → krm2-CLEAN: Rg responds to krm2 reduction without "
+                  "integrator choke. krm2 is the α-substitute. "
+                  "Flag DEPLOY-A (phloem_parameters_maize2026.json patch).")
+        elif spread > 1.5 and n_fail > 0:
+            print("  → krm2-CLEAN-with-caveat: Rg responds but some "
+                  "multipliers choke. Pick a deploy multiplier in the "
+                  "stable band (away from the failing edge).")
+        else:
+            print("  → krm2-FLAT: Rg insensitive to krm2 — divergence is "
+                  "upstream of the Rm-priority split in the FvCB-gs-ψ "
+                  "Newton coupling itself. Flag DEPLOY-B (Python-only "
+                  "mitigation per Q1-4 finding).")
+    return {"probe": "krm2_day30", "rows": rows, "day": day}
+
+
+# ---------------------------------------------------------------------------
 # Driver
 # ---------------------------------------------------------------------------
 
@@ -889,7 +1041,8 @@ def main():
     parser = argparse.ArgumentParser(description="Ch2 An↔Rm gap probes")
     parser.add_argument("--probe",
                         choices=("all", "krm1", "baleno", "psi_init",
-                                 "loading", "khyd_meso", "krm1_prod"),
+                                 "loading", "khyd_meso", "krm1_prod",
+                                 "krm2_prod"),
                         default="all")
     parser.add_argument("--day", type=int, default=None,
                         help="plant simulation day (default V3_DAY=21). "
@@ -918,6 +1071,12 @@ def main():
     if args.probe in ("all", "krm1_prod"):
         krm1_prod_day = args.day if args.day is not None else 30
         results.append(probe_krm1_prod(day=krm1_prod_day))
+    # Probe 7 — krm2 sweep at G6-fast bootstrap day (DIAG_CH1_HM_SOLVE Q2).
+    # Same day-default as probe 6 so the krm2-clean vs krm2-flat verdict
+    # is directly comparable against the day-30 krm1 sweep.
+    if args.probe in ("all", "krm2_prod"):
+        krm2_prod_day = args.day if args.day is not None else 30
+        results.append(probe_krm2_prod(day=krm2_prod_day))
 
     if not args.no_sidecar:
         print()
