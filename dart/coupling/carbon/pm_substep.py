@@ -43,6 +43,7 @@ Design choices vs ``pm_notebook_loop.case_maize``:
     the caller must skip any subsequent ``step_plant_carbon`` to avoid
     double-advancement.
 """
+import json
 import os
 from pathlib import Path
 
@@ -105,7 +106,8 @@ def solve_carbon_partitioning_pm(plant, An_per_leaf_seg, Tair_C=25.0,
                                   inject_an_target=False,
                                   krm1_multiplier=None,
                                   vmaxloading_multiplier=None,
-                                  khyd_s_mesophyll_override=None):
+                                  khyd_s_mesophyll_override=None,
+                                  hm_solve_trace_path=None):
     """Run a 24-substep PiafMunch loop and return an S5-shaped carbon dict.
 
     Args:
@@ -180,6 +182,29 @@ def solve_carbon_partitioning_pm(plant, An_per_leaf_seg, Tair_C=25.0,
             (sidecar ``pm_an_rm_gap_loading.json``), so Vmaxloading is
             NOT the production bottleneck — the bottleneck is downstream
             (see ``khyd_s_mesophyll_override``).
+        hm_solve_trace_path: optional path to a JSONL sidecar that
+            captures per-``hm.solve`` state for diagnosing the FvCB-gs-ψ
+            Newton divergence observed under β'+α in the G6-fast loop
+            (see ``DIAG_CH1_HM_SOLVE_UNDER_BETA_PRIME_2026-05-14``). When
+            ``None`` (default) and the env var ``HM_SOLVE_TRACE_PATH`` is
+            unset, no telemetry is emitted — production overhead stays
+            zero. When set, one JSON record is appended per ``hm.solve``
+            call (file opened in append mode so a single trace can span
+            multiple PM days driven by the G6 runner). Each record
+            includes: ``sim`` (substep day fraction), ``substep_idx``,
+            ``day``, ``krm1_multiplier`` / ``krm2_multiplier``,
+            pre-solve and post-solve per-node ``ci`` / ``gco2`` /
+            ``TleafK`` / ``psiXyl`` vectors, ``loop`` (Newton iteration
+            count), ``maxErr`` / ``maxErrAbs`` (9-element residual
+            snapshots from ``Photosynthesis.cpp``), and the ``node_ot``
+            mapping (so leaves can be filtered post-hoc). On
+            ``hm.solve`` divergence the record carries ``success=False``
+            + the exception string and includes the last-iterate state
+            (PiafMunch writes Newton iterates back to its member vectors
+            in place, so the captured values reflect where Newton was
+            when it gave up). Used by Q1 of the diagnostic plan to
+            classify divergence as T_leaf runaway / gs oscillation /
+            ψ_leaf coupling / latent state.
         khyd_s_mesophyll_override: optional absolute override for the
             mesophyll-starch hydrolysis rate ``hm.kHyd_S_Mesophyll``
             (units d⁻¹). The JSON ships ``kHyd_S_Mesophyll = 0.0``, which
@@ -406,6 +431,36 @@ def solve_carbon_partitioning_pm(plant, An_per_leaf_seg, Tair_C=25.0,
     psi_leaf_mean_sum = 0.0
     psi_leaf_mean_count = 0
 
+    # hm.solve telemetry sidecar (Q1 of DIAG_CH1_HM_SOLVE_UNDER_BETA_PRIME).
+    # Resolve path via kwarg first, env var second. When neither is set the
+    # trace handle stays None and the per-substep capture block short-circuits
+    # before any state read or JSON serialisation, so production overhead is
+    # zero. File opened in append mode so a single trace can span multiple
+    # PM days driven by the G6 runner.
+    _trace_path = hm_solve_trace_path
+    if _trace_path is None:
+        _trace_path = os.environ.get("HM_SOLVE_TRACE_PATH") or None
+    _trace_fh = open(_trace_path, "a", buffering=1) if _trace_path else None
+
+    def _snapshot_solve_state():
+        """JSON-safe dict of per-node FvCB-gs state on hm."""
+        snap = {}
+        for attr in ("ci", "gco2", "TleafK", "psiXyl"):
+            try:
+                snap[attr] = np.asarray(
+                    getattr(hm, attr), dtype=float,
+                ).tolist()
+            except Exception:
+                snap[attr] = None
+        return snap
+
+    def _close_trace():
+        if _trace_fh is not None and not _trace_fh.closed:
+            try:
+                _trace_fh.close()
+            except Exception:
+                pass
+
     sim = sim_init
     n_done = 0
     while sim <= sim_max + 1e-9:
@@ -421,16 +476,106 @@ def solve_carbon_partitioning_pm(plant, An_per_leaf_seg, Tair_C=25.0,
             p_s = soil_psi_provider.get_profile(t_days=float(sim))
 
         # 1. Photosynthesis solve at this substep.
+        # Capture pre-solve hm state for the telemetry sidecar. Reads are
+        # skipped entirely when no trace handle is open so production
+        # overhead remains zero. Pre-solve values reflect the last iterate
+        # of the previous substep's Newton iteration; on substep 0 they
+        # reflect ``PhloemFluxPython.__init__`` defaults (psiXylInit,
+        # ciInit). Useful for locating "initial state outside Newton basin"
+        # divergence modes per Q1 of the diagnostic plan.
+        if _trace_fh is not None:
+            _trace_record = {
+                "sim": float(sim),
+                "substep_idx": int(n_done),
+                "day": float(day),
+                "krm1_multiplier": (
+                    None if krm1_multiplier is None
+                    else float(krm1_multiplier)
+                ),
+                "vmaxloading_multiplier": (
+                    None if vmaxloading_multiplier is None
+                    else float(vmaxloading_multiplier)
+                ),
+                "pre": _snapshot_solve_state(),
+            }
+        else:
+            _trace_record = None
         fdpair = _suppress_io()
         try:
             hm.solve(sim_time=sim, rsx=p_s, cells=True, ea=ea, es=es,
                      PAR=par_mol_cm2_d, TairC=float(Tair_C), verbose=0)
         except Exception as e:
             _restore_io(*fdpair)
+            if _trace_record is not None:
+                # Photosynthesis.cpp writes Newton iterates back to member
+                # vectors in place, so the post-solve snapshot here reflects
+                # the last iterate before the throw at
+                # ``Photosynthesis.cpp:144``. Capture loop count and maxErr
+                # vectors when available — they identify which residual
+                # blew up (psiXyl / An / gco2 / ci / pg / outputFlux / …).
+                _trace_record["success"] = False
+                _trace_record["exc_msg"] = repr(e)
+                _trace_record["post"] = _snapshot_solve_state()
+                try:
+                    _trace_record["loop"] = int(getattr(hm, "loop", -1))
+                except Exception:
+                    _trace_record["loop"] = -1
+                for k in ("maxErr", "maxErrAbs"):
+                    try:
+                        _trace_record[k] = np.asarray(
+                            getattr(hm, k), dtype=float,
+                        ).tolist()
+                    except Exception:
+                        _trace_record[k] = None
+                _trace_record["node_ot"] = None
+                try:
+                    _trace_fh.write(json.dumps(_trace_record) + "\n")
+                except Exception:
+                    pass
             print(f"  PM-substep solve error at sim={sim:.4f}: {e}")
+            _close_trace()
             return None
         else:
             _restore_io(*fdpair)
+            if _trace_record is not None:
+                _trace_record["success"] = True
+                _trace_record["exc_msg"] = None
+                _trace_record["post"] = _snapshot_solve_state()
+                try:
+                    _trace_record["loop"] = int(getattr(hm, "loop", -1))
+                except Exception:
+                    _trace_record["loop"] = -1
+                for k in ("maxErr", "maxErrAbs"):
+                    try:
+                        _trace_record[k] = np.asarray(
+                            getattr(hm, k), dtype=float,
+                        ).tolist()
+                    except Exception:
+                        _trace_record[k] = None
+                # Derive node_ot mapping (seg→child-node) so leaf-only
+                # filtering is possible post-hoc without rebuilding the
+                # convention in every analysis script.
+                try:
+                    seg_ot_now = np.asarray(
+                        hm.ms.organTypes, dtype=int,
+                    )
+                    nt_now = len(_trace_record["post"].get("psiXyl") or [])
+                    node_ot_local = [0] * nt_now
+                    n_segs_local = seg_ot_now.size
+                    if n_segs_local + 1 == nt_now:
+                        for i in range(n_segs_local):
+                            node_ot_local[i + 1] = int(seg_ot_now[i])
+                    else:
+                        mm = min(n_segs_local, nt_now - 1)
+                        for i in range(mm):
+                            node_ot_local[i + 1] = int(seg_ot_now[i])
+                    _trace_record["node_ot"] = node_ot_local
+                except Exception:
+                    _trace_record["node_ot"] = None
+                try:
+                    _trace_fh.write(json.dumps(_trace_record) + "\n")
+                except Exception:
+                    pass
 
         # 1b. Close the soil↔plant water loop (Gate Ch1.PMDM.2): aggregate
         # per-segment radial fluxes into per-cell sinks and push to the
@@ -511,6 +656,7 @@ def solve_carbon_partitioning_pm(plant, An_per_leaf_seg, Tair_C=25.0,
             _restore_io(*fdpair)
         if ret != 1:
             print(f"  PM-substep startPM returned {ret} at sim={sim:.4f}")
+            _close_trace()
             return None
 
         # Capture initial-substep state once (delta-storage accounting).
@@ -580,6 +726,7 @@ def solve_carbon_partitioning_pm(plant, An_per_leaf_seg, Tair_C=25.0,
         n_done += 1
 
     if n_done == 0:
+        _close_trace()
         return None
 
     # Final-substep readout — size nt from hm.Q_out (which is fixed at the
@@ -592,6 +739,7 @@ def solve_carbon_partitioning_pm(plant, An_per_leaf_seg, Tair_C=25.0,
     qout_n = len(hm.Q_out)
     if qout_n % 10 != 0:
         print(f"  PM-substep: unexpected Q_out size {qout_n} (not 10·Nt)")
+        _close_trace()
         return None
     nt = qout_n // 10
     Q_ST_arr = np.array(hm.Q_out[0:nt])
@@ -706,6 +854,7 @@ def solve_carbon_partitioning_pm(plant, An_per_leaf_seg, Tair_C=25.0,
     S = SUC_TO_CO2
     An_total_mmol_target = float(np.sum(An_per_leaf_seg)) * 1000.0  # mol→mmol
 
+    _close_trace()
     return {
         # S5-shape (mmol CO2 unless otherwise noted) ----------------------
         "Rm_total_mmol": dRm_total * S,
