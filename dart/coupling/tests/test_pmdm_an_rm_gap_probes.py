@@ -45,6 +45,7 @@ from dart.coupling.scripts.pm_an_rm_gap_probe import (  # noqa: E402
     probe_loading,
     probe_khyd_meso,
     probe_krm1_prod,
+    probe_krm2_prod,
     _write_sidecar,
 )
 
@@ -445,4 +446,72 @@ def test_krm1_prod_probe_monotonicity():
         "can move (→ α-clip-elsewhere: third bottleneck between Fu_lim "
         "and Q_Grmax — see PLAN_CH1_CARBON_DEMAND_2026-05-14 §α). "
         "Read pm_an_rm_gap_krm1_day30.json for the α-decision verdict."
+    )
+
+
+# ---------------------------------------------------------------------------
+# Probe 7 — krm2 monotonicity under production conditions at day-30
+# ---------------------------------------------------------------------------
+
+@pytest.mark.slow
+def test_krm2_prod_probe_monotonicity():
+    """Rm must be monotone-non-decreasing in the krm2 multiplier under
+    production conditions at G6-fast bootstrap day.
+
+    Q_Rmmax_ = (Q_Rmmax + krm2·CSTi) · Q10 (PiafMunch2.cpp:205) — so
+    raising krm2 raises the CSTi-coupled maintenance demand and
+    therefore raises integrated Rm — until Fu_lim caps the realised
+    flux. Probe 7 sweeps {0.1, 1.0, 3.0} at --day 30 under production
+    conditions (PAR=120, inject_an_target=True, FixedSoilPsi(-300));
+    Rm should rise across this range.
+
+    A FAIL flags one of two outcomes, both diagnostic:
+      * Rm flat in krm2 → kwarg silently no-ops or CSTi is too low for
+        the krm2·CSTi term to materially shift Q_Rmmax_ (then the
+        krm2-substitute hypothesis is dead before probe 7 even starts).
+      * Rm rises too fast (Q_Rmmax above Fu_lim across the entire
+        sweep) → krm2 path is also Fu_lim-clipped, krm2-clean band
+        is narrow.
+
+    Pass/fail on the *scientific* question — krm2-clean vs krm2-flat
+    — is read off the JSON sidecar in DIAG_CH1_HM_SOLVE Q2-4, not
+    gated here. Mirrors test_krm1_prod_probe_monotonicity (probe 6).
+    """
+    result = probe_krm2_prod(multipliers=[0.1, 1.0, 3.0])
+    _write_sidecar(result)
+    rows = [r for r in result["rows"] if r["Rm_total_mmol"] is not None]
+    assert len(rows) >= 3, (
+        f"krm2_prod probe lost rows to solver failure; got {len(rows)}/3. "
+        "Inspect probe sidecar for details."
+    )
+    rm_at_01 = next(r["Rm_total_mmol"] for r in rows if r["multiplier"] == 0.1)
+    rm_at_1 = next(r["Rm_total_mmol"] for r in rows if r["multiplier"] == 1.0)
+    rm_at_3 = next(r["Rm_total_mmol"] for r in rows if r["multiplier"] == 3.0)
+
+    # Monotone-non-decreasing in krm2 with 5% slack — same convention as
+    # probe 4 / probe 6 (Vmaxloading, Krm1 sweeps). If Rm is already
+    # Fu_lim-clipped at low krm2 the higher multiplier flat-lines rather
+    # than inverts; that satisfies this assertion.
+    assert rm_at_1 >= rm_at_01 * 0.95, (
+        f"Rm(krm2×1) = {rm_at_1:.4f} < Rm(krm2×0.1) = {rm_at_01:.4f} — "
+        "krm2 multiplier appears to be no-oping or sign-flipped."
+    )
+    assert rm_at_3 >= rm_at_1 * 0.95, (
+        f"Rm(krm2×3) = {rm_at_3:.4f} < Rm(krm2×1) = {rm_at_1:.4f} — "
+        "monotonicity broken between krm2×1 and krm2×3."
+    )
+
+    # The override must actually move Rm: Rm(×3) should be at least
+    # 1.5× Rm(×0.1). A flatter ratio means either the krm2·CSTi term
+    # is structurally small at this plant state (CSTi << Krm1/krm2,
+    # so the constant baseline dominates) or the kwarg is silently
+    # no-oping. Both are decision-relevant — the krm2-clean hypothesis
+    # is dead if Rm can't move with krm2 in the first place.
+    span = rm_at_3 / rm_at_01 if rm_at_01 > 0 else float("inf")
+    assert span > 1.5, (
+        f"Rm(krm2×3)/Rm(krm2×0.1) = {span:.3f}, expected > 1.5. Either "
+        "krm2 override no-ops, OR the krm2·CSTi term is structurally "
+        "small at day-30 production conditions (CSTi too low to amplify "
+        "Rm via krm2). Read pm_an_rm_gap_krm2_day30.json for the "
+        "krm2-clean/krm2-flat verdict per DIAG_CH1_HM_SOLVE Q2-4."
     )
