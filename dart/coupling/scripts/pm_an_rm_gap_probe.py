@@ -1025,6 +1025,141 @@ def probe_krm2_prod(multipliers=None, day: int = 30,
 
 
 # ---------------------------------------------------------------------------
+# Probe 8 — FvCB Vcrefmax sweep under production conditions @ G6-fast bootstrap
+# ---------------------------------------------------------------------------
+
+# G6-fast trace under DEPLOY-B + krm1×0.1 (fixture
+# hm_solve_trace_g6fast_krm1_0p1_deployb.jsonl, commit ab70211a) localised the
+# dominant α-clip mechanism to FvCB Vcmax(T) temperature scaling:
+#
+#   T_air (forced)      = 25 °C across all 5 PM days
+#   T_leaf at substep-12 = 12.9-16.3 °C (transpirational cooling 8.7-12.1 °C)
+#   Q10_photo (default) = 2  (Photosynthesis.h:167)
+#   Vcmax(T)/Vcmax25    ≈ 2^((287-298)/10) ≈ 0.47 at T_leaf=14 °C
+#
+# ψ damping was falsified by the trace (psixyl_leaf in [-486, -443] cm; fw ≈
+# 0.999 from the (1+exp(sh·p_lcrit))/(1+exp(sh·(p_lcrit-p_lhPa))) curve with
+# p_lcrit=-7500 hPa). gs upper cap not in evidence (gco2 varies with T_leaf,
+# no plateau). T_leaf has no literal clamp in code. Probe 8 tests whether
+# compensating the ~50 % Vcmax(T) downshift via Vcrefmax (Photosynthesis.cpp
+# :540: `Vcrefmax_i = (VcmaxrefChl1·Chl_i + VcmaxrefChl2)·1e-6`) closes the
+# Rg-side gap.
+#
+# Diagnostic kwarg: `vcrefchl_multiplier` (default None = no-op). Scales both
+# VcmaxrefChl1 and VcmaxrefChl2 by a uniform factor before each PM substep;
+# initStruct then rebuilds Vcrefmax with the scaled base coefs.
+#
+# Decision branches:
+#   α-FvCB-CLEAN — Vcrefmax×2 unlocks Rg toward Q_Grmax cap without
+#                  integrator choke → FvCB temperature parameterisation is the
+#                  binding mechanism. Either retune Q10_photo for maize C4
+#                  cold tolerance or accept ambient T_leaf.
+#   α-FvCB-FLAT  — Rg insensitive to Vcrefmax (An↑ but doesn't reach growth)
+#                  → downstream Fu_lim CSTi/(CSTi+KMfu) gate is the binding
+#                  constraint. Next probe: KMfu sweep.
+
+def probe_vcref_prod(multipliers=None, day: int = 30,
+                     krm1_multiplier: float = 0.1,
+                     pm_atol: float = 1e-9, pm_rtol: float = 1e-6) -> dict:
+    """Probe 8: Vcrefmax sweep at G6-fast bootstrap day under production
+    conditions, paired with krm1×0.1 (the regime where the G6-fast trace
+    captured T_leaf=12.9-16.3 °C, Vcmax(T)≈0.47×Vcmax25).
+
+    Mirrors ``probe_krm1_prod`` / ``probe_krm2_prod`` layout. The diagnostic
+    kwarg is ``vcrefchl_multiplier``. Result written to
+    ``pm_an_rm_gap_vcref_day30.json``.
+    """
+    if multipliers is None:
+        multipliers = [0.5, 1.0, 2.0, 3.0]
+    rows = []
+    print()
+    print("=" * 78)
+    print(f"Probe 8 — Vcrefmax sweep under production conditions @ day={day}")
+    print("=" * 78)
+    print(f"  Plant day={day}, Tair={TAIR_C}°C, "
+          f"FixedSoilPsi(-300 cm), advance_plant=True")
+    print(f"  Production conditions: PAR=120 (Baleno hourly-mean), "
+          f"inject_an_target=True, krm1×{krm1_multiplier}")
+    print(f"  Multipliers (× VcmaxrefChl1=0.64, VcmaxrefChl2=4.165): "
+          f"{multipliers}")
+    print(f"  Rationale: G6-fast trace at krm1×0.1 showed T_leaf=12.9-16.3 °C, "
+          f"Q10_photo=2 → Vcmax(T)≈0.47×Vcmax25. Vcrefmax×2 compensates.")
+    print()
+    for m in multipliers:
+        plant = _fresh_v3_plant(day=day)
+        An = _synth_an_per_leaf(plant, BALENO_DIURNAL_AN_MOL)
+        t0 = time.time()
+        result = solve_carbon_partitioning_pm(
+            plant,
+            An,
+            Tair_C=TAIR_C,
+            day=day,
+            n_substeps=24,
+            advance_plant=True,
+            soil_psi_provider=FixedSoilPsi(psi_cm=-300.0, n_cells=150),
+            par_umol=120.0,
+            inject_an_target=True,
+            krm1_multiplier=krm1_multiplier,
+            vcrefchl_multiplier=m,
+            pm_atol=pm_atol,
+            pm_rtol=pm_rtol,
+        )
+        dt = time.time() - t0
+        row = _summarise(f"vcref×{m}", result)
+        row["wall_s"] = round(dt, 1)
+        row["multiplier"] = m
+        rows.append(row)
+        if result is not None:
+            qg = row.get("Q_Grmax_total_mmol")
+            rg_qg = row.get("Rg_over_Q_Grmax")
+            qg_str = f"{qg:8.3f}" if qg is not None else "    None"
+            rg_qg_str = f"{rg_qg:6.3f}" if rg_qg is not None else " None "
+            mb_ne = row.get("mb_residual_no_exud_pct")
+            mb_ne_str = f"{mb_ne:5.2f}%" if mb_ne is not None else "   None"
+            print(f"  vcref×{m:5.2f}  An={row['An_total_mmol_internal']:8.3f}  "
+                  f"Rm={row['Rm_total_mmol']:8.3f}  Rg={row['Rg_total_mmol']:8.3f}  "
+                  f"Q_Grmax={qg_str}  Rg/Q_Grmax={rg_qg_str}  "
+                  f"Rm/An={row['Rm_over_An']:6.3f}  "
+                  f"mb={row['mass_balance_residual_pct']:5.2f}%  "
+                  f"mb_no_exud={mb_ne_str}  ({dt:.0f}s)")
+        else:
+            print(f"  vcref×{m:5.2f}  PM solver FAILED  ({dt:.0f}s)")
+
+    # α-FvCB decision branches.
+    finite = [r for r in rows if r["Rg_total_mmol"] is not None]
+    if finite:
+        rg_sorted = sorted(finite, key=lambda r: r["multiplier"])
+        rg_at_min = rg_sorted[0]["Rg_total_mmol"]
+        rg_at_max = rg_sorted[-1]["Rg_total_mmol"]
+        if rg_at_min > 0:
+            spread = rg_at_max / rg_at_min
+        else:
+            spread = float("inf") if rg_at_max > 0 else 1.0
+        print()
+        print(f"  Rg(vcref×{rg_sorted[-1]['multiplier']:.2f}) / "
+              f"Rg(vcref×{rg_sorted[0]['multiplier']:.2f}) "
+              f"= {spread:.3f}")
+        n_fail = len([r for r in rows if r["Rg_total_mmol"] is None])
+        if n_fail > 0:
+            print(f"  Solver failures: {n_fail}/{len(rows)} rows. "
+                  "Higher Vcrefmax may push FvCB-gs-ψ Newton into a stiffer "
+                  "regime; check trace if rerunning.")
+        if spread > 1.5 and n_fail == 0:
+            print("  → α-FvCB-CLEAN: Rg responds to Vcrefmax↑ — FvCB Vcmax(T) "
+                  "downshift at cool T_leaf IS the binding α-clip mechanism. "
+                  "Options: (a) retune Q10_photo for maize C4 cold tolerance, "
+                  "(b) bake compensating multiplier into VcmaxrefChl coefs, "
+                  "(c) accept the model behaviour and re-anchor the FA oracle.")
+        else:
+            print("  → α-FvCB-FLAT: Rg insensitive to Vcrefmax — An↑ but "
+                  "growth doesn't reach. Downstream Fu_lim CSTi/(CSTi+KMfu) "
+                  "gate is binding. Next probe: KMfu sweep "
+                  "(hm.KMfu, def_readwrite at PyPlantBox.cpp:1359).")
+    return {"probe": "vcref_day30", "rows": rows, "day": day,
+            "krm1_multiplier": krm1_multiplier}
+
+
+# ---------------------------------------------------------------------------
 # Driver
 # ---------------------------------------------------------------------------
 
@@ -1042,7 +1177,7 @@ def main():
     parser.add_argument("--probe",
                         choices=("all", "krm1", "baleno", "psi_init",
                                  "loading", "khyd_meso", "krm1_prod",
-                                 "krm2_prod"),
+                                 "krm2_prod", "vcref_prod"),
                         default="all")
     parser.add_argument("--day", type=int, default=None,
                         help="plant simulation day (default V3_DAY=21). "
@@ -1077,6 +1212,13 @@ def main():
     if args.probe in ("all", "krm2_prod"):
         krm2_prod_day = args.day if args.day is not None else 30
         results.append(probe_krm2_prod(day=krm2_prod_day))
+    # Probe 8 — Vcrefmax sweep at G6-fast bootstrap day. Tests whether
+    # compensating the ~50% Vcmax(T) downshift (T_leaf=12.9-16.3 °C under
+    # transpirational cooling) closes the α-clip-elsewhere gap on Rg.
+    # Paired with krm1×0.1 to match the G6-fast trace regime.
+    if args.probe in ("all", "vcref_prod"):
+        vcref_prod_day = args.day if args.day is not None else 30
+        results.append(probe_vcref_prod(day=vcref_prod_day))
 
     if not args.no_sidecar:
         print()

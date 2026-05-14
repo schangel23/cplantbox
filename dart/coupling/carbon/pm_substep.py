@@ -108,6 +108,7 @@ def solve_carbon_partitioning_pm(plant, An_per_leaf_seg, Tair_C=25.0,
                                   krm2_multiplier=None,
                                   vmaxloading_multiplier=None,
                                   khyd_s_mesophyll_override=None,
+                                  vcrefchl_multiplier=None,
                                   hm_solve_trace_path=None):
     """Run a 24-substep PiafMunch loop and return an S5-shaped carbon dict.
 
@@ -394,6 +395,27 @@ def solve_carbon_partitioning_pm(plant, An_per_leaf_seg, Tair_C=25.0,
         except Exception as e:
             print(f"  PM-substep: kHyd_S_Mesophyll override failed ({e}); "
                   "using JSON default")
+    # Optional FvCB Vcrefmax diagnostic override (DIAG_CH1_HM_SOLVE α-clip
+    # Vcmax(T) test). The G6-fast trace under DEPLOY-B+krm1×0.1 showed
+    # T_leaf at 12.9-16.3 °C across days 31-35 (transpiration-cooled vs
+    # T_air=25 °C). Q10_photo=2 gives Vcmax(T)/Vcmax25 ≈ 2^((287-298)/10)
+    # ≈ 0.47 — a ~50% downshift on top of PAR=120 linear regime. Vcrefmax
+    # is rebuilt inside Photosynthesis::initStruct at every solve via
+    # `Vcrefmax_i = (VcmaxrefChl1·Chl_i + VcmaxrefChl2)·1e-6`
+    # (Photosynthesis.cpp:540). Scaling both Chl coefficients by the same
+    # factor m uniformly multiplies the resulting Vcrefmax baseline. Both
+    # are def_readwrite at PyPlantBox.cpp:1310-1311. Multiplier > 1 (e.g.
+    # 2.0) compensates the ~50% T-downshift; multiplier ~ 0.5 stress-tests
+    # the model in the cool/cloudy direction. Default None leaves the
+    # JSON-driven defaults untouched so production runs are bit-identical.
+    if vcrefchl_multiplier is not None:
+        m_vcref = float(vcrefchl_multiplier)
+        try:
+            hm.VcmaxrefChl1 = float(hm.VcmaxrefChl1) * m_vcref
+            hm.VcmaxrefChl2 = float(hm.VcmaxrefChl2) * m_vcref
+        except Exception as e:
+            print(f"  PM-substep: VcmaxrefChl override failed ({e}); "
+                  "using FvCB defaults")
 
     sim_init = float(day)
     dt = 1.0 / float(n_substeps)
@@ -560,6 +582,10 @@ def solve_carbon_partitioning_pm(plant, An_per_leaf_seg, Tair_C=25.0,
                 "vmaxloading_multiplier": (
                     None if vmaxloading_multiplier is None
                     else float(vmaxloading_multiplier)
+                ),
+                "vcrefchl_multiplier": (
+                    None if vcrefchl_multiplier is None
+                    else float(vcrefchl_multiplier)
                 ),
                 "pre": _snapshot_solve_state(),
             }
