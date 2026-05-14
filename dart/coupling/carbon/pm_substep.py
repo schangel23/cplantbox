@@ -357,10 +357,22 @@ def solve_carbon_partitioning_pm(plant, An_per_leaf_seg, Tair_C=25.0,
     ea = es * 0.6  # constant RH=60% across substeps
 
     AnSum_suc = 0.0
+    # Step F0 — capture initial Y0 *via hm.Q_init* after the first startPM
+    # call so dQ pool deltas are referenced to t=0 (start of integration
+    # window), not end-of-substep-1. PiafMunch seeds Q_ST(0) =
+    # initValST × vol_ST and Q_meso(0) = initValMeso × vol_ParApo when
+    # withInitVal=True (the default in production via PyPlantBox). The
+    # initial Q_ST pool drains into Rm+Rg+Exud during substep 1 — at
+    # day-30 ~53 % of the day's Exud lives in substep 1 alone. Capturing
+    # at end-of-substep-1 hides that drainage as a phantom output and
+    # opens a 31 % MB leak with no balancing source.
     nt_first = -1
-    Q_ST_first = 0.0
-    Q_meso_first = 0.0
-    Q_S_meso_first = 0.0
+    captured_init = False
+    Q_ST_init = 0.0
+    Q_meso_init = 0.0
+    Q_S_meso_init = 0.0
+    Q_S_ST_init = 0.0
+    Q_Mucil_init = 0.0
 
     # Diurnal An target (mmol Suc/d, plant-total daily-uniform rate). Used
     # only when ``inject_an_target=True``; otherwise the substep loop's
@@ -509,11 +521,34 @@ def solve_carbon_partitioning_pm(plant, An_per_leaf_seg, Tair_C=25.0,
         # each instant, not per-node, so the comparison stays valid.
         if nt_first < 0:
             nt_first = len(plant.getNodes())
-            Q_ST_first = float(np.sum(np.array(hm.Q_out[0:nt_first])))
-            Q_meso_first = float(np.sum(np.array(
-                hm.Q_out[nt_first:(2 * nt_first)])))
-            Q_S_meso_first = float(np.sum(np.array(
-                hm.Q_out[(7 * nt_first):(8 * nt_first)])))
+            # Step F0 — read hm.Q_init (Y0 at integration-window start),
+            # populated inside initialize_carbon during the first startPM
+            # call when withInitVal=True. Fall back to substep-1-end Q_out
+            # if Q_init is empty (rare: withInitVal=False configs).
+            qi = np.asarray(hm.Q_init, dtype=float)
+            if qi.size >= 10 * nt_first:
+                Q_ST_init = float(np.sum(qi[0:nt_first]))
+                Q_meso_init = float(np.sum(qi[nt_first:(2 * nt_first)]))
+                Q_S_meso_init = float(
+                    np.sum(qi[(7 * nt_first):(8 * nt_first)])
+                )
+                Q_S_ST_init = float(
+                    np.sum(qi[(8 * nt_first):(9 * nt_first)])
+                )
+                Q_Mucil_init = float(
+                    np.sum(qi[(9 * nt_first):(10 * nt_first)])
+                )
+                captured_init = True
+            else:
+                Q_ST_init = float(np.sum(np.array(hm.Q_out[0:nt_first])))
+                Q_meso_init = float(np.sum(np.array(
+                    hm.Q_out[nt_first:(2 * nt_first)])))
+                Q_S_meso_init = float(np.sum(np.array(
+                    hm.Q_out[(7 * nt_first):(8 * nt_first)])))
+                Q_S_ST_init = float(np.sum(np.array(
+                    hm.Q_out[(8 * nt_first):(9 * nt_first)])))
+                Q_Mucil_init = float(np.sum(np.array(
+                    hm.Q_out[(9 * nt_first):(10 * nt_first)])))
 
         # 4. plant.simulate(dt) consumes CW_Gr (carbon-limited growth).
         if advance_plant:
@@ -523,14 +558,42 @@ def solve_carbon_partitioning_pm(plant, An_per_leaf_seg, Tair_C=25.0,
             finally:
                 _restore_io(*fdpair)
 
+        # Step β' — clear CW_Gr to {} after plant.simulate so the next
+        # substep's getLength takes the ExpGrowth fallback branch
+        # (growth.cpp:153) instead of the no_supply branch (line 158).
+        # Without this, plant.simulate marks CW_Gr[id] = -1; next
+        # substep's startPM → getLength → no_supply → returns 0 →
+        # Q_Grmax_dot = 0 for the remaining 23 substeps. The result is
+        # that only substep 1 contributes to cumulative Q_Grmax. Clearing
+        # CW_Gr makes substeps 2-24 also use the Exp-fallback target
+        # (same as substep 1's fresh-hm behaviour), so cumulative
+        # Q_Grmax = 24× substep-1 contribution. Per PiafMunch's
+        # `computeOrgGrowth` (runPM.cpp:670-679), the next startPM will
+        # overwrite f_gf->CW_Gr at the end of its integration regardless
+        # of what we clear here. assertUsedCReserves passes on empty maps.
+        for _ot in (2, 3, 4):
+            for _p in plant.getOrganRandomParameter(_ot):
+                if _p is not None and getattr(_p, "f_gf", None) is not None:
+                    _p.f_gf.CW_Gr = {}
+
         sim += dt
         n_done += 1
 
     if n_done == 0:
         return None
 
-    # Final-substep readout (re-read nt; plant may have grown).
-    nt = len(plant.getNodes())
+    # Final-substep readout — size nt from hm.Q_out (which is fixed at the
+    # C++ Nt of the last startPM call), NOT plant.getNodes(). The trailing
+    # plant.simulate(dt) of the final substep can add nodes; using its
+    # post-grow count would slice past Q_out's end. β' carbon supply makes
+    # this discrepancy easy to hit at high Vmaxloading (more substep-24
+    # growth, more drift). The Q_out layout is fixed at 10 × Nt
+    # (PiafMunch neq_coef = 10, see pm_substep.py header docstring).
+    qout_n = len(hm.Q_out)
+    if qout_n % 10 != 0:
+        print(f"  PM-substep: unexpected Q_out size {qout_n} (not 10·Nt)")
+        return None
+    nt = qout_n // 10
     Q_ST_arr = np.array(hm.Q_out[0:nt])
     Q_meso_arr = np.array(hm.Q_out[nt:(2 * nt)])
     Q_Rm_arr = np.array(hm.Q_out[(2 * nt):(3 * nt)])
@@ -538,6 +601,8 @@ def solve_carbon_partitioning_pm(plant, An_per_leaf_seg, Tair_C=25.0,
     Q_Gr_arr = np.array(hm.Q_out[(4 * nt):(5 * nt)])
     Q_Grmax_arr = np.array(hm.Q_out[(6 * nt):(7 * nt)])
     Q_S_meso_arr = np.array(hm.Q_out[(7 * nt):(8 * nt)])
+    Q_S_ST_arr = np.array(hm.Q_out[(8 * nt):(9 * nt)])
+    Q_Mucil_arr = np.array(hm.Q_out[(9 * nt):(10 * nt)])
     C_ST_arr = np.array(hm.C_ST)
 
     # Per-segment organ types → per-node organ types (root/stem/leaf masks).
@@ -572,29 +637,49 @@ def solve_carbon_partitioning_pm(plant, An_per_leaf_seg, Tair_C=25.0,
 
     dExud_total = float(np.sum(Q_Exud_arr))
 
-    # 24h sucrose-pool deltas.
-    dQ_ST = float(np.sum(Q_ST_arr)) - Q_ST_first
-    dQ_meso = float(np.sum(Q_meso_arr)) - Q_meso_first
-    dQ_S_meso = float(np.sum(Q_S_meso_arr)) - Q_S_meso_first
-    dStorage = dQ_ST + dQ_meso + dQ_S_meso
+    # 24h sucrose-pool deltas, referenced to t=0 (start of integration
+    # window) via hm.Q_init — see capture block above. Previously these
+    # were relative to end-of-substep-1, which lost the initValST × vol_ST
+    # seeding pool (PiafMunch initialize.cpp:200-207) and opened a phantom
+    # carbon export equal to the substep-1 Q_ST drainage (~0.4 mmol CO2
+    # at day-30 with initValST=0.4, accounting for ~80 % of the historic
+    # MB leak).
+    dQ_ST = float(np.sum(Q_ST_arr)) - Q_ST_init
+    dQ_meso = float(np.sum(Q_meso_arr)) - Q_meso_init
+    dQ_S_meso = float(np.sum(Q_S_meso_arr)) - Q_S_meso_init
+    dQ_S_ST = float(np.sum(Q_S_ST_arr)) - Q_S_ST_init
+    # Q_Mucil is cumulative-from-zero across the integration window; with
+    # Q_Mucil_init = 0 (always, withInitVal does not seed Q_Mucil) the
+    # subtraction is a no-op but kept for symmetry.
+    dQ_Mucil_root = float(np.sum(Q_Mucil_arr[mask_root]))
+    dQ_Mucil_stem = float(np.sum(Q_Mucil_arr[mask_stem]))
+    dQ_Mucil_leaf = float(np.sum(Q_Mucil_arr[mask_leaf]))
+    dQ_Mucil = dQ_Mucil_root + dQ_Mucil_stem + dQ_Mucil_leaf - Q_Mucil_init
+    dStorage = dQ_ST + dQ_meso + dQ_S_meso + dQ_S_ST
 
     # FR fractions — S5 convention: storage attributed to FR_stem so the
     # CSV / JSON writers don't need to learn a PM-specific schema. (PM's
     # storage is biologically mostly leaf mesophyll; for analysis the raw
-    # dQ_meso / dQ_S_meso are still in the dict.)
-    total_usage = dRm_total + dGr_total + dExud_total + dStorage
+    # dQ_meso / dQ_S_meso are still in the dict.) Step F0: mucilage is
+    # biologically root-only (k_mucil_ ≈ 0 outside roots) — attribute to
+    # FR_root alongside dExud.
+    total_usage = dRm_total + dGr_total + dExud_total + dQ_Mucil + dStorage
     if total_usage > 0:
-        FR_leaf = (dRm_leaf + dGr_leaf) / total_usage
-        FR_stem = (dRm_stem + dGr_stem + dStorage) / total_usage
-        FR_root = (dRm_root + dGr_root + dExud_total) / total_usage
+        FR_leaf = (dRm_leaf + dGr_leaf + dQ_Mucil_leaf) / total_usage
+        FR_stem = (dRm_stem + dGr_stem + dQ_Mucil_stem + dStorage) / total_usage
+        FR_root = (dRm_root + dGr_root + dExud_total + dQ_Mucil_root) / total_usage
         FR_storage = 0.0
     else:
         FR_leaf = FR_stem = FR_root = FR_storage = 0.0
 
     # Mass balance vs PM-organic AnSum (Gate Ch1.PM.3 closure check).
+    # Step F0: include dQ_Mucil — mucilage is cumulative exudation that
+    # drains Q_S_ST, parallel to Q_Exud. Without it the MB carried a
+    # ~0.55 mmol/d leak at day-30.
     if AnSum_suc > 0:
         mb_residual = abs(
-            AnSum_suc - (dRm_total + dGr_total + dExud_total + dStorage)
+            AnSum_suc
+            - (dRm_total + dGr_total + dExud_total + dQ_Mucil + dStorage)
         ) / AnSum_suc
     else:
         mb_residual = 0.0
@@ -662,6 +747,24 @@ def solve_carbon_partitioning_pm(plant, An_per_leaf_seg, Tair_C=25.0,
         "dQ_S_meso": float(dQ_S_meso),
         "dQ_meso": float(dQ_meso),
         "dQ_ST": float(dQ_ST),
+        # Step F0 — sidecar visibility for the previously-missing pools.
+        # dQ_S_ST is sieve-tube starch (block 8, state pool); dQ_Mucil is
+        # cumulative mucilage exudation (block 9, drains from Q_S_ST per
+        # PiafMunch2.cpp:170-181). Both in mmol Suc.
+        "dQ_S_ST": float(dQ_S_ST),
+        "dQ_Mucil": float(dQ_Mucil),
+        "dQ_Mucil_root": float(dQ_Mucil_root),
+        "dQ_Mucil_stem": float(dQ_Mucil_stem),
+        "dQ_Mucil_leaf": float(dQ_Mucil_leaf),
+        # Step F0 — initial pool seeding (Q_init), populated by PiafMunch's
+        # initialize.cpp:200-207 when withInitVal=True. The Q_ST seeding
+        # is the missing carbon source that explained ~80 % of the day-30
+        # MB leak; surface it so the sidecar formula can verify closure.
+        "Q_ST_init_mmol_suc": float(Q_ST_init),
+        "Q_meso_init_mmol_suc": float(Q_meso_init),
+        "Q_S_meso_init_mmol_suc": float(Q_S_meso_init),
+        "Q_S_ST_init_mmol_suc": float(Q_S_ST_init),
+        "captured_init_from_Q_init": bool(captured_init),
         "mass_balance_residual_pct": float(mb_residual * 100.0),
         # Gate Ch1.PMDM.3 conservation diagnostics (24-h integrals) -------
         # ∫Ev > 0 (water leaves leaves), ∫RWU < 0 (water leaves soil into

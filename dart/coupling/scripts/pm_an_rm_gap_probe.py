@@ -185,12 +185,18 @@ def _summarise(label: str, result: Optional[dict]) -> dict:
             "mass_balance_residual_pct": None,
             "mb_residual_no_exud_pct": None,
             "Q_Grmax_total_mmol": None,
+            "Q_Grmax_total_mmol_co2": None,
             "Rg_over_Q_Grmax": None,
             "dQ_S_meso_mmol_co2": None,
             "dQ_meso_mmol_co2": None,
             "dQ_ST_mmol_co2": None,
+            "dQ_S_ST_mmol_co2": None,
+            "dQ_Mucil_mmol_co2": None,
             "dQ_storage_total_mmol_co2": None,
             "Exud_total_mmol_co2": None,
+            "Q_ST_init_mmol_co2": None,
+            "Q_meso_init_mmol_co2": None,
+            "captured_init_from_Q_init": None,
         }
     an_int = float(result["An_total_mmol"])
     an_tgt = float(result["An_total_mmol_target"])
@@ -201,28 +207,44 @@ def _summarise(label: str, result: Optional[dict]) -> dict:
     # PiafMunch2.cpp:208; if Rg/Q_Grmax ≈ 1, the growth-capacity cap is
     # binding (CW-wrap-driven). If Rg/Q_Grmax << 1, Fu_lim (Michaelis-Menten
     # gated by CSTi/(CSTi+KMfu)) is the binding constraint.
+    # Step U (unit fix): Q_Grmax_node is raw mmol Suc/d from hm.Q_out; Rg is
+    # already converted to mmol CO2. Convert Q_Grmax to CO2 units before
+    # computing the ratio so numerator and denominator are commensurate
+    # (S = SUC_TO_CO2 = 12). Before this fix the ratio was 12× too high
+    # — production day-30 read 27% Rg/Q_Grmax (Suc), real value is 2.3%
+    # (CO2). See plan §"Unit-mismatch bug".
+    suc_to_co2 = 12.0
     qg = result.get("Q_Grmax_node")
     qg_total = float(np.sum(qg)) if qg is not None else None
-    rg_over_qg = (rg / qg_total) if qg_total and qg_total > 1e-9 else None
-    # Storage pools — raw fields are mmol Suc (pm_substep.py:662-664); convert
-    # to mmol CO2 (S = SUC_TO_CO2 = 12) so they are unit-consistent with
-    # An / Rm / Rg in this sidecar. Exudation comes pre-converted as
-    # total_loading_mmol (pm_substep.py:648).
-    suc_to_co2 = 12.0
+    qg_total_co2 = qg_total * suc_to_co2 if qg_total is not None else None
+    rg_over_qg = (
+        rg / qg_total_co2 if qg_total_co2 and qg_total_co2 > 1e-9 else None
+    )
+    # Storage pools — raw fields are mmol Suc (pm_substep.py); convert to
+    # mmol CO2 so they are unit-consistent with An / Rm / Rg in this
+    # sidecar. Exudation comes pre-converted as total_loading_mmol.
     dq_s_meso_co2 = float(result.get("dQ_S_meso", 0.0)) * suc_to_co2
     dq_meso_co2 = float(result.get("dQ_meso", 0.0)) * suc_to_co2
     dq_st_co2 = float(result.get("dQ_ST", 0.0)) * suc_to_co2
-    dq_storage_co2 = dq_s_meso_co2 + dq_meso_co2 + dq_st_co2
+    # Step F0 — surface the previously-missing pools. dQ_S_ST is
+    # sieve-tube starch (state pool); dQ_Mucil is cumulative mucilage
+    # exudation, a sink that drains Q_S_ST and exits the plant. After
+    # F0 fix the dQ_* deltas are referenced to t=0 (via hm.Q_init)
+    # rather than end-of-substep-1.
+    dq_s_st_co2 = float(result.get("dQ_S_ST", 0.0)) * suc_to_co2
+    dq_mucil_co2 = float(result.get("dQ_Mucil", 0.0)) * suc_to_co2
+    dq_storage_co2 = dq_s_meso_co2 + dq_meso_co2 + dq_st_co2 + dq_s_st_co2
     exud_co2 = float(result.get("total_loading_mmol", 0.0))
-    # Plan-formula MB residual: (An − Rm − Rg − dStorage) / An, exudation
-    # *not* subtracted. Compare against mass_balance_residual_pct (which
-    # *does* subtract exudation, pm_substep.py:596-598) to localise the
-    # leak: if mb_residual_no_exud is small and the official one is large,
-    # exudation is the leak; if both are large the leak is elsewhere
-    # (Q_W wall pool, solve.cpp internals, integrator drift — see plan
-    # §"Open questions to flag").
+    q_st_init_co2 = float(result.get("Q_ST_init_mmol_suc", 0.0)) * suc_to_co2
+    q_meso_init_co2 = float(result.get("Q_meso_init_mmol_suc", 0.0)) * suc_to_co2
+    # Plan-formula MB residual: (An − Rm − Rg − dStorage − dMucil) / An,
+    # exudation *not* subtracted (it is a flux out, accounted separately
+    # against root-loading). After F0 dStorage includes Q_S_ST and
+    # mucilage is a parallel exudation-like sink.
     if abs(an_int) > 1e-9:
-        mb_no_exud = (an_int - rm - rg - dq_storage_co2) / an_int * 100.0
+        mb_no_exud = (
+            (an_int - rm - rg - dq_storage_co2 - dq_mucil_co2) / an_int * 100.0
+        )
     else:
         mb_no_exud = None
     return {
@@ -236,13 +258,25 @@ def _summarise(label: str, result: Optional[dict]) -> dict:
         "psi_leaf_min_cm": result.get("psi_leaf_min_cm"),
         "mass_balance_residual_pct": float(result["mass_balance_residual_pct"]),
         "mb_residual_no_exud_pct": mb_no_exud,
-        "Q_Grmax_total_mmol": qg_total,
-        "Rg_over_Q_Grmax": rg_over_qg,
+        "Q_Grmax_total_mmol": qg_total,  # raw, mmol Suc/d (PiafMunch native)
+        "Q_Grmax_total_mmol_co2": qg_total_co2,  # × S, mmol CO2/d
+        "Rg_over_Q_Grmax": rg_over_qg,  # post-U: both in mmol CO2/d
         "dQ_S_meso_mmol_co2": dq_s_meso_co2,
         "dQ_meso_mmol_co2": dq_meso_co2,
         "dQ_ST_mmol_co2": dq_st_co2,
+        "dQ_S_ST_mmol_co2": dq_s_st_co2,
+        "dQ_Mucil_mmol_co2": dq_mucil_co2,
         "dQ_storage_total_mmol_co2": dq_storage_co2,
         "Exud_total_mmol_co2": exud_co2,
+        # Step F0 — surface initial-pool seeding (× S = CO2 equivalents).
+        # withInitVal=True seeds Q_ST(0) = initValST × vol_ST and
+        # Q_meso(0) = initValMeso × vol_ParApo. These are the "missing
+        # source" that paid for substep 1's outsized Exud.
+        "Q_ST_init_mmol_co2": q_st_init_co2,
+        "Q_meso_init_mmol_co2": q_meso_init_co2,
+        "captured_init_from_Q_init": bool(
+            result.get("captured_init_from_Q_init", False)
+        ),
     }
 
 
@@ -542,7 +576,12 @@ def probe_psi_init(psi_values=None) -> Optional[dict]:
 V3_DEMAND_MMOL = 5.0
 
 
-def probe_loading(multipliers=None, day: int = V3_DAY) -> dict:
+def probe_loading(multipliers=None, day: int = V3_DAY,
+                  pm_atol: float = 1e-9, pm_rtol: float = 1e-6) -> dict:
+    # Tight CVODE tolerances (atol=1e-9, rtol=1e-6) are needed for the
+    # MB residual to close to <5 % — at production defaults (1e-6/1e-4)
+    # integrator drift accumulates ~13 % over the 24-substep loop.
+    # Verified empirically post-F0 (Q_init baseline); see plan-doc.
     if multipliers is None:
         multipliers = [1.0, 10.0, 100.0, 1000.0]
     rows = []
@@ -573,6 +612,8 @@ def probe_loading(multipliers=None, day: int = V3_DAY) -> dict:
             par_umol=120.0,
             inject_an_target=True,
             vmaxloading_multiplier=m,
+            pm_atol=pm_atol,
+            pm_rtol=pm_rtol,
         )
         dt = time.time() - t0
         row = _summarise(f"vmaxloading×{m}", result)
@@ -730,7 +771,8 @@ def probe_khyd_meso(khyd_values=None) -> dict:
 #   α-staged       — multiplier is age-dependent → phenology-gated modifier
 #   α-clip-elsewhere — Rg ≪ Q_Grmax even at Rm → 0 → third bottleneck
 
-def probe_krm1_prod(multipliers=None, day: int = 30) -> dict:
+def probe_krm1_prod(multipliers=None, day: int = 30,
+                    pm_atol: float = 1e-9, pm_rtol: float = 1e-6) -> dict:
     """Probe 6: Krm1 sweep at G6-fast bootstrap day under production conditions.
 
     Mirrors ``probe_loading`` (probe 4): same FixedSoilPsi(-300), same
@@ -770,6 +812,8 @@ def probe_krm1_prod(multipliers=None, day: int = 30) -> dict:
             par_umol=120.0,
             inject_an_target=True,
             krm1_multiplier=m,
+            pm_atol=pm_atol,
+            pm_rtol=pm_rtol,
         )
         dt = time.time() - t0
         row = _summarise(f"krm1×{m}", result)
