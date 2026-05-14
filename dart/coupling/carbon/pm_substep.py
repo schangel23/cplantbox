@@ -105,6 +105,7 @@ def solve_carbon_partitioning_pm(plant, An_per_leaf_seg, Tair_C=25.0,
                                   solver=32, soil_psi_provider=None,
                                   inject_an_target=False,
                                   krm1_multiplier=None,
+                                  krm2_multiplier=None,
                                   vmaxloading_multiplier=None,
                                   khyd_s_mesophyll_override=None,
                                   hm_solve_trace_path=None):
@@ -182,6 +183,27 @@ def solve_carbon_partitioning_pm(plant, An_per_leaf_seg, Tair_C=25.0,
             (sidecar ``pm_an_rm_gap_loading.json``), so Vmaxloading is
             NOT the production bottleneck — the bottleneck is downstream
             (see ``khyd_s_mesophyll_override``).
+        krm2_multiplier: optional scalar multiplier on the CSTi-dependent
+            maintenance-respiration coefficient ``krm2`` (PiafMunch2.cpp:205
+            ``Q_Rmmax_ = (Q_Rmmax + krm2·CSTi) · Q10^...``). The
+            ``krm2 × CSTi`` term grows with sieve-tube concentration —
+            i.e. as phloem loading boosts CSTi, Rm-priority demand rises
+            proportionally, eating Fu_lim before Rg sees it. Reducing
+            krm2 targets the supply-coupled term DIRECTLY while leaving
+            the constant Krm1 term intact, so the maintenance baseline
+            stays WOFOST-anchored but the supply-feedback amplifier is
+            cooled. Q2 of DIAG_CH1_HM_SOLVE_UNDER_BETA_PRIME tests
+            whether this is a less destabilising α-substitute than
+            ``krm1_multiplier`` (which destabilises the FvCB-gs-ψ
+            Newton iteration under β'+α). Mirrors the
+            ``krm1_multiplier`` pattern: ``hm.setKrm2([[leaf_default * m]])``
+            where ``leaf_default = 4e-5`` (phloem_parameters_maize2026.json
+            "Krm2" leaf row). Same per-organ-type caveat as
+            ``krm1_multiplier`` — scalar override replaces all three
+            (root/stem/leaf) with a single value; finer per-organ
+            sweep needs a richer setter. Default ``None`` leaves the
+            JSON per-organ values untouched so production runs are
+            bit-identical with pre-probe behaviour.
         hm_solve_trace_path: optional path to a JSONL sidecar that
             captures per-``hm.solve`` state for diagnosing the FvCB-gs-ψ
             Newton divergence observed under β'+α in the G6-fast loop
@@ -296,6 +318,21 @@ def solve_carbon_partitioning_pm(plant, An_per_leaf_seg, Tair_C=25.0,
             hm.setKrm1([[wofost_leaf_default * m]])
         except Exception as e:
             print(f"  PM-substep: Krm1 override failed ({e}); using JSON default")
+    # Optional Krm2 diagnostic override (DIAG_CH1_HM_SOLVE_UNDER_BETA_PRIME
+    # Q2). The CSTi-dependent Rm term — `Q_Rmmax_ = (Q_Rmmax + krm2·CSTi)
+    # · Q10` (PiafMunch2.cpp:205) — grows with sieve-tube concentration,
+    # so any phloem-loading-side gain feeds Rm priority instead of Rg.
+    # Reducing krm2 targets this supply-coupled amplifier without
+    # touching the constant Krm1 baseline. Setter shape mirrors Krm1
+    # (`hm.setKrm2([[value]])`, scalar override over leaf default 4e-5
+    # — phloem_parameters_maize2026.json "Krm2" leaf row at index 2).
+    if krm2_multiplier is not None:
+        m2 = float(krm2_multiplier)
+        krm2_leaf_default = 4e-5  # phloem_parameters_maize2026.json leaf
+        try:
+            hm.setKrm2([[krm2_leaf_default * m2]])
+        except Exception as e:
+            print(f"  PM-substep: Krm2 override failed ({e}); using JSON default")
     hm.atol = pm_atol
     hm.rtol = pm_rtol
     # Optional Vmaxloading diagnostic override (Ch1 phloem-loading retune
@@ -491,6 +528,10 @@ def solve_carbon_partitioning_pm(plant, An_per_leaf_seg, Tair_C=25.0,
                 "krm1_multiplier": (
                     None if krm1_multiplier is None
                     else float(krm1_multiplier)
+                ),
+                "krm2_multiplier": (
+                    None if krm2_multiplier is None
+                    else float(krm2_multiplier)
                 ),
                 "vmaxloading_multiplier": (
                     None if vmaxloading_multiplier is None
