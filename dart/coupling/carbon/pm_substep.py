@@ -109,6 +109,7 @@ def solve_carbon_partitioning_pm(plant, An_per_leaf_seg, Tair_C=25.0,
                                   vmaxloading_multiplier=None,
                                   khyd_s_mesophyll_override=None,
                                   vcrefchl_multiplier=None,
+                                  kmfu_multiplier=None,
                                   hm_solve_trace_path=None):
     """Run a 24-substep PiafMunch loop and return an S5-shaped carbon dict.
 
@@ -416,6 +417,22 @@ def solve_carbon_partitioning_pm(plant, An_per_leaf_seg, Tair_C=25.0,
         except Exception as e:
             print(f"  PM-substep: VcmaxrefChl override failed ({e}); "
                   "using FvCB defaults")
+    # Optional KMfu diagnostic override (DIAG_CH1_HM_SOLVE α-clip Fu_lim
+    # split test). Probe 8 falsified the Vcrefmax hypothesis: even with
+    # An pinned via inject_an_target=True, Rg stays clipped at ~19% of
+    # Q_Grmax cap regardless of Vcrefmax×{0.5..3.0}. Fu_lim =
+    # (Q_Rmmax + Q_Grmax) · CSTi/(CSTi+KMfu) (PiafMunch2.cpp:208) is the
+    # next candidate. With Q_Grmax=5.445 mmol Suc/d and Rg+Rm ≈ 1.04
+    # observed, the gate fraction ≈ 0.19 → KMfu ~ 4×CSTi. Lowering KMfu
+    # pushes the Michaelis-like saturation toward 1, freeing both Rm and
+    # Rg to fill their caps. KMfu is def_readwrite at PyPlantBox.cpp:1359.
+    # Default None → no-op, bit-identical with production.
+    if kmfu_multiplier is not None:
+        try:
+            hm.KMfu = float(hm.KMfu) * float(kmfu_multiplier)
+        except Exception as e:
+            print(f"  PM-substep: KMfu override failed ({e}); "
+                  "using PiafMunch default")
 
     sim_init = float(day)
     dt = 1.0 / float(n_substeps)
@@ -586,6 +603,10 @@ def solve_carbon_partitioning_pm(plant, An_per_leaf_seg, Tair_C=25.0,
                 "vcrefchl_multiplier": (
                     None if vcrefchl_multiplier is None
                     else float(vcrefchl_multiplier)
+                ),
+                "kmfu_multiplier": (
+                    None if kmfu_multiplier is None
+                    else float(kmfu_multiplier)
                 ),
                 "pre": _snapshot_solve_state(),
             }

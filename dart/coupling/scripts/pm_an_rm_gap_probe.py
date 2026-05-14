@@ -1160,6 +1160,138 @@ def probe_vcref_prod(multipliers=None, day: int = 30,
 
 
 # ---------------------------------------------------------------------------
+# Probe 9 — KMfu sweep under production conditions @ G6-fast bootstrap day
+# ---------------------------------------------------------------------------
+
+# Probe 8 falsified the FvCB Vcmax(T) hypothesis (α-FvCB-FLAT verdict, sidecar
+# pm_an_rm_gap_vcref_day30.json, commit 933d795e). With An pinned via
+# inject_an_target=True, Rg/Q_Grmax stays at ~1 % across Vcrefmax×{0.5..3.0}.
+# The bottleneck is downstream of An.
+#
+# Fu_lim = (Q_Rmmax + Q_Grmax) · CSTi/(CSTi+KMfu)  (PiafMunch2.cpp:208)
+# At day-30 production: Q_Grmax=5.445, observed Rg+Rm ≈ 1.04 mmol Suc/d
+#   → Fu_lim/(Q_Rmmax+Q_Grmax) ≈ 0.19
+#   → CSTi/(CSTi+KMfu) ≈ 0.19
+#   → KMfu ≈ 4·CSTi
+#
+# Probe 9 sweeps KMfu multipliers {0.1, 0.3, 1.0, 3.0}. Lowering KMfu pushes
+# CSTi/(CSTi+KMfu) → 1 and should let Rg approach Q_Grmax cap if this gate is
+# the binding constraint. KMfu is def_readwrite at PyPlantBox.cpp:1359.
+#
+# Decision branches:
+#   α-KMfu-CLEAN — KMfu↓ unlocks Rg toward Q_Grmax cap with no integrator
+#                  choke → DEPLOY-C (phloem_parameters_maize2026.json KMfu
+#                  patch).
+#   α-KMfu-FLAT  — Rg insensitive to KMfu → check the rho_h2o / CSTi
+#                  computation chain, OR escalate to the C++ growth.cpp:153
+#                  empty-CW_Gr fallback (β plan).
+
+def probe_kmfu_prod(multipliers=None, day: int = 30,
+                    krm1_multiplier: float = 0.1,
+                    pm_atol: float = 1e-9, pm_rtol: float = 1e-6) -> dict:
+    """Probe 9: KMfu sweep at G6-fast bootstrap day, paired with krm1×0.1.
+
+    Mirrors probe_vcref_prod layout. Diagnostic kwarg: ``kmfu_multiplier``.
+    Sidecar: ``pm_an_rm_gap_kmfu_day30.json``.
+    """
+    if multipliers is None:
+        multipliers = [0.1, 0.3, 1.0, 3.0]
+    rows = []
+    print()
+    print("=" * 78)
+    print(f"Probe 9 — KMfu sweep under production conditions @ day={day}")
+    print("=" * 78)
+    print(f"  Plant day={day}, Tair={TAIR_C}°C, "
+          f"FixedSoilPsi(-300 cm), advance_plant=True")
+    print(f"  Production conditions: PAR=120 (Baleno hourly-mean), "
+          f"inject_an_target=True, krm1×{krm1_multiplier}")
+    print(f"  Multipliers (× JSON KMfu): {multipliers}")
+    print(f"  Rationale: probe 8 α-FvCB-FLAT → CSTi/(CSTi+KMfu) gate "
+          f"≈ 0.19 → KMfu ≈ 4·CSTi → lowering KMfu opens the gate.")
+    print()
+    for m in multipliers:
+        plant = _fresh_v3_plant(day=day)
+        An = _synth_an_per_leaf(plant, BALENO_DIURNAL_AN_MOL)
+        t0 = time.time()
+        result = solve_carbon_partitioning_pm(
+            plant,
+            An,
+            Tair_C=TAIR_C,
+            day=day,
+            n_substeps=24,
+            advance_plant=True,
+            soil_psi_provider=FixedSoilPsi(psi_cm=-300.0, n_cells=150),
+            par_umol=120.0,
+            inject_an_target=True,
+            krm1_multiplier=krm1_multiplier,
+            kmfu_multiplier=m,
+            pm_atol=pm_atol,
+            pm_rtol=pm_rtol,
+        )
+        dt = time.time() - t0
+        row = _summarise(f"kmfu×{m}", result)
+        row["wall_s"] = round(dt, 1)
+        row["multiplier"] = m
+        rows.append(row)
+        if result is not None:
+            qg = row.get("Q_Grmax_total_mmol")
+            rg_qg = row.get("Rg_over_Q_Grmax")
+            qg_str = f"{qg:8.3f}" if qg is not None else "    None"
+            rg_qg_str = f"{rg_qg:6.3f}" if rg_qg is not None else " None "
+            mb_ne = row.get("mb_residual_no_exud_pct")
+            mb_ne_str = f"{mb_ne:5.2f}%" if mb_ne is not None else "   None"
+            print(f"  kmfu×{m:5.2f}  An={row['An_total_mmol_internal']:8.3f}  "
+                  f"Rm={row['Rm_total_mmol']:8.3f}  Rg={row['Rg_total_mmol']:8.3f}  "
+                  f"Q_Grmax={qg_str}  Rg/Q_Grmax={rg_qg_str}  "
+                  f"Rm/An={row['Rm_over_An']:6.3f}  "
+                  f"mb={row['mass_balance_residual_pct']:5.2f}%  "
+                  f"mb_no_exud={mb_ne_str}  ({dt:.0f}s)")
+        else:
+            print(f"  kmfu×{m:5.2f}  PM solver FAILED  ({dt:.0f}s)")
+
+    finite = [r for r in rows if r["Rg_total_mmol"] is not None]
+    if finite:
+        rg_sorted = sorted(finite, key=lambda r: r["multiplier"])
+        rg_low = rg_sorted[0]["Rg_total_mmol"]   # KMfu↓ (gate open)
+        rg_high = rg_sorted[-1]["Rg_total_mmol"]  # KMfu↑ (gate closed)
+        if rg_high > 0:
+            spread = rg_low / rg_high
+        else:
+            spread = float("inf")
+        print()
+        print(f"  Rg(kmfu×{rg_sorted[0]['multiplier']:.2f}) / "
+              f"Rg(kmfu×{rg_sorted[-1]['multiplier']:.2f}) "
+              f"= {spread:.3f}  (KMfu↓ vs KMfu↑)")
+        n_fail = len([r for r in rows if r["Rg_total_mmol"] is None])
+        # α-decision: KMfu-CLEAN if KMfu↓ delivers > 50% of Q_Grmax cap.
+        # Compute Rg/Q_Grmax at the lowest-KMfu row.
+        best = rg_sorted[0]
+        rg_qg = best.get("Rg_over_Q_Grmax")
+        if rg_qg is not None and rg_qg >= 0.50 and n_fail == 0:
+            print(f"  → α-KMfu-CLEAN: KMfu×{best['multiplier']:.2f} delivers "
+                  f"Rg/Q_Grmax = {rg_qg:.3f} ≥ 0.50. Fu_lim gate is the "
+                  "binding constraint. DEPLOY-C candidate: patch KMfu in "
+                  "phloem_parameters_maize2026.json.")
+        elif spread > 1.5 and n_fail == 0:
+            print(f"  → α-KMfu-PARTIAL: KMfu↓ responds (Rg spread {spread:.2f}×) "
+                  f"but doesn't fully unblock (Rg/Q_Grmax_max = {rg_qg:.3f}). "
+                  "Gate is one of multiple bottlenecks. Pair with another "
+                  "knob or accept reduced cap utilisation.")
+        elif n_fail > 0:
+            print(f"  → α-KMfu-CHOKE: {n_fail}/{len(rows)} rows fail. "
+                  "Aggressive KMfu changes push integrator into a stiffer "
+                  "regime. Inspect trace.")
+        else:
+            print("  → α-KMfu-FLAT: Rg insensitive to KMfu. The "
+                  "CSTi/(CSTi+KMfu) gate is NOT the binding mechanism. "
+                  "Falsifies the Fu_lim-split hypothesis. Move to C++ "
+                  "growth.cpp:153 empty-CW_Gr fallback (β plan) or check "
+                  "CSTi computation chain (Csoil_seg/Csoil_node loading).")
+    return {"probe": "kmfu_day30", "rows": rows, "day": day,
+            "krm1_multiplier": krm1_multiplier}
+
+
+# ---------------------------------------------------------------------------
 # Driver
 # ---------------------------------------------------------------------------
 
@@ -1177,7 +1309,7 @@ def main():
     parser.add_argument("--probe",
                         choices=("all", "krm1", "baleno", "psi_init",
                                  "loading", "khyd_meso", "krm1_prod",
-                                 "krm2_prod", "vcref_prod"),
+                                 "krm2_prod", "vcref_prod", "kmfu_prod"),
                         default="all")
     parser.add_argument("--day", type=int, default=None,
                         help="plant simulation day (default V3_DAY=21). "
@@ -1219,6 +1351,12 @@ def main():
     if args.probe in ("all", "vcref_prod"):
         vcref_prod_day = args.day if args.day is not None else 30
         results.append(probe_vcref_prod(day=vcref_prod_day))
+    # Probe 9 — KMfu sweep at G6-fast bootstrap day. Tests whether the
+    # Fu_lim CSTi/(CSTi+KMfu) gate is the binding α-clip after probe 8
+    # falsified the FvCB Vcmax(T) hypothesis.
+    if args.probe in ("all", "kmfu_prod"):
+        kmfu_prod_day = args.day if args.day is not None else 30
+        results.append(probe_kmfu_prod(day=kmfu_prod_day))
 
     if not args.no_sidecar:
         print()
