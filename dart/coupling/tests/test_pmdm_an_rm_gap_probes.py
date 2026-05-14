@@ -44,6 +44,7 @@ from dart.coupling.scripts.pm_an_rm_gap_probe import (  # noqa: E402
     probe_psi_init,
     probe_loading,
     probe_khyd_meso,
+    probe_krm1_prod,
     _write_sidecar,
 )
 
@@ -375,4 +376,73 @@ def test_khyd_meso_probe_monotonicity():
         "meso-starch trap is not the bottleneck either — look at "
         "k_S_ST / kHyd_S_ST (sieve-tube starch) or the Rg solver "
         "downstream of Q_S_meso. See pm_an_rm_gap_khyd_meso.json."
+    )
+
+
+# ---------------------------------------------------------------------------
+# Probe 6 — Krm1 monotonicity under production conditions at day-30
+# ---------------------------------------------------------------------------
+
+@pytest.mark.slow
+def test_krm1_prod_probe_monotonicity():
+    """Rm must be monotone-non-decreasing in the Krm1 multiplier under
+    production conditions at G6-fast bootstrap day.
+
+    Q_Rmmax = Krm1 × ρ_s × seg_vol (phloem_parameters_maize2026.json:316),
+    so raising the multiplier should raise the maintenance demand and
+    therefore raise integrated Rm — until Fu_lim caps the realised flux.
+    Probe 6 sweeps {0.1, 0.3, 1.0, 3.0} at --day 30 under production
+    conditions (PAR=120, inject_an_target=True, FixedSoilPsi(-300));
+    Rm should rise across this range under day-30 conditions.
+
+    A FAIL flags one of two outcomes, both diagnostic:
+      * Rm flat in Krm1 → kwarg silently no-ops or substrate already
+        binding at the floor (Q_S_meso depleted before Krm1 sees it)
+      * Rm rises too fast (Q_Rmmax above Fu_lim across the entire
+        sweep) → the 2026-05-08 WOFOST anchor is over-charging at
+        day-30 → α-staged calibration path is mandated (probe sidecar
+        is the decision input; this test surfaces the sensitivity
+        status, the plan-doc's decision block carries the α verdict).
+
+    Pass/fail on the *scientific* question — which α-branch fires? —
+    is read off the JSON sidecar in step 5, not gated here.
+    """
+    # Reduced grid for pytest wall-time (~6 min vs ~8 min for full grid).
+    result = probe_krm1_prod(multipliers=[0.1, 1.0, 3.0])
+    _write_sidecar(result)
+    rows = [r for r in result["rows"] if r["Rm_total_mmol"] is not None]
+    assert len(rows) >= 3, (
+        f"Krm1_prod probe lost rows to solver failure; got {len(rows)}/3. "
+        "Inspect probe sidecar for details."
+    )
+    rm_at_01 = next(r["Rm_total_mmol"] for r in rows if r["multiplier"] == 0.1)
+    rm_at_1 = next(r["Rm_total_mmol"] for r in rows if r["multiplier"] == 1.0)
+    rm_at_3 = next(r["Rm_total_mmol"] for r in rows if r["multiplier"] == 3.0)
+
+    # Monotone-non-decreasing in Krm1 with 5% slack (substrate non-linearity
+    # near the saturation knee can introduce small inversions). If Rm is
+    # already Fu_lim-clipped at low Krm1, the higher multiplier flat-lines
+    # rather than inverts; that satisfies this assertion.
+    assert rm_at_1 >= rm_at_01 * 0.95, (
+        f"Rm(Krm1×1) = {rm_at_1:.4f} < Rm(Krm1×0.1) = {rm_at_01:.4f} — "
+        "Krm1 multiplier appears to be no-oping or sign-flipped."
+    )
+    assert rm_at_3 >= rm_at_1 * 0.95, (
+        f"Rm(Krm1×3) = {rm_at_3:.4f} < Rm(Krm1×1) = {rm_at_1:.4f} — "
+        "monotonicity broken between Krm1×1 and Krm1×3."
+    )
+
+    # The override must actually move Rm: Rm(×3) should be at least 1.5× Rm(×0.1).
+    # If the spread is flatter than this, Fu_lim is clipping the high end
+    # → α-clip-elsewhere candidate. The sidecar carries the diagnostic;
+    # this assertion surfaces sensitivity status (it should ALSO fail as
+    # a sentinel if the third bottleneck materialises, mirroring the
+    # 2026-05-13 known FAIL pattern on probe 4).
+    span = rm_at_3 / rm_at_01 if rm_at_01 > 0 else float("inf")
+    assert span > 1.5, (
+        f"Rm(Krm1×3)/Rm(Krm1×0.1) = {span:.3f}, expected > 1.5. Either "
+        "Krm1 override no-ops, OR Fu_lim is clipping Rm before Q_Rmmax "
+        "can move (→ α-clip-elsewhere: third bottleneck between Fu_lim "
+        "and Q_Grmax — see PLAN_CH1_CARBON_DEMAND_2026-05-14 §α). "
+        "Read pm_an_rm_gap_krm1_day30.json for the α-decision verdict."
     )
