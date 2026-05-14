@@ -137,6 +137,7 @@ def grow_with_pm(
     soil_psi_cm: float,
     inject_an_target: bool,
     krm1_multiplier: float = None,
+    kmfu_multiplier: float = None,
 ):
     """Phase 1: FA-on no-carbon bootstrap. Phase 2: wrap. Phase 3: PM loop."""
     print(f"Phase 1: bootstrap to day {bootstrap_day} via grow_plant "
@@ -203,6 +204,7 @@ def grow_with_pm(
             soil_psi_provider=provider,
             inject_an_target=inject_an_target,
             krm1_multiplier=krm1_multiplier,
+            kmfu_multiplier=kmfu_multiplier,
         )
         n_pm_calls += 1
         if result is None:
@@ -257,6 +259,13 @@ def main():
                              "JSON values untouched. Used for α-clip "
                              "diagnostic sweeps (e.g. 0.1 / 0.3) over the "
                              "G6-fast horizon.")
+    parser.add_argument("--kmfu-multiplier", type=float, default=None,
+                        help="scalar multiplier on PiafMunch KMfu (Fu_lim "
+                             "saturation constant) applied via "
+                             "hm.KMfu = JSON_default * m before every "
+                             "substep. Default None preserves JSON. "
+                             "Pairs with --krm1-multiplier 0.01 to test "
+                             "Path B (re-anchor) of the α-clip analysis.")
     parser.add_argument("--tol-leaf-pct", type=float, default=TOL_LEAF_PCT)
     parser.add_argument("--tol-mainstem-cm", type=float, default=TOL_MAINSTEM_CM)
     parser.add_argument("--skip-leaves-shorter-than-cm", type=float, default=0.0,
@@ -277,6 +286,7 @@ def main():
         args.soil_psi_cm,
         args.inject_an_target,
         krm1_multiplier=args.krm1_multiplier,
+        kmfu_multiplier=args.kmfu_multiplier,
     )
     snap = per_organ_snapshot(plant)
     ok, lines = compare_against_oracle(
