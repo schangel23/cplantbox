@@ -1,0 +1,57 @@
+{
+  "log": "dart/coupling/output/g6full_pathB_run/g6full.log",
+  "horizons": [
+    40,
+    70,
+    100,
+    130
+  ],
+  "parsed": {
+    "days": [
+      {
+        "day": 40,
+        "wall_s": 2433,
+        "mb_pct": null,
+        "organs": 809,
+        "leaves_emerged": 5,
+        "leaves_total": 5,
+        "pm_fails": 1,
+        "pm_calls": 10,
+        "An_mmol_co2": null,
+        "Rm_mmol_co2": null,
+        "Rg_mmol_co2": null
+      }
+    ],
+    "phase3_wall_s": null,
+    "phase3_pm_calls": null,
+    "phase3_failures": null,
+    "mainstem": null,
+    "leaves_observed": [],
+    "leaves_missing": []
+  },
+  "scorecard": {
+    "overall": "FAIL",
+    "criteria": [
+      [
+        "convergence",
+        "INDET",
+        "no Phase-3-done line in log (run truncated?)"
+      ],
+      [
+        "mainstem",
+        "INDET",
+        "no mainstem comparison line in log"
+      ],
+      [
+        "leaves_present",
+        "FAIL",
+        "0/15 present (0 missing; floor 12/15)"
+      ],
+      [
+        "flux_bands",
+        "N/A",
+        "runner did not log per-day An/Rm/Rg (pre-instrumentation log)"
+      ]
+    ]
+  }
+}
