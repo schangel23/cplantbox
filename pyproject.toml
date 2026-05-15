@@ -14,3 +14,10 @@ known-first-party = ["rosi", "plantbox", "my_project"]
 section-order = ["standard-library", "third-party", "first-party", "local-folder"]
 lines-between-types = 0
 force-sort-within-sections = true
+
+[tool.pytest.ini_options]
+markers = [
+    "slow: long-running G5/G6 acceptance tests (~10 min each)",
+    "slow_s7: §S7 calibration live tests; gated behind RUN_S7_LIVE=1",
+    "slow_s8: §S8 acceptance live tests; gated behind RUN_S8_LIVE=1",
+]
