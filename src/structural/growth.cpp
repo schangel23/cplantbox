@@ -61,6 +61,10 @@ namespace CPlantBox {
 double CWLimitedGrowth::getLength(double t, double r, double k,
                                   std::shared_ptr<Organ> o) const
 {
+    if (use_local_pool) {
+        return getLengthBuffered(t, r, k, o);
+    }
+
     // -------------------------------------------------------------------
     // §P1.S3 per-rank dispatch (PLAN_PER_RANK_CARBON_FA_2026-05-03).
     // Triggered only when CW_Gr_per_n[org_id] is populated AND demand_ is
@@ -193,6 +197,26 @@ double CWLimitedGrowth::getLength(double t, double r, double k,
     // phloem allocation for this organ-step is now dispatched.
     const_cast<double&>(it->second) = -1.0;
     return bound;
+}
+
+double CWLimitedGrowth::getLengthBuffered(double t, double r, double k,
+                                          std::shared_ptr<Organ> o) const
+{
+    const double current = o->getLength(false);
+    const double ceiling = std::max(0.0, k - current);
+    const auto rp = o->getOrganRandomParameter();
+    const double c_cost = std::max(rp->c_cost_per_cm, 1e-12);
+
+    const double demand_target = demand_
+        ? demand_->getDemand(t, r, k, o)
+        : ExponentialGrowth::getLength(t, r, k, o);
+    const double dL_thermal = std::max(0.0, demand_target - current);
+    const double dL_pool = std::max(0.0, o->local_C_pool_) / c_cost;
+    const double actual_dL = std::min({dL_thermal, dL_pool, ceiling});
+
+    o->local_C_pool_ = std::max(0.0, o->local_C_pool_ - actual_dL * c_cost);
+    o->dl_backlog = 0.0;
+    return current + actual_dL;
 }
 
 // -------------------------------------------------------------------------

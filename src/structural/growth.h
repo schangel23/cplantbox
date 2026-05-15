@@ -137,6 +137,7 @@ class CWLimitedGrowth : public ExponentialGrowth
 {
 public:
 	std::shared_ptr<GrowthFunction> demand_ = nullptr;  ///< Lock #6 demand-side cap (null → bare CW supply growth)
+	bool use_local_pool = false;  ///< PM-buffered dispatch: organ->local_C_pool_ supplies growth when true.
 
 	/// PLAN_PER_RANK_CARBON_FA_2026-05-03 §S3: per-rank supply override.
 	/// Keyed by orgID; each entry is an index-1-based vector of per-rank
@@ -168,6 +169,9 @@ public:
 	}  ///< @copydoc GrowthFunction::getAge
 
 	std::shared_ptr<GrowthFunction> copy() const override;
+
+private:
+	double getLengthBuffered(double t, double r, double k, std::shared_ptr<Organ> o) const;
 };
 
 /**

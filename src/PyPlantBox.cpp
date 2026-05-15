@@ -317,6 +317,8 @@ PYBIND11_MODULE(plantbox, m) {
             .def_readwrite("a_s", &OrganRandomParameter::as) // as is a keyword in python
             .def_readwrite("dx", &OrganRandomParameter::dx)
             .def_readwrite("dxMin", &OrganRandomParameter::dxMin)
+            .def_readwrite("c_cost_per_cm", &OrganRandomParameter::c_cost_per_cm)
+            .def_readwrite("local_C_pool_capacity_factor", &OrganRandomParameter::local_C_pool_capacity_factor)
             .def_readwrite("successor", &OrganRandomParameter::successorST)//for backward compatibility
             .def_readwrite("successorOT", &OrganRandomParameter::successorOT)
             .def_readwrite("successorST", &OrganRandomParameter::successorST)
@@ -356,6 +358,7 @@ PYBIND11_MODULE(plantbox, m) {
         .def(py::init<>())
         .def(py::init<std::shared_ptr<GrowthFunction>>(), py::arg("demand"))
         .def_readwrite("demand", &CWLimitedGrowth::demand_)
+        .def_readwrite("use_local_pool", &CWLimitedGrowth::use_local_pool)
         // PLAN_PER_RANK_CARBON_FA_2026-05-03 §S4: per-rank supply override.
         // Keyed by orgID; each entry is index-1-based per-rank supply [cm].
         // Empty entries fall back to the per-organ Lock #6 path.
