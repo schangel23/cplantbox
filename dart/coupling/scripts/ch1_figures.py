@@ -454,6 +454,48 @@ def main():
     else:
         fig_c_diel_reserve(args.diel_trace, args.out)
 
+    # Write a text summary alongside the figures so the user can scan
+    # the headline numbers without opening any PDF/PNG.
+    summary_lines = [f"Ch1 figure pack — generated {pd.Timestamp.now().isoformat()}",
+                     "=" * 60]
+    if not s7_df.empty:
+        ok = s7_df[s7_df["status"] == "OK"]
+        in_band = ok[(ok["cum_mb_residual_pct"] <= 1.0)
+                     & (ok["realised_fa_fraction"] >= 0.4)
+                     & (ok["realised_fa_fraction"] <= 0.9)]
+        summary_lines.append(
+            f"\n§S7 calibration: {len(ok)} OK rows / {len(s7_df)} total")
+        if not in_band.empty:
+            best = in_band.iloc[in_band["cum_mb_residual_pct"].argmin()]
+            summary_lines.extend([
+                f"  Winner combo: c_cost_leaf={best['c_cost_leaf']}, "
+                f"c_cost_stem={best['c_cost_stem']}, cap={best['local_cap_factor']}",
+                f"  Cum MB residual: {best['cum_mb_residual_pct']:.3f}%",
+                f"  Realised-FA fraction: {best['realised_fa_fraction']:.3f}",
+                f"  In-band combos: {len(in_band)}",
+            ])
+        else:
+            summary_lines.append(
+                "  WARNING: no row meets MB ≤ 1% AND FA ∈ [0.4, 0.9].")
+            if not ok.empty:
+                lowest_mb = ok.iloc[ok["cum_mb_residual_pct"].argmin()]
+                summary_lines.append(
+                    f"  Best MB row: MB={lowest_mb['cum_mb_residual_pct']:.3f}%, "
+                    f"FA={lowest_mb['realised_fa_fraction']:.3f}")
+    if not s8_df.empty:
+        ok = s8_df[s8_df["status"] == "OK"]
+        summary_lines.append(
+            f"\n§S8 drought sweep: {len(ok)} OK rows / {len(s8_df)} total")
+        for psi, grp in ok.groupby("soil_psi_cm"):
+            summary_lines.append(
+                f"  ψ_soil={psi:.0f} cm: mean biomass = "
+                f"{grp['total_realised_cm'].mean():.1f} ± "
+                f"{grp['total_realised_cm'].std():.1f} cm "
+                f"(N={len(grp)})")
+    summary_lines.append("\n" + "=" * 60)
+    summary_lines.append(f"Sidecar CSVs in {args.out} reproduce every plot.")
+    (args.out / "SUMMARY.txt").write_text("\n".join(summary_lines))
+
     print(f"  wrote figures to {args.out}")
     return 0
 
