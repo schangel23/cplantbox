@@ -205,6 +205,132 @@ def test_s7_realised_fa_fraction():
 # Fixture #3 — no β' regression
 # ----------------------------------------------------------------------
 
+def test_s7_bake_picker_in_band_combo(tmp_path):
+    """Unit test for the bake script's _pick_winner picker — confirms it
+    returns the lowest-MB row inside the [0.4, 0.9] FA band and rejects
+    rows outside the band even if their MB is lower."""
+    import importlib.util
+    script = (REPO_ROOT / "dart" / "coupling" / "scripts"
+              / "bake_s7_calibration_to_xml_2026-05-15.py")
+    spec = importlib.util.spec_from_file_location("bake_s7", script)
+    mod = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(mod)
+
+    csv_path = tmp_path / "synth_s7.csv"
+    cols = [
+        "c_cost_leaf", "c_cost_stem", "c_cost_root", "local_cap_factor",
+        "reserve_cap_factor", "starch_remob_rate", "starch_storage_eff",
+        "starch_remob_eff", "seed", "bootstrap_day", "sim_days",
+        "soil_mode", "soil_psi_cm", "krm1_mult", "kmfu_mult",
+        "runtime_s", "n_pm_calls", "n_pm_fail", "mainstem_realised_cm",
+        "mainstem_oracle_cm", "mainstem_fraction", "sum_leaf_realised_cm",
+        "sum_leaf_oracle_cm", "leaf_fraction", "sum_root_realised_cm",
+        "sum_root_oracle_cm", "root_fraction", "total_realised_cm",
+        "total_oracle_cm", "realised_fa_fraction", "cum_an_mmol",
+        "cum_used_mmol", "cum_mb_residual_pct", "max_day_mb_residual_pct",
+        "mean_day_mb_residual_pct", "transient_reserve_end_mmol",
+        "local_C_pool_total_end_mmol", "status", "error",
+    ]
+    with csv_path.open("w", newline="") as f:
+        w = csv.DictWriter(f, fieldnames=cols)
+        w.writeheader()
+        # Row A: out of FA band (too low), low MB — must be rejected.
+        # Row B: in band, MB at 0.6% — preferred.
+        # Row C: in band, MB at 0.4% — best, should win.
+        # Row D: out of FA band (too high), best MB — rejected.
+        # Row E: ERROR status — rejected regardless.
+        rows = [
+            dict(zip(cols, [0.75, 0.55, 0.20, 0.5, 0.04, 2.0, 0.95, 0.98,
+                            7, 30, 130, "static", -300.0, 0.01, 0.1,
+                            1000, 100, 0, 50.0, 175.0, 0.29, 250, 858, 0.29,
+                            1850, 6350, 0.29, 2150, 7383, 0.29,
+                            12500, 12450, 0.20, 0.4, 0.3, 4.0, 0.5,
+                            "OK", ""])),
+            dict(zip(cols, [0.35, 0.55, 0.20, 0.5, 0.04, 2.0, 0.95, 0.98,
+                            7, 30, 130, "static", -300.0, 0.01, 0.1,
+                            1000, 100, 0, 88.0, 175.0, 0.50, 440, 858, 0.51,
+                            3200, 6350, 0.50, 3728, 7383, 0.505,
+                            12500, 12425, 0.60, 0.7, 0.5, 4.0, 0.5,
+                            "OK", ""])),
+            dict(zip(cols, [0.25, 0.55, 0.20, 0.5, 0.04, 2.0, 0.95, 0.98,
+                            7, 30, 130, "static", -300.0, 0.01, 0.1,
+                            1000, 100, 0, 105, 175.0, 0.60, 525, 858, 0.61,
+                            3850, 6350, 0.61, 4480, 7383, 0.607,
+                            12500, 12450, 0.40, 0.55, 0.4, 4.5, 0.5,
+                            "OK", ""])),
+            dict(zip(cols, [0.10, 0.55, 0.20, 0.5, 0.04, 2.0, 0.95, 0.98,
+                            7, 30, 130, "static", -300.0, 0.01, 0.1,
+                            1000, 100, 0, 170, 175.0, 0.97, 832, 858, 0.97,
+                            6160, 6350, 0.97, 7162, 7383, 0.97,
+                            12500, 12490, 0.08, 0.1, 0.07, 4.7, 0.5,
+                            "OK", ""])),
+            dict(zip(cols, [0.30, 0.55, 0.20, 0.5, 0.04, 2.0, 0.95, 0.98,
+                            7, 30, 130, "static", -300.0, 0.01, 0.1,
+                            1000, 100, 0, 87.5, 175.0, 0.50, 430, 858, 0.50,
+                            3175, 6350, 0.50, 3692, 7383, 0.50,
+                            12500, 0.0, 0.0, 0.0, 0.0, 4.2, 0.5,
+                            "ERROR", "synthetic"])),
+        ]
+        for r in rows:
+            w.writerow(r)
+
+    winner = mod._pick_winner(csv_path)
+    assert winner is not None, "picker returned None despite in-band rows"
+    assert abs(float(winner["c_cost_leaf"]) - 0.25) < 1e-9, (
+        f"picker chose c_cost_leaf={winner['c_cost_leaf']}, expected 0.25 "
+        "(in-band row C with lowest MB)")
+    assert float(winner["cum_mb_residual_pct"]) == 0.40, (
+        f"picker chose MB={winner['cum_mb_residual_pct']}, expected 0.40")
+    assert REALISED_FA_LOW <= float(winner["realised_fa_fraction"]) <= REALISED_FA_HIGH
+
+
+def test_s7_bake_picker_returns_none_when_all_out_of_band(tmp_path):
+    """Picker must return None if no row satisfies the band — bake
+    script then refuses to write the XML."""
+    import importlib.util
+    script = (REPO_ROOT / "dart" / "coupling" / "scripts"
+              / "bake_s7_calibration_to_xml_2026-05-15.py")
+    spec = importlib.util.spec_from_file_location("bake_s7_none", script)
+    mod = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(mod)
+
+    csv_path = tmp_path / "synth_s7_none.csv"
+    cols = [
+        "c_cost_leaf", "c_cost_stem", "c_cost_root", "local_cap_factor",
+        "reserve_cap_factor", "starch_remob_rate", "starch_storage_eff",
+        "starch_remob_eff", "seed", "bootstrap_day", "sim_days",
+        "soil_mode", "soil_psi_cm", "krm1_mult", "kmfu_mult",
+        "runtime_s", "n_pm_calls", "n_pm_fail", "mainstem_realised_cm",
+        "mainstem_oracle_cm", "mainstem_fraction", "sum_leaf_realised_cm",
+        "sum_leaf_oracle_cm", "leaf_fraction", "sum_root_realised_cm",
+        "sum_root_oracle_cm", "root_fraction", "total_realised_cm",
+        "total_oracle_cm", "realised_fa_fraction", "cum_an_mmol",
+        "cum_used_mmol", "cum_mb_residual_pct", "max_day_mb_residual_pct",
+        "mean_day_mb_residual_pct", "transient_reserve_end_mmol",
+        "local_C_pool_total_end_mmol", "status", "error",
+    ]
+    with csv_path.open("w", newline="") as f:
+        w = csv.DictWriter(f, fieldnames=cols)
+        w.writeheader()
+        # Only out-of-band rows: FA = 0.25 and 0.95 — both outside [0.4, 0.9].
+        for fa in (0.25, 0.95):
+            w.writerow(dict(zip(cols, [
+                0.35, 0.55, 0.20, 0.5, 0.04, 2.0, 0.95, 0.98,
+                7, 30, 130, "static", -300.0, 0.01, 0.1,
+                1000, 100, 0,
+                175.0 * fa, 175.0, fa,
+                858.0 * fa, 858.0, fa,
+                6350.0 * fa, 6350.0, fa,
+                7383.0 * fa, 7383.0, fa,
+                12500.0, 12450.0, 0.40, 0.5, 0.4, 4.0, 0.5, "OK", "",
+            ])))
+
+    winner = mod._pick_winner(csv_path)
+    assert winner is None, (
+        "picker returned a winner despite all rows being out of band: "
+        f"{dict(winner) if winner else 'None'}")
+
+
 def test_s7_no_beta_prime():
     """Source-level guarantee that the β' CW_Gr clearing block does NOT
     reappear in pm_substep.py.  Plan §12.6 + §13 keep this as a permanent
