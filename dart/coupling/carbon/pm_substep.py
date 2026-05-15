@@ -792,23 +792,13 @@ def solve_carbon_partitioning_pm(plant, An_per_leaf_seg, Tair_C=25.0,
             finally:
                 _restore_io(*fdpair)
 
-        # Step β' — clear CW_Gr to {} after plant.simulate so the next
-        # substep's getLength takes the ExpGrowth fallback branch
-        # (growth.cpp:153) instead of the no_supply branch (line 158).
-        # Without this, plant.simulate marks CW_Gr[id] = -1; next
-        # substep's startPM → getLength → no_supply → returns 0 →
-        # Q_Grmax_dot = 0 for the remaining 23 substeps. The result is
-        # that only substep 1 contributes to cumulative Q_Grmax. Clearing
-        # CW_Gr makes substeps 2-24 also use the Exp-fallback target
-        # (same as substep 1's fresh-hm behaviour), so cumulative
-        # Q_Grmax = 24× substep-1 contribution. Per PiafMunch's
-        # `computeOrgGrowth` (runPM.cpp:670-679), the next startPM will
-        # overwrite f_gf->CW_Gr at the end of its integration regardless
-        # of what we clear here. assertUsedCReserves passes on empty maps.
-        for _ot in (2, 3, 4):
-            for _p in plant.getOrganRandomParameter(_ot):
-                if _p is not None and getattr(_p, "f_gf", None) is not None:
-                    _p.f_gf.CW_Gr = {}
+        # β' deleted 2026-05-15 (S0 of PLAN_BUFFERED_CARBON_GROWTH_2026-05-15).
+        # The workaround cleared CW_Gr between substeps so PM's demand probe
+        # (runPM.cpp:waterLimitedGrowth) wouldn't see CW_Gr[org]=-1 and return
+        # 0 demand for the remaining 23 substeps. S0 added GrowthFunction::
+        # getDemand virtual + CWLimitedGrowth override + runPM.cpp swap, so PM
+        # now reads FA-thermal potential directly via getDemand and the spent
+        # CW_Gr marker no longer suppresses demand. β' is therefore redundant.
 
         sim += dt
         n_done += 1
