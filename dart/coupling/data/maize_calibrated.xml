@@ -136,6 +136,8 @@
     </root>
     <stem name="mainstem" subType="1">
         <parameter name="gf" value="1"/>
+        <parameter name="c_cost_per_cm" value="0.35"/>
+        <parameter name="local_C_pool_capacity_factor" value="0.05"/>
         <parameter name="lnf" value="0"/>
         <parameter name="nodalGrowth" value="1"/>
         <parameter name="tropismT" value="1"/>
@@ -197,6 +199,8 @@
     </stem>
     <stem name="tassel_spike" subType="20">
         <parameter name="gf" value="1"/>
+        <parameter name="c_cost_per_cm" value="0.35"/>
+        <parameter name="local_C_pool_capacity_factor" value="0.05"/>
         <parameter name="lnf" value="0"/>
         <parameter name="nodalGrowth" value="1"/>
         <parameter name="tropismT" value="1"/>
@@ -239,6 +243,8 @@
     </stem>
     <stem name="tassel_branch" subType="21">
         <parameter name="gf" value="1"/>
+        <parameter name="c_cost_per_cm" value="0.35"/>
+        <parameter name="local_C_pool_capacity_factor" value="0.05"/>
         <parameter name="lnf" value="0"/>
         <parameter name="nodalGrowth" value="1"/>
         <parameter name="tropismT" value="1"/>
@@ -281,6 +287,8 @@
     <leaf name="maize_leaf_L0" subType="2">
         <parameter name="geometryN" value="100"/>
         <parameter name="gf" value="1"/>
+        <parameter name="c_cost_per_cm" value="0.35"/>
+        <parameter name="local_C_pool_capacity_factor" value="0.05"/>
         <parameter name="isPseudostem" value="0"/>
         <parameter name="lnf" value="0"/>
         <parameter name="parametrisationType" value="1"/>
@@ -404,6 +412,8 @@
     <leaf name="maize_leaf_L1" subType="3">
         <parameter name="geometryN" value="100"/>
         <parameter name="gf" value="1"/>
+        <parameter name="c_cost_per_cm" value="0.35"/>
+        <parameter name="local_C_pool_capacity_factor" value="0.05"/>
         <parameter name="isPseudostem" value="0"/>
         <parameter name="lnf" value="0"/>
         <parameter name="parametrisationType" value="1"/>
@@ -527,6 +537,8 @@
     <leaf name="maize_leaf_L2" subType="4">
         <parameter name="geometryN" value="100"/>
         <parameter name="gf" value="6"/>
+        <parameter name="c_cost_per_cm" value="0.35"/>
+        <parameter name="local_C_pool_capacity_factor" value="0.05"/>
         <parameter name="isPseudostem" value="0"/>
         <parameter name="lnf" value="0"/>
         <parameter name="parametrisationType" value="1"/>
@@ -650,6 +662,8 @@
     <leaf name="maize_leaf_L3" subType="5">
         <parameter name="geometryN" value="100"/>
         <parameter name="gf" value="6"/>
+        <parameter name="c_cost_per_cm" value="0.35"/>
+        <parameter name="local_C_pool_capacity_factor" value="0.05"/>
         <parameter name="isPseudostem" value="0"/>
         <parameter name="lnf" value="0"/>
         <parameter name="parametrisationType" value="1"/>
@@ -773,6 +787,8 @@
     <leaf name="maize_leaf_L4" subType="6">
         <parameter name="geometryN" value="100"/>
         <parameter name="gf" value="6"/>
+        <parameter name="c_cost_per_cm" value="0.35"/>
+        <parameter name="local_C_pool_capacity_factor" value="0.05"/>
         <parameter name="isPseudostem" value="0"/>
         <parameter name="lnf" value="0"/>
         <parameter name="parametrisationType" value="1"/>
@@ -896,6 +912,8 @@
     <leaf name="maize_leaf_L5" subType="7">
         <parameter name="geometryN" value="100"/>
         <parameter name="gf" value="6"/>
+        <parameter name="c_cost_per_cm" value="0.35"/>
+        <parameter name="local_C_pool_capacity_factor" value="0.05"/>
         <parameter name="isPseudostem" value="0"/>
         <parameter name="lnf" value="0"/>
         <parameter name="parametrisationType" value="1"/>
@@ -1019,6 +1037,8 @@
     <leaf name="maize_leaf_L6" subType="8">
         <parameter name="geometryN" value="100"/>
         <parameter name="gf" value="6"/>
+        <parameter name="c_cost_per_cm" value="0.35"/>
+        <parameter name="local_C_pool_capacity_factor" value="0.05"/>
         <parameter name="isPseudostem" value="0"/>
         <parameter name="lnf" value="0"/>
         <parameter name="parametrisationType" value="1"/>
@@ -1142,6 +1162,8 @@
     <leaf name="maize_leaf_L7" subType="9">
         <parameter name="geometryN" value="100"/>
         <parameter name="gf" value="6"/>
+        <parameter name="c_cost_per_cm" value="0.35"/>
+        <parameter name="local_C_pool_capacity_factor" value="0.05"/>
         <parameter name="isPseudostem" value="0"/>
         <parameter name="lnf" value="0"/>
         <parameter name="parametrisationType" value="1"/>
@@ -1265,6 +1287,8 @@
     <leaf name="maize_leaf_L8" subType="10">
         <parameter name="geometryN" value="100"/>
         <parameter name="gf" value="6"/>
+        <parameter name="c_cost_per_cm" value="0.35"/>
+        <parameter name="local_C_pool_capacity_factor" value="0.05"/>
         <parameter name="isPseudostem" value="0"/>
         <parameter name="lnf" value="0"/>
         <parameter name="parametrisationType" value="1"/>
@@ -1388,6 +1412,8 @@
     <leaf name="maize_leaf_L9" subType="11">
         <parameter name="geometryN" value="100"/>
         <parameter name="gf" value="6"/>
+        <parameter name="c_cost_per_cm" value="0.35"/>
+        <parameter name="local_C_pool_capacity_factor" value="0.05"/>
         <parameter name="isPseudostem" value="0"/>
         <parameter name="lnf" value="0"/>
         <parameter name="parametrisationType" value="1"/>
@@ -1511,6 +1537,8 @@
     <leaf name="maize_leaf_L10" subType="12">
         <parameter name="geometryN" value="100"/>
         <parameter name="gf" value="6"/>
+        <parameter name="c_cost_per_cm" value="0.35"/>
+        <parameter name="local_C_pool_capacity_factor" value="0.05"/>
         <parameter name="isPseudostem" value="0"/>
         <parameter name="lnf" value="0"/>
         <parameter name="parametrisationType" value="1"/>
@@ -1634,6 +1662,8 @@
     <leaf name="maize_leaf_L11" subType="13">
         <parameter name="geometryN" value="100"/>
         <parameter name="gf" value="6"/>
+        <parameter name="c_cost_per_cm" value="0.35"/>
+        <parameter name="local_C_pool_capacity_factor" value="0.05"/>
         <parameter name="isPseudostem" value="0"/>
         <parameter name="lnf" value="0"/>
         <parameter name="parametrisationType" value="1"/>
@@ -1757,6 +1787,8 @@
     <leaf name="maize_leaf_L12" subType="14">
         <parameter name="geometryN" value="100"/>
         <parameter name="gf" value="6"/>
+        <parameter name="c_cost_per_cm" value="0.35"/>
+        <parameter name="local_C_pool_capacity_factor" value="0.05"/>
         <parameter name="isPseudostem" value="0"/>
         <parameter name="lnf" value="0"/>
         <parameter name="parametrisationType" value="1"/>
@@ -1880,6 +1912,8 @@
     <leaf name="maize_leaf_L13" subType="15">
         <parameter name="geometryN" value="100"/>
         <parameter name="gf" value="6"/>
+        <parameter name="c_cost_per_cm" value="0.35"/>
+        <parameter name="local_C_pool_capacity_factor" value="0.05"/>
         <parameter name="isPseudostem" value="0"/>
         <parameter name="lnf" value="0"/>
         <parameter name="parametrisationType" value="1"/>
@@ -2003,6 +2037,8 @@
     <leaf name="maize_leaf_L14" subType="16">
         <parameter name="geometryN" value="100"/>
         <parameter name="gf" value="6"/>
+        <parameter name="c_cost_per_cm" value="0.35"/>
+        <parameter name="local_C_pool_capacity_factor" value="0.05"/>
         <parameter name="isPseudostem" value="0"/>
         <parameter name="lnf" value="0"/>
         <parameter name="parametrisationType" value="1"/>

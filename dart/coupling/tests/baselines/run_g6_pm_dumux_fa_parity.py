@@ -205,6 +205,7 @@ def grow_with_pm(
             inject_an_target=inject_an_target,
             krm1_multiplier=krm1_multiplier,
             kmfu_multiplier=kmfu_multiplier,
+            use_buffered_carbon=True,
         )
         n_pm_calls += 1
         if result is None:

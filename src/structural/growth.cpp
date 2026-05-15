@@ -216,6 +216,10 @@ double CWLimitedGrowth::getLengthBuffered(double t, double r, double k,
 
     o->local_C_pool_ = std::max(0.0, o->local_C_pool_ - actual_dL * c_cost);
     o->dl_backlog = 0.0;
+    auto it = CW_Gr.find(o->getId());
+    if (it != CW_Gr.end()) {
+        const_cast<double&>(it->second) = -1.0;
+    }
     return current + actual_dL;
 }
 

@@ -94,6 +94,156 @@ def _is_cw_wrapped(plant):
     return False
 
 
+def _iter_bufferable_organs(plant):
+    import plantbox as pb
+
+    for organ in plant.getOrgans():
+        rp = organ.getOrganRandomParameter()
+        gf = getattr(rp, "f_gf", None)
+        if not isinstance(gf, pb.CWLimitedGrowth):
+            continue
+        if getattr(gf, "demand", None) is None:
+            continue
+        yield organ, rp, gf
+
+
+def _pool_capacity(organ, rp):
+    factor = float(getattr(rp, "local_C_pool_capacity_factor", 0.0))
+    if factor <= 0.0:
+        return 0.0
+    return factor * max(0.0, float(organ.orgVolume(-1.0, False)))
+
+
+def _local_pool_total(plant):
+    return float(sum(max(0.0, float(getattr(o, "local_C_pool_", 0.0)))
+                     for o in plant.getOrgans()))
+
+
+def _compute_fa_demands(plant, dt):
+    """Return FA-potential length demand [cm] per buffered organ id."""
+    demands = {}
+    for organ, rp, gf in _iter_bufferable_organs(plant):
+        cap = _pool_capacity(organ, rp)
+        if cap <= 0.0:
+            continue
+        current = float(organ.getLength(False))
+        try:
+            target = gf.demand.getDemand(
+                float(organ.getAge()) + float(dt),
+                float(rp.r),
+                float(organ.param().getK()),
+                organ,
+            )
+        except Exception:
+            continue
+        demands[int(organ.getId())] = max(0.0, float(target) - current)
+    return demands
+
+
+def _allocate_fu_lim(plant, fu_lim, fa_demands):
+    """Fill local C pools with PM supply using FA-demand x pool-deficit weights."""
+    fu_lim = max(0.0, float(fu_lim))
+    active = []
+    for organ, rp, _ in _iter_bufferable_organs(plant):
+        oid = int(organ.getId())
+        demand = max(0.0, float(fa_demands.get(oid, 0.0)))
+        cap = _pool_capacity(organ, rp)
+        if demand <= 0.0 or cap <= 0.0:
+            continue
+        pool = max(0.0, float(getattr(organ, "local_C_pool_", 0.0)))
+        deficit = max(0.0, cap - pool)
+        active.append((organ, cap, pool, demand, deficit, demand * deficit))
+
+    delivered = 0.0
+    storage_loss = 0.0
+    if fu_lim <= 0.0 or not active:
+        return {"delivered_mmol": 0.0, "storage_loss_mmol": 0.0}
+
+    weight_sum = sum(row[5] for row in active)
+    if weight_sum <= 0.0:
+        weight_sum = sum(row[3] for row in active)
+        weighted = [(row, row[3]) for row in active]
+    else:
+        weighted = [(row, row[5]) for row in active]
+    if weight_sum <= 0.0:
+        return {"delivered_mmol": 0.0, "storage_loss_mmol": 0.0}
+
+    srp = plant.getOrganRandomParameter(1, 0)
+    storage_eff = float(getattr(srp, "starch_storage_efficiency", 1.0))
+    for (organ, cap, pool, _demand, _deficit, _raw), weight in weighted:
+        share = fu_lim * float(weight) / weight_sum
+        new_pool = pool + share
+        overflow = max(0.0, new_pool - cap)
+        organ.local_C_pool_ = min(new_pool, cap)
+        delivered += share - overflow
+        if overflow > 0.0:
+            plant.transient_reserve_pool_ += overflow * storage_eff
+            storage_loss += overflow * (1.0 - storage_eff)
+    return {
+        "delivered_mmol": float(delivered),
+        "storage_loss_mmol": float(storage_loss),
+    }
+
+
+def _activate_buffered_growth(plant):
+    """Enable C++ local-pool dispatch on FA-wrapped organs with capacity."""
+    n_active = 0
+    for organ, rp, gf in _iter_bufferable_organs(plant):
+        if _pool_capacity(organ, rp) <= 0.0:
+            gf.use_local_pool = False
+            continue
+        gf.use_local_pool = True
+        n_active += 1
+    return n_active
+
+
+def _mark_buffered_cw_gr_spent(plant):
+    """Mark PM growth supply spent after Python has moved it into pools."""
+    for organ_type in (2, 3, 4):
+        for rp in plant.getOrganRandomParameter(organ_type):
+            gf = getattr(rp, "f_gf", None)
+            cw_gr = getattr(gf, "CW_Gr", None)
+            if not cw_gr:
+                continue
+            gf.CW_Gr = {int(oid): -1.0 for oid in cw_gr.keys()}
+
+
+def _reserve_remob_step(plant, dt):
+    """First-order remobilisation from plant reserve into deficient local pools."""
+    reserve = max(0.0, float(getattr(plant, "transient_reserve_pool_", 0.0)))
+    if reserve <= 0.0:
+        return {"remob_delivered_mmol": 0.0, "remob_loss_mmol": 0.0}
+
+    deficient = []
+    for organ, rp, _ in _iter_bufferable_organs(plant):
+        cap = _pool_capacity(organ, rp)
+        if cap <= 0.0:
+            continue
+        pool = max(0.0, float(getattr(organ, "local_C_pool_", 0.0)))
+        deficit = max(0.0, cap - pool)
+        if deficit > 0.0:
+            deficient.append((organ, cap, pool, deficit))
+    deficit_sum = sum(row[3] for row in deficient)
+    if deficit_sum <= 0.0:
+        return {"remob_delivered_mmol": 0.0, "remob_loss_mmol": 0.0}
+
+    srp = plant.getOrganRandomParameter(1, 0)
+    rate = max(0.0, float(getattr(srp, "starch_remob_rate", 0.0)))
+    eff = float(getattr(srp, "starch_remob_efficiency", 1.0))
+    remob_raw = min(reserve, reserve * rate * float(dt))
+    remob_delivered = remob_raw * eff
+    plant.transient_reserve_pool_ = reserve - remob_raw
+
+    for organ, cap, pool, deficit in deficient:
+        share = remob_delivered * deficit / deficit_sum
+        organ.local_C_pool_ = min(cap, pool + share)
+
+    return {
+        "remob_delivered_mmol": float(remob_delivered),
+        "remob_loss_mmol": float(remob_raw - remob_delivered),
+    }
+
+
 def solve_carbon_partitioning_pm(plant, An_per_leaf_seg, Tair_C=25.0,
                                   day=55, warm_start=None,
                                   gdd_accumulated=None,
@@ -110,7 +260,8 @@ def solve_carbon_partitioning_pm(plant, An_per_leaf_seg, Tair_C=25.0,
                                   khyd_s_mesophyll_override=None,
                                   vcrefchl_multiplier=None,
                                   kmfu_multiplier=None,
-                                  hm_solve_trace_path=None):
+                                  hm_solve_trace_path=None,
+                                  use_buffered_carbon=False):
     """Run a 24-substep PiafMunch loop and return an S5-shaped carbon dict.
 
     Args:
@@ -292,6 +443,9 @@ def solve_carbon_partitioning_pm(plant, An_per_leaf_seg, Tair_C=25.0,
     # double-call.
     if not _is_cw_wrapped(plant):
         enable_cw_limited_growth(plant, wrap_roots=False, wrap_fa=True)
+    buffered_growth_active = (
+        _activate_buffered_growth(plant) if use_buffered_carbon else 0
+    )
 
     # Hydraulics + phloem + photosynthesis configuration
     # (mirror of pm_notebook_loop.case_maize cell pattern).
@@ -458,6 +612,22 @@ def solve_carbon_partitioning_pm(plant, An_per_leaf_seg, Tair_C=25.0,
     ea = es * 0.6  # constant RH=60% across substeps
 
     AnSum_suc = 0.0
+    reserve_start_mmol = float(getattr(plant, "transient_reserve_pool_", 0.0))
+    local_pool_start_mmol = _local_pool_total(plant)
+    storage_loss_mmol = 0.0
+    remob_loss_mmol = 0.0
+    buffered_fu_delivered_mmol = 0.0
+    prev_Q_Gr_total = 0.0
+    tt_start = (
+        float(plant.getAccumulatedTT())
+        if hasattr(plant, "getAccumulatedTT") else 0.0
+    )
+    andrieu_tt_start = (
+        float(plant.getAccumulatedAndrieuTT())
+        if hasattr(plant, "getAccumulatedAndrieuTT") else 0.0
+    )
+    tt_eff = max(0.0, min(float(Tair_C), 40.0) - 8.0)
+    andrieu_tt_eff = max(0.0, min(float(Tair_C), 40.0) - 9.8)
     # Step F0 — capture initial Y0 *via hm.Q_init* after the first startPM
     # call so dQ pool deltas are referenced to t=0 (start of integration
     # window), not end-of-substep-1. PiafMunch seeds Q_ST(0) =
@@ -540,6 +710,10 @@ def solve_carbon_partitioning_pm(plant, An_per_leaf_seg, Tair_C=25.0,
     sim = sim_init
     n_done = 0
     while sim <= sim_max + 1e-9:
+        if use_buffered_carbon and buffered_growth_active > 0:
+            remob = _reserve_remob_step(plant, dt)
+            remob_loss_mmol += remob["remob_loss_mmol"]
+
         # Refresh per-substep soil profile when a provider is supplied.
         # Static providers (Fixed/Bucket) return a length-validated array
         # bit-identically to the legacy linspace; DumuxSoilPsi advances
@@ -747,6 +921,28 @@ def solve_carbon_partitioning_pm(plant, An_per_leaf_seg, Tair_C=25.0,
             _close_trace()
             return None
 
+        if use_buffered_carbon and buffered_growth_active > 0:
+            qout_n_now = len(hm.Q_out)
+            if qout_n_now % 10 == 0:
+                nt_now = qout_n_now // 10
+                qgr_total = float(np.sum(np.asarray(
+                    hm.Q_out[(4 * nt_now):(5 * nt_now)], dtype=float,
+                )))
+                fu_lim_s = max(0.0, qgr_total - prev_Q_Gr_total)
+                prev_Q_Gr_total = qgr_total
+                if hasattr(plant, "setAccumulatedTT"):
+                    plant.setAccumulatedTT(tt_start + tt_eff * float(n_done + 1) * dt)
+                if hasattr(plant, "setAccumulatedAndrieuTT"):
+                    plant.setAccumulatedAndrieuTT(
+                        andrieu_tt_start
+                        + andrieu_tt_eff * float(n_done + 1) * dt
+                    )
+                fa_demands = _compute_fa_demands(plant, dt)
+                alloc = _allocate_fu_lim(plant, fu_lim_s, fa_demands)
+                storage_loss_mmol += alloc["storage_loss_mmol"]
+                buffered_fu_delivered_mmol += alloc["delivered_mmol"]
+                _mark_buffered_cw_gr_spent(plant)
+
         # Capture initial-substep state once (delta-storage accounting).
         # Re-read nt each substep: plant grows under advance_plant=True so
         # node count rises across the loop. Initial Q_* totals are taken
@@ -785,7 +981,9 @@ def solve_carbon_partitioning_pm(plant, An_per_leaf_seg, Tair_C=25.0,
                     hm.Q_out[(9 * nt_first):(10 * nt_first)])))
 
         # 4. plant.simulate(dt) consumes CW_Gr (carbon-limited growth).
-        if advance_plant:
+        # Buffered PM keeps photosynthesis on a fixed daily topology and
+        # drains the accumulated local pools once after the 24 substeps.
+        if advance_plant and not use_buffered_carbon:
             fdpair = _suppress_io()
             try:
                 plant.simulate(dt, False)
@@ -806,6 +1004,19 @@ def solve_carbon_partitioning_pm(plant, An_per_leaf_seg, Tair_C=25.0,
     if n_done == 0:
         _close_trace()
         return None
+
+    if advance_plant and use_buffered_carbon and buffered_growth_active > 0:
+        if hasattr(plant, "setAccumulatedTT"):
+            plant.setAccumulatedTT(tt_start)
+        if hasattr(plant, "setAccumulatedAndrieuTT"):
+            plant.setAccumulatedAndrieuTT(andrieu_tt_start)
+        if hasattr(plant, "setAirTemperature"):
+            plant.setAirTemperature(float(Tair_C))
+        fdpair = _suppress_io()
+        try:
+            plant.simulate(1.0, False)
+        finally:
+            _restore_io(*fdpair)
 
     # Final-substep readout — size nt from hm.Q_out (which is fixed at the
     # C++ Nt of the last startPM call), NOT plant.getNodes(). The trailing
@@ -925,6 +1136,10 @@ def solve_carbon_partitioning_pm(plant, An_per_leaf_seg, Tair_C=25.0,
         psi_leaf_mean_sum / psi_leaf_mean_count
         if psi_leaf_mean_count > 0 else None
     )
+    reserve_end_mmol = float(getattr(plant, "transient_reserve_pool_", 0.0))
+    local_pool_end_mmol = _local_pool_total(plant)
+    reserve_delta_mmol = reserve_end_mmol - reserve_start_mmol
+    local_pool_delta_mmol = local_pool_end_mmol - local_pool_start_mmol
 
     # Convert sucrose → CO2 for the S5 contract. Keep root_exud_mmol_d in
     # mmol Suc (downstream AgroC export expects sucrose for kg-C-via-molar
@@ -993,6 +1208,16 @@ def solve_carbon_partitioning_pm(plant, An_per_leaf_seg, Tair_C=25.0,
         "Q_S_ST_init_mmol_suc": float(Q_S_ST_init),
         "captured_init_from_Q_init": bool(captured_init),
         "mass_balance_residual_pct": float(mb_residual * 100.0),
+        # Buffered carbon diagnostics (mmol Suc) -------------------------
+        "buffered_growth_active": bool(buffered_growth_active > 0),
+        "buffered_growth_active_organs": int(buffered_growth_active),
+        "buffered_fu_delivered_mmol": float(buffered_fu_delivered_mmol),
+        "transient_reserve_pool_mmol": float(reserve_end_mmol),
+        "local_C_pool_total_mmol": float(local_pool_end_mmol),
+        "reserve_delta_mmol": float(reserve_delta_mmol),
+        "local_C_pool_delta_mmol": float(local_pool_delta_mmol),
+        "storage_loss_mmol": float(storage_loss_mmol),
+        "remob_loss_mmol": float(remob_loss_mmol),
         # Gate Ch1.PMDM.3 conservation diagnostics (24-h integrals) -------
         # ∫Ev > 0 (water leaves leaves), ∫RWU < 0 (water leaves soil into
         # roots); the signed sum should be ~0 at steady state.
