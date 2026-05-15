@@ -339,7 +339,14 @@ PYBIND11_MODULE(plantbox, m) {
         .value("TT", DelayAxis::TT);
 
     py::class_<GrowthFunction, std::shared_ptr<GrowthFunction>>(m, "GrowthFunction")
-        .def_readwrite("CW_Gr", &GrowthFunction::CW_Gr);
+        .def_readwrite("CW_Gr", &GrowthFunction::CW_Gr)
+        // Exposed for S0 test fixtures (PLAN_BUFFERED_CARBON_GROWTH_2026-05-15
+        // §S0). getLength = supply-aware; getDemand = pure potential, bypasses
+        // CW_Gr spent flag in CWLimitedGrowth.
+        .def("getLength", &GrowthFunction::getLength,
+             py::arg("t"), py::arg("r"), py::arg("k"), py::arg("o"))
+        .def("getDemand", &GrowthFunction::getDemand,
+             py::arg("t"), py::arg("r"), py::arg("k"), py::arg("o"));
 
     // Lock #6 (PLAN_S5_SINK_SOURCE_COUPLING_2026-05-02 §S3): expose the
     // optional `demand` GF wrap so the Python wrap helper

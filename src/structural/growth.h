@@ -43,6 +43,28 @@ public:
 	{ throw std::runtime_error( "getLength() not implemented" ); return 0; } ///< Returns root length at root age t
 
 	/**
+	 * Returns the FA-thermal demand-only target length at age t.
+	 *
+	 * Default delegates to getLength — correct for bare growth functions
+	 * (Linear, Exponential, Gompertz, MultiPhase*) where supply is not modelled.
+	 * CWLimitedGrowth overrides to return the wrapped demand_->getLength
+	 * directly, bypassing the supply-aware Liebig min and the CW_Gr spent flag.
+	 *
+	 * This separation lets PiafMunch's waterLimitedGrowth probe the FA
+	 * thermal potential cleanly each substep, regardless of whether
+	 * last substep's CW_Gr has been marked spent.
+	 *
+	 * @param t     organ age [day]
+	 * @param r     initial growth rate [cm/day]
+	 * @param k     maximal organ length [cm]
+	 * @param o     points to the organ in case more information is needed
+	 *
+	 * \return      organ demand-side target length [cm] at specific age
+	 */
+	virtual double getDemand(double t, double r, double k, std::shared_ptr<Organ> o) const
+	{ return getLength(t, r, k, o); }
+
+	/**
 	 * Returns the age of a root of length l
 	 *
 	 * @param l     organ length [cm]
@@ -130,6 +152,16 @@ public:
 	explicit CWLimitedGrowth(std::shared_ptr<GrowthFunction> demand) : demand_(std::move(demand)) {}
 
 	double getLength(double t, double r, double k, std::shared_ptr<Organ> o) const override; ///< @copydoc GrowthFunction::getLength
+
+	/**
+	 * Demand-only probe — returns the wrapped FA potential directly.
+	 *
+	 * Bypasses CW_Gr spent-flag check and Liebig supply gate that
+	 * getLength applies. Used by PiafMunch (runPM.cpp:waterLimitedGrowth)
+	 * to read FA-thermal demand each substep without being misled by
+	 * last substep's spent CW_Gr marker.
+	 */
+	double getDemand(double t, double r, double k, std::shared_ptr<Organ> o) const override;
 
 	double getAge(double l, double r, double k, std::shared_ptr<const Organ> o) const override {
 		return ExponentialGrowth::getAge(l, r, k, o);//used to compute growth delay of root and leaf laterals

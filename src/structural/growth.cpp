@@ -195,6 +195,29 @@ double CWLimitedGrowth::getLength(double t, double r, double k,
     return bound;
 }
 
+// -------------------------------------------------------------------------
+// CWLimitedGrowth::getDemand — pure FA potential, no supply gating
+// -------------------------------------------------------------------------
+// PiafMunch's waterLimitedGrowth (runPM.cpp:753-754) calls this to read
+// each organ's FA-thermal demand each substep. Bypassing the supply-aware
+// getLength means PM gets clean FA potential regardless of CW_Gr state
+// (the spent-flag -1 from the previous plant.simulate dispatch). This
+// removes the β' workaround in pm_substep.py that previously cleared
+// CW_Gr between substeps so getLength would fall back to ExpGrowth.
+//
+// If demand_ is null (bare CW supply growth — no FA wrap), the demand
+// reduces to ExpGrowth's potential, the same legacy fallback the empty-
+// CW_Gr branch of getLength dispatches to.
+// -------------------------------------------------------------------------
+double CWLimitedGrowth::getDemand(double t, double r, double k,
+                                   std::shared_ptr<Organ> o) const
+{
+    if (demand_) {
+        return demand_->getLength(t, r, k, o);
+    }
+    return ExponentialGrowth::getLength(t, r, k, o);
+}
+
 std::shared_ptr<GrowthFunction> CWLimitedGrowth::copy() const
 {
     auto c = std::make_shared<CWLimitedGrowth>();
