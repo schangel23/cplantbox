@@ -132,6 +132,11 @@ public:
 	 * path or non-FA organ), this field stays 0 unconditionally. */
 	double dl_backlog = 0.0;
 
+	/* Per-organ sucrose pool [mmol Suc]. PM-aware carbon allocation fills
+	 * this pool; buffered growth drains it for cell extension. Capacity is
+	 * an organ-random-parameter property, not per-organ instance state. */
+	double local_C_pool_ = 0.0;
+
 	/* Per-phytomer backlog for stems (D1 decision a — per-rank). Index 0
 	 * unused (matches the existing length_per_n / cessation_age_per_n
 	 * convention). Lazily sized by MultiPhaseStemGrowth::ensureState

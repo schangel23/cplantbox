@@ -430,6 +430,7 @@ PYBIND11_MODULE(plantbox, m) {
 			// Lock #6 §M2 (PLAN_S5_SINK_SOURCE_COUPLING_2026-05-02 §S5):
 			// supply-deficit carry-over for stress-fixture introspection.
 			.def_readwrite("dl_backlog", &Organ::dl_backlog)
+			.def_readwrite("local_C_pool_", &Organ::local_C_pool_)
 			.def_readwrite("dl_backlog_per_n", &Organ::dl_backlog_per_n)
 			.def("getNumberOfNodes",&Organ::getNumberOfNodes)
 			.def("getNumberOfSegments",&Organ::getNumberOfSegments)
