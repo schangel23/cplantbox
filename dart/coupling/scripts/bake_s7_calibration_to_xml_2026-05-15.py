@@ -153,9 +153,15 @@ def main() -> int:
     print(f"  patched blocks: seed={n_seed} leaf={n_leaf} stem={n_stem} "
           f"root={n_root}")
 
-    if args.dry_run:
-        print("  dry-run: not writing.  Diff:")
+    # ET drops whitespace tails when SubElement-appending into elements
+    # whose existing children carry their own whitespace.  Re-indent so
+    # the diff against the pre-bake XML stays minimal and the file
+    # remains human-readable.  ET.indent in py3.9+; safe no-op otherwise.
+    if hasattr(ET, "indent"):
         ET.indent(tree, space="    ")
+
+    if args.dry_run:
+        print("  dry-run: not writing.  Diff preview:")
         print(ET.tostring(root, encoding="unicode")[:1000] + "...")
         return 0
 
