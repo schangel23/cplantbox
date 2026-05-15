@@ -229,7 +229,8 @@ def run_one_combo(knobs: Dict[str, float], seed: int, bootstrap_day: int,
 
     try:
         if verbose:
-            print(f"  Phase 1: grow_plant seed={seed} day_0..{bootstrap_day}")
+            print(f"  Phase 1: grow_plant seed={seed} day_0..{bootstrap_day}",
+                  flush=True)
         plant = grow_plant(
             xml_path=str(MAIZE_XML),
             simulation_time=bootstrap_day,
@@ -250,7 +251,8 @@ def run_one_combo(knobs: Dict[str, float], seed: int, bootstrap_day: int,
         sum_day_residual = 0.0
 
         if verbose:
-            print(f"  Phase 3: PM loop day {bootstrap_day+1}..{sim_days}")
+            print(f"  Phase 3: PM loop day {bootstrap_day+1}..{sim_days}",
+                  flush=True)
 
         for sim_day in range(bootstrap_day + 1, sim_days + 1):
             T_air = 25.0
@@ -303,7 +305,8 @@ def run_one_combo(knobs: Dict[str, float], seed: int, bootstrap_day: int,
 
             if verbose and (sim_day % 10 == 0 or sim_day == sim_days):
                 print(f"    day {sim_day}: An={an:.3f} used={used:.3f} "
-                      f"resid={day_residual:.2f}% PMfail={n_pm_fail}/{n_pm}")
+                      f"resid={day_residual:.2f}% PMfail={n_pm_fail}/{n_pm}",
+                      flush=True)
 
         oracle_sums = _summarise_oracle(ORACLE_PATH)
         realised_sums = _summarise_realised(plant)
@@ -499,7 +502,21 @@ def main() -> int:
             continue
         print(f"[{i}/{len(knob_grid)}] cl={cl} cs={cs} cr={cr} cap={cap} "
               f"rc={rc} rr={rr} seed={seed} "
-              f"days={args.bootstrap_day}→{args.sim_days} {args.soil_mode}")
+              f"days={args.bootstrap_day}→{args.sim_days} {args.soil_mode}",
+              flush=True)
+        # Per-combo status sidecar — overwritten each iteration so the
+        # latest state is always visible without tailing CSV.
+        status_path = csv_path.with_suffix(".status.json")
+        status_path.write_text(json.dumps({
+            "combo_idx": i, "total_combos": len(knob_grid),
+            "c_cost_leaf": cl, "c_cost_stem": cs, "c_cost_root": cr,
+            "local_cap_factor": cap, "reserve_cap_factor": rc,
+            "starch_remob_rate": rr, "seed": seed,
+            "bootstrap_day": args.bootstrap_day,
+            "sim_days": args.sim_days,
+            "soil_mode": args.soil_mode,
+            "started_at": time.strftime("%Y-%m-%d %H:%M:%S"),
+        }, indent=2))
         row = run_one_combo(
             knobs, seed=seed, bootstrap_day=args.bootstrap_day,
             sim_days=args.sim_days, soil_mode=args.soil_mode,
