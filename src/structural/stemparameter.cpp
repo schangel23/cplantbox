@@ -51,6 +51,7 @@ StemRandomParameter::StemRandomParameter(std::shared_ptr<Organism> plant) :Organ
     name = "undefined";
     organType = Organism::ot_stem;
     subType = -1;
+    c_cost_per_cm = 0.55;
     f_tf = std::make_shared<Tropism>(plant);
     bindParameters();
 }

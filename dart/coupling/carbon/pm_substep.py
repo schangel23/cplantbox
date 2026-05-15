@@ -51,6 +51,7 @@ import numpy as np
 
 # Suc → CO2: 1 mmol Suc fully oxidised → 12 mmol CO2 (matches phloem_steady).
 SUC_TO_CO2 = 12.0
+DRY_MATTER_FRACTION = 0.15
 
 REPO_ROOT = Path(__file__).resolve().parents[3]
 SCRIPTS_DIR = REPO_ROOT / "dart/coupling/scripts"
@@ -111,7 +112,21 @@ def _pool_capacity(organ, rp):
     factor = float(getattr(rp, "local_C_pool_capacity_factor", 0.0))
     if factor <= 0.0:
         return 0.0
-    return factor * max(0.0, float(organ.orgVolume(-1.0, False)))
+    return factor * _structural_dry_mass_proxy(organ)
+
+
+def _structural_dry_mass_proxy(organ):
+    """Return structural dry mass [g] until CPlantBox exposes it directly."""
+    structural_dry_mass = getattr(organ, "structural_dry_mass", None)
+    if callable(structural_dry_mass):
+        return max(0.0, float(structural_dry_mass()))
+    mass = getattr(organ, "mass", None)
+    if callable(mass):
+        return max(0.0, float(mass()) * DRY_MATTER_FRACTION)
+    # TODO(S6): expose Organ::structural_dry_mass() in pybind and remove
+    # this fresh-mass proxy. CPlantBox currently exposes volume, not mass;
+    # assume 1 g fresh mass per cm3 as the documented temporary fallback.
+    return max(0.0, float(organ.orgVolume(-1.0, False)) * DRY_MATTER_FRACTION)
 
 
 def _local_pool_total(plant):

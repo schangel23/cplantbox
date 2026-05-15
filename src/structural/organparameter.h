@@ -108,7 +108,7 @@ public:
 	double ldelay = -1.; ///< Lateral emergence delay [day], used by RootDelay, @see RootDelay, RootSystem::initializeDB or if Organism->delayDefinition != Organism::dd_distance
     double ldelays = 0.; ///< Standard deviation of lateral emergence delay [day]
     double c_cost_per_cm = 0.35; ///< Growth carbon cost [mmol Suc / cm]
-    double local_C_pool_capacity_factor = 0.0; ///< Local sucrose-pool capacity [mmol Suc / cm3 organ volume]; 0 disables buffered allocation
+    double local_C_pool_capacity_factor = 0.0; ///< Local sucrose-pool capacity [mmol Suc / g structural DM]; 0 disables buffered allocation
 
     /* S0.6 / Lock #1: axis flag for delayNGEnd (which lives on
      * StemRandomParameter). When DelayAxis::TT, MultiPhaseStemGrowth

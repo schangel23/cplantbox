@@ -47,6 +47,7 @@ RootRandomParameter::RootRandomParameter(std::shared_ptr<Organism> plant) :Organ
     name = "undefined";
     organType = Organism::ot_root;
     subType = -1;
+    c_cost_per_cm = 0.20;
     f_tf = std::make_shared<Tropism>(plant);
     bindParameters();
 }

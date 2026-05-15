@@ -1,6 +1,10 @@
 <plant>
     <seed name="undefined*" subType="0">
         <parameter name="decompose_phytomer" value="0"/>
+        <parameter name="reserve_capacity_factor" value="0.04"/>
+        <parameter name="starch_remob_rate" value="2.0"/>
+        <parameter name="starch_storage_efficiency" value="0.95"/>
+        <parameter name="starch_remob_efficiency" value="0.98"/>
         <parameter name="delayDefinition" value="0"/>
         <parameter name="delayDefinitionShoot" value="2"/>
         <parameter name="maxTil" value="0"/>
@@ -136,8 +140,8 @@
     </root>
     <stem name="mainstem" subType="1">
         <parameter name="gf" value="1"/>
-        <parameter name="c_cost_per_cm" value="0.35"/>
-        <parameter name="local_C_pool_capacity_factor" value="0.05"/>
+        <parameter name="c_cost_per_cm" value="0.55"/>
+        <parameter name="local_C_pool_capacity_factor" value="0.5"/>
         <parameter name="lnf" value="0"/>
         <parameter name="nodalGrowth" value="1"/>
         <parameter name="tropismT" value="1"/>
@@ -199,8 +203,8 @@
     </stem>
     <stem name="tassel_spike" subType="20">
         <parameter name="gf" value="1"/>
-        <parameter name="c_cost_per_cm" value="0.35"/>
-        <parameter name="local_C_pool_capacity_factor" value="0.05"/>
+        <parameter name="c_cost_per_cm" value="0.55"/>
+        <parameter name="local_C_pool_capacity_factor" value="0.5"/>
         <parameter name="lnf" value="0"/>
         <parameter name="nodalGrowth" value="1"/>
         <parameter name="tropismT" value="1"/>
@@ -243,8 +247,8 @@
     </stem>
     <stem name="tassel_branch" subType="21">
         <parameter name="gf" value="1"/>
-        <parameter name="c_cost_per_cm" value="0.35"/>
-        <parameter name="local_C_pool_capacity_factor" value="0.05"/>
+        <parameter name="c_cost_per_cm" value="0.55"/>
+        <parameter name="local_C_pool_capacity_factor" value="0.5"/>
         <parameter name="lnf" value="0"/>
         <parameter name="nodalGrowth" value="1"/>
         <parameter name="tropismT" value="1"/>
@@ -288,7 +292,7 @@
         <parameter name="geometryN" value="100"/>
         <parameter name="gf" value="1"/>
         <parameter name="c_cost_per_cm" value="0.35"/>
-        <parameter name="local_C_pool_capacity_factor" value="0.05"/>
+        <parameter name="local_C_pool_capacity_factor" value="0.5"/>
         <parameter name="isPseudostem" value="0"/>
         <parameter name="lnf" value="0"/>
         <parameter name="parametrisationType" value="1"/>
@@ -413,7 +417,7 @@
         <parameter name="geometryN" value="100"/>
         <parameter name="gf" value="1"/>
         <parameter name="c_cost_per_cm" value="0.35"/>
-        <parameter name="local_C_pool_capacity_factor" value="0.05"/>
+        <parameter name="local_C_pool_capacity_factor" value="0.5"/>
         <parameter name="isPseudostem" value="0"/>
         <parameter name="lnf" value="0"/>
         <parameter name="parametrisationType" value="1"/>
@@ -538,7 +542,7 @@
         <parameter name="geometryN" value="100"/>
         <parameter name="gf" value="6"/>
         <parameter name="c_cost_per_cm" value="0.35"/>
-        <parameter name="local_C_pool_capacity_factor" value="0.05"/>
+        <parameter name="local_C_pool_capacity_factor" value="0.5"/>
         <parameter name="isPseudostem" value="0"/>
         <parameter name="lnf" value="0"/>
         <parameter name="parametrisationType" value="1"/>
@@ -663,7 +667,7 @@
         <parameter name="geometryN" value="100"/>
         <parameter name="gf" value="6"/>
         <parameter name="c_cost_per_cm" value="0.35"/>
-        <parameter name="local_C_pool_capacity_factor" value="0.05"/>
+        <parameter name="local_C_pool_capacity_factor" value="0.5"/>
         <parameter name="isPseudostem" value="0"/>
         <parameter name="lnf" value="0"/>
         <parameter name="parametrisationType" value="1"/>
@@ -788,7 +792,7 @@
         <parameter name="geometryN" value="100"/>
         <parameter name="gf" value="6"/>
         <parameter name="c_cost_per_cm" value="0.35"/>
-        <parameter name="local_C_pool_capacity_factor" value="0.05"/>
+        <parameter name="local_C_pool_capacity_factor" value="0.5"/>
         <parameter name="isPseudostem" value="0"/>
         <parameter name="lnf" value="0"/>
         <parameter name="parametrisationType" value="1"/>
@@ -913,7 +917,7 @@
         <parameter name="geometryN" value="100"/>
         <parameter name="gf" value="6"/>
         <parameter name="c_cost_per_cm" value="0.35"/>
-        <parameter name="local_C_pool_capacity_factor" value="0.05"/>
+        <parameter name="local_C_pool_capacity_factor" value="0.5"/>
         <parameter name="isPseudostem" value="0"/>
         <parameter name="lnf" value="0"/>
         <parameter name="parametrisationType" value="1"/>
@@ -1038,7 +1042,7 @@
         <parameter name="geometryN" value="100"/>
         <parameter name="gf" value="6"/>
         <parameter name="c_cost_per_cm" value="0.35"/>
-        <parameter name="local_C_pool_capacity_factor" value="0.05"/>
+        <parameter name="local_C_pool_capacity_factor" value="0.5"/>
         <parameter name="isPseudostem" value="0"/>
         <parameter name="lnf" value="0"/>
         <parameter name="parametrisationType" value="1"/>
@@ -1163,7 +1167,7 @@
         <parameter name="geometryN" value="100"/>
         <parameter name="gf" value="6"/>
         <parameter name="c_cost_per_cm" value="0.35"/>
-        <parameter name="local_C_pool_capacity_factor" value="0.05"/>
+        <parameter name="local_C_pool_capacity_factor" value="0.5"/>
         <parameter name="isPseudostem" value="0"/>
         <parameter name="lnf" value="0"/>
         <parameter name="parametrisationType" value="1"/>
@@ -1288,7 +1292,7 @@
         <parameter name="geometryN" value="100"/>
         <parameter name="gf" value="6"/>
         <parameter name="c_cost_per_cm" value="0.35"/>
-        <parameter name="local_C_pool_capacity_factor" value="0.05"/>
+        <parameter name="local_C_pool_capacity_factor" value="0.5"/>
         <parameter name="isPseudostem" value="0"/>
         <parameter name="lnf" value="0"/>
         <parameter name="parametrisationType" value="1"/>
@@ -1413,7 +1417,7 @@
         <parameter name="geometryN" value="100"/>
         <parameter name="gf" value="6"/>
         <parameter name="c_cost_per_cm" value="0.35"/>
-        <parameter name="local_C_pool_capacity_factor" value="0.05"/>
+        <parameter name="local_C_pool_capacity_factor" value="0.5"/>
         <parameter name="isPseudostem" value="0"/>
         <parameter name="lnf" value="0"/>
         <parameter name="parametrisationType" value="1"/>
@@ -1538,7 +1542,7 @@
         <parameter name="geometryN" value="100"/>
         <parameter name="gf" value="6"/>
         <parameter name="c_cost_per_cm" value="0.35"/>
-        <parameter name="local_C_pool_capacity_factor" value="0.05"/>
+        <parameter name="local_C_pool_capacity_factor" value="0.5"/>
         <parameter name="isPseudostem" value="0"/>
         <parameter name="lnf" value="0"/>
         <parameter name="parametrisationType" value="1"/>
@@ -1663,7 +1667,7 @@
         <parameter name="geometryN" value="100"/>
         <parameter name="gf" value="6"/>
         <parameter name="c_cost_per_cm" value="0.35"/>
-        <parameter name="local_C_pool_capacity_factor" value="0.05"/>
+        <parameter name="local_C_pool_capacity_factor" value="0.5"/>
         <parameter name="isPseudostem" value="0"/>
         <parameter name="lnf" value="0"/>
         <parameter name="parametrisationType" value="1"/>
@@ -1788,7 +1792,7 @@
         <parameter name="geometryN" value="100"/>
         <parameter name="gf" value="6"/>
         <parameter name="c_cost_per_cm" value="0.35"/>
-        <parameter name="local_C_pool_capacity_factor" value="0.05"/>
+        <parameter name="local_C_pool_capacity_factor" value="0.5"/>
         <parameter name="isPseudostem" value="0"/>
         <parameter name="lnf" value="0"/>
         <parameter name="parametrisationType" value="1"/>
@@ -1913,7 +1917,7 @@
         <parameter name="geometryN" value="100"/>
         <parameter name="gf" value="6"/>
         <parameter name="c_cost_per_cm" value="0.35"/>
-        <parameter name="local_C_pool_capacity_factor" value="0.05"/>
+        <parameter name="local_C_pool_capacity_factor" value="0.5"/>
         <parameter name="isPseudostem" value="0"/>
         <parameter name="lnf" value="0"/>
         <parameter name="parametrisationType" value="1"/>
@@ -2038,7 +2042,7 @@
         <parameter name="geometryN" value="100"/>
         <parameter name="gf" value="6"/>
         <parameter name="c_cost_per_cm" value="0.35"/>
-        <parameter name="local_C_pool_capacity_factor" value="0.05"/>
+        <parameter name="local_C_pool_capacity_factor" value="0.5"/>
         <parameter name="isPseudostem" value="0"/>
         <parameter name="lnf" value="0"/>
         <parameter name="parametrisationType" value="1"/>

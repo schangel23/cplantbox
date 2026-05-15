@@ -538,7 +538,7 @@ void OrganRandomParameter::bindParameters()
     bindParameter("dxMin", &dxMin, "Axial resolution [cm] (minimal segment size)");
 	bindParameter("ldelay", &ldelay, "Lateral emergence delay [day]", &ldelays);
     bindParameter("c_cost_per_cm", &c_cost_per_cm, "Growth carbon cost [mmol Suc / cm]");
-    bindParameter("local_C_pool_capacity_factor", &local_C_pool_capacity_factor, "Local sucrose-pool capacity [mmol Suc / cm3 organ volume]");
+    bindParameter("local_C_pool_capacity_factor", &local_C_pool_capacity_factor, "Local sucrose-pool capacity [mmol Suc / g structural DM]");
 	bindAxisParameter("ldelay", &ldelayAxis); ///< Lock #8: axis="TT" → Leaf::simulate (and future Stem::simulate) gate emergence on Andrieu-TT instead of calendar days
     // other parameters (descriptions only)
     description["name"]  = "Name of the sub type of the organ, e.g. small lateral";
