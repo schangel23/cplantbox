@@ -208,8 +208,11 @@ def _mark_buffered_cw_gr_spent(plant):
             gf.CW_Gr = {int(oid): -1.0 for oid in cw_gr.keys()}
 
 
-def _reserve_remob_step(plant, dt):
+def _reserve_remob_step(plant, dt, prior_fu_lim=None, starch_remob_threshold=0.1):
     """First-order remobilisation from plant reserve into deficient local pools."""
+    if prior_fu_lim is None or float(prior_fu_lim) >= float(starch_remob_threshold):
+        return {"remob_delivered_mmol": 0.0, "remob_loss_mmol": 0.0}
+
     reserve = max(0.0, float(getattr(plant, "transient_reserve_pool_", 0.0)))
     if reserve <= 0.0:
         return {"remob_delivered_mmol": 0.0, "remob_loss_mmol": 0.0}
@@ -261,7 +264,8 @@ def solve_carbon_partitioning_pm(plant, An_per_leaf_seg, Tair_C=25.0,
                                   vcrefchl_multiplier=None,
                                   kmfu_multiplier=None,
                                   hm_solve_trace_path=None,
-                                  use_buffered_carbon=False):
+                                  use_buffered_carbon=False,
+                                  starch_remob_threshold=0.1):
     """Run a 24-substep PiafMunch loop and return an S5-shaped carbon dict.
 
     Args:
@@ -395,6 +399,10 @@ def solve_carbon_partitioning_pm(plant, An_per_leaf_seg, Tair_C=25.0,
             ``PLAN_CH1_PHLOEM_CALIBRATION_2026-05-13`` step 5 finding for
             the falsification of the Vmaxloading hypothesis and the
             pivot to meso-starch hydrolysis.
+        starch_remob_threshold: prior-substep Fu_lim threshold
+            [mmol Suc/substep] below which the transient reserve can
+            remobilise into local pools. This preserves day-store /
+            night-drain reserve dynamics under daily-batched extension.
 
     Returns:
         carbon_result dict with the same keys as
@@ -618,6 +626,7 @@ def solve_carbon_partitioning_pm(plant, An_per_leaf_seg, Tair_C=25.0,
     remob_loss_mmol = 0.0
     buffered_fu_delivered_mmol = 0.0
     prev_Q_Gr_total = 0.0
+    prev_fu_lim_s = None
     tt_start = (
         float(plant.getAccumulatedTT())
         if hasattr(plant, "getAccumulatedTT") else 0.0
@@ -711,7 +720,12 @@ def solve_carbon_partitioning_pm(plant, An_per_leaf_seg, Tair_C=25.0,
     n_done = 0
     while sim <= sim_max + 1e-9:
         if use_buffered_carbon and buffered_growth_active > 0:
-            remob = _reserve_remob_step(plant, dt)
+            remob = _reserve_remob_step(
+                plant,
+                dt,
+                prior_fu_lim=prev_fu_lim_s,
+                starch_remob_threshold=starch_remob_threshold,
+            )
             remob_loss_mmol += remob["remob_loss_mmol"]
 
         # Refresh per-substep soil profile when a provider is supplied.
@@ -930,6 +944,7 @@ def solve_carbon_partitioning_pm(plant, An_per_leaf_seg, Tair_C=25.0,
                 )))
                 fu_lim_s = max(0.0, qgr_total - prev_Q_Gr_total)
                 prev_Q_Gr_total = qgr_total
+                prev_fu_lim_s = fu_lim_s
                 if hasattr(plant, "setAccumulatedTT"):
                     plant.setAccumulatedTT(tt_start + tt_eff * float(n_done + 1) * dt)
                 if hasattr(plant, "setAccumulatedAndrieuTT"):
