@@ -749,9 +749,16 @@ double PhloemFlux::getMaxVolumicGrowth(std::shared_ptr<CPlantBox::Organ> org, do
 	double age_ = f_gf->getAge(Linit, rmax, org->getParameter("k"), org->shared_from_this());			
 	assertUsedCReserves(org);			
 	double dt = adaptDt(org, t);				
-	//	params to compute growth
-	double LinitTemp = f_gf->getLength(age_ , rmax, org->getParameter("k"), org->shared_from_this());
-	double targetlength = f_gf->getLength(age_ + dt , rmax, org->getParameter("k"), org->shared_from_this());
+	//	params to compute growth — read demand-only path (S0 2026-05-15).
+	//	getDemand returns pure FA-thermal potential, bypassing the supply-aware
+	//	Liebig min + CW_Gr spent flag in CWLimitedGrowth::getLength. Before S0,
+	//	PM read getLength here and saw 0 whenever CW_Gr[org] was marked spent
+	//	(-1) by the previous substep's plant.simulate, which forced the β'
+	//	workaround in pm_substep.py to clear CW_Gr between substeps. With
+	//	getDemand, PM gets accurate FA-thermal demand every substep regardless
+	//	of CW_Gr state, and β' is no longer required.
+	double LinitTemp = f_gf->getDemand(age_ , rmax, org->getParameter("k"), org->shared_from_this());
+	double targetlength = f_gf->getDemand(age_ + dt , rmax, org->getParameter("k"), org->shared_from_this());
 	double e = std::max(0.,targetlength-LinitTemp);// unimpeded elongation in time step dt
 	
 	if((e + org->getLength(false))> org->getParameter("k") + 1e-10){
