@@ -131,6 +131,10 @@ void SeedRandomParameter::bindParameters()
 	bindParameter("delayDefinition", &delayDefinition, "method implemented to evaluate root lateral growth delay (0: distance based, 1: delay based defined by parent organ)");
 	bindParameter("delayDefinitionShoot", &delayDefinitionShoot, "method implemented to evaluate shoot lateral growth delay (0: distance based, 1: delay based defined by parent organ)");
 	bindParameter("decompose_phytomer", &decompose_phytomer, "Phytomer decomposition mode (0=off, 1=sheath+blade)");
+	bindParameter("reserve_capacity_factor", &reserve_capacity_factor, "Transient reserve capacity [mmol Suc / g structural DM]");
+	bindParameter("starch_remob_rate", &starch_remob_rate, "First-order transient reserve remobilisation rate [d-1]");
+	bindParameter("starch_storage_efficiency", &starch_storage_efficiency, "Transient reserve storage efficiency [-]");
+	bindParameter("starch_remob_efficiency", &starch_remob_efficiency, "Transient reserve remobilisation efficiency [-]");
 }
 
 } // namespace

@@ -101,6 +101,11 @@ public:
   void setAndrieuTBase(double T_base) { tt_T_base_andrieu_ = T_base; }
   double getAndrieuTBase() const { return tt_T_base_andrieu_; }
 
+  /* Plant-level transient sucrose-equivalent reserve [mmol Suc].
+   * Filled by local-pool overflow and remobilised during low-supply
+   * substeps by the buffered carbon PM loop. */
+  double transient_reserve_pool_ = 0.0;
+
 protected:
 
   double airTemperature_ = 25.0;  ///< current air temperature [deg C]

@@ -735,7 +735,11 @@ PYBIND11_MODULE(plantbox, m) {
             .def_readwrite("maxTils", &SeedRandomParameter::maxTils)
             .def_readwrite("simtime", &SeedRandomParameter::simtime)
             .def_readwrite("simtimes", &SeedRandomParameter::simtimes)
-            .def_readwrite("decompose_phytomer", &SeedRandomParameter::decompose_phytomer);
+            .def_readwrite("decompose_phytomer", &SeedRandomParameter::decompose_phytomer)
+            .def_readwrite("reserve_capacity_factor", &SeedRandomParameter::reserve_capacity_factor)
+            .def_readwrite("starch_remob_rate", &SeedRandomParameter::starch_remob_rate)
+            .def_readwrite("starch_storage_efficiency", &SeedRandomParameter::starch_storage_efficiency)
+            .def_readwrite("starch_remob_efficiency", &SeedRandomParameter::starch_remob_efficiency);
     py::class_<SeedSpecificParameter, OrganSpecificParameter, std::shared_ptr<SeedSpecificParameter>>(m, "SeedSpecificParameter")
             .def(py::init<>())
             .def(py::init<int, Vector3d , double, int, int, int, double, double, double, double, int, double>())
@@ -1161,7 +1165,8 @@ PYBIND11_MODULE(plantbox, m) {
             .def("getAccumulatedAndrieuTT", &Plant::getAccumulatedAndrieuTT)
             .def("setAccumulatedAndrieuTT", &Plant::setAccumulatedAndrieuTT)
             .def("setAndrieuTBase", &Plant::setAndrieuTBase)
-            .def("getAndrieuTBase", &Plant::getAndrieuTBase);
+            .def("getAndrieuTBase", &Plant::getAndrieuTBase)
+            .def_readwrite("transient_reserve_pool_", &Plant::transient_reserve_pool_);
 
 
 	py::class_<MappedPlant, Plant, MappedSegments,  std::shared_ptr<MappedPlant>>(m, "MappedPlant")

@@ -119,6 +119,12 @@ public:
     // Phytomer decomposition
     int decompose_phytomer = 0;  ///< 0=monolithic leaves, 1=sheath+blade sub-organs
 
+    // Buffered carbon reserve dynamics
+    double reserve_capacity_factor = 0.04;  ///< Transient reserve capacity [mmol Suc / g structural DM]
+    double starch_remob_rate = 2.0;  ///< First-order starch remobilisation rate [d-1]
+    double starch_storage_efficiency = 0.95;  ///< Charge-side storage efficiency [-]
+    double starch_remob_efficiency = 0.98;  ///< Discharge-side remobilisation efficiency [-]
+
 protected:
 
     void bindParameters() override;   ///< sets up class introspection
