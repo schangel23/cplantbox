@@ -337,30 +337,6 @@ def solve_carbon_partitioning_pm(plant, An_per_leaf_seg, Tair_C=25.0,
             print(f"  PM-substep: Krm2 override failed ({e}); using JSON default")
     hm.atol = pm_atol
     hm.rtol = pm_rtol
-    # DEPLOY-B (DIAG_CH1_HM_SOLVE_2026-05-14): relax Photosynthesis.cpp
-    # maxErr[6] / maxErrAbs[6] thresholds. The C++ canStop loop at
-    # Photosynthesis.cpp:411-413 computes the Ev−outputFlux residual at
-    # leaf segments with an indexing inconsistency: maxErrAbs[6]'s
-    # numerator uses outputFlux[idl] (global segment index via
-    # seg_leaves_idx), but maxErr[6]'s denominator uses outputFlux[i]
-    # (local leaf-loop index). outputFlux is sized by global segment
-    # count, so outputFlux[i] hits an arbitrary non-leaf segment whose
-    # flux is often near zero → relative error → inf → canStop never
-    # returns true → loop runs to maxLoop=50000 and throws. The other
-    # 8 error indices converge to 1e-13 at the throw; the Newton
-    # iteration is physically converged, the checker is broken.
-    # Additionally maxErrAbsLim[6]=1e-6 is tighter than the achievable
-    # Ev−outputFlux closure (~1e-4 at convergence on day-31). Relaxing
-    # to (1e-3, 1.0) lets canStop accept the physically-converged
-    # state. Upstream-PR target: outputFlux[i] → outputFlux[idl] on
-    # Photosynthesis.cpp:413. Both fields are def_readwrite at
-    # PyPlantBox.cpp:1250-1251.
-    err_abs_lim = list(hm.maxErrAbsLim)
-    err_rel_lim = list(hm.maxErrLim)
-    err_abs_lim[6] = 1e-3
-    err_rel_lim[6] = 1.0
-    hm.maxErrAbsLim = err_abs_lim
-    hm.maxErrLim = err_rel_lim
     # Optional Vmaxloading diagnostic override (Ch1 phloem-loading retune
     # probe). Multiplies the per-call ``Vmaxloading`` kwarg by
     # ``vmaxloading_multiplier`` before pushing to PiafMunch. Mirrors the
