@@ -91,6 +91,7 @@ CSV_COLUMNS = [
     "cum_an_mmol", "cum_used_mmol", "cum_mb_residual_pct",
     "max_day_mb_residual_pct", "mean_day_mb_residual_pct",
     "transient_reserve_end_mmol", "local_C_pool_total_end_mmol",
+    "cum_rg_realised_mmol_co2",  # Σ realised dL × c_cost across the run
     "status", "error",
 ]
 
@@ -249,6 +250,24 @@ def run_one_combo(knobs: Dict[str, float], seed: int, bootstrap_day: int,
         cum_used = 0.0
         max_day_residual = 0.0
         sum_day_residual = 0.0
+        # Plan §3.2 buffered-side accounting — Σ Rg_realised across the
+        # run.  Computed as (post-day Σ length × c_cost) − (pre-day same)
+        # so we can decompose Fu_lim into Rg_realised + Δlocal_C +
+        # Δreserve + losses without trusting that PM-internal closure
+        # implies buffered closure.
+        cum_rg_realised_suc = 0.0  # mmol Suc, summed across days
+        c_cost_by_ot = {2: knobs["c_cost_root"],
+                        3: knobs["c_cost_stem"],
+                        4: knobs["c_cost_leaf"]}
+
+        def _length_cost_total(p) -> float:
+            """Σ organ.getLength() × c_cost_per_cm[organ_type] [mmol Suc]."""
+            tot = 0.0
+            for o in p.getOrgans(-1, True):
+                ot = int(o.organType())
+                if ot in c_cost_by_ot:
+                    tot += float(o.getLength()) * c_cost_by_ot[ot]
+            return tot
 
         if verbose:
             print(f"  Phase 3: PM loop day {bootstrap_day+1}..{sim_days}",
@@ -268,6 +287,7 @@ def run_one_combo(knobs: Dict[str, float], seed: int, bootstrap_day: int,
                 plant.simulate(1.0, False)
                 continue
 
+            length_cost_pre = _length_cost_total(plant)
             result = solve_carbon_partitioning_pm(
                 plant, An_seg, Tair_C=T_air, day=int(sim_day - 1),
                 n_substeps=24, advance_plant=True,
@@ -302,6 +322,13 @@ def run_one_combo(knobs: Dict[str, float], seed: int, bootstrap_day: int,
             day_residual = (abs(an - used) / an * 100.0) if an > 1e-9 else 0.0
             max_day_residual = max(max_day_residual, day_residual)
             sum_day_residual += day_residual
+
+            # Buffered-side audit: Δ(Σ length × c_cost) = today's
+            # Rg_realised in mmol Suc.  Captures the carbon that
+            # actually went into structural extension (vs. sat in pools
+            # or got remobilised through the reserve).
+            length_cost_post = _length_cost_total(plant)
+            cum_rg_realised_suc += max(0.0, length_cost_post - length_cost_pre)
 
             if verbose and (sim_day % 10 == 0 or sim_day == sim_days):
                 print(f"    day {sim_day}: An={an:.3f} used={used:.3f} "
@@ -361,6 +388,7 @@ def run_one_combo(knobs: Dict[str, float], seed: int, bootstrap_day: int,
             "local_C_pool_total_end_mmol": round(
                 sum(max(0.0, float(getattr(o, "local_C_pool_", 0.0)))
                     for o in plant.getOrgans(-1, True)), 4),
+            "cum_rg_realised_mmol_co2": round(cum_rg_realised_suc * 12.0, 4),
         })
     except Exception as exc:  # noqa: BLE001
         row["status"] = "ERROR"
