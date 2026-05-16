@@ -124,6 +124,7 @@ public:
     double starch_remob_rate = 2.0;  ///< First-order starch remobilisation rate [d-1]
     double starch_storage_efficiency = 0.95;  ///< Charge-side storage efficiency [-]
     double starch_remob_efficiency = 0.98;  ///< Discharge-side remobilisation efficiency [-]
+    double sink_feedback_theta_full = 0.80;  ///< L-Peach sink-fullness threshold [-]; Vmaxloading damped when reserve/cap > theta
 
 protected:
 

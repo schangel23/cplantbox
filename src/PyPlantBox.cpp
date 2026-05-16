@@ -744,7 +744,8 @@ PYBIND11_MODULE(plantbox, m) {
             .def_readwrite("reserve_capacity_factor", &SeedRandomParameter::reserve_capacity_factor)
             .def_readwrite("starch_remob_rate", &SeedRandomParameter::starch_remob_rate)
             .def_readwrite("starch_storage_efficiency", &SeedRandomParameter::starch_storage_efficiency)
-            .def_readwrite("starch_remob_efficiency", &SeedRandomParameter::starch_remob_efficiency);
+            .def_readwrite("starch_remob_efficiency", &SeedRandomParameter::starch_remob_efficiency)
+            .def_readwrite("sink_feedback_theta_full", &SeedRandomParameter::sink_feedback_theta_full);
     py::class_<SeedSpecificParameter, OrganSpecificParameter, std::shared_ptr<SeedSpecificParameter>>(m, "SeedSpecificParameter")
             .def(py::init<>())
             .def(py::init<int, Vector3d , double, int, int, int, double, double, double, double, int, double>())

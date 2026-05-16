@@ -134,6 +134,43 @@ def _local_pool_total(plant):
                      for o in plant.getOrgans()))
 
 
+def _reserve_capacity_total(plant):
+    """Plant-level reserve capacity [mmol Suc].
+
+    capacity = reserve_capacity_factor × Σ structural_dry_mass(organ).
+    Returns 0 when the factor is unset or non-positive (then the §S9
+    feedback is dormant by construction).
+    """
+    srp = plant.getOrganRandomParameter(1, 0)
+    factor = float(getattr(srp, "reserve_capacity_factor", 0.0))
+    if factor <= 0.0:
+        return 0.0
+    dm_total = 0.0
+    for organ in plant.getOrgans():
+        dm_total += _structural_dry_mass_proxy(organ)
+    return factor * dm_total
+
+
+def _sink_feedback_multiplier(plant, theta_full):
+    """L-Peach Vmaxloading downregulation (§S9 / Plan §11.3).
+
+    Returns 1.0 when reserve_pool/reserve_capacity ≤ theta_full. Above
+    theta_full, multiplier drops linearly to 0 as saturation reaches 1.
+    Used to relieve PiafMunch CVODE-feasibility stress under sustained
+    Path B operation when sink-side carbohydrates accumulate.
+    """
+    cap = _reserve_capacity_total(plant)
+    if cap <= 0.0:
+        return 1.0
+    reserve = max(0.0, float(getattr(plant, "transient_reserve_pool_", 0.0)))
+    sat = reserve / cap
+    if sat <= theta_full:
+        return 1.0
+    if theta_full >= 1.0:
+        return 1.0  # ill-defined; treat as no-op
+    return max(0.0, (1.0 - sat) / (1.0 - theta_full))
+
+
 def _compute_fa_demands(plant, dt):
     """Return FA-potential length demand [cm] per buffered organ id."""
     demands = {}
@@ -280,7 +317,8 @@ def solve_carbon_partitioning_pm(plant, An_per_leaf_seg, Tair_C=25.0,
                                   kmfu_multiplier=None,
                                   hm_solve_trace_path=None,
                                   use_buffered_carbon=False,
-                                  starch_remob_threshold=0.1):
+                                  starch_remob_threshold=0.1,
+                                  sink_feedback_enabled=False):
     """Run a 24-substep PiafMunch loop and return an S5-shaped carbon dict.
 
     Args:
@@ -529,6 +567,21 @@ def solve_carbon_partitioning_pm(plant, An_per_leaf_seg, Tair_C=25.0,
         hm.Vmaxloading = float(Vmaxloading) * float(vmaxloading_multiplier)
     else:
         hm.Vmaxloading = Vmaxloading
+    # §S9 sink-fullness feedback (Plan §11.3; escalated 2026-05-16). When
+    # the plant-level transient_reserve_pool_ exceeds θ_full × reserve
+    # capacity, L-Peach-style downregulation multiplies Vmaxloading
+    # linearly to 0 at saturation = 1. Gated by ``sink_feedback_enabled``
+    # (default False → no-op, preserves D.0 invariance and pre-S9 fixture
+    # output). Applied AFTER ``vmaxloading_multiplier`` so the two compose
+    # multiplicatively: any explicit per-call probe scale combines with
+    # the saturation-driven damping. Reads θ_full from ``SeedRandomParameter
+    # .sink_feedback_theta_full`` (XML-bound, default 0.80).
+    if sink_feedback_enabled:
+        srp = plant.getOrganRandomParameter(1, 0)
+        theta_full = float(getattr(srp, "sink_feedback_theta_full", 0.8))
+        sf_mult = _sink_feedback_multiplier(plant, theta_full)
+        if sf_mult < 1.0:
+            hm.Vmaxloading = float(hm.Vmaxloading) * sf_mult
     hm.beta_loading = beta_loading
     hm.solver = solver
     # Optional kHyd_S_Mesophyll absolute override (Ch1 phloem-loading

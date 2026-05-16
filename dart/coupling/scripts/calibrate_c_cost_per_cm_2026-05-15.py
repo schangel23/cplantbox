@@ -81,7 +81,7 @@ CSV_COLUMNS = [
     "starch_remob_rate", "starch_storage_eff", "starch_remob_eff",
     # config
     "seed", "bootstrap_day", "sim_days", "soil_mode", "soil_psi_cm",
-    "krm1_mult", "kmfu_mult", "wrap_roots",
+    "krm1_mult", "kmfu_mult", "wrap_roots", "sink_feedback_enabled",
     # outcome
     "runtime_s", "n_pm_calls", "n_pm_fail",
     "mainstem_realised_cm", "mainstem_oracle_cm", "mainstem_fraction",
@@ -206,6 +206,7 @@ def run_one_combo(knobs: Dict[str, float], seed: int, bootstrap_day: int,
                   sim_days: int, soil_mode: str, soil_psi_cm: float,
                   krm1_mult: Optional[float], kmfu_mult: Optional[float],
                   wrap_roots: bool = False,
+                  sink_feedback_enabled: bool = False,
                   verbose: bool = True) -> Dict[str, float]:
     """Execute one calibration combo and return CSV row dict."""
     t0 = time.time()
@@ -227,6 +228,7 @@ def run_one_combo(knobs: Dict[str, float], seed: int, bootstrap_day: int,
         "krm1_mult": krm1_mult if krm1_mult is not None else "",
         "kmfu_mult": kmfu_mult if kmfu_mult is not None else "",
         "wrap_roots": int(bool(wrap_roots)),
+        "sink_feedback_enabled": int(bool(sink_feedback_enabled)),
         "status": "OK",
         "error": "",
     }
@@ -297,6 +299,7 @@ def run_one_combo(knobs: Dict[str, float], seed: int, bootstrap_day: int,
                 soil_psi_provider=provider, inject_an_target=False,
                 krm1_multiplier=krm1_mult, kmfu_multiplier=kmfu_mult,
                 use_buffered_carbon=True,
+                sink_feedback_enabled=sink_feedback_enabled,
             )
             n_pm += 1
             if result is None:
@@ -429,6 +432,7 @@ def _existing_combos(csv_path: Path) -> set:
                     row["krm1_mult"],
                     row["kmfu_mult"],
                     int(row.get("wrap_roots", 0) or 0),
+                    int(row.get("sink_feedback_enabled", 0) or 0),
                 )
             except (KeyError, ValueError):
                 continue
@@ -438,7 +442,7 @@ def _existing_combos(csv_path: Path) -> set:
 
 def _row_key(row: Dict[str, object], soil_mode: str, soil_psi_cm: float,
              krm1_mult: Optional[float], kmfu_mult: Optional[float],
-             wrap_roots: bool) -> tuple:
+             wrap_roots: bool, sink_feedback_enabled: bool) -> tuple:
     return (
         round(float(row["c_cost_leaf"]), 6),
         round(float(row["c_cost_stem"]), 6),
@@ -457,6 +461,7 @@ def _row_key(row: Dict[str, object], soil_mode: str, soil_psi_cm: float,
         "" if krm1_mult is None else str(krm1_mult),
         "" if kmfu_mult is None else str(kmfu_mult),
         int(bool(wrap_roots)),
+        int(bool(sink_feedback_enabled)),
     )
 
 
@@ -498,6 +503,13 @@ def main() -> int:
                           "pre-§S10 native-FA-root path (c_cost_root is "
                           "structurally inert under that default). Required "
                           "to exercise §S10 root-budget falsification."))
+    ap.add_argument("--sink-feedback-enabled", action="store_true",
+                    help=("§S9 L-Peach sink-fullness feedback. Multiplies "
+                          "hm.Vmaxloading by max(0, (1-sat)/(1-θ_full)) "
+                          "when transient_reserve_pool_/reserve_capacity > "
+                          "θ_full (XML-bound SRP.sink_feedback_theta_full, "
+                          "default 0.80). Targets PM-fail rail; expected to "
+                          "drop PM-fail rate from 28-49%% at day-130 dumux."))
     ap.add_argument("--out-csv", required=True)
     ap.add_argument("--quiet", action="store_true")
     args = ap.parse_args()
@@ -539,7 +551,7 @@ def main() -> int:
         }
         key = _row_key(row_for_key, args.soil_mode, args.soil_psi_cm,
                        args.krm1_multiplier, args.kmfu_multiplier,
-                       args.wrap_roots)
+                       args.wrap_roots, args.sink_feedback_enabled)
         if key in existing:
             if not args.quiet:
                 print(f"[{i}/{len(knob_grid)}] SKIP cached "
@@ -569,6 +581,7 @@ def main() -> int:
             krm1_mult=args.krm1_multiplier,
             kmfu_mult=args.kmfu_multiplier,
             wrap_roots=args.wrap_roots,
+            sink_feedback_enabled=args.sink_feedback_enabled,
             verbose=not args.quiet,
         )
         with csv_path.open("a", newline="") as f:

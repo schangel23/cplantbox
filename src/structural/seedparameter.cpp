@@ -135,6 +135,7 @@ void SeedRandomParameter::bindParameters()
 	bindParameter("starch_remob_rate", &starch_remob_rate, "First-order transient reserve remobilisation rate [d-1]");
 	bindParameter("starch_storage_efficiency", &starch_storage_efficiency, "Transient reserve storage efficiency [-]");
 	bindParameter("starch_remob_efficiency", &starch_remob_efficiency, "Transient reserve remobilisation efficiency [-]");
+	bindParameter("sink_feedback_theta_full", &sink_feedback_theta_full, "L-Peach sink-fullness threshold [-]; Vmaxloading damped when reserve_pool/reserve_capacity > theta_full (§S9)");
 }
 
 } // namespace

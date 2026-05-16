@@ -5,6 +5,7 @@
         <parameter name="starch_remob_rate" value="2.0"/>
         <parameter name="starch_storage_efficiency" value="0.95"/>
         <parameter name="starch_remob_efficiency" value="0.98"/>
+        <parameter name="sink_feedback_theta_full" value="0.80"/>
         <parameter name="delayDefinition" value="0"/>
         <parameter name="delayDefinitionShoot" value="2"/>
         <parameter name="maxTil" value="0"/>
