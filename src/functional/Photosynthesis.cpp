@@ -410,7 +410,8 @@ void Photosynthesis::getError(double simTime)
 
 		int idl= seg_leaves_idx.at(i); // global segment indx
 		maxErrAbs[6] = std::abs((this->outputFlux[idl]-this->Ev.at(i)));
-		maxErr[6] = std::abs((this->outputFlux[idl]-this->Ev.at(i)))/std::min(std::abs(this->outputFlux[idl]),std::abs(this->Ev.at(i)));
+		double fluxScale = std::min(std::abs(this->outputFlux[idl]), std::abs(this->Ev.at(i)));
+		maxErr[6] = fluxScale > 0. ? maxErrAbs[6] / fluxScale : maxErrAbs[6];
 		
 		if(doLog){
 			myfile1 <<i<<" abs: "<<maxErrAbs[1] <<" "<<maxErrAbs[1] <<" "<<maxErrAbs[2]<<" "<<maxErrAbs[3]<<" "<<maxErrAbs[4] <<" "<<maxErrAbs[5] <<" "<<maxErrAbs[6]<<" "<<maxErrAbs[7]<<" "<<maxErrAbs[8]<<" an: ";
