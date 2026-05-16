@@ -30,6 +30,8 @@
     </seed>
     <root name="taproot" subType="1">
         <parameter name="gf" value="1"/>
+        <parameter name="c_cost_per_cm" value="0.20"/>
+        <parameter name="local_C_pool_capacity_factor" value="0.5"/>
         <parameter name="tropismT" value="1"/>
         <parameter name="a" value="0.20000000000000001" dev="0.02"/>
         <parameter name="dx" value="0.25"/>
@@ -53,6 +55,8 @@
     </root>
     <root name="lateral1" subType="2">
         <parameter name="gf" value="1"/>
+        <parameter name="c_cost_per_cm" value="0.20"/>
+        <parameter name="local_C_pool_capacity_factor" value="0.5"/>
         <parameter name="tropismT" value="2"/>
         <parameter name="a" value="0.012500000000000001" dev="0.00125"/>
         <parameter name="dx" value="0.25"/>
@@ -74,6 +78,8 @@
     </root>
     <root name="lateral2" subType="3">
         <parameter name="gf" value="1"/>
+        <parameter name="c_cost_per_cm" value="0.20"/>
+        <parameter name="local_C_pool_capacity_factor" value="0.5"/>
         <parameter name="tropismT" value="2"/>
         <parameter name="a" value="0.02" dev="0.0020000001000000001"/>
         <parameter name="dx" value="0.25"/>
@@ -95,6 +101,8 @@
     </root>
     <root name="nodal_root" subType="4">
         <parameter name="gf" value="1"/>
+        <parameter name="c_cost_per_cm" value="0.20"/>
+        <parameter name="local_C_pool_capacity_factor" value="0.5"/>
         <parameter name="tropismT" value="1"/>
         <parameter name="a" value="0.20000000000000001" dev="0.02"/>
         <parameter name="dx" value="0.25"/>
@@ -118,6 +126,8 @@
     </root>
     <root name="shoot_borne_root" subType="5">
         <parameter name="gf" value="1"/>
+        <parameter name="c_cost_per_cm" value="0.20"/>
+        <parameter name="local_C_pool_capacity_factor" value="0.5"/>
         <parameter name="tropismT" value="1"/>
         <parameter name="a" value="0.20000000000000001" dev="0.02"/>
         <parameter name="dx" value="0.25"/>

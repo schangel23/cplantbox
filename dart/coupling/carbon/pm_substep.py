@@ -96,14 +96,33 @@ def _is_cw_wrapped(plant):
 
 
 def _iter_bufferable_organs(plant):
+    """Yield (organ, rp, gf) for every organ whose growth function is a
+    ``CWLimitedGrowth`` instance.
+
+    Before §S10, the iterator additionally required ``gf.demand`` to be
+    non-null, which silently excluded roots from the buffered carbon
+    economy: roots run on native ``ExponentialGrowth`` (not FA), so
+    ``enable_cw_limited_growth`` wraps them in bare ``CWLimitedGrowth()``
+    with no demand object. That filter broke the native PiafMunch design,
+    which calls ``f_gf->getDemand(...)`` on **every** organ in
+    ``waterLimitedGrowth`` (runPM.cpp:760) and lets
+    ``CWLimitedGrowth::getDemand`` (growth.cpp:240) dispatch:
+
+      - if ``demand_`` is set (FA-wrapped stem/leaf): returns FA potential
+      - else (bare wrap, e.g. root): returns ``ExponentialGrowth::getLength``
+
+    Dropping the filter restores that symmetry. Roots whose XML carries
+    a non-zero ``local_C_pool_capacity_factor`` now participate in the
+    buffered allocation; roots with the default cap_factor=0 still skip
+    via the ``_pool_capacity`` guard in ``_allocate_fu_lim``, so XMLs
+    that haven't enabled root buffering remain bit-identical.
+    """
     import plantbox as pb
 
     for organ in plant.getOrgans():
         rp = organ.getOrganRandomParameter()
         gf = getattr(rp, "f_gf", None)
         if not isinstance(gf, pb.CWLimitedGrowth):
-            continue
-        if getattr(gf, "demand", None) is None:
             continue
         yield organ, rp, gf
 
@@ -171,8 +190,24 @@ def _sink_feedback_multiplier(plant, theta_full):
     return max(0.0, (1.0 - sat) / (1.0 - theta_full))
 
 
-def _compute_fa_demands(plant, dt):
-    """Return FA-potential length demand [cm] per buffered organ id."""
+def _compute_growth_demands(plant, dt):
+    """Return per-organ unimpeded length demand [cm] for the buffered pool.
+
+    Calls ``CWLimitedGrowth::getDemand`` on each bufferable organ (§S10
+    restoration). The wrapper dispatches internally:
+
+      - FA-wrapped stem/leaf (``demand_`` set): returns FA potential
+        (``demand_->getLength`` — pure thermal target, bypasses the
+        supply-aware Liebig min)
+      - bare wrap (root, ``demand_`` null): returns
+        ``ExponentialGrowth::getLength`` — native potential
+
+    This matches PiafMunch's native ``waterLimitedGrowth`` callsite at
+    runPM.cpp:760 which probes every organ via ``f_gf->getDemand(...)``.
+    Before §S10 this helper bypassed the wrapper and called
+    ``gf.demand.getDemand`` directly, which silently excluded roots
+    (no demand attached).
+    """
     demands = {}
     for organ, rp, gf in _iter_bufferable_organs(plant):
         cap = _pool_capacity(organ, rp)
@@ -180,7 +215,7 @@ def _compute_fa_demands(plant, dt):
             continue
         current = float(organ.getLength(False))
         try:
-            target = gf.demand.getDemand(
+            target = gf.getDemand(
                 float(organ.getAge()) + float(dt),
                 float(rp.r),
                 float(organ.param().getK()),
@@ -190,6 +225,10 @@ def _compute_fa_demands(plant, dt):
             continue
         demands[int(organ.getId())] = max(0.0, float(target) - current)
     return demands
+
+
+# Backwards-compatible alias — pre-§S10 callers referenced this name.
+_compute_fa_demands = _compute_growth_demands
 
 
 def _allocate_fu_lim(plant, fu_lim, fa_demands):
