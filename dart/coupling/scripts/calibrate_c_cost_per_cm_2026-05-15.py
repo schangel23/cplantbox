@@ -111,9 +111,10 @@ def _apply_knobs(plant, knobs: Dict[str, float]) -> None:
     for rp in plant.getOrganRandomParameter(2):
         if rp is None:
             continue
-        # Roots default cap_factor = 0.0 (dormant). The plan keeps roots
-        # outside the buffered pool (§4.1 + §11), so we set c_cost but
-        # leave cap_factor at the XML default unless the caller bumped it.
+        # §S10: roots participate in the buffered pool through bare
+        # CWLimitedGrowth::getDemand, which falls back to native
+        # ExponentialGrowth potential. Keep c_cost and cap_factor tunable
+        # for the S9+S10 server sweep.
         rp.c_cost_per_cm = knobs["c_cost_root"]
         rp.local_C_pool_capacity_factor = knobs["local_cap_factor_root"]
 
@@ -478,8 +479,8 @@ def main() -> int:
     ap.add_argument("--local-cap-factor", type=float, nargs="+",
                     default=[0.5])
     ap.add_argument("--local-cap-factor-root", type=float, nargs="+",
-                    default=[0.0],
-                    help="Root capacity factor; default 0 (dormant per §4.1)")
+                    default=[0.5],
+                    help="Root capacity factor; default 0.5 (§S10 active)")
     ap.add_argument("--reserve-cap-factor", type=float, nargs="+",
                     default=[0.04])
     ap.add_argument("--starch-remob-rate", type=float, nargs="+",
