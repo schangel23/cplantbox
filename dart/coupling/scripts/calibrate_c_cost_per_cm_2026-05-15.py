@@ -81,7 +81,7 @@ CSV_COLUMNS = [
     "starch_remob_rate", "starch_storage_eff", "starch_remob_eff",
     # config
     "seed", "bootstrap_day", "sim_days", "soil_mode", "soil_psi_cm",
-    "krm1_mult", "kmfu_mult", "wrap_roots", "sink_feedback_enabled",
+    "krm1_mult", "kmfu_mult", "sink_feedback_enabled",
     # outcome
     "runtime_s", "n_pm_calls", "n_pm_fail",
     "mainstem_realised_cm", "mainstem_oracle_cm", "mainstem_fraction",
@@ -205,7 +205,6 @@ def _synth_an_per_leaf(plant) -> np.ndarray:
 def run_one_combo(knobs: Dict[str, float], seed: int, bootstrap_day: int,
                   sim_days: int, soil_mode: str, soil_psi_cm: float,
                   krm1_mult: Optional[float], kmfu_mult: Optional[float],
-                  wrap_roots: bool = False,
                   sink_feedback_enabled: bool = False,
                   verbose: bool = True) -> Dict[str, float]:
     """Execute one calibration combo and return CSV row dict."""
@@ -227,7 +226,6 @@ def run_one_combo(knobs: Dict[str, float], seed: int, bootstrap_day: int,
         "soil_psi_cm": soil_psi_cm,
         "krm1_mult": krm1_mult if krm1_mult is not None else "",
         "kmfu_mult": kmfu_mult if kmfu_mult is not None else "",
-        "wrap_roots": int(bool(wrap_roots)),
         "sink_feedback_enabled": int(bool(sink_feedback_enabled)),
         "status": "OK",
         "error": "",
@@ -244,7 +242,13 @@ def run_one_combo(knobs: Dict[str, float], seed: int, bootstrap_day: int,
             enable_photosynthesis=True,
         )
         _apply_knobs(plant, knobs)
-        enable_cw_limited_growth(plant, wrap_roots=wrap_roots, wrap_fa=True)
+        # wrap_roots stays False — c_cost_root + local_cap_factor_root are
+        # structurally inert for non-FA roots (there is no
+        # MultiPhaseRootGrowth class to wrap). To actually carbon-gate root
+        # growth would require extending CWLimitedGrowth's empty-CW_Gr
+        # fallback in growth.cpp:154 to read c_cost_per_cm and cap
+        # ExponentialGrowth output. Deferred — see plan §11.3.2 retraction.
+        enable_cw_limited_growth(plant, wrap_roots=False, wrap_fa=True)
 
         provider = _make_provider(soil_mode, soil_psi_cm)
         met_lookup = get_daily_met(daily_met=None)
@@ -431,7 +435,6 @@ def _existing_combos(csv_path: Path) -> set:
                     float(row["soil_psi_cm"]),
                     row["krm1_mult"],
                     row["kmfu_mult"],
-                    int(row.get("wrap_roots", 0) or 0),
                     int(row.get("sink_feedback_enabled", 0) or 0),
                 )
             except (KeyError, ValueError):
@@ -442,7 +445,7 @@ def _existing_combos(csv_path: Path) -> set:
 
 def _row_key(row: Dict[str, object], soil_mode: str, soil_psi_cm: float,
              krm1_mult: Optional[float], kmfu_mult: Optional[float],
-             wrap_roots: bool, sink_feedback_enabled: bool) -> tuple:
+             sink_feedback_enabled: bool) -> tuple:
     return (
         round(float(row["c_cost_leaf"]), 6),
         round(float(row["c_cost_stem"]), 6),
@@ -460,7 +463,6 @@ def _row_key(row: Dict[str, object], soil_mode: str, soil_psi_cm: float,
         float(soil_psi_cm),
         "" if krm1_mult is None else str(krm1_mult),
         "" if kmfu_mult is None else str(kmfu_mult),
-        int(bool(wrap_roots)),
         int(bool(sink_feedback_enabled)),
     )
 
@@ -496,13 +498,6 @@ def main() -> int:
                     help="Path B default = 0.01 (G6-fast 5/5 PM PASS).")
     ap.add_argument("--kmfu-multiplier", type=float, default=0.1,
                     help="Path B default = 0.1 (G6-fast 5/5 PM PASS).")
-    ap.add_argument("--wrap-roots", action="store_true",
-                    help=("Wrap root organs in CWLimitedGrowth so "
-                          "c_cost_root + local_cap_factor_root actually "
-                          "gate root growth. Default False preserves the "
-                          "pre-§S10 native-FA-root path (c_cost_root is "
-                          "structurally inert under that default). Required "
-                          "to exercise §S10 root-budget falsification."))
     ap.add_argument("--sink-feedback-enabled", action="store_true",
                     help=("§S9 L-Peach sink-fullness feedback. Multiplies "
                           "hm.Vmaxloading by max(0, (1-sat)/(1-θ_full)) "
@@ -551,7 +546,7 @@ def main() -> int:
         }
         key = _row_key(row_for_key, args.soil_mode, args.soil_psi_cm,
                        args.krm1_multiplier, args.kmfu_multiplier,
-                       args.wrap_roots, args.sink_feedback_enabled)
+                       args.sink_feedback_enabled)
         if key in existing:
             if not args.quiet:
                 print(f"[{i}/{len(knob_grid)}] SKIP cached "
@@ -580,7 +575,6 @@ def main() -> int:
             soil_psi_cm=args.soil_psi_cm,
             krm1_mult=args.krm1_multiplier,
             kmfu_mult=args.kmfu_multiplier,
-            wrap_roots=args.wrap_roots,
             sink_feedback_enabled=args.sink_feedback_enabled,
             verbose=not args.quiet,
         )
