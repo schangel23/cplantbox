@@ -623,6 +623,12 @@ def solve_carbon_partitioning_pm(plant, An_per_leaf_seg, Tair_C=25.0,
             hm.Vmaxloading = float(hm.Vmaxloading) * sf_mult
     hm.beta_loading = beta_loading
     hm.solver = solver
+    hm_solve_max_loop = os.environ.get("HM_SOLVE_MAX_LOOP")
+    if hm_solve_max_loop:
+        try:
+            hm.maxLoop = int(hm_solve_max_loop)
+        except ValueError:
+            print(f"  PM-substep: ignoring invalid HM_SOLVE_MAX_LOOP={hm_solve_max_loop!r}")
     # Optional kHyd_S_Mesophyll absolute override (Ch1 phloem-loading
     # retune probe 5). The JSON ships kHyd_S_Mesophyll = 0.0 d⁻¹, which
     # with k_S_Mesophyll = 1.0 d⁻¹ makes Q_S_Mesophyll a one-way sink:
