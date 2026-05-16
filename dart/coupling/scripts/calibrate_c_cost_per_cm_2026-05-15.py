@@ -77,11 +77,11 @@ MAIZE_XML = COUPLING_DIR / "data" / "maize_calibrated.xml"
 CSV_COLUMNS = [
     # knobs
     "c_cost_leaf", "c_cost_stem", "c_cost_root",
-    "local_cap_factor", "reserve_cap_factor",
+    "local_cap_factor", "local_cap_factor_root", "reserve_cap_factor",
     "starch_remob_rate", "starch_storage_eff", "starch_remob_eff",
     # config
     "seed", "bootstrap_day", "sim_days", "soil_mode", "soil_psi_cm",
-    "krm1_mult", "kmfu_mult",
+    "krm1_mult", "kmfu_mult", "wrap_roots",
     # outcome
     "runtime_s", "n_pm_calls", "n_pm_fail",
     "mainstem_realised_cm", "mainstem_oracle_cm", "mainstem_fraction",
@@ -205,6 +205,7 @@ def _synth_an_per_leaf(plant) -> np.ndarray:
 def run_one_combo(knobs: Dict[str, float], seed: int, bootstrap_day: int,
                   sim_days: int, soil_mode: str, soil_psi_cm: float,
                   krm1_mult: Optional[float], kmfu_mult: Optional[float],
+                  wrap_roots: bool = False,
                   verbose: bool = True) -> Dict[str, float]:
     """Execute one calibration combo and return CSV row dict."""
     t0 = time.time()
@@ -213,6 +214,7 @@ def run_one_combo(knobs: Dict[str, float], seed: int, bootstrap_day: int,
         "c_cost_stem": knobs["c_cost_stem"],
         "c_cost_root": knobs["c_cost_root"],
         "local_cap_factor": knobs["local_cap_factor"],
+        "local_cap_factor_root": knobs["local_cap_factor_root"],
         "reserve_cap_factor": knobs["reserve_cap_factor"],
         "starch_remob_rate": knobs["starch_remob_rate"],
         "starch_storage_eff": knobs["starch_storage_eff"],
@@ -224,6 +226,7 @@ def run_one_combo(knobs: Dict[str, float], seed: int, bootstrap_day: int,
         "soil_psi_cm": soil_psi_cm,
         "krm1_mult": krm1_mult if krm1_mult is not None else "",
         "kmfu_mult": kmfu_mult if kmfu_mult is not None else "",
+        "wrap_roots": int(bool(wrap_roots)),
         "status": "OK",
         "error": "",
     }
@@ -239,7 +242,7 @@ def run_one_combo(knobs: Dict[str, float], seed: int, bootstrap_day: int,
             enable_photosynthesis=True,
         )
         _apply_knobs(plant, knobs)
-        enable_cw_limited_growth(plant, wrap_roots=False, wrap_fa=True)
+        enable_cw_limited_growth(plant, wrap_roots=wrap_roots, wrap_fa=True)
 
         provider = _make_provider(soil_mode, soil_psi_cm)
         met_lookup = get_daily_met(daily_met=None)
@@ -413,6 +416,7 @@ def _existing_combos(csv_path: Path) -> set:
                     round(float(row["c_cost_stem"]), 6),
                     round(float(row["c_cost_root"]), 6),
                     round(float(row["local_cap_factor"]), 6),
+                    round(float(row.get("local_cap_factor_root", 0.0) or 0.0), 6),
                     round(float(row["reserve_cap_factor"]), 6),
                     round(float(row["starch_remob_rate"]), 6),
                     round(float(row["starch_storage_eff"]), 6),
@@ -424,6 +428,7 @@ def _existing_combos(csv_path: Path) -> set:
                     float(row["soil_psi_cm"]),
                     row["krm1_mult"],
                     row["kmfu_mult"],
+                    int(row.get("wrap_roots", 0) or 0),
                 )
             except (KeyError, ValueError):
                 continue
@@ -432,12 +437,14 @@ def _existing_combos(csv_path: Path) -> set:
 
 
 def _row_key(row: Dict[str, object], soil_mode: str, soil_psi_cm: float,
-             krm1_mult: Optional[float], kmfu_mult: Optional[float]) -> tuple:
+             krm1_mult: Optional[float], kmfu_mult: Optional[float],
+             wrap_roots: bool) -> tuple:
     return (
         round(float(row["c_cost_leaf"]), 6),
         round(float(row["c_cost_stem"]), 6),
         round(float(row["c_cost_root"]), 6),
         round(float(row["local_cap_factor"]), 6),
+        round(float(row.get("local_cap_factor_root", 0.0)), 6),
         round(float(row["reserve_cap_factor"]), 6),
         round(float(row["starch_remob_rate"]), 6),
         round(float(row["starch_storage_eff"]), 6),
@@ -449,6 +456,7 @@ def _row_key(row: Dict[str, object], soil_mode: str, soil_psi_cm: float,
         float(soil_psi_cm),
         "" if krm1_mult is None else str(krm1_mult),
         "" if kmfu_mult is None else str(kmfu_mult),
+        int(bool(wrap_roots)),
     )
 
 
@@ -483,6 +491,13 @@ def main() -> int:
                     help="Path B default = 0.01 (G6-fast 5/5 PM PASS).")
     ap.add_argument("--kmfu-multiplier", type=float, default=0.1,
                     help="Path B default = 0.1 (G6-fast 5/5 PM PASS).")
+    ap.add_argument("--wrap-roots", action="store_true",
+                    help=("Wrap root organs in CWLimitedGrowth so "
+                          "c_cost_root + local_cap_factor_root actually "
+                          "gate root growth. Default False preserves the "
+                          "pre-§S10 native-FA-root path (c_cost_root is "
+                          "structurally inert under that default). Required "
+                          "to exercise §S10 root-budget falsification."))
     ap.add_argument("--out-csv", required=True)
     ap.add_argument("--quiet", action="store_true")
     args = ap.parse_args()
@@ -516,13 +531,15 @@ def main() -> int:
         }
         row_for_key = {
             "c_cost_leaf": cl, "c_cost_stem": cs, "c_cost_root": cr,
-            "local_cap_factor": cap, "reserve_cap_factor": rc,
+            "local_cap_factor": cap, "local_cap_factor_root": cap_root,
+            "reserve_cap_factor": rc,
             "starch_remob_rate": rr, "starch_storage_eff": se,
             "starch_remob_eff": re_, "seed": seed,
             "bootstrap_day": args.bootstrap_day, "sim_days": args.sim_days,
         }
         key = _row_key(row_for_key, args.soil_mode, args.soil_psi_cm,
-                       args.krm1_multiplier, args.kmfu_multiplier)
+                       args.krm1_multiplier, args.kmfu_multiplier,
+                       args.wrap_roots)
         if key in existing:
             if not args.quiet:
                 print(f"[{i}/{len(knob_grid)}] SKIP cached "
@@ -551,6 +568,7 @@ def main() -> int:
             soil_psi_cm=args.soil_psi_cm,
             krm1_mult=args.krm1_multiplier,
             kmfu_mult=args.kmfu_multiplier,
+            wrap_roots=args.wrap_roots,
             verbose=not args.quiet,
         )
         with csv_path.open("a", newline="") as f:
