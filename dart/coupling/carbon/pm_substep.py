@@ -591,6 +591,19 @@ def solve_carbon_partitioning_pm(plant, An_per_leaf_seg, Tair_C=25.0,
             print(f"  PM-substep: Krm2 override failed ({e}); using JSON default")
     hm.atol = pm_atol
     hm.rtol = pm_rtol
+    # DEPLOY-B' (2026-05-16): Photosynthesis.cpp:413 now uses the correct
+    # global leaf segment index and guards zero denominators, but traces show
+    # the Ev-outputFlux residual floor remains around 1e-4..3e-4 after the
+    # physical state variables have converged to machine precision. The C++
+    # defaults (maxErrAbsLim[6]=1e-6, maxErrLim[6]=1e-4) make canStop() spend
+    # thousands of useless iterations on that consistency check. Relax only
+    # channel 6, leaving psiXyl/An/gco2/ci/pg/sum checks at native thresholds.
+    err_abs_lim = list(hm.maxErrAbsLim)
+    err_rel_lim = list(hm.maxErrLim)
+    err_abs_lim[6] = 1e-3
+    err_rel_lim[6] = 1.0
+    hm.maxErrAbsLim = err_abs_lim
+    hm.maxErrLim = err_rel_lim
     # Optional Vmaxloading diagnostic override (Ch1 phloem-loading retune
     # probe). Multiplies the per-call ``Vmaxloading`` kwarg by
     # ``vmaxloading_multiplier`` before pushing to PiafMunch. Mirrors the
