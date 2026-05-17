@@ -109,9 +109,23 @@ LEDGER_COLUMNS = [
     "Rg_root_mmol_co2", "Rg_stem_mmol_co2", "Rg_leaf_mmol_co2",
     "Rm_root_mmol_co2", "Rm_stem_mmol_co2", "Rm_leaf_mmol_co2",
     "FR_root", "FR_stem", "FR_leaf",
-    "buffered_fu_delivered_mmol", "local_C_pool_delta_mmol",
+    "buffered_fu_delivered_mmol", "buffered_fu_delivered_mmol_suc",
+    "buffered_fu_delivered_mmol_co2", "local_C_pool_delta_mmol",
     "reserve_delta_mmol", "local_C_pool_total_mmol",
     "transient_reserve_pool_mmol", "mass_balance_residual_pct",
+    "An_day_mmol_co2", "Exud_day_mmol_co2",
+    "Mucil_day_mmol_co2_root", "Mucil_day_mmol_co2_stem",
+    "Mucil_day_mmol_co2_leaf",
+    "dStarch_meso_day_mmol_co2", "dStarch_ST_day_mmol_co2",
+    "root_exud_mmol_suc", "root_exud_mmol_co2",
+    "dQ_Mucil_mmol_suc", "dQ_Mucil_mmol_co2",
+    "dQ_ST_mmol_suc", "dQ_meso_mmol_suc",
+    "dQ_S_meso_mmol_suc", "dQ_S_ST_mmol_suc",
+    "storage_delta_mmol_suc", "storage_delta_mmol_co2",
+    "starch_surplus_mmol_co2", "stem_storage_mmol_co2",
+    "total_An_mmol_suc", "An_total_mmol_co2",
+    "non_growth_mmol_co2",
+    "storage_loss_day_mmol_suc", "remob_loss_day_mmol_suc",
     "buffered_growth_active_organs", "n_iterations",
 ]
 
@@ -405,6 +419,23 @@ def run_one_combo(knobs: Dict[str, float], seed: int, bootstrap_day: int,
                 root_dlen = length_by_ot_post[2] - length_by_ot_pre[2]
                 stem_dlen = length_by_ot_post[3] - length_by_ot_pre[3]
                 leaf_dlen = length_by_ot_post[4] - length_by_ot_pre[4]
+                root_exud_suc_day = float(np.sum(result.get("root_exud_mmol_d",
+                                                             np.zeros(1))))
+                mucil_suc_day = float(result.get("dQ_Mucil", 0.0))
+                dQ_ST_suc_day = float(result.get("dQ_ST", 0.0))
+                dQ_meso_suc_day = float(result.get("dQ_meso", 0.0))
+                dQ_S_meso_suc_day = float(result.get("dQ_S_meso", 0.0))
+                dQ_S_ST_suc_day = float(result.get("dQ_S_ST", 0.0))
+                mucil_root_suc_day = float(result.get("dQ_Mucil_root", 0.0))
+                mucil_stem_suc_day = float(result.get("dQ_Mucil_stem", 0.0))
+                mucil_leaf_suc_day = float(result.get("dQ_Mucil_leaf", 0.0))
+                buffered_fu_suc_day = float(result.get("buffered_fu_delivered_mmol", 0.0))
+                storage_suc_day = (
+                    dQ_ST_suc_day + dQ_meso_suc_day
+                    + dQ_S_meso_suc_day + dQ_S_ST_suc_day
+                )
+                rg_day = float(result.get("Rg_total_mmol", 0.0))
+                an_day = float(result.get("An_total_mmol", 0.0))
                 ledger_writer.writerow({
                     "seed": seed,
                     "sim_day": sim_day,
@@ -441,12 +472,38 @@ def run_one_combo(knobs: Dict[str, float], seed: int, bootstrap_day: int,
                     "FR_root": round(float(result.get("FR_root", 0.0)), 6),
                     "FR_stem": round(float(result.get("FR_stem", 0.0)), 6),
                     "FR_leaf": round(float(result.get("FR_leaf", 0.0)), 6),
-                    "buffered_fu_delivered_mmol": round(float(result.get("buffered_fu_delivered_mmol", 0.0)), 6),
+                    "buffered_fu_delivered_mmol": round(buffered_fu_suc_day, 6),
+                    "buffered_fu_delivered_mmol_suc": round(buffered_fu_suc_day, 6),
+                    "buffered_fu_delivered_mmol_co2": round(buffered_fu_suc_day * 12.0, 6),
                     "local_C_pool_delta_mmol": round(float(result.get("local_C_pool_delta_mmol", 0.0)), 6),
                     "reserve_delta_mmol": round(float(result.get("reserve_delta_mmol", 0.0)), 6),
                     "local_C_pool_total_mmol": round(float(result.get("local_C_pool_total_mmol", 0.0)), 6),
                     "transient_reserve_pool_mmol": round(float(result.get("transient_reserve_pool_mmol", 0.0)), 6),
                     "mass_balance_residual_pct": round(float(result.get("mass_balance_residual_pct", 0.0)), 6),
+                    "An_day_mmol_co2": round(an_day, 6),
+                    "Exud_day_mmol_co2": round(float(result.get("total_loading_mmol", 0.0)), 6),
+                    "Mucil_day_mmol_co2_root": round(mucil_root_suc_day * 12.0, 6),
+                    "Mucil_day_mmol_co2_stem": round(mucil_stem_suc_day * 12.0, 6),
+                    "Mucil_day_mmol_co2_leaf": round(mucil_leaf_suc_day * 12.0, 6),
+                    "dStarch_meso_day_mmol_co2": round(dQ_S_meso_suc_day * 12.0, 6),
+                    "dStarch_ST_day_mmol_co2": round(dQ_S_ST_suc_day * 12.0, 6),
+                    "root_exud_mmol_suc": round(root_exud_suc_day, 6),
+                    "root_exud_mmol_co2": round(root_exud_suc_day * 12.0, 6),
+                    "dQ_Mucil_mmol_suc": round(mucil_suc_day, 6),
+                    "dQ_Mucil_mmol_co2": round(mucil_suc_day * 12.0, 6),
+                    "dQ_ST_mmol_suc": round(dQ_ST_suc_day, 6),
+                    "dQ_meso_mmol_suc": round(dQ_meso_suc_day, 6),
+                    "dQ_S_meso_mmol_suc": round(dQ_S_meso_suc_day, 6),
+                    "dQ_S_ST_mmol_suc": round(dQ_S_ST_suc_day, 6),
+                    "storage_delta_mmol_suc": round(storage_suc_day, 6),
+                    "storage_delta_mmol_co2": round(storage_suc_day * 12.0, 6),
+                    "starch_surplus_mmol_co2": round(float(result.get("starch_surplus_mmol", 0.0)), 6),
+                    "stem_storage_mmol_co2": round(float(result.get("stem_storage_mmol", 0.0)), 6),
+                    "total_An_mmol_suc": round(float(result.get("total_An_mmol_suc", 0.0)), 6),
+                    "An_total_mmol_co2": round(an_day, 6),
+                    "non_growth_mmol_co2": round(max(0.0, an_day - rg_day), 6),
+                    "storage_loss_day_mmol_suc": round(float(result.get("storage_loss_mmol", 0.0)), 6),
+                    "remob_loss_day_mmol_suc": round(float(result.get("remob_loss_mmol", 0.0)), 6),
                     "buffered_growth_active_organs": int(result.get("buffered_growth_active_organs", 0) or 0),
                     "n_iterations": int(result.get("n_iterations", 0) or 0),
                 })
