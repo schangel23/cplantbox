@@ -95,6 +95,26 @@ CSV_COLUMNS = [
     "status", "error",
 ]
 
+LEDGER_COLUMNS = [
+    "seed", "sim_day", "status",
+    "c_cost_leaf", "c_cost_stem", "c_cost_root",
+    "local_cap_factor", "local_cap_factor_root", "reserve_cap_factor",
+    "soil_mode", "soil_psi_cm", "krm1_mult", "kmfu_mult",
+    "sink_feedback_enabled",
+    "root_len_pre_cm", "root_len_post_cm", "root_dlen_cm",
+    "stem_len_pre_cm", "stem_len_post_cm", "stem_dlen_cm",
+    "leaf_len_pre_cm", "leaf_len_post_cm", "leaf_dlen_cm",
+    "root_cost_delta_mmol_suc", "stem_cost_delta_mmol_suc",
+    "leaf_cost_delta_mmol_suc",
+    "Rg_root_mmol_co2", "Rg_stem_mmol_co2", "Rg_leaf_mmol_co2",
+    "Rm_root_mmol_co2", "Rm_stem_mmol_co2", "Rm_leaf_mmol_co2",
+    "FR_root", "FR_stem", "FR_leaf",
+    "buffered_fu_delivered_mmol", "local_C_pool_delta_mmol",
+    "reserve_delta_mmol", "local_C_pool_total_mmol",
+    "transient_reserve_pool_mmol", "mass_balance_residual_pct",
+    "buffered_growth_active_organs", "n_iterations",
+]
+
 
 def _apply_knobs(plant, knobs: Dict[str, float]) -> None:
     """Override RP fields in-memory after grow_plant() loads the XML."""
@@ -178,6 +198,16 @@ def _summarise_oracle(oracle_path: Path) -> Dict[str, float]:
     return sums
 
 
+def _organ_type_lengths(plant) -> Dict[int, float]:
+    """Return realised length sums by organ type."""
+    out = {2: 0.0, 3: 0.0, 4: 0.0}
+    for organ in plant.getOrgans(-1, True):
+        ot = int(organ.organType())
+        if ot in out:
+            out[ot] += float(organ.getLength())
+    return out
+
+
 def _make_provider(soil_mode: str, soil_psi_cm: float):
     from dart.coupling.hydraulics.soil_psi import make_provider
     soil_mode = soil_mode.lower()
@@ -207,7 +237,8 @@ def run_one_combo(knobs: Dict[str, float], seed: int, bootstrap_day: int,
                   sim_days: int, soil_mode: str, soil_psi_cm: float,
                   krm1_mult: Optional[float], kmfu_mult: Optional[float],
                   sink_feedback_enabled: bool = False,
-                  verbose: bool = True) -> Dict[str, float]:
+                  verbose: bool = True,
+                  ledger_writer: Optional[csv.DictWriter] = None) -> Dict[str, float]:
     """Execute one calibration combo and return CSV row dict."""
     t0 = time.time()
     row: Dict[str, float] = {
@@ -298,6 +329,7 @@ def run_one_combo(knobs: Dict[str, float], seed: int, bootstrap_day: int,
                 continue
 
             length_cost_pre = _length_cost_total(plant)
+            length_by_ot_pre = _organ_type_lengths(plant)
             result = solve_carbon_partitioning_pm(
                 plant, An_seg, Tair_C=T_air, day=int(sim_day - 1),
                 n_substeps=24, advance_plant=True,
@@ -309,6 +341,33 @@ def run_one_combo(knobs: Dict[str, float], seed: int, bootstrap_day: int,
             n_pm += 1
             if result is None:
                 n_pm_fail += 1
+                if ledger_writer is not None:
+                    length_by_ot_post = _organ_type_lengths(plant)
+                    ledger_writer.writerow({
+                        "seed": seed,
+                        "sim_day": sim_day,
+                        "status": "PM_FAIL",
+                        "c_cost_leaf": knobs["c_cost_leaf"],
+                        "c_cost_stem": knobs["c_cost_stem"],
+                        "c_cost_root": knobs["c_cost_root"],
+                        "local_cap_factor": knobs["local_cap_factor"],
+                        "local_cap_factor_root": knobs["local_cap_factor_root"],
+                        "reserve_cap_factor": knobs["reserve_cap_factor"],
+                        "soil_mode": soil_mode,
+                        "soil_psi_cm": soil_psi_cm,
+                        "krm1_mult": "" if krm1_mult is None else krm1_mult,
+                        "kmfu_mult": "" if kmfu_mult is None else kmfu_mult,
+                        "sink_feedback_enabled": int(bool(sink_feedback_enabled)),
+                        "root_len_pre_cm": round(length_by_ot_pre[2], 6),
+                        "root_len_post_cm": round(length_by_ot_post[2], 6),
+                        "root_dlen_cm": round(length_by_ot_post[2] - length_by_ot_pre[2], 6),
+                        "stem_len_pre_cm": round(length_by_ot_pre[3], 6),
+                        "stem_len_post_cm": round(length_by_ot_post[3], 6),
+                        "stem_dlen_cm": round(length_by_ot_post[3] - length_by_ot_pre[3], 6),
+                        "leaf_len_pre_cm": round(length_by_ot_pre[4], 6),
+                        "leaf_len_post_cm": round(length_by_ot_post[4], 6),
+                        "leaf_dlen_cm": round(length_by_ot_post[4] - length_by_ot_pre[4], 6),
+                    })
                 try:
                     plant.simulate(0.0, False)
                 except Exception:
@@ -339,7 +398,58 @@ def run_one_combo(knobs: Dict[str, float], seed: int, bootstrap_day: int,
             # actually went into structural extension (vs. sat in pools
             # or got remobilised through the reserve).
             length_cost_post = _length_cost_total(plant)
+            length_by_ot_post = _organ_type_lengths(plant)
             cum_rg_realised_suc += max(0.0, length_cost_post - length_cost_pre)
+
+            if ledger_writer is not None:
+                root_dlen = length_by_ot_post[2] - length_by_ot_pre[2]
+                stem_dlen = length_by_ot_post[3] - length_by_ot_pre[3]
+                leaf_dlen = length_by_ot_post[4] - length_by_ot_pre[4]
+                ledger_writer.writerow({
+                    "seed": seed,
+                    "sim_day": sim_day,
+                    "status": "OK",
+                    "c_cost_leaf": knobs["c_cost_leaf"],
+                    "c_cost_stem": knobs["c_cost_stem"],
+                    "c_cost_root": knobs["c_cost_root"],
+                    "local_cap_factor": knobs["local_cap_factor"],
+                    "local_cap_factor_root": knobs["local_cap_factor_root"],
+                    "reserve_cap_factor": knobs["reserve_cap_factor"],
+                    "soil_mode": soil_mode,
+                    "soil_psi_cm": soil_psi_cm,
+                    "krm1_mult": "" if krm1_mult is None else krm1_mult,
+                    "kmfu_mult": "" if kmfu_mult is None else kmfu_mult,
+                    "sink_feedback_enabled": int(bool(sink_feedback_enabled)),
+                    "root_len_pre_cm": round(length_by_ot_pre[2], 6),
+                    "root_len_post_cm": round(length_by_ot_post[2], 6),
+                    "root_dlen_cm": round(root_dlen, 6),
+                    "stem_len_pre_cm": round(length_by_ot_pre[3], 6),
+                    "stem_len_post_cm": round(length_by_ot_post[3], 6),
+                    "stem_dlen_cm": round(stem_dlen, 6),
+                    "leaf_len_pre_cm": round(length_by_ot_pre[4], 6),
+                    "leaf_len_post_cm": round(length_by_ot_post[4], 6),
+                    "leaf_dlen_cm": round(leaf_dlen, 6),
+                    "root_cost_delta_mmol_suc": round(max(0.0, root_dlen) * knobs["c_cost_root"], 6),
+                    "stem_cost_delta_mmol_suc": round(max(0.0, stem_dlen) * knobs["c_cost_stem"], 6),
+                    "leaf_cost_delta_mmol_suc": round(max(0.0, leaf_dlen) * knobs["c_cost_leaf"], 6),
+                    "Rg_root_mmol_co2": round(float(result.get("Rg_root", 0.0)), 6),
+                    "Rg_stem_mmol_co2": round(float(result.get("Rg_stem", 0.0)), 6),
+                    "Rg_leaf_mmol_co2": round(float(result.get("Rg_leaf", 0.0)), 6),
+                    "Rm_root_mmol_co2": round(float(result.get("Rm_root", 0.0)), 6),
+                    "Rm_stem_mmol_co2": round(float(result.get("Rm_stem", 0.0)), 6),
+                    "Rm_leaf_mmol_co2": round(float(result.get("Rm_leaf", 0.0)), 6),
+                    "FR_root": round(float(result.get("FR_root", 0.0)), 6),
+                    "FR_stem": round(float(result.get("FR_stem", 0.0)), 6),
+                    "FR_leaf": round(float(result.get("FR_leaf", 0.0)), 6),
+                    "buffered_fu_delivered_mmol": round(float(result.get("buffered_fu_delivered_mmol", 0.0)), 6),
+                    "local_C_pool_delta_mmol": round(float(result.get("local_C_pool_delta_mmol", 0.0)), 6),
+                    "reserve_delta_mmol": round(float(result.get("reserve_delta_mmol", 0.0)), 6),
+                    "local_C_pool_total_mmol": round(float(result.get("local_C_pool_total_mmol", 0.0)), 6),
+                    "transient_reserve_pool_mmol": round(float(result.get("transient_reserve_pool_mmol", 0.0)), 6),
+                    "mass_balance_residual_pct": round(float(result.get("mass_balance_residual_pct", 0.0)), 6),
+                    "buffered_growth_active_organs": int(result.get("buffered_growth_active_organs", 0) or 0),
+                    "n_iterations": int(result.get("n_iterations", 0) or 0),
+                })
 
             if verbose and (sim_day % 10 == 0 or sim_day == sim_days):
                 print(f"    day {sim_day}: An={an:.3f} used={used:.3f} "
@@ -507,6 +617,11 @@ def main() -> int:
                           "default 0.80). Targets PM-fail rail; expected to "
                           "drop PM-fail rate from 28-49%% at day-130 dumux."))
     ap.add_argument("--out-csv", required=True)
+    ap.add_argument("--ledger-csv",
+                    help=("Optional daily organ ledger CSV. Records per-day "
+                          "root/stem/leaf length deltas, realised carbon-cost "
+                          "deltas, PM Rm/Rg by organ, FR fractions, pools, and "
+                          "mass-balance residuals for allocation diagnosis."))
     ap.add_argument("--quiet", action="store_true")
     args = ap.parse_args()
 
@@ -529,60 +644,76 @@ def main() -> int:
           f"resume from {len(existing)} cached rows.")
     print(f"Output → {csv_path}")
 
-    for i, (cl, cs, cr, cap, cap_root, rc, rr, se, re_, seed) in enumerate(
-            knob_grid, 1):
-        knobs = {
-            "c_cost_leaf": cl, "c_cost_stem": cs, "c_cost_root": cr,
-            "local_cap_factor": cap, "local_cap_factor_root": cap_root,
-            "reserve_cap_factor": rc, "starch_remob_rate": rr,
-            "starch_storage_eff": se, "starch_remob_eff": re_,
-        }
-        row_for_key = {
-            "c_cost_leaf": cl, "c_cost_stem": cs, "c_cost_root": cr,
-            "local_cap_factor": cap, "local_cap_factor_root": cap_root,
-            "reserve_cap_factor": rc,
-            "starch_remob_rate": rr, "starch_storage_eff": se,
-            "starch_remob_eff": re_, "seed": seed,
-            "bootstrap_day": args.bootstrap_day, "sim_days": args.sim_days,
-        }
-        key = _row_key(row_for_key, args.soil_mode, args.soil_psi_cm,
-                       args.krm1_multiplier, args.kmfu_multiplier,
-                       args.sink_feedback_enabled)
-        if key in existing:
-            if not args.quiet:
-                print(f"[{i}/{len(knob_grid)}] SKIP cached "
-                      f"cl={cl} seed={seed}")
-            continue
-        print(f"[{i}/{len(knob_grid)}] cl={cl} cs={cs} cr={cr} cap={cap} "
-              f"rc={rc} rr={rr} seed={seed} "
-              f"days={args.bootstrap_day}→{args.sim_days} {args.soil_mode}",
-              flush=True)
-        # Per-combo status sidecar — overwritten each iteration so the
-        # latest state is always visible without tailing CSV.
-        status_path = csv_path.with_suffix(".status.json")
-        status_path.write_text(json.dumps({
-            "combo_idx": i, "total_combos": len(knob_grid),
-            "c_cost_leaf": cl, "c_cost_stem": cs, "c_cost_root": cr,
-            "local_cap_factor": cap, "reserve_cap_factor": rc,
-            "starch_remob_rate": rr, "seed": seed,
-            "bootstrap_day": args.bootstrap_day,
-            "sim_days": args.sim_days,
-            "soil_mode": args.soil_mode,
-            "started_at": time.strftime("%Y-%m-%d %H:%M:%S"),
-        }, indent=2))
-        row = run_one_combo(
-            knobs, seed=seed, bootstrap_day=args.bootstrap_day,
-            sim_days=args.sim_days, soil_mode=args.soil_mode,
-            soil_psi_cm=args.soil_psi_cm,
-            krm1_mult=args.krm1_multiplier,
-            kmfu_mult=args.kmfu_multiplier,
-            sink_feedback_enabled=args.sink_feedback_enabled,
-            verbose=not args.quiet,
-        )
-        with csv_path.open("a", newline="") as f:
-            w = csv.DictWriter(f, fieldnames=CSV_COLUMNS)
-            w.writerow({k: row.get(k, "") for k in CSV_COLUMNS})
-        existing.add(key)
+    ledger_fh = None
+    ledger_writer = None
+    if args.ledger_csv:
+        ledger_path = Path(args.ledger_csv)
+        ledger_exists = ledger_path.exists()
+        ledger_fh = ledger_path.open("a", newline="")
+        ledger_writer = csv.DictWriter(ledger_fh, fieldnames=LEDGER_COLUMNS)
+        if not ledger_exists:
+            ledger_writer.writeheader()
+        print(f"Ledger → {ledger_path}")
+
+    try:
+        for i, (cl, cs, cr, cap, cap_root, rc, rr, se, re_, seed) in enumerate(
+                knob_grid, 1):
+            knobs = {
+                "c_cost_leaf": cl, "c_cost_stem": cs, "c_cost_root": cr,
+                "local_cap_factor": cap, "local_cap_factor_root": cap_root,
+                "reserve_cap_factor": rc, "starch_remob_rate": rr,
+                "starch_storage_eff": se, "starch_remob_eff": re_,
+            }
+            row_for_key = {
+                "c_cost_leaf": cl, "c_cost_stem": cs, "c_cost_root": cr,
+                "local_cap_factor": cap, "local_cap_factor_root": cap_root,
+                "reserve_cap_factor": rc,
+                "starch_remob_rate": rr, "starch_storage_eff": se,
+                "starch_remob_eff": re_, "seed": seed,
+                "bootstrap_day": args.bootstrap_day, "sim_days": args.sim_days,
+            }
+            key = _row_key(row_for_key, args.soil_mode, args.soil_psi_cm,
+                           args.krm1_multiplier, args.kmfu_multiplier,
+                           args.sink_feedback_enabled)
+            if key in existing:
+                if not args.quiet:
+                    print(f"[{i}/{len(knob_grid)}] SKIP cached "
+                          f"cl={cl} seed={seed}")
+                continue
+            print(f"[{i}/{len(knob_grid)}] cl={cl} cs={cs} cr={cr} cap={cap} "
+                  f"rc={rc} rr={rr} seed={seed} "
+                  f"days={args.bootstrap_day}→{args.sim_days} {args.soil_mode}",
+                  flush=True)
+            # Per-combo status sidecar — overwritten each iteration so the
+            # latest state is always visible without tailing CSV.
+            status_path = csv_path.with_suffix(".status.json")
+            status_path.write_text(json.dumps({
+                "combo_idx": i, "total_combos": len(knob_grid),
+                "c_cost_leaf": cl, "c_cost_stem": cs, "c_cost_root": cr,
+                "local_cap_factor": cap, "reserve_cap_factor": rc,
+                "starch_remob_rate": rr, "seed": seed,
+                "bootstrap_day": args.bootstrap_day,
+                "sim_days": args.sim_days,
+                "soil_mode": args.soil_mode,
+                "started_at": time.strftime("%Y-%m-%d %H:%M:%S"),
+            }, indent=2))
+            row = run_one_combo(
+                knobs, seed=seed, bootstrap_day=args.bootstrap_day,
+                sim_days=args.sim_days, soil_mode=args.soil_mode,
+                soil_psi_cm=args.soil_psi_cm,
+                krm1_mult=args.krm1_multiplier,
+                kmfu_mult=args.kmfu_multiplier,
+                sink_feedback_enabled=args.sink_feedback_enabled,
+                verbose=not args.quiet,
+                ledger_writer=ledger_writer,
+            )
+            with csv_path.open("a", newline="") as f:
+                w = csv.DictWriter(f, fieldnames=CSV_COLUMNS)
+                w.writerow({k: row.get(k, "") for k in CSV_COLUMNS})
+            existing.add(key)
+    finally:
+        if ledger_fh is not None:
+            ledger_fh.close()
 
     print(f"§S7 sweep done; {len(existing)} rows in {csv_path}")
     return 0
