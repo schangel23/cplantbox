@@ -678,8 +678,10 @@ def main() -> int:
     ap.add_argument("--soil-psi-cm", type=float, default=-300.0)
     ap.add_argument("--krm1-multiplier", type=float, default=0.01,
                     help="Path B default = 0.01 (G6-fast 5/5 PM PASS).")
-    ap.add_argument("--kmfu-multiplier", type=float, default=0.1,
-                    help="Path B default = 0.1 (G6-fast 5/5 PM PASS).")
+    ap.add_argument("--kmfu-multiplier", type=float, nargs="+",
+                    default=[0.1],
+                    help=("Path B default = 0.1 (G6-fast 5/5 PM PASS). "
+                          "Accepts multiple values for growth-demand sweeps."))
     ap.add_argument("--vmaxloading-multiplier", type=float, nargs="+",
                     default=[None],
                     help=("Optional sweep multiplier(s) for hm.Vmaxloading. "
@@ -714,7 +716,7 @@ def main() -> int:
         args.local_cap_factor, args.local_cap_factor_root,
         args.reserve_cap_factor, args.starch_remob_rate,
         args.starch_storage_eff, args.starch_remob_eff,
-        args.seeds, args.vmaxloading_multiplier,
+        args.seeds, args.kmfu_multiplier, args.vmaxloading_multiplier,
     ))
     print(f"§S7 sweep: {len(knob_grid)} combos total; "
           f"resume from {len(existing)} cached rows.")
@@ -733,7 +735,7 @@ def main() -> int:
 
     try:
         for i, (cl, cs, cr, cap, cap_root, rc, rr, se, re_, seed,
-                vmax_mult) in enumerate(knob_grid, 1):
+                kmfu_mult, vmax_mult) in enumerate(knob_grid, 1):
             knobs = {
                 "c_cost_leaf": cl, "c_cost_stem": cs, "c_cost_root": cr,
                 "local_cap_factor": cap, "local_cap_factor_root": cap_root,
@@ -749,7 +751,7 @@ def main() -> int:
                 "bootstrap_day": args.bootstrap_day, "sim_days": args.sim_days,
             }
             key = _row_key(row_for_key, args.soil_mode, args.soil_psi_cm,
-                           args.krm1_multiplier, args.kmfu_multiplier,
+                           args.krm1_multiplier, kmfu_mult,
                            vmax_mult,
                            args.sink_feedback_enabled)
             if key in existing:
@@ -758,7 +760,8 @@ def main() -> int:
                           f"cl={cl} seed={seed}")
                 continue
             print(f"[{i}/{len(knob_grid)}] cl={cl} cs={cs} cr={cr} cap={cap} "
-                  f"rc={rc} rr={rr} seed={seed} vmax_mult={vmax_mult} "
+                  f"rc={rc} rr={rr} seed={seed} kmfu_mult={kmfu_mult} "
+                  f"vmax_mult={vmax_mult} "
                   f"days={args.bootstrap_day}→{args.sim_days} {args.soil_mode}",
                   flush=True)
             # Per-combo status sidecar — overwritten each iteration so the
@@ -769,6 +772,7 @@ def main() -> int:
                 "c_cost_leaf": cl, "c_cost_stem": cs, "c_cost_root": cr,
                 "local_cap_factor": cap, "reserve_cap_factor": rc,
                 "starch_remob_rate": rr, "seed": seed,
+                "kmfu_multiplier": kmfu_mult,
                 "vmaxloading_multiplier": vmax_mult,
                 "bootstrap_day": args.bootstrap_day,
                 "sim_days": args.sim_days,
@@ -780,7 +784,7 @@ def main() -> int:
                 sim_days=args.sim_days, soil_mode=args.soil_mode,
                 soil_psi_cm=args.soil_psi_cm,
                 krm1_mult=args.krm1_multiplier,
-                kmfu_mult=args.kmfu_multiplier,
+                kmfu_mult=kmfu_mult,
                 vmaxloading_mult=vmax_mult,
                 sink_feedback_enabled=args.sink_feedback_enabled,
                 verbose=not args.quiet,
