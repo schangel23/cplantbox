@@ -81,7 +81,8 @@ CSV_COLUMNS = [
     "starch_remob_rate", "starch_storage_eff", "starch_remob_eff",
     # config
     "seed", "bootstrap_day", "sim_days", "soil_mode", "soil_psi_cm",
-    "krm1_mult", "kmfu_mult", "vmaxloading_mult", "sink_feedback_enabled",
+    "krm1_mult", "kmfu_mult", "vmaxloading_mult", "exudation_mult",
+    "sink_feedback_enabled",
     # outcome
     "runtime_s", "n_pm_calls", "n_pm_fail",
     "mainstem_realised_cm", "mainstem_oracle_cm", "mainstem_fraction",
@@ -100,7 +101,7 @@ LEDGER_COLUMNS = [
     "c_cost_leaf", "c_cost_stem", "c_cost_root",
     "local_cap_factor", "local_cap_factor_root", "reserve_cap_factor",
     "soil_mode", "soil_psi_cm", "krm1_mult", "kmfu_mult", "vmaxloading_mult",
-    "sink_feedback_enabled",
+    "exudation_mult", "sink_feedback_enabled",
     "root_len_pre_cm", "root_len_post_cm", "root_dlen_cm",
     "stem_len_pre_cm", "stem_len_post_cm", "stem_dlen_cm",
     "leaf_len_pre_cm", "leaf_len_post_cm", "leaf_dlen_cm",
@@ -251,6 +252,7 @@ def run_one_combo(knobs: Dict[str, float], seed: int, bootstrap_day: int,
                   sim_days: int, soil_mode: str, soil_psi_cm: float,
                   krm1_mult: Optional[float], kmfu_mult: Optional[float],
                   vmaxloading_mult: Optional[float],
+                  exudation_mult: Optional[float],
                   sink_feedback_enabled: bool = False,
                   verbose: bool = True,
                   ledger_writer: Optional[csv.DictWriter] = None) -> Dict[str, float]:
@@ -275,6 +277,9 @@ def run_one_combo(knobs: Dict[str, float], seed: int, bootstrap_day: int,
         "kmfu_mult": kmfu_mult if kmfu_mult is not None else "",
         "vmaxloading_mult": (
             vmaxloading_mult if vmaxloading_mult is not None else ""
+        ),
+        "exudation_mult": (
+            exudation_mult if exudation_mult is not None else ""
         ),
         "sink_feedback_enabled": int(bool(sink_feedback_enabled)),
         "status": "OK",
@@ -354,6 +359,7 @@ def run_one_combo(knobs: Dict[str, float], seed: int, bootstrap_day: int,
                 soil_psi_provider=provider, inject_an_target=False,
                 krm1_multiplier=krm1_mult, kmfu_multiplier=kmfu_mult,
                 vmaxloading_multiplier=vmaxloading_mult,
+                exudation_multiplier=exudation_mult,
                 use_buffered_carbon=True,
                 sink_feedback_enabled=sink_feedback_enabled,
             )
@@ -378,6 +384,9 @@ def run_one_combo(knobs: Dict[str, float], seed: int, bootstrap_day: int,
                         "kmfu_mult": "" if kmfu_mult is None else kmfu_mult,
                         "vmaxloading_mult": (
                             "" if vmaxloading_mult is None else vmaxloading_mult
+                        ),
+                        "exudation_mult": (
+                            "" if exudation_mult is None else exudation_mult
                         ),
                         "sink_feedback_enabled": int(bool(sink_feedback_enabled)),
                         "root_len_pre_cm": round(length_by_ot_pre[2], 6),
@@ -460,6 +469,9 @@ def run_one_combo(knobs: Dict[str, float], seed: int, bootstrap_day: int,
                     "kmfu_mult": "" if kmfu_mult is None else kmfu_mult,
                     "vmaxloading_mult": (
                         "" if vmaxloading_mult is None else vmaxloading_mult
+                    ),
+                    "exudation_mult": (
+                        "" if exudation_mult is None else exudation_mult
                     ),
                     "sink_feedback_enabled": int(bool(sink_feedback_enabled)),
                     "root_len_pre_cm": round(length_by_ot_pre[2], 6),
@@ -615,6 +627,7 @@ def _existing_combos(csv_path: Path) -> set:
                     row["krm1_mult"],
                     row["kmfu_mult"],
                     row.get("vmaxloading_mult", ""),
+                    row.get("exudation_mult", ""),
                     int(row.get("sink_feedback_enabled", 0) or 0),
                 )
             except (KeyError, ValueError):
@@ -626,6 +639,7 @@ def _existing_combos(csv_path: Path) -> set:
 def _row_key(row: Dict[str, object], soil_mode: str, soil_psi_cm: float,
              krm1_mult: Optional[float], kmfu_mult: Optional[float],
              vmaxloading_mult: Optional[float],
+             exudation_mult: Optional[float],
              sink_feedback_enabled: bool) -> tuple:
     return (
         round(float(row["c_cost_leaf"]), 6),
@@ -645,6 +659,7 @@ def _row_key(row: Dict[str, object], soil_mode: str, soil_psi_cm: float,
         "" if krm1_mult is None else str(krm1_mult),
         "" if kmfu_mult is None else str(kmfu_mult),
         "" if vmaxloading_mult is None else str(vmaxloading_mult),
+        "" if exudation_mult is None else str(exudation_mult),
         int(bool(sink_feedback_enabled)),
     )
 
@@ -687,6 +702,12 @@ def main() -> int:
                     help=("Optional sweep multiplier(s) for hm.Vmaxloading. "
                           "Applied after the default pm_substep Vmaxloading "
                           "kwarg and before sink-fullness feedback."))
+    ap.add_argument("--exudation-multiplier", type=float, nargs="+",
+                    default=[None],
+                    help=("Optional sweep multiplier(s) for hm.kr_st, the "
+                          "PiafMunch radial phloem conductivity that sets "
+                          "root exudation capacity. Default leaves JSON "
+                          "phloem parameters untouched."))
     ap.add_argument("--sink-feedback-enabled", action="store_true",
                     help=("§S9 L-Peach sink-fullness feedback. Multiplies "
                           "hm.Vmaxloading by max(0, (1-sat)/(1-θ_full)) "
@@ -717,6 +738,7 @@ def main() -> int:
         args.reserve_cap_factor, args.starch_remob_rate,
         args.starch_storage_eff, args.starch_remob_eff,
         args.seeds, args.kmfu_multiplier, args.vmaxloading_multiplier,
+        args.exudation_multiplier,
     ))
     print(f"§S7 sweep: {len(knob_grid)} combos total; "
           f"resume from {len(existing)} cached rows.")
@@ -735,7 +757,7 @@ def main() -> int:
 
     try:
         for i, (cl, cs, cr, cap, cap_root, rc, rr, se, re_, seed,
-                kmfu_mult, vmax_mult) in enumerate(knob_grid, 1):
+                kmfu_mult, vmax_mult, exud_mult) in enumerate(knob_grid, 1):
             knobs = {
                 "c_cost_leaf": cl, "c_cost_stem": cs, "c_cost_root": cr,
                 "local_cap_factor": cap, "local_cap_factor_root": cap_root,
@@ -753,6 +775,7 @@ def main() -> int:
             key = _row_key(row_for_key, args.soil_mode, args.soil_psi_cm,
                            args.krm1_multiplier, kmfu_mult,
                            vmax_mult,
+                           exud_mult,
                            args.sink_feedback_enabled)
             if key in existing:
                 if not args.quiet:
@@ -761,7 +784,7 @@ def main() -> int:
                 continue
             print(f"[{i}/{len(knob_grid)}] cl={cl} cs={cs} cr={cr} cap={cap} "
                   f"rc={rc} rr={rr} seed={seed} kmfu_mult={kmfu_mult} "
-                  f"vmax_mult={vmax_mult} "
+                  f"vmax_mult={vmax_mult} exud_mult={exud_mult} "
                   f"days={args.bootstrap_day}→{args.sim_days} {args.soil_mode}",
                   flush=True)
             # Per-combo status sidecar — overwritten each iteration so the
@@ -774,6 +797,7 @@ def main() -> int:
                 "starch_remob_rate": rr, "seed": seed,
                 "kmfu_multiplier": kmfu_mult,
                 "vmaxloading_multiplier": vmax_mult,
+                "exudation_multiplier": exud_mult,
                 "bootstrap_day": args.bootstrap_day,
                 "sim_days": args.sim_days,
                 "soil_mode": args.soil_mode,
@@ -786,6 +810,7 @@ def main() -> int:
                 krm1_mult=args.krm1_multiplier,
                 kmfu_mult=kmfu_mult,
                 vmaxloading_mult=vmax_mult,
+                exudation_mult=exud_mult,
                 sink_feedback_enabled=args.sink_feedback_enabled,
                 verbose=not args.quiet,
                 ledger_writer=ledger_writer,

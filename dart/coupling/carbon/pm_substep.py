@@ -351,6 +351,7 @@ def solve_carbon_partitioning_pm(plant, An_per_leaf_seg, Tair_C=25.0,
                                   krm1_multiplier=None,
                                   krm2_multiplier=None,
                                   vmaxloading_multiplier=None,
+                                  exudation_multiplier=None,
                                   khyd_s_mesophyll_override=None,
                                   vcrefchl_multiplier=None,
                                   kmfu_multiplier=None,
@@ -432,6 +433,14 @@ def solve_carbon_partitioning_pm(plant, An_per_leaf_seg, Tair_C=25.0,
             (sidecar ``pm_an_rm_gap_loading.json``), so Vmaxloading is
             NOT the production bottleneck — the bottleneck is downstream
             (see ``khyd_s_mesophyll_override``).
+        exudation_multiplier: optional uniform multiplier on ``hm.kr_st``,
+            the phloem radial conductivity used by PiafMunch to compute
+            root exudation capacity
+            (``Q_Exudmax = 2π·radius·length·kr_st`` in ``runPM.cpp``).
+            This is a diagnostic sink-priority hook: values below 1 test
+            whether carbon currently lost to root exudation is redirected
+            into growth, storage, or mesophyll sucrose. Default ``None``
+            leaves JSON phloem parameters untouched.
         krm2_multiplier: optional scalar multiplier on the CSTi-dependent
             maintenance-respiration coefficient ``krm2`` (PiafMunch2.cpp:205
             ``Q_Rmmax_ = (Q_Rmmax + krm2·CSTi) · Q10^...``). The
@@ -634,6 +643,17 @@ def solve_carbon_partitioning_pm(plant, An_per_leaf_seg, Tair_C=25.0,
         sf_mult = _sink_feedback_multiplier(plant, theta_full)
         if sf_mult < 1.0:
             hm.Vmaxloading = float(hm.Vmaxloading) * sf_mult
+    if exudation_multiplier is not None:
+        try:
+            mult = float(exudation_multiplier)
+            kr_st_scaled = [
+                [float(v) * mult for v in row]
+                for row in list(hm.kr_st)
+            ]
+            hm.setKr_st(kr_st_scaled)
+        except Exception as e:
+            print(f"  PM-substep: exudation override failed ({e}); "
+                  "using JSON kr_st")
     hm.beta_loading = beta_loading
     hm.solver = solver
     hm_solve_max_loop = os.environ.get("HM_SOLVE_MAX_LOOP")
@@ -889,6 +909,10 @@ def solve_carbon_partitioning_pm(plant, An_per_leaf_seg, Tair_C=25.0,
                 "vmaxloading_multiplier": (
                     None if vmaxloading_multiplier is None
                     else float(vmaxloading_multiplier)
+                ),
+                "exudation_multiplier": (
+                    None if exudation_multiplier is None
+                    else float(exudation_multiplier)
                 ),
                 "vcrefchl_multiplier": (
                     None if vcrefchl_multiplier is None
