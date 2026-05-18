@@ -80,7 +80,8 @@ CSV_COLUMNS = [
     "local_cap_factor", "local_cap_factor_root", "reserve_cap_factor",
     "starch_remob_rate", "starch_storage_eff", "starch_remob_eff",
     # config
-    "seed", "bootstrap_day", "sim_days", "soil_mode", "soil_psi_cm",
+    "seed", "bootstrap_day", "sim_days", "pm_substeps",
+    "soil_mode", "soil_psi_cm",
     "krm1_mult", "kmfu_mult", "vmaxloading_mult", "exudation_mult",
     "sink_feedback_enabled",
     # outcome
@@ -100,8 +101,8 @@ LEDGER_COLUMNS = [
     "seed", "sim_day", "status",
     "c_cost_leaf", "c_cost_stem", "c_cost_root",
     "local_cap_factor", "local_cap_factor_root", "reserve_cap_factor",
-    "soil_mode", "soil_psi_cm", "krm1_mult", "kmfu_mult", "vmaxloading_mult",
-    "exudation_mult", "sink_feedback_enabled",
+    "soil_mode", "soil_psi_cm", "pm_substeps", "krm1_mult", "kmfu_mult",
+    "vmaxloading_mult", "exudation_mult", "sink_feedback_enabled",
     "root_len_pre_cm", "root_len_post_cm", "root_dlen_cm",
     "stem_len_pre_cm", "stem_len_post_cm", "stem_dlen_cm",
     "leaf_len_pre_cm", "leaf_len_post_cm", "leaf_dlen_cm",
@@ -249,7 +250,8 @@ def _synth_an_per_leaf(plant) -> np.ndarray:
 
 
 def run_one_combo(knobs: Dict[str, float], seed: int, bootstrap_day: int,
-                  sim_days: int, soil_mode: str, soil_psi_cm: float,
+                  sim_days: int, pm_substeps: int,
+                  soil_mode: str, soil_psi_cm: float,
                   krm1_mult: Optional[float], kmfu_mult: Optional[float],
                   vmaxloading_mult: Optional[float],
                   exudation_mult: Optional[float],
@@ -271,6 +273,7 @@ def run_one_combo(knobs: Dict[str, float], seed: int, bootstrap_day: int,
         "seed": seed,
         "bootstrap_day": bootstrap_day,
         "sim_days": sim_days,
+        "pm_substeps": pm_substeps,
         "soil_mode": soil_mode,
         "soil_psi_cm": soil_psi_cm,
         "krm1_mult": krm1_mult if krm1_mult is not None else "",
@@ -355,7 +358,7 @@ def run_one_combo(knobs: Dict[str, float], seed: int, bootstrap_day: int,
             length_by_ot_pre = _organ_type_lengths(plant)
             result = solve_carbon_partitioning_pm(
                 plant, An_seg, Tair_C=T_air, day=int(sim_day - 1),
-                n_substeps=24, advance_plant=True,
+                n_substeps=pm_substeps, advance_plant=True,
                 soil_psi_provider=provider, inject_an_target=False,
                 krm1_multiplier=krm1_mult, kmfu_multiplier=kmfu_mult,
                 vmaxloading_multiplier=vmaxloading_mult,
@@ -380,6 +383,7 @@ def run_one_combo(knobs: Dict[str, float], seed: int, bootstrap_day: int,
                         "reserve_cap_factor": knobs["reserve_cap_factor"],
                         "soil_mode": soil_mode,
                         "soil_psi_cm": soil_psi_cm,
+                        "pm_substeps": pm_substeps,
                         "krm1_mult": "" if krm1_mult is None else krm1_mult,
                         "kmfu_mult": "" if kmfu_mult is None else kmfu_mult,
                         "vmaxloading_mult": (
@@ -465,6 +469,7 @@ def run_one_combo(knobs: Dict[str, float], seed: int, bootstrap_day: int,
                     "reserve_cap_factor": knobs["reserve_cap_factor"],
                     "soil_mode": soil_mode,
                     "soil_psi_cm": soil_psi_cm,
+                    "pm_substeps": pm_substeps,
                     "krm1_mult": "" if krm1_mult is None else krm1_mult,
                     "kmfu_mult": "" if kmfu_mult is None else kmfu_mult,
                     "vmaxloading_mult": (
@@ -622,6 +627,7 @@ def _existing_combos(csv_path: Path) -> set:
                     int(row["seed"]),
                     int(row["bootstrap_day"]),
                     int(row["sim_days"]),
+                    int(row.get("pm_substeps", 24) or 24),
                     row["soil_mode"],
                     float(row["soil_psi_cm"]),
                     row["krm1_mult"],
@@ -637,6 +643,7 @@ def _existing_combos(csv_path: Path) -> set:
 
 
 def _row_key(row: Dict[str, object], soil_mode: str, soil_psi_cm: float,
+             pm_substeps: int,
              krm1_mult: Optional[float], kmfu_mult: Optional[float],
              vmaxloading_mult: Optional[float],
              exudation_mult: Optional[float],
@@ -654,6 +661,7 @@ def _row_key(row: Dict[str, object], soil_mode: str, soil_psi_cm: float,
         int(row["seed"]),
         int(row["bootstrap_day"]),
         int(row["sim_days"]),
+        int(pm_substeps),
         soil_mode,
         float(soil_psi_cm),
         "" if krm1_mult is None else str(krm1_mult),
@@ -688,6 +696,10 @@ def main() -> int:
     ap.add_argument("--seeds", type=int, nargs="+", default=[7])
     ap.add_argument("--bootstrap-day", type=int, default=30)
     ap.add_argument("--sim-days", type=int, default=130)
+    ap.add_argument("--pm-substeps", type=int, default=24,
+                    help=("Number of PiafMunch substeps per PM day. "
+                          "Default 24; use 48 to test high-An mass-balance "
+                          "residuals."))
     ap.add_argument("--soil-mode", choices=("static", "dumux"),
                     default="dumux")
     ap.add_argument("--soil-psi-cm", type=float, default=-300.0)
@@ -773,6 +785,7 @@ def main() -> int:
                 "bootstrap_day": args.bootstrap_day, "sim_days": args.sim_days,
             }
             key = _row_key(row_for_key, args.soil_mode, args.soil_psi_cm,
+                           args.pm_substeps,
                            args.krm1_multiplier, kmfu_mult,
                            vmax_mult,
                            exud_mult,
@@ -785,6 +798,7 @@ def main() -> int:
             print(f"[{i}/{len(knob_grid)}] cl={cl} cs={cs} cr={cr} cap={cap} "
                   f"rc={rc} rr={rr} seed={seed} kmfu_mult={kmfu_mult} "
                   f"vmax_mult={vmax_mult} exud_mult={exud_mult} "
+                  f"pm_substeps={args.pm_substeps} "
                   f"days={args.bootstrap_day}→{args.sim_days} {args.soil_mode}",
                   flush=True)
             # Per-combo status sidecar — overwritten each iteration so the
@@ -800,12 +814,14 @@ def main() -> int:
                 "exudation_multiplier": exud_mult,
                 "bootstrap_day": args.bootstrap_day,
                 "sim_days": args.sim_days,
+                "pm_substeps": args.pm_substeps,
                 "soil_mode": args.soil_mode,
                 "started_at": time.strftime("%Y-%m-%d %H:%M:%S"),
             }, indent=2))
             row = run_one_combo(
                 knobs, seed=seed, bootstrap_day=args.bootstrap_day,
-                sim_days=args.sim_days, soil_mode=args.soil_mode,
+                sim_days=args.sim_days, pm_substeps=args.pm_substeps,
+                soil_mode=args.soil_mode,
                 soil_psi_cm=args.soil_psi_cm,
                 krm1_mult=args.krm1_multiplier,
                 kmfu_mult=kmfu_mult,
