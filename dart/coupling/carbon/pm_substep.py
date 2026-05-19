@@ -822,6 +822,8 @@ def solve_carbon_partitioning_pm(plant, An_per_leaf_seg, Tair_C=25.0,
     # ψ_s evolves), informational for static providers.
     integrated_transp_cm3 = 0.0
     integrated_rwu_cm3 = 0.0
+    nodes_pre_day = int(len(plant.getNodes()))
+    segs_pre_day = int(len(getattr(plant, "organTypes", [])))
 
     # Gate Ch1.PMDM.4 diagnostics: track leaf-node xylem ψ extrema across
     # the loop. min/max are the worst/best instantaneous leaf-node ψ over
@@ -1258,6 +1260,11 @@ def solve_carbon_partitioning_pm(plant, An_per_leaf_seg, Tair_C=25.0,
     dQ_Mucil_leaf = float(np.sum(Q_Mucil_arr[mask_leaf]))
     dQ_Mucil = dQ_Mucil_root + dQ_Mucil_stem + dQ_Mucil_leaf - Q_Mucil_init
     dStorage = dQ_ST + dQ_meso + dQ_S_meso + dQ_S_ST
+    identified_suc = (
+        dRm_total + dGr_total + dExud_total + dQ_Mucil + dStorage
+    )
+    mb_signed_suc = AnSum_suc - identified_suc
+    mb_signed_co2 = mb_signed_suc * SUC_TO_CO2
 
     # FR fractions — S5 convention: storage attributed to FR_stem so the
     # CSV / JSON writers don't need to learn a PM-specific schema. (PM's
@@ -1280,8 +1287,7 @@ def solve_carbon_partitioning_pm(plant, An_per_leaf_seg, Tair_C=25.0,
     # ~0.55 mmol/d leak at day-30.
     if AnSum_suc > 0:
         mb_residual = abs(
-            AnSum_suc
-            - (dRm_total + dGr_total + dExud_total + dQ_Mucil + dStorage)
+            mb_signed_suc
         ) / AnSum_suc
     else:
         mb_residual = 0.0
@@ -1305,6 +1311,8 @@ def solve_carbon_partitioning_pm(plant, An_per_leaf_seg, Tair_C=25.0,
     local_pool_end_mmol = _local_pool_total(plant)
     reserve_delta_mmol = reserve_end_mmol - reserve_start_mmol
     local_pool_delta_mmol = local_pool_end_mmol - local_pool_start_mmol
+    nodes_post_day = int(len(plant.getNodes()))
+    segs_post_day = int(len(getattr(plant, "organTypes", [])))
 
     # Convert sucrose → CO2 for the S5 contract. Keep root_exud_mmol_d in
     # mmol Suc (downstream AgroC export expects sucrose for kg-C-via-molar
@@ -1351,8 +1359,17 @@ def solve_carbon_partitioning_pm(plant, An_per_leaf_seg, Tair_C=25.0,
         "Q_Grmax_node": Q_Grmax_arr.copy(),
         "DVS": None,
         "An_total_mmol": float(AnSum_suc * S),  # PM-organic, mmol CO2
+        "mb_signed_mmol_suc": float(mb_signed_suc),
+        "mb_signed_mmol_co2": float(mb_signed_co2),
+        "mb_identified_mmol_suc": float(identified_suc),
+        "mb_identified_mmol_co2": float(identified_suc * S),
         # PM-specific extras (Gate Ch1.PM.3 / .4 instrumentation) ---------
         "An_total_mmol_target": An_total_mmol_target,
+        "Q_ST_final_mmol_suc": float(np.sum(Q_ST_arr)),
+        "Q_meso_final_mmol_suc": float(np.sum(Q_meso_arr)),
+        "Q_S_meso_final_mmol_suc": float(np.sum(Q_S_meso_arr)),
+        "Q_S_ST_final_mmol_suc": float(np.sum(Q_S_ST_arr)),
+        "Q_Mucil_final_mmol_suc": float(np.sum(Q_Mucil_arr)),
         "sum_Q_S_meso": float(np.sum(Q_S_meso_arr)),
         "dQ_S_meso": float(dQ_S_meso),
         "dQ_meso": float(dQ_meso),
@@ -1374,7 +1391,16 @@ def solve_carbon_partitioning_pm(plant, An_per_leaf_seg, Tair_C=25.0,
         "Q_meso_init_mmol_suc": float(Q_meso_init),
         "Q_S_meso_init_mmol_suc": float(Q_S_meso_init),
         "Q_S_ST_init_mmol_suc": float(Q_S_ST_init),
+        "Q_Mucil_init_mmol_suc": float(Q_Mucil_init),
         "captured_init_from_Q_init": bool(captured_init),
+        "nt_first": int(nt_first),
+        "nt_final": int(nt),
+        "nodes_pre_day": int(nodes_pre_day),
+        "nodes_post_day": int(nodes_post_day),
+        "segs_pre_day": int(segs_pre_day),
+        "segs_post_day": int(segs_post_day),
+        "nodes_added_day": int(nodes_post_day - nodes_pre_day),
+        "segs_added_day": int(segs_post_day - segs_pre_day),
         "mass_balance_residual_pct": float(mb_residual * 100.0),
         # Buffered carbon diagnostics (mmol Suc) -------------------------
         "buffered_growth_active": bool(buffered_growth_active > 0),
