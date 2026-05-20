@@ -205,11 +205,11 @@ void PhloemFlux::initialize_carbon(vector<double> vecIn) {
 						Y0[z + 1 + Nt ] = initValMeso * vol_ParApo[z + 1];
 					}
 				}
-				this->Q_init = Y0.toCppVector(); //for post processing
 			}
 		}
 	}
-	
+	this->Q_init = Y0.toCppVector(); // for post processing, including warm starts
+
 	if(doTroubleshooting){cout<<"Y0_STinit "<<Y0[1]<<" "<<Nc<<" "<<Nt<<" "<<Nt_old<<endl;}
 	Nt_old = Nt; //BU Nt
 	

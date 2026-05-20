@@ -28,8 +28,10 @@ Mass balance (Gate Ch1.PM.3 closure, < 1 % residual on V3/day-55/day-130):
     dAn ≈ dRm + dGr + dExud + dQ_ST + dQ_meso + dQ_S_meso
 
 Design choices vs ``pm_notebook_loop.case_maize``:
-  * Builds a fresh ``PhloemFluxPython`` internally; does not reuse the
-    diurnal-pipeline ``hm`` from ``run_photosynthesis``.
+  * Builds a fresh ``PhloemFluxPython`` internally by default. Diagnostic
+    callers may pass ``warm_start={"hm": previous_hm}`` to carry PM pools
+    across daily calls while preserving PiafMunch's internal topology resize
+    state.
   * Calls ``enable_cw_limited_growth(plant, wrap_roots=False)``
     idempotently before the loop (Lock #6 + Lock #9 wrap policy from
     [[project_root_path_preservation]] / [[project_s5_sink_source_shipped]]).
@@ -369,7 +371,12 @@ def solve_carbon_partitioning_pm(plant, An_per_leaf_seg, Tair_C=25.0,
             ``An_total_mmol`` which may differ.
         Tair_C: constant air temperature [°C] across all substeps.
         day: simulation day; sets the substep loop's ``sim_init``.
-        warm_start: ignored (PM resets internal state per loop).
+        warm_start: optional dict. When it contains ``"hm"``, reuse that
+            ``PhloemFluxPython`` instance so ``hm.Q_out`` and PiafMunch's
+            internal ``Nt_old`` carry over across daily PM calls. This is a
+            diagnostic mode for testing whether daily PM pool reset drives
+            mesophyll-storage transients; default ``None`` keeps historical
+            daily-reset behaviour.
         gdd_accumulated: ignored (kept for signature parity with
             ``solve_carbon_partitioning``).
         par_umol: constant PAR [μmol photons m⁻² s⁻¹]. Default 600 matches
@@ -558,11 +565,16 @@ def solve_carbon_partitioning_pm(plant, An_per_leaf_seg, Tair_C=25.0,
 
     # Hydraulics + phloem + photosynthesis configuration
     # (mirror of pm_notebook_loop.case_maize cell pattern).
-    params_h = PlantHydraulicParameters()
-    params_h.read_parameters(get_hydraulics_json())
-    hm = PhloemFluxPython(plant, params_h, psiXylInit=-500, ciInit=350e-6)
-    hm.read_photosynthesis_parameters(filename=get_photosynthesis_json())
-    hm.read_phloem_parameters(filename=get_phloem_json())
+    hm = None
+    if isinstance(warm_start, dict):
+        hm = warm_start.get("hm")
+    reused_hm = hm is not None
+    if hm is None:
+        params_h = PlantHydraulicParameters()
+        params_h.read_parameters(get_hydraulics_json())
+        hm = PhloemFluxPython(plant, params_h, psiXylInit=-500, ciInit=350e-6)
+        hm.read_photosynthesis_parameters(filename=get_photosynthesis_json())
+        hm.read_phloem_parameters(filename=get_phloem_json())
 
     # Optional Krm1 diagnostic override (Ch2 An↔Rm gap probe). Multiplies
     # the scalar maintenance-respiration coefficient by ``krm1_multiplier``
@@ -643,7 +655,7 @@ def solve_carbon_partitioning_pm(plant, An_per_leaf_seg, Tair_C=25.0,
         sf_mult = _sink_feedback_multiplier(plant, theta_full)
         if sf_mult < 1.0:
             hm.Vmaxloading = float(hm.Vmaxloading) * sf_mult
-    if exudation_multiplier is not None:
+    if exudation_multiplier is not None and not reused_hm:
         try:
             mult = float(exudation_multiplier)
             kr_st_scaled = [
@@ -674,7 +686,7 @@ def solve_carbon_partitioning_pm(plant, An_per_leaf_seg, Tair_C=25.0,
     # (mirrors the hm.Vmaxloading = ... pattern above). Default ``None``
     # leaves the JSON value untouched so production runs are bit-identical
     # with pre-probe behaviour.
-    if khyd_s_mesophyll_override is not None:
+    if khyd_s_mesophyll_override is not None and not reused_hm:
         try:
             hm.kHyd_S_Mesophyll = float(khyd_s_mesophyll_override)
         except Exception as e:
@@ -693,7 +705,7 @@ def solve_carbon_partitioning_pm(plant, An_per_leaf_seg, Tair_C=25.0,
     # 2.0) compensates the ~50% T-downshift; multiplier ~ 0.5 stress-tests
     # the model in the cool/cloudy direction. Default None leaves the
     # JSON-driven defaults untouched so production runs are bit-identical.
-    if vcrefchl_multiplier is not None:
+    if vcrefchl_multiplier is not None and not reused_hm:
         m_vcref = float(vcrefchl_multiplier)
         try:
             hm.VcmaxrefChl1 = float(hm.VcmaxrefChl1) * m_vcref
@@ -711,7 +723,7 @@ def solve_carbon_partitioning_pm(plant, An_per_leaf_seg, Tair_C=25.0,
     # pushes the Michaelis-like saturation toward 1, freeing both Rm and
     # Rg to fill their caps. KMfu is def_readwrite at PyPlantBox.cpp:1359.
     # Default None → no-op, bit-identical with production.
-    if kmfu_multiplier is not None:
+    if kmfu_multiplier is not None and not reused_hm:
         try:
             hm.KMfu = float(hm.KMfu) * float(kmfu_multiplier)
         except Exception as e:
@@ -1423,4 +1435,5 @@ def solve_carbon_partitioning_pm(plant, An_per_leaf_seg, Tair_C=25.0,
         "psi_leaf_min_cm": psi_leaf_min_cm,
         "psi_leaf_max_cm": psi_leaf_max_cm,
         "psi_leaf_mean_cm": psi_leaf_mean_cm,
+        "_pm_hm": hm,
     }

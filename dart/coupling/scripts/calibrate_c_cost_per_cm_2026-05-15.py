@@ -80,7 +80,7 @@ CSV_COLUMNS = [
     "local_cap_factor", "local_cap_factor_root", "reserve_cap_factor",
     "starch_remob_rate", "starch_storage_eff", "starch_remob_eff",
     # config
-    "seed", "bootstrap_day", "sim_days", "pm_substeps",
+    "seed", "bootstrap_day", "sim_days", "pm_substeps", "pm_pool_carryover",
     "soil_mode", "soil_psi_cm",
     "krm1_mult", "kmfu_mult", "vmaxloading_mult", "exudation_mult",
     "sink_feedback_enabled",
@@ -101,8 +101,9 @@ LEDGER_COLUMNS = [
     "seed", "sim_day", "status",
     "c_cost_leaf", "c_cost_stem", "c_cost_root",
     "local_cap_factor", "local_cap_factor_root", "reserve_cap_factor",
-    "soil_mode", "soil_psi_cm", "pm_substeps", "krm1_mult", "kmfu_mult",
-    "vmaxloading_mult", "exudation_mult", "sink_feedback_enabled",
+    "soil_mode", "soil_psi_cm", "pm_substeps", "pm_pool_carryover",
+    "krm1_mult", "kmfu_mult", "vmaxloading_mult", "exudation_mult",
+    "sink_feedback_enabled",
     "root_len_pre_cm", "root_len_post_cm", "root_dlen_cm",
     "stem_len_pre_cm", "stem_len_post_cm", "stem_dlen_cm",
     "leaf_len_pre_cm", "leaf_len_post_cm", "leaf_dlen_cm",
@@ -265,6 +266,7 @@ def run_one_combo(knobs: Dict[str, float], seed: int, bootstrap_day: int,
                   krm1_mult: Optional[float], kmfu_mult: Optional[float],
                   vmaxloading_mult: Optional[float],
                   exudation_mult: Optional[float],
+                  pm_pool_carryover: bool = False,
                   sink_feedback_enabled: bool = False,
                   verbose: bool = True,
                   ledger_writer: Optional[csv.DictWriter] = None) -> Dict[str, float]:
@@ -284,6 +286,7 @@ def run_one_combo(knobs: Dict[str, float], seed: int, bootstrap_day: int,
         "bootstrap_day": bootstrap_day,
         "sim_days": sim_days,
         "pm_substeps": pm_substeps,
+        "pm_pool_carryover": int(bool(pm_pool_carryover)),
         "soil_mode": soil_mode,
         "soil_psi_cm": soil_psi_cm,
         "krm1_mult": krm1_mult if krm1_mult is not None else "",
@@ -333,6 +336,7 @@ def run_one_combo(knobs: Dict[str, float], seed: int, bootstrap_day: int,
         # Δreserve + losses without trusting that PM-internal closure
         # implies buffered closure.
         cum_rg_realised_suc = 0.0  # mmol Suc, summed across days
+        pm_warm_start = None
         c_cost_by_ot = {2: knobs["c_cost_root"],
                         3: knobs["c_cost_stem"],
                         4: knobs["c_cost_leaf"]}
@@ -375,10 +379,13 @@ def run_one_combo(knobs: Dict[str, float], seed: int, bootstrap_day: int,
                 exudation_multiplier=exudation_mult,
                 use_buffered_carbon=True,
                 sink_feedback_enabled=sink_feedback_enabled,
+                warm_start=pm_warm_start,
             )
             n_pm += 1
             if result is None:
                 n_pm_fail += 1
+                if pm_pool_carryover:
+                    pm_warm_start = None
                 if ledger_writer is not None:
                     length_by_ot_post = _organ_type_lengths(plant)
                     ledger_writer.writerow({
@@ -394,6 +401,7 @@ def run_one_combo(knobs: Dict[str, float], seed: int, bootstrap_day: int,
                         "soil_mode": soil_mode,
                         "soil_psi_cm": soil_psi_cm,
                         "pm_substeps": pm_substeps,
+                        "pm_pool_carryover": int(bool(pm_pool_carryover)),
                         "krm1_mult": "" if krm1_mult is None else krm1_mult,
                         "kmfu_mult": "" if kmfu_mult is None else kmfu_mult,
                         "vmaxloading_mult": (
@@ -418,6 +426,9 @@ def run_one_combo(knobs: Dict[str, float], seed: int, bootstrap_day: int,
                 except Exception:
                     pass
                 continue
+            if pm_pool_carryover:
+                hm_obj = result.get("_pm_hm")
+                pm_warm_start = {"hm": hm_obj} if hm_obj is not None else None
 
             # PM-internal Liebig closure (Plan §3.2 PM-side):
             #   An = Rm + Rg(=Fu_lim) + Exud + Mucil + ΔStorage_PM
@@ -480,6 +491,7 @@ def run_one_combo(knobs: Dict[str, float], seed: int, bootstrap_day: int,
                     "soil_mode": soil_mode,
                     "soil_psi_cm": soil_psi_cm,
                     "pm_substeps": pm_substeps,
+                    "pm_pool_carryover": int(bool(pm_pool_carryover)),
                     "krm1_mult": "" if krm1_mult is None else krm1_mult,
                     "kmfu_mult": "" if kmfu_mult is None else kmfu_mult,
                     "vmaxloading_mult": (
@@ -661,6 +673,7 @@ def _existing_combos(csv_path: Path) -> set:
                     int(row["bootstrap_day"]),
                     int(row["sim_days"]),
                     int(row.get("pm_substeps", 24) or 24),
+                    int(row.get("pm_pool_carryover", 0) or 0),
                     row["soil_mode"],
                     float(row["soil_psi_cm"]),
                     row["krm1_mult"],
@@ -676,7 +689,7 @@ def _existing_combos(csv_path: Path) -> set:
 
 
 def _row_key(row: Dict[str, object], soil_mode: str, soil_psi_cm: float,
-             pm_substeps: int,
+             pm_substeps: int, pm_pool_carryover: bool,
              krm1_mult: Optional[float], kmfu_mult: Optional[float],
              vmaxloading_mult: Optional[float],
              exudation_mult: Optional[float],
@@ -695,6 +708,7 @@ def _row_key(row: Dict[str, object], soil_mode: str, soil_psi_cm: float,
         int(row["bootstrap_day"]),
         int(row["sim_days"]),
         int(pm_substeps),
+        int(bool(pm_pool_carryover)),
         soil_mode,
         float(soil_psi_cm),
         "" if krm1_mult is None else str(krm1_mult),
@@ -733,6 +747,11 @@ def main() -> int:
                     help=("Number of PiafMunch substeps per PM day. "
                           "Default 24; use 48 to test high-An mass-balance "
                           "residuals."))
+    ap.add_argument("--pm-pool-carryover", action="store_true",
+                    help=("Diagnostic mode: reuse the same PhloemFluxPython "
+                          "object across PM days so Q_out pools and "
+                          "PiafMunch topology state carry over instead of "
+                          "daily-resetting."))
     ap.add_argument("--soil-mode", choices=("static", "dumux"),
                     default="dumux")
     ap.add_argument("--soil-psi-cm", type=float, default=-300.0)
@@ -818,7 +837,7 @@ def main() -> int:
                 "bootstrap_day": args.bootstrap_day, "sim_days": args.sim_days,
             }
             key = _row_key(row_for_key, args.soil_mode, args.soil_psi_cm,
-                           args.pm_substeps,
+                           args.pm_substeps, args.pm_pool_carryover,
                            args.krm1_multiplier, kmfu_mult,
                            vmax_mult,
                            exud_mult,
@@ -832,6 +851,7 @@ def main() -> int:
                   f"rc={rc} rr={rr} seed={seed} kmfu_mult={kmfu_mult} "
                   f"vmax_mult={vmax_mult} exud_mult={exud_mult} "
                   f"pm_substeps={args.pm_substeps} "
+                  f"pm_pool_carryover={int(args.pm_pool_carryover)} "
                   f"days={args.bootstrap_day}→{args.sim_days} {args.soil_mode}",
                   flush=True)
             # Per-combo status sidecar — overwritten each iteration so the
@@ -848,6 +868,7 @@ def main() -> int:
                 "bootstrap_day": args.bootstrap_day,
                 "sim_days": args.sim_days,
                 "pm_substeps": args.pm_substeps,
+                "pm_pool_carryover": int(args.pm_pool_carryover),
                 "soil_mode": args.soil_mode,
                 "started_at": time.strftime("%Y-%m-%d %H:%M:%S"),
             }, indent=2))
@@ -860,6 +881,7 @@ def main() -> int:
                 kmfu_mult=kmfu_mult,
                 vmaxloading_mult=vmax_mult,
                 exudation_mult=exud_mult,
+                pm_pool_carryover=args.pm_pool_carryover,
                 sink_feedback_enabled=args.sink_feedback_enabled,
                 verbose=not args.quiet,
                 ledger_writer=ledger_writer,
