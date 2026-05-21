@@ -83,6 +83,7 @@ CSV_COLUMNS = [
     "seed", "bootstrap_day", "sim_days", "pm_substeps", "pm_pool_carryover",
     "soil_mode", "soil_psi_cm",
     "krm1_mult", "kmfu_mult", "vmaxloading_mult", "exudation_mult",
+    "khyd_s_meso",
     "sink_feedback_enabled",
     # outcome
     "runtime_s", "n_pm_calls", "n_pm_fail",
@@ -103,6 +104,7 @@ LEDGER_COLUMNS = [
     "local_cap_factor", "local_cap_factor_root", "reserve_cap_factor",
     "soil_mode", "soil_psi_cm", "pm_substeps", "pm_pool_carryover",
     "krm1_mult", "kmfu_mult", "vmaxloading_mult", "exudation_mult",
+    "khyd_s_meso",
     "sink_feedback_enabled",
     "root_len_pre_cm", "root_len_post_cm", "root_dlen_cm",
     "stem_len_pre_cm", "stem_len_post_cm", "stem_dlen_cm",
@@ -266,6 +268,7 @@ def run_one_combo(knobs: Dict[str, float], seed: int, bootstrap_day: int,
                   krm1_mult: Optional[float], kmfu_mult: Optional[float],
                   vmaxloading_mult: Optional[float],
                   exudation_mult: Optional[float],
+                  khyd_s_meso: Optional[float],
                   pm_pool_carryover: bool = False,
                   sink_feedback_enabled: bool = False,
                   verbose: bool = True,
@@ -297,6 +300,7 @@ def run_one_combo(knobs: Dict[str, float], seed: int, bootstrap_day: int,
         "exudation_mult": (
             exudation_mult if exudation_mult is not None else ""
         ),
+        "khyd_s_meso": khyd_s_meso if khyd_s_meso is not None else "",
         "sink_feedback_enabled": int(bool(sink_feedback_enabled)),
         "status": "OK",
         "error": "",
@@ -377,6 +381,7 @@ def run_one_combo(knobs: Dict[str, float], seed: int, bootstrap_day: int,
                 krm1_multiplier=krm1_mult, kmfu_multiplier=kmfu_mult,
                 vmaxloading_multiplier=vmaxloading_mult,
                 exudation_multiplier=exudation_mult,
+                khyd_s_mesophyll_override=khyd_s_meso,
                 use_buffered_carbon=True,
                 sink_feedback_enabled=sink_feedback_enabled,
                 warm_start=pm_warm_start,
@@ -409,6 +414,9 @@ def run_one_combo(knobs: Dict[str, float], seed: int, bootstrap_day: int,
                         ),
                         "exudation_mult": (
                             "" if exudation_mult is None else exudation_mult
+                        ),
+                        "khyd_s_meso": (
+                            "" if khyd_s_meso is None else khyd_s_meso
                         ),
                         "sink_feedback_enabled": int(bool(sink_feedback_enabled)),
                         "root_len_pre_cm": round(length_by_ot_pre[2], 6),
@@ -499,6 +507,9 @@ def run_one_combo(knobs: Dict[str, float], seed: int, bootstrap_day: int,
                     ),
                     "exudation_mult": (
                         "" if exudation_mult is None else exudation_mult
+                    ),
+                    "khyd_s_meso": (
+                        "" if khyd_s_meso is None else khyd_s_meso
                     ),
                     "sink_feedback_enabled": int(bool(sink_feedback_enabled)),
                     "root_len_pre_cm": round(length_by_ot_pre[2], 6),
@@ -680,6 +691,7 @@ def _existing_combos(csv_path: Path) -> set:
                     row["kmfu_mult"],
                     row.get("vmaxloading_mult", ""),
                     row.get("exudation_mult", ""),
+                    row.get("khyd_s_meso", ""),
                     int(row.get("sink_feedback_enabled", 0) or 0),
                 )
             except (KeyError, ValueError):
@@ -693,6 +705,7 @@ def _row_key(row: Dict[str, object], soil_mode: str, soil_psi_cm: float,
              krm1_mult: Optional[float], kmfu_mult: Optional[float],
              vmaxloading_mult: Optional[float],
              exudation_mult: Optional[float],
+             khyd_s_meso: Optional[float],
              sink_feedback_enabled: bool) -> tuple:
     return (
         round(float(row["c_cost_leaf"]), 6),
@@ -715,6 +728,7 @@ def _row_key(row: Dict[str, object], soil_mode: str, soil_psi_cm: float,
         "" if kmfu_mult is None else str(kmfu_mult),
         "" if vmaxloading_mult is None else str(vmaxloading_mult),
         "" if exudation_mult is None else str(exudation_mult),
+        "" if khyd_s_meso is None else str(khyd_s_meso),
         int(bool(sink_feedback_enabled)),
     )
 
@@ -772,6 +786,12 @@ def main() -> int:
                           "PiafMunch radial phloem conductivity that sets "
                           "root exudation capacity. Default leaves JSON "
                           "phloem parameters untouched."))
+    ap.add_argument("--khyd-s-mesophyll", type=float, nargs="+",
+                    default=[None],
+                    help=("Optional absolute override(s) for "
+                          "hm.kHyd_S_Mesophyll [d^-1]. Default leaves the "
+                          "JSON value untouched. Use with --pm-pool-carryover "
+                          "to test mesophyll-starch turnover."))
     ap.add_argument("--sink-feedback-enabled", action="store_true",
                     help=("§S9 L-Peach sink-fullness feedback. Multiplies "
                           "hm.Vmaxloading by max(0, (1-sat)/(1-θ_full)) "
@@ -802,7 +822,7 @@ def main() -> int:
         args.reserve_cap_factor, args.starch_remob_rate,
         args.starch_storage_eff, args.starch_remob_eff,
         args.seeds, args.kmfu_multiplier, args.vmaxloading_multiplier,
-        args.exudation_multiplier,
+        args.exudation_multiplier, args.khyd_s_mesophyll,
     ))
     print(f"§S7 sweep: {len(knob_grid)} combos total; "
           f"resume from {len(existing)} cached rows.")
@@ -821,7 +841,7 @@ def main() -> int:
 
     try:
         for i, (cl, cs, cr, cap, cap_root, rc, rr, se, re_, seed,
-                kmfu_mult, vmax_mult, exud_mult) in enumerate(knob_grid, 1):
+                kmfu_mult, vmax_mult, exud_mult, khyd_s_meso) in enumerate(knob_grid, 1):
             knobs = {
                 "c_cost_leaf": cl, "c_cost_stem": cs, "c_cost_root": cr,
                 "local_cap_factor": cap, "local_cap_factor_root": cap_root,
@@ -841,6 +861,7 @@ def main() -> int:
                            args.krm1_multiplier, kmfu_mult,
                            vmax_mult,
                            exud_mult,
+                           khyd_s_meso,
                            args.sink_feedback_enabled)
             if key in existing:
                 if not args.quiet:
@@ -850,6 +871,7 @@ def main() -> int:
             print(f"[{i}/{len(knob_grid)}] cl={cl} cs={cs} cr={cr} cap={cap} "
                   f"rc={rc} rr={rr} seed={seed} kmfu_mult={kmfu_mult} "
                   f"vmax_mult={vmax_mult} exud_mult={exud_mult} "
+                  f"khyd_s_meso={khyd_s_meso} "
                   f"pm_substeps={args.pm_substeps} "
                   f"pm_pool_carryover={int(args.pm_pool_carryover)} "
                   f"days={args.bootstrap_day}→{args.sim_days} {args.soil_mode}",
@@ -865,6 +887,7 @@ def main() -> int:
                 "kmfu_multiplier": kmfu_mult,
                 "vmaxloading_multiplier": vmax_mult,
                 "exudation_multiplier": exud_mult,
+                "khyd_s_mesophyll": khyd_s_meso,
                 "bootstrap_day": args.bootstrap_day,
                 "sim_days": args.sim_days,
                 "pm_substeps": args.pm_substeps,
@@ -881,6 +904,7 @@ def main() -> int:
                 kmfu_mult=kmfu_mult,
                 vmaxloading_mult=vmax_mult,
                 exudation_mult=exud_mult,
+                khyd_s_meso=khyd_s_meso,
                 pm_pool_carryover=args.pm_pool_carryover,
                 sink_feedback_enabled=args.sink_feedback_enabled,
                 verbose=not args.quiet,
