@@ -811,6 +811,10 @@ def solve_carbon_partitioning_pm(plant, An_per_leaf_seg, Tair_C=25.0,
     Q_S_meso_init = 0.0
     Q_S_ST_init = 0.0
     Q_Mucil_init = 0.0
+    Q_Rm_init_arr = np.array([], dtype=float)
+    Q_Exud_init = 0.0
+    Q_Gr_init_arr = np.array([], dtype=float)
+    node_ot_init = np.array([], dtype=int)
 
     # Diurnal An target (mmol Suc/d, plant-total daily-uniform rate). Used
     # only when ``inject_an_target=True``; otherwise the substep loop's
@@ -1099,6 +1103,72 @@ def solve_carbon_partitioning_pm(plant, An_per_leaf_seg, Tair_C=25.0,
             _close_trace()
             return None
 
+        # Capture initial-substep state once (delta-storage and cumulative
+        # sink accounting).
+        # Re-read nt each substep: plant grows under advance_plant=True so
+        # node count rises across the loop. Initial Q_* totals are taken
+        # at the FIRST substep's nt; final totals at the LAST substep's
+        # (larger) nt — this is sucrose mass on the entire plant graph at
+        # each instant, not per-node, so the comparison stays valid. With
+        # --pm-pool-carryover, Q_Rm/Q_Exud/Q_Gr are warm-started cumulative
+        # state blocks too, so daily fluxes must be final-minus-init.
+        if nt_first < 0:
+            nt_first = len(plant.getNodes())
+            seg_ot_init = np.array(plant.organTypes, dtype=int)
+            node_ot_init = np.zeros(nt_first, dtype=int)
+            if seg_ot_init.size + 1 == nt_first:
+                node_ot_init[1:] = seg_ot_init
+            else:
+                m_init = min(seg_ot_init.size, nt_first - 1)
+                node_ot_init[1:m_init + 1] = seg_ot_init[:m_init]
+            # Step F0 — read hm.Q_init (Y0 at integration-window start),
+            # populated inside initialize_carbon during the first startPM
+            # call when withInitVal=True. Fall back to substep-1-end Q_out
+            # if Q_init is empty (rare: withInitVal=False configs).
+            qi = np.asarray(hm.Q_init, dtype=float)
+            if qi.size >= 10 * nt_first:
+                Q_ST_init = float(np.sum(qi[0:nt_first]))
+                Q_meso_init = float(np.sum(qi[nt_first:(2 * nt_first)]))
+                Q_Rm_init_arr = np.asarray(
+                    qi[(2 * nt_first):(3 * nt_first)], dtype=float
+                )
+                Q_Exud_init = float(
+                    np.sum(qi[(3 * nt_first):(4 * nt_first)])
+                )
+                Q_Gr_init_arr = np.asarray(
+                    qi[(4 * nt_first):(5 * nt_first)], dtype=float
+                )
+                Q_S_meso_init = float(
+                    np.sum(qi[(7 * nt_first):(8 * nt_first)])
+                )
+                Q_S_ST_init = float(
+                    np.sum(qi[(8 * nt_first):(9 * nt_first)])
+                )
+                Q_Mucil_init = float(
+                    np.sum(qi[(9 * nt_first):(10 * nt_first)])
+                )
+                captured_init = True
+            else:
+                qout_init = np.asarray(hm.Q_out, dtype=float)
+                Q_ST_init = float(np.sum(qout_init[0:nt_first]))
+                Q_meso_init = float(np.sum(
+                    qout_init[nt_first:(2 * nt_first)]))
+                Q_Rm_init_arr = np.asarray(
+                    qout_init[(2 * nt_first):(3 * nt_first)], dtype=float
+                )
+                Q_Exud_init = float(np.sum(
+                    qout_init[(3 * nt_first):(4 * nt_first)]))
+                Q_Gr_init_arr = np.asarray(
+                    qout_init[(4 * nt_first):(5 * nt_first)], dtype=float
+                )
+                Q_S_meso_init = float(np.sum(
+                    qout_init[(7 * nt_first):(8 * nt_first)]))
+                Q_S_ST_init = float(np.sum(
+                    qout_init[(8 * nt_first):(9 * nt_first)]))
+                Q_Mucil_init = float(np.sum(
+                    qout_init[(9 * nt_first):(10 * nt_first)]))
+            prev_Q_Gr_total = float(np.sum(Q_Gr_init_arr))
+
         if use_buffered_carbon and buffered_growth_active > 0:
             qout_n_now = len(hm.Q_out)
             if qout_n_now % 10 == 0:
@@ -1121,43 +1191,6 @@ def solve_carbon_partitioning_pm(plant, An_per_leaf_seg, Tair_C=25.0,
                 storage_loss_mmol += alloc["storage_loss_mmol"]
                 buffered_fu_delivered_mmol += alloc["delivered_mmol"]
                 _mark_buffered_cw_gr_spent(plant)
-
-        # Capture initial-substep state once (delta-storage accounting).
-        # Re-read nt each substep: plant grows under advance_plant=True so
-        # node count rises across the loop. Initial Q_* totals are taken
-        # at the FIRST substep's nt; final totals at the LAST substep's
-        # (larger) nt — this is sucrose mass on the entire plant graph at
-        # each instant, not per-node, so the comparison stays valid.
-        if nt_first < 0:
-            nt_first = len(plant.getNodes())
-            # Step F0 — read hm.Q_init (Y0 at integration-window start),
-            # populated inside initialize_carbon during the first startPM
-            # call when withInitVal=True. Fall back to substep-1-end Q_out
-            # if Q_init is empty (rare: withInitVal=False configs).
-            qi = np.asarray(hm.Q_init, dtype=float)
-            if qi.size >= 10 * nt_first:
-                Q_ST_init = float(np.sum(qi[0:nt_first]))
-                Q_meso_init = float(np.sum(qi[nt_first:(2 * nt_first)]))
-                Q_S_meso_init = float(
-                    np.sum(qi[(7 * nt_first):(8 * nt_first)])
-                )
-                Q_S_ST_init = float(
-                    np.sum(qi[(8 * nt_first):(9 * nt_first)])
-                )
-                Q_Mucil_init = float(
-                    np.sum(qi[(9 * nt_first):(10 * nt_first)])
-                )
-                captured_init = True
-            else:
-                Q_ST_init = float(np.sum(np.array(hm.Q_out[0:nt_first])))
-                Q_meso_init = float(np.sum(np.array(
-                    hm.Q_out[nt_first:(2 * nt_first)])))
-                Q_S_meso_init = float(np.sum(np.array(
-                    hm.Q_out[(7 * nt_first):(8 * nt_first)])))
-                Q_S_ST_init = float(np.sum(np.array(
-                    hm.Q_out[(8 * nt_first):(9 * nt_first)])))
-                Q_Mucil_init = float(np.sum(np.array(
-                    hm.Q_out[(9 * nt_first):(10 * nt_first)])))
 
         # 4. plant.simulate(dt) consumes CW_Gr (carbon-limited growth).
         # Buffered PM keeps photosynthesis on a fixed daily topology and
@@ -1238,20 +1271,42 @@ def solve_carbon_partitioning_pm(plant, An_per_leaf_seg, Tair_C=25.0,
     mask_stem = node_ot == 3
     mask_leaf = node_ot == 4
 
-    # Cumulative-from-zero deltas (Q_*bu == 0 at substep 1 in the notebook
-    # pattern, and PiafMunch's Q_RespMaint / Q_Exudation / Q_Growthtot are
-    # cumulative from the loop start).
-    dRm_root = float(np.sum(Q_Rm_arr[mask_root]))
-    dRm_stem = float(np.sum(Q_Rm_arr[mask_stem]))
-    dRm_leaf = float(np.sum(Q_Rm_arr[mask_leaf]))
+    # Cumulative state deltas. In fresh-PM mode the initial cumulative
+    # blocks are zero, matching the old notebook pattern. In warm-start mode
+    # Q_RespMaint / Q_Exudation / Q_Growthtot carry over in Q_outv, so the
+    # daily sink is final-minus-init just like the storage pools below.
+    mask_root_init = node_ot_init == 2
+    mask_stem_init = node_ot_init == 3
+    mask_leaf_init = node_ot_init == 4
+    dRm_root = (
+        float(np.sum(Q_Rm_arr[mask_root]))
+        - float(np.sum(Q_Rm_init_arr[mask_root_init]))
+    )
+    dRm_stem = (
+        float(np.sum(Q_Rm_arr[mask_stem]))
+        - float(np.sum(Q_Rm_init_arr[mask_stem_init]))
+    )
+    dRm_leaf = (
+        float(np.sum(Q_Rm_arr[mask_leaf]))
+        - float(np.sum(Q_Rm_init_arr[mask_leaf_init]))
+    )
     dRm_total = dRm_root + dRm_stem + dRm_leaf
 
-    dGr_root = float(np.sum(Q_Gr_arr[mask_root]))
-    dGr_stem = float(np.sum(Q_Gr_arr[mask_stem]))
-    dGr_leaf = float(np.sum(Q_Gr_arr[mask_leaf]))
+    dGr_root = (
+        float(np.sum(Q_Gr_arr[mask_root]))
+        - float(np.sum(Q_Gr_init_arr[mask_root_init]))
+    )
+    dGr_stem = (
+        float(np.sum(Q_Gr_arr[mask_stem]))
+        - float(np.sum(Q_Gr_init_arr[mask_stem_init]))
+    )
+    dGr_leaf = (
+        float(np.sum(Q_Gr_arr[mask_leaf]))
+        - float(np.sum(Q_Gr_init_arr[mask_leaf_init]))
+    )
     dGr_total = dGr_root + dGr_stem + dGr_leaf
 
-    dExud_total = float(np.sum(Q_Exud_arr))
+    dExud_total = float(np.sum(Q_Exud_arr)) - Q_Exud_init
 
     # 24h sucrose-pool deltas, referenced to t=0 (start of integration
     # window) via hm.Q_init — see capture block above. Previously these
