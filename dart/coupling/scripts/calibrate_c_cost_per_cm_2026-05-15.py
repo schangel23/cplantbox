@@ -82,8 +82,8 @@ CSV_COLUMNS = [
     # config
     "seed", "bootstrap_day", "sim_days", "pm_substeps", "pm_pool_carryover",
     "soil_mode", "soil_psi_cm",
-    "krm1_mult", "kmfu_mult", "vmaxloading_mult", "exudation_mult",
-    "khyd_s_meso",
+    "krm1_mult", "kmfu_mult", "vmaxloading_mult", "beta_loading_mult",
+    "mloading_mult", "exudation_mult", "khyd_s_meso",
     "sink_feedback_enabled",
     # outcome
     "runtime_s", "n_pm_calls", "n_pm_fail",
@@ -103,8 +103,8 @@ LEDGER_COLUMNS = [
     "c_cost_leaf", "c_cost_stem", "c_cost_root",
     "local_cap_factor", "local_cap_factor_root", "reserve_cap_factor",
     "soil_mode", "soil_psi_cm", "pm_substeps", "pm_pool_carryover",
-    "krm1_mult", "kmfu_mult", "vmaxloading_mult", "exudation_mult",
-    "khyd_s_meso",
+    "krm1_mult", "kmfu_mult", "vmaxloading_mult", "beta_loading_mult",
+    "mloading_mult", "exudation_mult", "khyd_s_meso",
     "sink_feedback_enabled",
     "root_len_pre_cm", "root_len_post_cm", "root_dlen_cm",
     "stem_len_pre_cm", "stem_len_post_cm", "stem_dlen_cm",
@@ -134,6 +134,17 @@ LEDGER_COLUMNS = [
     "buffered_growth_active_organs", "n_iterations",
     "mb_signed_mmol_suc", "mb_signed_mmol_co2",
     "mb_identified_mmol_suc", "mb_identified_mmol_co2",
+    "loading_integral_mmol_suc", "loading_integral_mmol_co2",
+    "loading_final_mmol_suc_d", "ag_final_mmol_suc_d",
+    "dRm_total_mmol_suc", "dGr_total_mmol_suc",
+    "dExud_total_mmol_suc", "dStorage_total_mmol_suc",
+    "Q_Rm_init_mmol_suc", "Q_Rm_final_mmol_suc",
+    "Q_Gr_init_mmol_suc", "Q_Gr_final_mmol_suc",
+    "Q_Exud_init_mmol_suc", "Q_Exud_final_mmol_suc",
+    "Q_ST_dot_final_mmol_suc_d", "Q_meso_dot_final_mmol_suc_d",
+    "Q_Rm_dot_final_mmol_suc_d", "Q_Exud_dot_final_mmol_suc_d",
+    "Q_Gr_dot_final_mmol_suc_d", "Q_S_meso_dot_final_mmol_suc_d",
+    "Q_S_ST_dot_final_mmol_suc_d", "Q_Mucil_dot_final_mmol_suc_d",
     "Q_ST_init_mmol_suc", "Q_ST_final_mmol_suc",
     "Q_meso_init_mmol_suc", "Q_meso_final_mmol_suc",
     "Q_S_meso_init_mmol_suc", "Q_S_meso_final_mmol_suc",
@@ -267,6 +278,8 @@ def run_one_combo(knobs: Dict[str, float], seed: int, bootstrap_day: int,
                   soil_mode: str, soil_psi_cm: float,
                   krm1_mult: Optional[float], kmfu_mult: Optional[float],
                   vmaxloading_mult: Optional[float],
+                  beta_loading_mult: Optional[float],
+                  mloading_mult: Optional[float],
                   exudation_mult: Optional[float],
                   khyd_s_meso: Optional[float],
                   pm_pool_carryover: bool = False,
@@ -296,6 +309,12 @@ def run_one_combo(knobs: Dict[str, float], seed: int, bootstrap_day: int,
         "kmfu_mult": kmfu_mult if kmfu_mult is not None else "",
         "vmaxloading_mult": (
             vmaxloading_mult if vmaxloading_mult is not None else ""
+        ),
+        "beta_loading_mult": (
+            beta_loading_mult if beta_loading_mult is not None else ""
+        ),
+        "mloading_mult": (
+            mloading_mult if mloading_mult is not None else ""
         ),
         "exudation_mult": (
             exudation_mult if exudation_mult is not None else ""
@@ -380,6 +399,8 @@ def run_one_combo(knobs: Dict[str, float], seed: int, bootstrap_day: int,
                 soil_psi_provider=provider, inject_an_target=False,
                 krm1_multiplier=krm1_mult, kmfu_multiplier=kmfu_mult,
                 vmaxloading_multiplier=vmaxloading_mult,
+                beta_loading_multiplier=beta_loading_mult,
+                mloading_multiplier=mloading_mult,
                 exudation_multiplier=exudation_mult,
                 khyd_s_mesophyll_override=khyd_s_meso,
                 use_buffered_carbon=True,
@@ -411,6 +432,12 @@ def run_one_combo(knobs: Dict[str, float], seed: int, bootstrap_day: int,
                         "kmfu_mult": "" if kmfu_mult is None else kmfu_mult,
                         "vmaxloading_mult": (
                             "" if vmaxloading_mult is None else vmaxloading_mult
+                        ),
+                        "beta_loading_mult": (
+                            "" if beta_loading_mult is None else beta_loading_mult
+                        ),
+                        "mloading_mult": (
+                            "" if mloading_mult is None else mloading_mult
                         ),
                         "exudation_mult": (
                             "" if exudation_mult is None else exudation_mult
@@ -505,6 +532,12 @@ def run_one_combo(knobs: Dict[str, float], seed: int, bootstrap_day: int,
                     "vmaxloading_mult": (
                         "" if vmaxloading_mult is None else vmaxloading_mult
                     ),
+                    "beta_loading_mult": (
+                        "" if beta_loading_mult is None else beta_loading_mult
+                    ),
+                    "mloading_mult": (
+                        "" if mloading_mult is None else mloading_mult
+                    ),
                     "exudation_mult": (
                         "" if exudation_mult is None else exudation_mult
                     ),
@@ -571,6 +604,28 @@ def run_one_combo(knobs: Dict[str, float], seed: int, bootstrap_day: int,
                     "mb_signed_mmol_co2": round(float(result.get("mb_signed_mmol_co2", 0.0)), 6),
                     "mb_identified_mmol_suc": round(float(result.get("mb_identified_mmol_suc", 0.0)), 6),
                     "mb_identified_mmol_co2": round(float(result.get("mb_identified_mmol_co2", 0.0)), 6),
+                    "loading_integral_mmol_suc": round(float(result.get("loading_integral_mmol_suc", 0.0)), 6),
+                    "loading_integral_mmol_co2": round(float(result.get("loading_integral_mmol_co2", 0.0)), 6),
+                    "loading_final_mmol_suc_d": round(float(result.get("loading_final_mmol_suc_d", 0.0)), 6),
+                    "ag_final_mmol_suc_d": round(float(result.get("ag_final_mmol_suc_d", 0.0)), 6),
+                    "dRm_total_mmol_suc": round(float(result.get("dRm_total_mmol_suc", 0.0)), 6),
+                    "dGr_total_mmol_suc": round(float(result.get("dGr_total_mmol_suc", 0.0)), 6),
+                    "dExud_total_mmol_suc": round(float(result.get("dExud_total_mmol_suc", 0.0)), 6),
+                    "dStorage_total_mmol_suc": round(float(result.get("dStorage_total_mmol_suc", 0.0)), 6),
+                    "Q_Rm_init_mmol_suc": round(float(result.get("Q_Rm_init_mmol_suc", 0.0)), 6),
+                    "Q_Rm_final_mmol_suc": round(float(result.get("Q_Rm_final_mmol_suc", 0.0)), 6),
+                    "Q_Gr_init_mmol_suc": round(float(result.get("Q_Gr_init_mmol_suc", 0.0)), 6),
+                    "Q_Gr_final_mmol_suc": round(float(result.get("Q_Gr_final_mmol_suc", 0.0)), 6),
+                    "Q_Exud_init_mmol_suc": round(float(result.get("Q_Exud_init_mmol_suc", 0.0)), 6),
+                    "Q_Exud_final_mmol_suc": round(float(result.get("Q_Exud_final_mmol_suc", 0.0)), 6),
+                    "Q_ST_dot_final_mmol_suc_d": round(float(result.get("Q_ST_dot_final_mmol_suc_d", 0.0)), 6),
+                    "Q_meso_dot_final_mmol_suc_d": round(float(result.get("Q_meso_dot_final_mmol_suc_d", 0.0)), 6),
+                    "Q_Rm_dot_final_mmol_suc_d": round(float(result.get("Q_Rm_dot_final_mmol_suc_d", 0.0)), 6),
+                    "Q_Exud_dot_final_mmol_suc_d": round(float(result.get("Q_Exud_dot_final_mmol_suc_d", 0.0)), 6),
+                    "Q_Gr_dot_final_mmol_suc_d": round(float(result.get("Q_Gr_dot_final_mmol_suc_d", 0.0)), 6),
+                    "Q_S_meso_dot_final_mmol_suc_d": round(float(result.get("Q_S_meso_dot_final_mmol_suc_d", 0.0)), 6),
+                    "Q_S_ST_dot_final_mmol_suc_d": round(float(result.get("Q_S_ST_dot_final_mmol_suc_d", 0.0)), 6),
+                    "Q_Mucil_dot_final_mmol_suc_d": round(float(result.get("Q_Mucil_dot_final_mmol_suc_d", 0.0)), 6),
                     "Q_ST_init_mmol_suc": round(float(result.get("Q_ST_init_mmol_suc", 0.0)), 6),
                     "Q_ST_final_mmol_suc": round(float(result.get("Q_ST_final_mmol_suc", 0.0)), 6),
                     "Q_meso_init_mmol_suc": round(float(result.get("Q_meso_init_mmol_suc", 0.0)), 6),
@@ -690,6 +745,8 @@ def _existing_combos(csv_path: Path) -> set:
                     row["krm1_mult"],
                     row["kmfu_mult"],
                     row.get("vmaxloading_mult", ""),
+                    row.get("beta_loading_mult", ""),
+                    row.get("mloading_mult", ""),
                     row.get("exudation_mult", ""),
                     row.get("khyd_s_meso", ""),
                     int(row.get("sink_feedback_enabled", 0) or 0),
@@ -704,6 +761,8 @@ def _row_key(row: Dict[str, object], soil_mode: str, soil_psi_cm: float,
              pm_substeps: int, pm_pool_carryover: bool,
              krm1_mult: Optional[float], kmfu_mult: Optional[float],
              vmaxloading_mult: Optional[float],
+             beta_loading_mult: Optional[float],
+             mloading_mult: Optional[float],
              exudation_mult: Optional[float],
              khyd_s_meso: Optional[float],
              sink_feedback_enabled: bool) -> tuple:
@@ -727,6 +786,8 @@ def _row_key(row: Dict[str, object], soil_mode: str, soil_psi_cm: float,
         "" if krm1_mult is None else str(krm1_mult),
         "" if kmfu_mult is None else str(kmfu_mult),
         "" if vmaxloading_mult is None else str(vmaxloading_mult),
+        "" if beta_loading_mult is None else str(beta_loading_mult),
+        "" if mloading_mult is None else str(mloading_mult),
         "" if exudation_mult is None else str(exudation_mult),
         "" if khyd_s_meso is None else str(khyd_s_meso),
         int(bool(sink_feedback_enabled)),
@@ -780,6 +841,16 @@ def main() -> int:
                     help=("Optional sweep multiplier(s) for hm.Vmaxloading. "
                           "Applied after the default pm_substep Vmaxloading "
                           "kwarg and before sink-fullness feedback."))
+    ap.add_argument("--beta-loading-multiplier", type=float, nargs="+",
+                    default=[None],
+                    help=("Optional sweep multiplier(s) for hm.beta_loading. "
+                          "Values below 1 weaken ST concentration feedback "
+                          "on mesophyll-to-ST loading."))
+    ap.add_argument("--mloading-multiplier", type=float, nargs="+",
+                    default=[None],
+                    help=("Optional sweep multiplier(s) for hm.Mloading. "
+                          "Values below 1 increase loading saturation at a "
+                          "given mesophyll sucrose concentration."))
     ap.add_argument("--exudation-multiplier", type=float, nargs="+",
                     default=[None],
                     help=("Optional sweep multiplier(s) for hm.kr_st, the "
@@ -822,6 +893,7 @@ def main() -> int:
         args.reserve_cap_factor, args.starch_remob_rate,
         args.starch_storage_eff, args.starch_remob_eff,
         args.seeds, args.kmfu_multiplier, args.vmaxloading_multiplier,
+        args.beta_loading_multiplier, args.mloading_multiplier,
         args.exudation_multiplier, args.khyd_s_mesophyll,
     ))
     print(f"§S7 sweep: {len(knob_grid)} combos total; "
@@ -841,7 +913,8 @@ def main() -> int:
 
     try:
         for i, (cl, cs, cr, cap, cap_root, rc, rr, se, re_, seed,
-                kmfu_mult, vmax_mult, exud_mult, khyd_s_meso) in enumerate(knob_grid, 1):
+                kmfu_mult, vmax_mult, beta_mult, mload_mult,
+                exud_mult, khyd_s_meso) in enumerate(knob_grid, 1):
             knobs = {
                 "c_cost_leaf": cl, "c_cost_stem": cs, "c_cost_root": cr,
                 "local_cap_factor": cap, "local_cap_factor_root": cap_root,
@@ -860,6 +933,8 @@ def main() -> int:
                            args.pm_substeps, args.pm_pool_carryover,
                            args.krm1_multiplier, kmfu_mult,
                            vmax_mult,
+                           beta_mult,
+                           mload_mult,
                            exud_mult,
                            khyd_s_meso,
                            args.sink_feedback_enabled)
@@ -870,7 +945,8 @@ def main() -> int:
                 continue
             print(f"[{i}/{len(knob_grid)}] cl={cl} cs={cs} cr={cr} cap={cap} "
                   f"rc={rc} rr={rr} seed={seed} kmfu_mult={kmfu_mult} "
-                  f"vmax_mult={vmax_mult} exud_mult={exud_mult} "
+                  f"vmax_mult={vmax_mult} beta_mult={beta_mult} "
+                  f"mloading_mult={mload_mult} exud_mult={exud_mult} "
                   f"khyd_s_meso={khyd_s_meso} "
                   f"pm_substeps={args.pm_substeps} "
                   f"pm_pool_carryover={int(args.pm_pool_carryover)} "
@@ -886,6 +962,8 @@ def main() -> int:
                 "starch_remob_rate": rr, "seed": seed,
                 "kmfu_multiplier": kmfu_mult,
                 "vmaxloading_multiplier": vmax_mult,
+                "beta_loading_multiplier": beta_mult,
+                "mloading_multiplier": mload_mult,
                 "exudation_multiplier": exud_mult,
                 "khyd_s_mesophyll": khyd_s_meso,
                 "bootstrap_day": args.bootstrap_day,
@@ -903,6 +981,8 @@ def main() -> int:
                 krm1_mult=args.krm1_multiplier,
                 kmfu_mult=kmfu_mult,
                 vmaxloading_mult=vmax_mult,
+                beta_loading_mult=beta_mult,
+                mloading_mult=mload_mult,
                 exudation_mult=exud_mult,
                 khyd_s_meso=khyd_s_meso,
                 pm_pool_carryover=args.pm_pool_carryover,

@@ -353,6 +353,8 @@ def solve_carbon_partitioning_pm(plant, An_per_leaf_seg, Tair_C=25.0,
                                   krm1_multiplier=None,
                                   krm2_multiplier=None,
                                   vmaxloading_multiplier=None,
+                                  beta_loading_multiplier=None,
+                                  mloading_multiplier=None,
                                   exudation_multiplier=None,
                                   khyd_s_mesophyll_override=None,
                                   vcrefchl_multiplier=None,
@@ -640,6 +642,12 @@ def solve_carbon_partitioning_pm(plant, An_per_leaf_seg, Tair_C=25.0,
         hm.Vmaxloading = float(Vmaxloading) * float(vmaxloading_multiplier)
     else:
         hm.Vmaxloading = Vmaxloading
+    if beta_loading_multiplier is not None:
+        hm.beta_loading = float(beta_loading) * float(beta_loading_multiplier)
+    else:
+        hm.beta_loading = beta_loading
+    if mloading_multiplier is not None and not reused_hm:
+        hm.Mloading = float(hm.Mloading) * float(mloading_multiplier)
     # §S9 sink-fullness feedback (Plan §11.3; escalated 2026-05-16). When
     # the plant-level transient_reserve_pool_ exceeds θ_full × reserve
     # capacity, L-Peach-style downregulation multiplies Vmaxloading
@@ -666,7 +674,6 @@ def solve_carbon_partitioning_pm(plant, An_per_leaf_seg, Tair_C=25.0,
         except Exception as e:
             print(f"  PM-substep: exudation override failed ({e}); "
                   "using JSON kr_st")
-    hm.beta_loading = beta_loading
     hm.solver = solver
     hm_solve_max_loop = os.environ.get("HM_SOLVE_MAX_LOOP")
     if hm_solve_max_loop:
@@ -783,6 +790,9 @@ def solve_carbon_partitioning_pm(plant, An_per_leaf_seg, Tair_C=25.0,
     storage_loss_mmol = 0.0
     remob_loss_mmol = 0.0
     buffered_fu_delivered_mmol = 0.0
+    loading_integral_mmol_suc = 0.0
+    loading_final_mmol_suc_d = 0.0
+    ag_final_mmol_suc_d = 0.0
     prev_Q_Gr_total = 0.0
     prev_fu_lim_s = None
     tt_start = (
@@ -1090,6 +1100,7 @@ def solve_carbon_partitioning_pm(plant, An_per_leaf_seg, Tair_C=25.0,
 
         # 2. Accumulate An (notebook pattern: AnSum += sum(Ag4Phloem) * dt).
         Ag = np.array(hm.Ag4Phloem)
+        ag_final_mmol_suc_d = float(np.sum(Ag))
         AnSum_suc += float(np.sum(Ag)) * dt
 
         # 3. PiafMunch substep.
@@ -1102,6 +1113,11 @@ def solve_carbon_partitioning_pm(plant, An_per_leaf_seg, Tair_C=25.0,
             print(f"  PM-substep startPM returned {ret} at sim={sim:.4f}")
             _close_trace()
             return None
+        try:
+            loading_final_mmol_suc_d = float(np.sum(np.asarray(hm.Fl, dtype=float)))
+            loading_integral_mmol_suc += loading_final_mmol_suc_d * dt
+        except Exception:
+            loading_final_mmol_suc_d = 0.0
 
         # Capture initial-substep state once (delta-storage and cumulative
         # sink accounting).
@@ -1253,6 +1269,25 @@ def solve_carbon_partitioning_pm(plant, An_per_leaf_seg, Tair_C=25.0,
     Q_S_ST_arr = np.array(hm.Q_out[(8 * nt):(9 * nt)])
     Q_Mucil_arr = np.array(hm.Q_out[(9 * nt):(10 * nt)])
     C_ST_arr = np.array(hm.C_ST)
+    qout_dot = np.asarray(hm.Q_out_dot, dtype=float)
+    if qout_dot.size >= 10 * nt:
+        Q_ST_dot_arr = qout_dot[0:nt]
+        Q_meso_dot_arr = qout_dot[nt:(2 * nt)]
+        Q_Rm_dot_arr = qout_dot[(2 * nt):(3 * nt)]
+        Q_Exud_dot_arr = qout_dot[(3 * nt):(4 * nt)]
+        Q_Gr_dot_arr = qout_dot[(4 * nt):(5 * nt)]
+        Q_S_meso_dot_arr = qout_dot[(7 * nt):(8 * nt)]
+        Q_S_ST_dot_arr = qout_dot[(8 * nt):(9 * nt)]
+        Q_Mucil_dot_arr = qout_dot[(9 * nt):(10 * nt)]
+    else:
+        Q_ST_dot_arr = np.zeros(nt, dtype=float)
+        Q_meso_dot_arr = np.zeros(nt, dtype=float)
+        Q_Rm_dot_arr = np.zeros(nt, dtype=float)
+        Q_Exud_dot_arr = np.zeros(nt, dtype=float)
+        Q_Gr_dot_arr = np.zeros(nt, dtype=float)
+        Q_S_meso_dot_arr = np.zeros(nt, dtype=float)
+        Q_S_ST_dot_arr = np.zeros(nt, dtype=float)
+        Q_Mucil_dot_arr = np.zeros(nt, dtype=float)
 
     # Per-segment organ types → per-node organ types (root/stem/leaf masks).
     # plant.organTypes is per-segment (length n_segs); Q_out is per-node
@@ -1430,6 +1465,28 @@ def solve_carbon_partitioning_pm(plant, An_per_leaf_seg, Tair_C=25.0,
         "mb_signed_mmol_co2": float(mb_signed_co2),
         "mb_identified_mmol_suc": float(identified_suc),
         "mb_identified_mmol_co2": float(identified_suc * S),
+        "loading_integral_mmol_suc": float(loading_integral_mmol_suc),
+        "loading_integral_mmol_co2": float(loading_integral_mmol_suc * S),
+        "loading_final_mmol_suc_d": float(loading_final_mmol_suc_d),
+        "ag_final_mmol_suc_d": float(ag_final_mmol_suc_d),
+        "dRm_total_mmol_suc": float(dRm_total),
+        "dGr_total_mmol_suc": float(dGr_total),
+        "dExud_total_mmol_suc": float(dExud_total),
+        "dStorage_total_mmol_suc": float(dStorage),
+        "Q_Rm_init_mmol_suc": float(np.sum(Q_Rm_init_arr)),
+        "Q_Rm_final_mmol_suc": float(np.sum(Q_Rm_arr)),
+        "Q_Gr_init_mmol_suc": float(np.sum(Q_Gr_init_arr)),
+        "Q_Gr_final_mmol_suc": float(np.sum(Q_Gr_arr)),
+        "Q_Exud_init_mmol_suc": float(Q_Exud_init),
+        "Q_Exud_final_mmol_suc": float(np.sum(Q_Exud_arr)),
+        "Q_ST_dot_final_mmol_suc_d": float(np.sum(Q_ST_dot_arr)),
+        "Q_meso_dot_final_mmol_suc_d": float(np.sum(Q_meso_dot_arr)),
+        "Q_Rm_dot_final_mmol_suc_d": float(np.sum(Q_Rm_dot_arr)),
+        "Q_Exud_dot_final_mmol_suc_d": float(np.sum(Q_Exud_dot_arr)),
+        "Q_Gr_dot_final_mmol_suc_d": float(np.sum(Q_Gr_dot_arr)),
+        "Q_S_meso_dot_final_mmol_suc_d": float(np.sum(Q_S_meso_dot_arr)),
+        "Q_S_ST_dot_final_mmol_suc_d": float(np.sum(Q_S_ST_dot_arr)),
+        "Q_Mucil_dot_final_mmol_suc_d": float(np.sum(Q_Mucil_dot_arr)),
         # PM-specific extras (Gate Ch1.PM.3 / .4 instrumentation) ---------
         "An_total_mmol_target": An_total_mmol_target,
         "Q_ST_final_mmol_suc": float(np.sum(Q_ST_arr)),
