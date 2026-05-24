@@ -97,7 +97,7 @@ extern double *Q_ST_dot, *Q_Mesophyll_dot, *Q_Rm_dot, *Q_Exud_dot, *Q_Gtot_dot, 
 extern double *Q_RespMaintmax, *TracerQ_Mesophyll, *TracerQ_RespMaint, *Q_S_Mesophyll, *Q_Growthtotmax ;		  // components of vector y as used in diff. system f()...
 extern double *Q_Rmmax_dot, *TracerQ_Mesophyll_dot, *TracerQ_Rm_dot, *Q_S_Mesophyll_dot, *Q_Gtotmax_dot ; //... and its derivatives.  ;
 extern double *vol_Sympl, *vol_Sympl_dot ;
-extern Fortran_vector Psi_Xyl, JW_ST, JS_ST, C_Sympl, C_ST, C_amont, JS_Sympl, JS_Apo, JS_ParMb, JS_PhlMb, Psi_Sympl, C_PhlApo, C_ParApo, P_ST, Absorb, RespMaint ;
+extern Fortran_vector Psi_Xyl, JW_ST, JS_ST, Delta_JS_ST, C_Sympl, C_ST, C_amont, JS_Sympl, JS_Apo, JS_ParMb, JS_PhlMb, Psi_Sympl, C_PhlApo, C_ParApo, P_ST, Absorb, RespMaint ;
 extern Fortran_vector JW_Trsv, JW_Xyl, JW_PhlMb, JW_ParMb, JW_Apo, JW_Sympl, P_Sympl, Psi_ST, P_Xyl, Psi_PhlApo, Psi_ParApo, P_PhlApo, P_ParApo ;
 extern Fortran_vector r_Xyl, r_ST, r_ST_ref, r_Trsv, r_PhlMb, r_ParMb, r_Apo, r_Sympl, vol_ST, vol_PhlApo, vol_ParApo ;
 extern Fortran_vector r_abs, PsiSoil, Transpirat, Input, Q_RespMaintSyn ;
@@ -293,22 +293,24 @@ int PhloemFlux::startPM(double StartTime, double EndTime, int OutputStep,double 
 	if(doTroubleshooting){
 		std::cout<<"MEMORY LIBERATIONS"<<std::endl;
 	}
-    // MEMORY LIBERATIONS:
-    delete [] y_dot;
 	//for python:
 	this->Q_outv = Y0.toCppVector();//att: now has several outputs
-	
+
 	this->Q_out_dotv = std::vector<double>(Y0.size(),0);
-	for(int j = 1 ; j <= Y0.size() ; j ++) 
+	for(int j = 1 ; j <= Y0.size() ; j ++)
 	{
-		this->Q_out_dotv[j-1] = y_dot[j] ; 
+		this->Q_out_dotv[j-1] = y_dot[j] ;
 	}
+    // MEMORY LIBERATIONS:
+    delete [] y_dot;
 	this->C_STv = C_ST.toCppVector();
 	this->vol_STv = vol_ST.toCppVector();
 	this->Q_Grmaxv = Q_Grmax.toCppVector();
 	this->Q_Exudmaxv = Q_Exudmax.toCppVector();
 	this->Q_Rmmaxv = Q_Rmmax.toCppVector() ;
 	this->Flv = Input.toCppVector() ;
+	this->JS_STv = JS_ST.toCppVector() ;
+	this->Delta_JS_STv = Delta_JS_ST.toCppVector() ;
 	this->r_STv = r_ST.toCppVector() ;
 	this->JW_STv = JW_ST.toCppVector() ;
 	if(doTroubleshooting){

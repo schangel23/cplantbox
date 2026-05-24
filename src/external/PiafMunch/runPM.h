@@ -158,6 +158,8 @@ class PhloemFlux: public CPlantBox::Photosynthesis, public std::enable_shared_fr
 	std::vector<double> Q_Exudmaxv ;//maximal exudatoin rate, (mmol Suc d-1)
 	std::vector<double> Q_Rmmaxv ;//maximal sucrose usage for maintenance, (mmol Suc d-1)
 	std::vector<double> Flv ;//sucrose flow from mesophyll to sieve tube, (mmol Suc d-1)
+	std::vector<double> JS_STv;//axial sieve-tube sucrose flow, (mmol Suc d-1)
+	std::vector<double> Delta_JS_STv;//node axial sucrose divergence, (mmol Suc d-1)
 	std::vector<double> vol_Mesov;//volume of mesophyll (same as leaf blade volume), (cm3)
 	std::vector<double> JW_STv;//sieve tube water flow, (cm3 d-1)
     //for growth

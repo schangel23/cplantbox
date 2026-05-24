@@ -357,6 +357,7 @@ def solve_carbon_partitioning_pm(plant, An_per_leaf_seg, Tair_C=25.0,
                                   mloading_multiplier=None,
                                   exudation_multiplier=None,
                                   khyd_s_mesophyll_override=None,
+                                  ks_mesophyll_multiplier=None,
                                   vcrefchl_multiplier=None,
                                   kmfu_multiplier=None,
                                   hm_solve_trace_path=None,
@@ -699,6 +700,12 @@ def solve_carbon_partitioning_pm(plant, An_per_leaf_seg, Tair_C=25.0,
         except Exception as e:
             print(f"  PM-substep: kHyd_S_Mesophyll override failed ({e}); "
                   "using JSON default")
+    if ks_mesophyll_multiplier is not None and not reused_hm:
+        try:
+            hm.k_S_Mesophyll = float(hm.k_S_Mesophyll) * float(ks_mesophyll_multiplier)
+        except Exception as e:
+            print(f"  PM-substep: k_S_Mesophyll override failed ({e}); "
+                  "using JSON default")
     # Optional FvCB Vcrefmax diagnostic override (DIAG_CH1_HM_SOLVE α-clip
     # Vcmax(T) test). The G6-fast trace under DEPLOY-B+krm1×0.1 showed
     # T_leaf at 12.9-16.3 °C across days 31-35 (transpiration-cooled vs
@@ -792,6 +799,10 @@ def solve_carbon_partitioning_pm(plant, An_per_leaf_seg, Tair_C=25.0,
     buffered_fu_delivered_mmol = 0.0
     loading_integral_mmol_suc = 0.0
     loading_final_mmol_suc_d = 0.0
+    js_st_net_final_mmol_suc_d = 0.0
+    js_st_abs_final_mmol_suc_d = 0.0
+    axial_divergence_integral_mmol_suc = 0.0
+    axial_divergence_final_mmol_suc_d = 0.0
     ag_final_mmol_suc_d = 0.0
     prev_Q_Gr_total = 0.0
     prev_fu_lim_s = None
@@ -1118,6 +1129,20 @@ def solve_carbon_partitioning_pm(plant, An_per_leaf_seg, Tair_C=25.0,
             loading_integral_mmol_suc += loading_final_mmol_suc_d * dt
         except Exception:
             loading_final_mmol_suc_d = 0.0
+        try:
+            js_st = np.asarray(hm.JS_ST, dtype=float)
+            js_st_net_final_mmol_suc_d = float(np.sum(js_st))
+            js_st_abs_final_mmol_suc_d = float(np.sum(np.abs(js_st)))
+            axial_divergence_final_mmol_suc_d = float(
+                np.sum(np.asarray(hm.Delta_JS_ST, dtype=float))
+            )
+            axial_divergence_integral_mmol_suc += (
+                axial_divergence_final_mmol_suc_d * dt
+            )
+        except Exception:
+            js_st_net_final_mmol_suc_d = 0.0
+            js_st_abs_final_mmol_suc_d = 0.0
+            axial_divergence_final_mmol_suc_d = 0.0
 
         # Capture initial-substep state once (delta-storage and cumulative
         # sink accounting).
@@ -1367,6 +1392,10 @@ def solve_carbon_partitioning_pm(plant, An_per_leaf_seg, Tair_C=25.0,
     )
     mb_signed_suc = AnSum_suc - identified_suc
     mb_signed_co2 = mb_signed_suc * SUC_TO_CO2
+    identified_axial_corrected_suc = (
+        identified_suc - axial_divergence_integral_mmol_suc
+    )
+    mb_signed_axial_corrected_suc = AnSum_suc - identified_axial_corrected_suc
 
     # FR fractions — S5 convention: storage attributed to FR_stem so the
     # CSV / JSON writers don't need to learn a PM-specific schema. (PM's
@@ -1468,6 +1497,27 @@ def solve_carbon_partitioning_pm(plant, An_per_leaf_seg, Tair_C=25.0,
         "loading_integral_mmol_suc": float(loading_integral_mmol_suc),
         "loading_integral_mmol_co2": float(loading_integral_mmol_suc * S),
         "loading_final_mmol_suc_d": float(loading_final_mmol_suc_d),
+        "js_st_net_final_mmol_suc_d": float(js_st_net_final_mmol_suc_d),
+        "js_st_abs_final_mmol_suc_d": float(js_st_abs_final_mmol_suc_d),
+        "axial_divergence_integral_mmol_suc": float(
+            axial_divergence_integral_mmol_suc
+        ),
+        "axial_divergence_integral_mmol_co2": float(
+            axial_divergence_integral_mmol_suc * S
+        ),
+        "axial_divergence_final_mmol_suc_d": float(
+            axial_divergence_final_mmol_suc_d
+        ),
+        "mb_signed_axial_corrected_mmol_suc": float(
+            mb_signed_axial_corrected_suc
+        ),
+        "mb_signed_axial_corrected_mmol_co2": float(
+            mb_signed_axial_corrected_suc * S
+        ),
+        "mb_axial_corrected_residual_pct": float(
+            abs(mb_signed_axial_corrected_suc) / AnSum_suc * 100.0
+            if AnSum_suc > 0 else 0.0
+        ),
         "ag_final_mmol_suc_d": float(ag_final_mmol_suc_d),
         "dRm_total_mmol_suc": float(dRm_total),
         "dGr_total_mmol_suc": float(dGr_total),

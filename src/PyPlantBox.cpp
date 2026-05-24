@@ -1378,6 +1378,8 @@ PYBIND11_MODULE(plantbox, m) {
             .def_readwrite("Q_Exudmax",&PhloemFlux::Q_Exudmaxv)
             .def_readwrite("Q_Rmmax",&PhloemFlux::Q_Rmmaxv)
             .def_readwrite("Fl",&PhloemFlux::Flv)
+            .def_readwrite("JS_ST",&PhloemFlux::JS_STv)
+            .def_readwrite("Delta_JS_ST",&PhloemFlux::Delta_JS_STv)
             //.def_readwrite("KMgr",&PhloemFlux::KMgr)
             .def_readwrite("KMfu",&PhloemFlux::KMfu)
             .def_readwrite("CsoilDefault",&PhloemFlux::CsoilDefault)
