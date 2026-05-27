@@ -1326,7 +1326,8 @@ def read_baleno_outputs_multi(baleno_sim_dir, mapping_json_paths,
 
     # Read scene file
     scene_file = None
-    for candidate in [output_base / 'scene', results_dir / 'scene.csv',
+    for candidate in [output_base / 'scene.csv', output_base / 'scene',
+                      results_dir / 'scene.csv',
                       results_dir / 'scene']:
         if candidate.exists() and candidate.stat().st_size > 0:
             scene_file = candidate
@@ -1342,9 +1343,10 @@ def read_baleno_outputs_multi(baleno_sim_dir, mapping_json_paths,
         header_line = f.readline().strip()
     scene_header = [h.strip() for h in header_line.split(delimiter)]
 
-    col_type_id = scene_header.index('TYPE_ID') if 'TYPE_ID' in scene_header else 0
-    col_dart_name = scene_header.index('DART_NAME') if 'DART_NAME' in scene_header else 1
-    col_index_obj = scene_header.index('INDEX_OBJECT') if 'INDEX_OBJECT' in scene_header else 2
+    scene_header_norm = [h.strip().lower().replace(' ', '_') for h in scene_header]
+    col_type_id = scene_header_norm.index('type_id') if 'type_id' in scene_header_norm else 0
+    col_dart_name = scene_header_norm.index('dart_name') if 'dart_name' in scene_header_norm else 1
+    col_index_obj = scene_header_norm.index('index_object') if 'index_object' in scene_header_norm else 2
 
     type_ids = scene_str[:, col_type_id].astype(float).astype(int)
     dart_names = scene_str[:, col_dart_name]
@@ -1405,7 +1407,7 @@ def read_baleno_outputs_multi(baleno_sim_dir, mapping_json_paths,
             for i, h in enumerate(veg_header):
                 if h.strip().lower() == 'eta' or 'fluorescence' in h.lower():
                     col_eta = i
-                if 'net photosynthesis' in h.lower():
+                if 'net photosynthesis' in h.lower() or 'net co2 assimilation' in h.lower():
                     col_an_veg = i
             if col_eta < 0:
                 col_eta = 6  # default Eta column index
@@ -1438,8 +1440,13 @@ def read_baleno_outputs_multi(baleno_sim_dir, mapping_json_paths,
 
     # Parse SURFACE column (per-triangle area in m²) from scene file
     col_surface = -1
-    if 'SURFACE' in scene_header:
-        col_surface = scene_header.index('SURFACE')
+    if 'surface' in scene_header_norm:
+        col_surface = scene_header_norm.index('surface')
+    else:
+        for i, h in enumerate(scene_header_norm):
+            if h.startswith('surface_') or h == 'surface_[m2]':
+                col_surface = i
+                break
     surface_areas_m2 = None
     if col_surface >= 0:
         try:

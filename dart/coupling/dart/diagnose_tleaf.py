@@ -32,7 +32,8 @@ def diagnose(baleno_sim_dir=None):
 
     # --- Read scene ---
     scene_file = None
-    for candidate in [output_base / 'scene', results_dir / 'scene.csv']:
+    for candidate in [output_base / 'scene.csv', output_base / 'scene',
+                      results_dir / 'scene.csv']:
         if candidate.exists():
             scene_file = candidate
             break
@@ -50,10 +51,11 @@ def diagnose(baleno_sim_dir=None):
     print(f"  Columns: {scene_header}")
     print(f"  Rows: {scene_str.shape[0]}")
 
-    col_type_id = scene_header.index('TYPE_ID') if 'TYPE_ID' in scene_header else 0
-    col_dart_name = scene_header.index('DART_NAME') if 'DART_NAME' in scene_header else 1
-    col_index_obj = scene_header.index('INDEX_OBJECT') if 'INDEX_OBJECT' in scene_header else 2
-    col_surface = scene_header.index('SURFACE') if 'SURFACE' in scene_header else 5
+    scene_header_norm = [h.strip().lower().replace(' ', '_') for h in scene_header]
+    col_type_id = scene_header_norm.index('type_id') if 'type_id' in scene_header_norm else 0
+    col_dart_name = scene_header_norm.index('dart_name') if 'dart_name' in scene_header_norm else 1
+    col_index_obj = scene_header_norm.index('index_object') if 'index_object' in scene_header_norm else 2
+    col_surface = scene_header_norm.index('surface_[m2]') if 'surface_[m2]' in scene_header_norm else 4
 
     type_ids = scene_str[:, col_type_id].astype(float).astype(int)
     dart_names = scene_str[:, col_dart_name]
