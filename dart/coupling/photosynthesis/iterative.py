@@ -536,8 +536,8 @@ def build_scene_row_mapping(baleno_sim_dir, reindex_json_paths, n_plants):
     # Find scene file
     scene_file = None
     results_dir = output_base / 'final_results'
-    candidates = [output_base / 'scene', results_dir / 'scene.csv',
-                  results_dir / 'scene']
+    candidates = [output_base / 'scene.csv', output_base / 'scene',
+                  results_dir / 'scene.csv', results_dir / 'scene']
     for candidate in candidates:
         if candidate.exists() and candidate.stat().st_size > 0:
             scene_file = candidate
@@ -562,13 +562,16 @@ def build_scene_row_mapping(baleno_sim_dir, reindex_json_paths, n_plants):
 
     scene_str = np.genfromtxt(str(scene_file), skip_header=1,
                                delimiter=delimiter, dtype=str)
+    if scene_str.ndim == 1:
+        scene_str = scene_str.reshape(1, -1)
     with open(scene_file) as f:
         header_line = f.readline().strip()
     scene_header = [h.strip() for h in header_line.split(delimiter)]
 
-    col_type_id = scene_header.index('TYPE_ID') if 'TYPE_ID' in scene_header else 0
-    col_dart_name = scene_header.index('DART_NAME') if 'DART_NAME' in scene_header else 1
-    col_index_obj = scene_header.index('INDEX_OBJECT') if 'INDEX_OBJECT' in scene_header else 2
+    scene_header_norm = [h.strip().lower().replace(' ', '_') for h in scene_header]
+    col_type_id = scene_header_norm.index('type_id') if 'type_id' in scene_header_norm else 0
+    col_dart_name = scene_header_norm.index('dart_name') if 'dart_name' in scene_header_norm else 1
+    col_index_obj = scene_header_norm.index('index_object') if 'index_object' in scene_header_norm else 2
 
     type_ids = scene_str[:, col_type_id].astype(float).astype(int)
     dart_names = scene_str[:, col_dart_name]
