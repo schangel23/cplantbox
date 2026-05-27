@@ -575,7 +575,7 @@ def run_single_day(sim_day, use_dart=True, timestep_min=30,
                 try:
                     t0 = time.time()
                     # Scale _I re-run timeout with scene complexity
-                    n_segs = sum(len(p.getSegmentIds(4)) for p in persistent_plants)
+                    n_segs = sum(len(p.getSegmentIds(4)) for p in setup['plants'])
                     _I_timeout = max(600, int(300 + n_segs * 0.1))
                     update_baleno_datetime_and_rerun_I(
                         baleno_setup['simu_I'], calendar_date,
