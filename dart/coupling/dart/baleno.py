@@ -104,6 +104,13 @@ def make_baleno_radiation_config(cab, n, base_prospect, fqe=0.01):
     }
 
 
+def write_baleno_closures_input(plugins_dir):
+    """Write required input for new Baleno's Closures plugin."""
+    write_json5(Path(plugins_dir) / 'Closures_input.json5', {
+        "max_temperature_change": -1,
+    })
+
+
 # ============================================================================
 # Config file management (shared by production pipeline and standalone demo)
 # ============================================================================
@@ -900,6 +907,7 @@ def _create_baleno_configs(baleno_simu_name, dart_simu_name):
         "rss": 500, "Compute_rss_from_SMC": False, "ratio_rn_g": 0.35,
     })
     write_json5(plugins_dir / 'AerodynamicsSCOPE_input.json5', {})
+    write_baleno_closures_input(plugins_dir)
 
     return baleno_sim_dir
 
@@ -1826,6 +1834,7 @@ def run_baleno_with_external_gs(gs_per_segment, mapping_json_path,
         "Type": get_species()["photo_type"],
         "fqe": 0.01,
     })
+    write_baleno_closures_input(plugins_dir)
 
     # Write config.ini
     baleno_config_path = BALENO_DIR / 'resources' / 'config.ini'

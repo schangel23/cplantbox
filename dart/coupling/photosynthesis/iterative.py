@@ -189,6 +189,7 @@ def run_iterative_coupling(
         run_baleno_subprocess, read_baleno_tleaf,
         BALENO_DIR, EXTERNAL_GS_PLUGIN,
         make_baleno_radiation_config, make_baleno_vegetation_config,
+        write_baleno_closures_input,
     )
     from ..dart.parsers import write_json5
     import plantbox as pb
@@ -338,6 +339,7 @@ def run_iterative_coupling(
             "Type": get_species()["photo_type"],
             "fqe": 0.01,
         })
+        write_baleno_closures_input(plugins_dir)
 
         # --- Write Baleno config.ini ---
         baleno_config_path = BALENO_DIR / 'resources' / 'config.ini'
@@ -701,6 +703,7 @@ def run_iterative_coupling_multi(
         run_baleno_subprocess, read_baleno_tleaf_multi,
         BALENO_DIR, log_baleno_diagnostics, EXTERNAL_GS_PLUGIN,
         make_baleno_radiation_config, make_baleno_vegetation_config,
+        write_baleno_closures_input,
     )
     from ..dart.parsers import write_json5
     import plantbox as pb
@@ -771,6 +774,7 @@ def run_iterative_coupling_multi(
             "fqe": fqe_val,
             "Kn0": 5.01, "Knalpha": 1.93, "Knbeta": 10.0,
         })
+        write_baleno_closures_input(plugins_dir)
         import textwrap
         baleno_config_path = BALENO_DIR / 'resources' / 'config.ini'
         baleno_config_path.write_text(textwrap.dedent(f"""\
@@ -926,6 +930,7 @@ def run_iterative_coupling_multi(
             "Knalpha": 1.93,
             "Knbeta": 10.0,
         })
+        write_baleno_closures_input(plugins_dir)
 
         # 6. Write Baleno config.ini + run
         baleno_config_path = BALENO_DIR / 'resources' / 'config.ini'
