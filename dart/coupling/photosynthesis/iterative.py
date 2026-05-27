@@ -28,7 +28,7 @@ import json
 import numpy as np
 from pathlib import Path
 
-from ..config import get_species, get_hydraulics_json, get_photosynthesis_json, get_phloem_json
+from ..config import get_species, get_hydraulics_json, get_photosynthesis_json
 from ..prospect_params import (get_prospect_params, get_prospect_params_per_position,
                                get_chl_per_segment, vcmax25_from_cab)
 from .coupled import run_photosynthesis_solve
@@ -437,7 +437,8 @@ def _extract_gs_from_solve(plant, sim_time, par_umol, tleaf, rh, soil_psi_cm,
 
     hm = PhloemFluxPython(plant, params)
     hm.read_photosynthesis_parameters(filename=get_photosynthesis_json())
-    hm.read_phloem_parameters(filename=get_phloem_json())
+    # Keep this photosynthesis-only solve off read_phloem_parameters(): the
+    # local Python 3.14 binding aborts in PhloemFlux.setKrm2().
 
     # Per-segment Chl from LOPS profiles
     chl_per_seg = get_chl_per_segment(sim_time, plant)
@@ -450,7 +451,10 @@ def _extract_gs_from_solve(plant, sim_time, par_umol, tleaf, rh, soil_psi_cm,
     # Soil water potential
     if soil_psi_provider is None:
         from ..hydraulics.soil_psi import FixedSoilPsi
-        soil_psi_provider = FixedSoilPsi(psi_cm=soil_psi_cm)
+        from ..growth.grow import DEFAULT_SOIL_CELL_NUMBER
+        n_default_cells = int(np.prod(DEFAULT_SOIL_CELL_NUMBER))
+        soil_psi_provider = FixedSoilPsi(psi_cm=soil_psi_cm,
+                                         n_cells=n_default_cells)
     n_cells = int(soil_psi_provider.n_cells_total)
     p_s = soil_psi_provider.get_profile(t_days=float(sim_time), depth_cm=n_cells)
 

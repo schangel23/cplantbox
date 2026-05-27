@@ -25,7 +25,7 @@ import argparse
 
 import plantbox as pb
 
-from ..config import HYDRAULICS_PATH, DEFAULT_XML, get_hydraulics_json, get_photosynthesis_json, get_phloem_json
+from ..config import HYDRAULICS_PATH, DEFAULT_XML, get_hydraulics_json, get_photosynthesis_json
 from ..geometry import loft_organs, G3Mesh, extract_organs_for_lofter
 from ..geometry.cplantbox_adapter import get_plantsim_feature_kwargs_from_env
 from ..prospect_params import get_chl_per_segment, vcmax25_from_cab
@@ -644,7 +644,8 @@ def run_photosynthesis(plant, sim_time, output_prefix,
     # --- Photosynthesis + phloem model ---
     hm = PhloemFluxPython(plant, params)
     hm.read_photosynthesis_parameters(filename=get_photosynthesis_json())
-    hm.read_phloem_parameters(filename=get_phloem_json())
+    # Photosynthesis-only path; avoid read_phloem_parameters() because the
+    # current local Python 3.14 binding aborts in PhloemFlux.setKrm2().
 
     # Per-segment Chl from LOPS per-position profiles
     chl_per_seg = get_chl_per_segment(sim_time, plant)
@@ -665,7 +666,9 @@ def run_photosynthesis(plant, sim_time, output_prefix,
     # --- Soil water potential vector ---
     if soil_psi_provider is None:
         from ..hydraulics.soil_psi import FixedSoilPsi
-        soil_psi_provider = FixedSoilPsi(psi_cm=soil_psi_cm)
+        n_default_cells = int(np.prod(DEFAULT_SOIL_CELL_NUMBER))
+        soil_psi_provider = FixedSoilPsi(psi_cm=soil_psi_cm,
+                                         n_cells=n_default_cells)
     n_cells = int(soil_psi_provider.n_cells_total)
     p_s = soil_psi_provider.get_profile(t_days=float(sim_time), depth_cm=n_cells)
     # Resolved-state banner (see comment above the print block).

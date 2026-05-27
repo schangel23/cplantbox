@@ -29,7 +29,7 @@ from collections import OrderedDict
 
 import plantbox as pb
 
-from ..config import DEFAULT_XML, OUTPUT_DIR, get_hydraulics_json, get_photosynthesis_json, get_phloem_json
+from ..config import DEFAULT_XML, OUTPUT_DIR, get_hydraulics_json, get_photosynthesis_json
 from ..growth import grow_plant
 from ..prospect_params import (get_chl_for_photosynthesis, get_chl_per_segment,
                                get_prospect_params, log_consistency, log_lops_consistency,
@@ -207,7 +207,9 @@ def run_photosynthesis_solve(plant, sim_time, par, tleaf, label,
     # --- Photosynthesis + phloem model ---
     hm = PhloemFluxPython(plant, params)
     hm.read_photosynthesis_parameters(filename=get_photosynthesis_json())
-    hm.read_phloem_parameters(filename=get_phloem_json())
+    # Do not read phloem JSON here: current Python 3.14 bindings abort in
+    # PhloemFlux.setKrm2(). This solve only consumes hydraulic/photosynthesis
+    # state for An, gs, transpiration, and psi_leaf.
 
     # Override Chl from LOPS per-position profiles (per-segment mode)
     chl_per_seg = get_chl_per_segment(sim_time, plant)
@@ -228,7 +230,10 @@ def run_photosynthesis_solve(plant, sim_time, par, tleaf, label,
     # --- Soil water potential ---
     if soil_psi_provider is None:
         from ..hydraulics.soil_psi import FixedSoilPsi
-        soil_psi_provider = FixedSoilPsi(psi_cm=soil_psi_cm)
+        from ..growth.grow import DEFAULT_SOIL_CELL_NUMBER
+        n_default_cells = int(np.prod(DEFAULT_SOIL_CELL_NUMBER))
+        soil_psi_provider = FixedSoilPsi(psi_cm=soil_psi_cm,
+                                         n_cells=n_default_cells)
     n_cells = int(soil_psi_provider.n_cells_total)
     p_s = soil_psi_provider.get_profile(t_days=float(sim_time), depth_cm=n_cells)
 
