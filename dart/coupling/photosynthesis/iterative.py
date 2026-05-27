@@ -28,7 +28,7 @@ import json
 import numpy as np
 from pathlib import Path
 
-from ..config import get_species, get_hydraulics_json, get_photosynthesis_json
+from ..config import get_species, get_hydraulics_json, get_photosynthesis_json, get_phloem_json
 from ..prospect_params import (get_prospect_params, get_prospect_params_per_position,
                                get_chl_per_segment, vcmax25_from_cab)
 from .coupled import run_photosynthesis_solve
@@ -437,8 +437,7 @@ def _extract_gs_from_solve(plant, sim_time, par_umol, tleaf, rh, soil_psi_cm,
 
     hm = PhloemFluxPython(plant, params)
     hm.read_photosynthesis_parameters(filename=get_photosynthesis_json())
-    # Keep this photosynthesis-only solve off read_phloem_parameters(): the
-    # local Python 3.14 binding aborts in PhloemFlux.setKrm2().
+    hm.read_phloem_parameters(filename=get_phloem_json())
 
     # Per-segment Chl from LOPS profiles
     chl_per_seg = get_chl_per_segment(sim_time, plant)

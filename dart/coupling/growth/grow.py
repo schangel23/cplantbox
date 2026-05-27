@@ -25,7 +25,7 @@ import argparse
 
 import plantbox as pb
 
-from ..config import HYDRAULICS_PATH, DEFAULT_XML, get_hydraulics_json, get_photosynthesis_json
+from ..config import HYDRAULICS_PATH, DEFAULT_XML, get_hydraulics_json, get_photosynthesis_json, get_phloem_json
 from ..geometry import loft_organs, G3Mesh, extract_organs_for_lofter
 from ..geometry.cplantbox_adapter import get_plantsim_feature_kwargs_from_env
 from ..prospect_params import get_chl_per_segment, vcmax25_from_cab
@@ -644,8 +644,7 @@ def run_photosynthesis(plant, sim_time, output_prefix,
     # --- Photosynthesis + phloem model ---
     hm = PhloemFluxPython(plant, params)
     hm.read_photosynthesis_parameters(filename=get_photosynthesis_json())
-    # Photosynthesis-only path; avoid read_phloem_parameters() because the
-    # current local Python 3.14 binding aborts in PhloemFlux.setKrm2().
+    hm.read_phloem_parameters(filename=get_phloem_json())
 
     # Per-segment Chl from LOPS per-position profiles
     chl_per_seg = get_chl_per_segment(sim_time, plant)
