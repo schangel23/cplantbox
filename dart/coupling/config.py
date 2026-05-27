@@ -19,7 +19,9 @@ OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
 
 # External tool paths — override via environment variables
 DART_HOME = Path(os.environ.get("DART_HOME", "/home/lukas/DART"))
-DART_EB_DIR = DART_HOME / "bin" / "python_script" / "dart-eb-main"
+DART_EB_DIR = Path(os.environ.get(
+    "DART_EB_DIR", str(DART_HOME / "bin" / "python_script" / "BALENO")
+))
 DARTRC = Path(os.environ.get("DARTRC", str(Path.home() / ".dartrcv1457")))
 BALENO_PYTHON = Path(os.environ.get(
     "BALENO_PYTHON", "/home/lukas/PHD/darteb_venv/bin/python3.12"

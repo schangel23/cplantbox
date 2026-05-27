@@ -63,6 +63,45 @@ SW_BANDS = [(0.400 + i * 0.100 + 0.050, 0.100) for i in range(21)]
 
 # Thermal band: single band at 10 µm (8-12 µm window)
 TIR_BAND = (10.0, 4.0)  # center 10 µm, bandwidth 4 µm
+EXTERNAL_GS_PLUGIN = "PhotosynthesisExternalGS"
+
+
+def make_baleno_vegetation_config(plugin, model, vcmax25, photo_type,
+                                  rd_per_vcmax25, ball_berry_slope=8,
+                                  ball_berry0=0.01):
+    """Build new-Baleno vegetation.json5 content."""
+    return {
+        "Plugin": plugin,
+        "Model": model,
+        "Vcmax25": round(float(vcmax25), 1),
+        "BallBerrySlope": ball_berry_slope,
+        "BallBerry0": ball_berry0,
+        "RdPerVcmax25": rd_per_vcmax25,
+        "Type": photo_type,
+        "stress_factor": 1,
+    }
+
+
+def make_baleno_radiation_config(cab, n, base_prospect, fqe=0.01):
+    """Build new-Baleno radiation.json5 content with optical parameters."""
+    return {
+        "Plugin": "DART",
+        "Model": "DART",
+        "PAR_min": 0.400,
+        "PAR_max": 0.700,
+        "Cab": round(float(cab), 1),
+        "Cca": 10,
+        "Cs": 0,
+        "Cw": base_prospect["Cw"],
+        "Cdm": base_prospect["Cm"],
+        "N": round(float(n), 2),
+        "fqe": fqe,
+        "Cant": 0,
+        "Cbc": 0,
+        "Cp": 0,
+        "rho_thermal": 0.01,
+        "tau_thermal": 0.01,
+    }
 
 
 # ============================================================================
@@ -777,7 +816,12 @@ def _create_simu_II(simu_I, dart_simu_name, reindex_json_path):
         group_name = reindex['group_names'][gi] if gi < len(reindex['group_names']) else f'group_{gi}'
         n_tris = len(obj_indices)
         np.savetxt(str(input_dir / f'temperature_{group_name}.txt'),
-                   np.full(n_tris, 298.15), fmt='%.2f')
+                   np.full(n_tris, 298.15), fmt='%.18e')
+
+    total_tris = sum(len(v) for v in reindex.get('dart_to_obj', {}).values())
+    if total_tris > 0:
+        np.savetxt(str(input_dir / 'temperaturesPerTriangle.txt'),
+                   np.full(total_tris, 298.15), fmt='%.18e')
 
     # Clean output
     output_dir = simu_II_dir / 'output'
@@ -809,20 +853,11 @@ def _create_baleno_configs(baleno_simu_name, dart_simu_name):
     _mean_cab = float(_np.mean([p["Cab"] for p in _per_pos]))
     _mean_n = float(_np.mean([p["N"] for p in _per_pos]))
     _base_p = get_prospect_params(55)
-    write_json5(input_dir / 'vegetation.json5', {
-        "Plugin": "BiochemicalSCOPE", "Model": "VegetationSCOPE",
-        "PAR_min": 0.400, "PAR_max": 0.700,
-        "Cab": round(_mean_cab, 1), "Cca": 10, "Cs": 0,
-        "Cw": _base_p["Cw"], "Cdm": _base_p["Cm"],
-        "N": round(_mean_n, 2), "fqe": 0.01,
-        "Vcmax25": round(vcmax25_from_cab(_mean_cab), 1),
-        "BallBerrySlope": 8,
-        "BallBerry0": 0.01,
-        "RdPerVcmax25": get_species()["rd_per_vcmax25"],
-        "Type": get_species()["photo_type"],
-        "rho_thermal": 0.01, "tau_thermal": 0.01, "stress_factor": 1,
-    })
-    write_json5(input_dir / 'radiation.json5', {"Plugin": "DART", "Model": "DART"})
+    write_json5(input_dir / 'vegetation.json5', make_baleno_vegetation_config(
+        "PhotosynthesisBVT", "VanDerTol", vcmax25_from_cab(_mean_cab),
+        get_species()["photo_type"], get_species()["rd_per_vcmax25"]))
+    write_json5(input_dir / 'radiation.json5', make_baleno_radiation_config(
+        _mean_cab, _mean_n, _base_p, fqe=0.01))
     write_json5(input_dir / 'scene.json5', {"Plugin": "DART", "scene_reader": "DARTSceneTriangleReader"})
     write_json5(input_dir / 'soil.json5', {
         "Plugin": "SoilMod", "Model": "KustasModel",
@@ -857,7 +892,7 @@ def _create_baleno_configs(baleno_simu_name, dart_simu_name):
         "Compute_Rn1": True, "Compute_broadband": True,
         "Compute_APAR": True, "Compute_Rn2": True,
     })
-    write_json5(plugins_dir / 'BiochemicalSCOPE_input.json5', {
+    write_json5(plugins_dir / 'PhotosynthesisBVT_input.json5', {
         "Kn0": 2.48, "Knalpha": 2.83, "Knbeta": 0.114,
         "g_m": "Not computed", "kV": 0.6396, "apply_T_correction": True,
     })
@@ -1368,12 +1403,12 @@ def read_baleno_outputs_multi(baleno_sim_dir, mapping_json_paths,
                                       delimiter=delimiter, dtype=float,
                                       filling_values=np.nan)
             for i, h in enumerate(veg_header):
-                if 'fluorescence' in h.lower():
+                if h.strip().lower() == 'eta' or 'fluorescence' in h.lower():
                     col_eta = i
                 if 'net photosynthesis' in h.lower():
                     col_an_veg = i
             if col_eta < 0:
-                col_eta = 6  # default FLUORESCENCE column index
+                col_eta = 6  # default Eta column index
 
     # Build per-plant reindex
     per_plant_dart_to_obj = {}
@@ -1562,6 +1597,45 @@ def read_baleno_outputs_multi(baleno_sim_dir, mapping_json_paths,
     return result
 
 
+def extract_baleno_eta(baleno_sim_dir):
+    """Return flat per-scene-triangle eta from new Baleno vegetation_3D.csv."""
+    results_dir = Path(baleno_sim_dir) / 'output' / 'final_results'
+    veg_file = results_dir / 'vegetation_3D.csv'
+    if not veg_file.exists():
+        raise FileNotFoundError(f"vegetation_3D.csv not found: {veg_file}")
+    delimiter = detect_delimiter(veg_file)
+    with open(veg_file) as f:
+        header = [h.strip() for h in f.readline().strip().split(delimiter)]
+    data = np.genfromtxt(str(veg_file), skip_header=1, delimiter=delimiter,
+                         dtype=float, filling_values=np.nan)
+    if data.ndim == 1:
+        data = data.reshape(1, -1)
+    col_eta = -1
+    for i, h in enumerate(header):
+        if h.strip().lower() == 'eta':
+            col_eta = i
+            break
+    if col_eta < 0:
+        for i, h in enumerate(header):
+            if 'fluorescence' in h.lower():
+                col_eta = i
+                break
+    if col_eta < 0:
+        col_eta = 6
+    if col_eta >= data.shape[1]:
+        raise ValueError(f"Eta column {col_eta} outside vegetation data shape {data.shape}")
+    return np.nan_to_num(data[:, col_eta], nan=0.0).astype(np.float64)
+
+
+def write_baleno_eta_file(baleno_sim_dir, output_path):
+    """Extract eta from Baleno and write the existing DART-F eta file format."""
+    from .dart_f import write_eta_file
+
+    eta = extract_baleno_eta(baleno_sim_dir)
+    write_eta_file(output_path, eta)
+    return eta
+
+
 def read_baleno_tleaf_multi(baleno_sim_dir, mapping_json_paths,
                              reindex_json_paths, n_plants,
                              tair_c=None, apar_shaded_threshold=10.0):
@@ -1727,24 +1801,17 @@ def run_baleno_with_external_gs(gs_per_segment, mapping_json_path,
     _mean_n = float(_np.mean([p["N"] for p in _per_pos]))
     _base_p = get_prospect_params(55)
     input_dir = Path(baleno_sim_dir) / 'input'
-    write_json5(input_dir / 'vegetation.json5', {
-        "Plugin": "ExternalGS",
-        "Model": "VegetationExternalGS",
-        "PAR_min": 0.400, "PAR_max": 0.700,
-        "Cab": round(_mean_cab, 1), "Cca": 10, "Cs": 0,
-        "Cw": _base_p["Cw"], "Cdm": _base_p["Cm"],
-        "N": round(_mean_n, 2), "fqe": 0.01,
-        "Vcmax25": round(vcmax25_from_cab(_mean_cab), 1),
-        "BallBerrySlope": 8, "BallBerry0": 0.01,
-        "RdPerVcmax25": get_species()["rd_per_vcmax25"],
-        "Type": get_species()["photo_type"],
-        "rho_thermal": 0.01, "tau_thermal": 0.01, "stress_factor": 1,
-    })
+    write_json5(input_dir / 'vegetation.json5', make_baleno_vegetation_config(
+        EXTERNAL_GS_PLUGIN, "VegetationExternalGS",
+        vcmax25_from_cab(_mean_cab), get_species()["photo_type"],
+        get_species()["rd_per_vcmax25"]))
+    write_json5(input_dir / 'radiation.json5', make_baleno_radiation_config(
+        _mean_cab, _mean_n, _base_p, fqe=0.01))
 
     # Write plugin-specific input
     plugins_dir = input_dir / 'plugins'
     plugins_dir.mkdir(parents=True, exist_ok=True)
-    write_json5(plugins_dir / 'ExternalGS_input.json5', {
+    write_json5(plugins_dir / f'{EXTERNAL_GS_PLUGIN}_input.json5', {
         "gs_file": str(gs_csv_path),
         "fallback_rcw": 100.0,
         "Vcmax25": round(vcmax25_from_cab(_mean_cab), 1),

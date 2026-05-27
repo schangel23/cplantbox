@@ -13,8 +13,7 @@ from pathlib import Path
 
 def diagnose(baleno_sim_dir=None):
     if baleno_sim_dir is None:
-        from ..config import DART_HOME
-        DART_EB_DIR = DART_HOME / "bin" / "python_script" / "dart-eb-main"
+        from ..config import DART_EB_DIR
         # Find most recent Baleno sim
         user_data = DART_EB_DIR / 'user_data' / 'simulations'
         if not user_data.exists():

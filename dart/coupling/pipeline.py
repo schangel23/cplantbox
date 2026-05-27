@@ -270,7 +270,10 @@ class PipelineRunner:
                     cfg_mod.DEFAULT_CO2_PPM = site_cfg["co2_ppm"]
             if c.dart_home:
                 cfg_mod.DART_HOME = Path(c.dart_home)
-                cfg_mod.DART_EB_DIR = cfg_mod.DART_HOME / "bin" / "python_script" / "dart-eb-main"
+                cfg_mod.DART_EB_DIR = Path(os.environ.get(
+                    "DART_EB_DIR",
+                    str(cfg_mod.DART_HOME / "bin" / "python_script" / "BALENO"),
+                ))
             if c.dartrc:
                 cfg_mod.DARTRC = Path(c.dartrc)
             if c.baleno_python:

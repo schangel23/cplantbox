@@ -123,7 +123,7 @@ def segment_gs_to_triangle_gs(gs_per_segment, mapping_json_path,
 
 
 def write_triangle_gs_csv(rcw_per_triangle, output_path):
-    """Write per-triangle rcw to CSV for ExternalGS plugin.
+    """Write per-triangle rcw to CSV for Baleno's external-gs plugin.
 
     Format: triangle_index,rcw_s_per_m (no header).
     Only writes triangles with rcw < RCW_MAX (i.e., leaf triangles with valid gs).
@@ -187,7 +187,8 @@ def run_iterative_coupling(
     """
     from ..dart.baleno import (
         run_baleno_subprocess, read_baleno_tleaf,
-        BALENO_DIR,
+        BALENO_DIR, EXTERNAL_GS_PLUGIN,
+        make_baleno_radiation_config, make_baleno_vegetation_config,
     )
     from ..dart.parsers import write_json5
     import plantbox as pb
@@ -319,25 +320,17 @@ def run_iterative_coupling(
         mean_n = float(np.mean([p["N"] for p in per_pos]))
         base_p = get_prospect_params(sim_time)
         input_dir = Path(baleno_sim_dir) / 'input'
-        write_json5(input_dir / 'vegetation.json5', {
-            "Plugin": "ExternalGS",
-            "Model": "VegetationExternalGS",
-            "PAR_min": 0.400,
-            "PAR_max": 0.700,
-            "Cab": round(mean_cab, 1), "Cca": 10, "Cs": 0,
-            "Cw": base_p["Cw"], "Cdm": base_p["Cm"],
-            "N": round(mean_n, 2), "fqe": 0.01,
-            "Vcmax25": round(vcmax25_from_cab(mean_cab), 1),
-            "BallBerrySlope": 8, "BallBerry0": 0.01,
-            "RdPerVcmax25": get_species()["rd_per_vcmax25"],
-            "Type": get_species()["photo_type"],
-            "rho_thermal": 0.01, "tau_thermal": 0.01, "stress_factor": 1,
-        })
+        write_json5(input_dir / 'vegetation.json5', make_baleno_vegetation_config(
+            EXTERNAL_GS_PLUGIN, "VegetationExternalGS",
+            vcmax25_from_cab(mean_cab), get_species()["photo_type"],
+            get_species()["rd_per_vcmax25"]))
+        write_json5(input_dir / 'radiation.json5', make_baleno_radiation_config(
+            mean_cab, mean_n, base_p, fqe=0.01))
 
         # Write plugin-specific input with gs_file path
         plugins_dir = input_dir / 'plugins'
         plugins_dir.mkdir(parents=True, exist_ok=True)
-        write_json5(plugins_dir / 'ExternalGS_input.json5', {
+        write_json5(plugins_dir / f'{EXTERNAL_GS_PLUGIN}_input.json5', {
             "gs_file": str(gs_csv_path),
             "fallback_rcw": 100.0,
             "Vcmax25": round(vcmax25_from_cab(mean_cab), 1),
@@ -706,7 +699,8 @@ def run_iterative_coupling_multi(
     """
     from ..dart.baleno import (
         run_baleno_subprocess, read_baleno_tleaf_multi,
-        BALENO_DIR, log_baleno_diagnostics,
+        BALENO_DIR, log_baleno_diagnostics, EXTERNAL_GS_PLUGIN,
+        make_baleno_radiation_config, make_baleno_vegetation_config,
     )
     from ..dart.parsers import write_json5
     import plantbox as pb
@@ -760,22 +754,15 @@ def run_iterative_coupling_multi(
         base_p = get_prospect_params(sim_time)
         input_dir = Path(baleno_sim_dir) / 'input'
         fqe_val = 0.01 if with_sif else 0
-        write_json5(input_dir / 'vegetation.json5', {
-            "Plugin": "ExternalGS",
-            "Model": "VegetationExternalGS",
-            "PAR_min": 0.400, "PAR_max": 0.700,
-            "Cab": round(mean_cab, 1), "Cca": 10, "Cs": 0,
-            "Cw": base_p["Cw"], "Cdm": base_p["Cm"],
-            "N": round(mean_n, 2), "fqe": fqe_val,
-            "Vcmax25": round(vcmax25_from_cab(mean_cab), 1),
-            "BallBerrySlope": 8, "BallBerry0": 0.01,
-            "RdPerVcmax25": get_species()["rd_per_vcmax25"],
-            "Type": get_species()["photo_type"],
-            "rho_thermal": 0.01, "tau_thermal": 0.01, "stress_factor": 1,
-        })
+        write_json5(input_dir / 'vegetation.json5', make_baleno_vegetation_config(
+            EXTERNAL_GS_PLUGIN, "VegetationExternalGS",
+            vcmax25_from_cab(mean_cab), get_species()["photo_type"],
+            get_species()["rd_per_vcmax25"]))
+        write_json5(input_dir / 'radiation.json5', make_baleno_radiation_config(
+            mean_cab, mean_n, base_p, fqe=fqe_val))
         plugins_dir = input_dir / 'plugins'
         plugins_dir.mkdir(parents=True, exist_ok=True)
-        write_json5(plugins_dir / 'ExternalGS_input.json5', {
+        write_json5(plugins_dir / f'{EXTERNAL_GS_PLUGIN}_input.json5', {
             "gs_file": str(gs_csv_path),
             "fallback_rcw": 100.0,
             "Vcmax25": round(vcmax25_from_cab(mean_cab), 1),
@@ -918,28 +905,17 @@ def run_iterative_coupling_multi(
         base_p = get_prospect_params(sim_time)
         input_dir = Path(baleno_sim_dir) / 'input'
         fqe_val = 0.01 if with_sif else 0
-        veg_json = {
-            "Plugin": "ExternalGS",
-            "Model": "VegetationExternalGS",
-            "PAR_min": 0.400, "PAR_max": 0.700,
-            "Cab": round(mean_cab, 1), "Cca": 10, "Cs": 0,
-            "Cw": base_p["Cw"], "Cdm": base_p["Cm"],
-            "N": round(mean_n, 2), "fqe": fqe_val,
-            "Vcmax25": round(vcmax25_from_cab(mean_cab), 1),
-            "BallBerrySlope": 8, "BallBerry0": 0.01,
-            "RdPerVcmax25": get_species()["rd_per_vcmax25"],
-            "Type": get_species()["photo_type"],
-            "rho_thermal": 0.01, "tau_thermal": 0.01, "stress_factor": 1,
-        }
-        if with_sif:
-            veg_json["Kn0"] = 5.01
-            veg_json["Knalpha"] = 1.93
-            veg_json["Knbeta"] = 10.0
+        veg_json = make_baleno_vegetation_config(
+            EXTERNAL_GS_PLUGIN, "VegetationExternalGS",
+            vcmax25_from_cab(mean_cab), get_species()["photo_type"],
+            get_species()["rd_per_vcmax25"])
         write_json5(input_dir / 'vegetation.json5', veg_json)
+        write_json5(input_dir / 'radiation.json5', make_baleno_radiation_config(
+            mean_cab, mean_n, base_p, fqe=fqe_val))
 
         plugins_dir = input_dir / 'plugins'
         plugins_dir.mkdir(parents=True, exist_ok=True)
-        write_json5(plugins_dir / 'ExternalGS_input.json5', {
+        write_json5(plugins_dir / f'{EXTERNAL_GS_PLUGIN}_input.json5', {
             "gs_file": str(gs_csv_path),
             "fallback_rcw": 100.0,
             "Vcmax25": round(vcmax25_from_cab(mean_cab), 1),
