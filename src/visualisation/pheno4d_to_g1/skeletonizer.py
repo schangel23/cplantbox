@@ -83,7 +83,8 @@ def refine_tip_nodes(skeleton, points, direction_window=3, max_lateral_dist=None
 
 
 def laplacian_contraction_skeleton(points, k_neighbors=10, iterations=5,
-                                   contraction_weight=2.0, merge_threshold=None):
+                                   contraction_weight=2.0, merge_threshold=None,
+                                   random_state=0):
     """Extract a 1D skeleton from a point cloud via iterative Laplacian contraction.
 
     Builds a k-NN graph, constructs the uniform umbrella Laplacian, and
@@ -98,6 +99,8 @@ def laplacian_contraction_skeleton(points, k_neighbors=10, iterations=5,
             original positions (higher = less contraction per step)
         merge_threshold: distance below which contracted points are merged
             into a single skeleton node.  Default: median NN distance * 1.5
+        random_state: seed or ``np.random.Generator`` used when subsampling
+            large point clouds.  Use ``None`` for non-deterministic sampling.
 
     Returns:
         np.array([M, 3]) ordered skeleton points from one end to the other
@@ -109,7 +112,11 @@ def laplacian_contraction_skeleton(points, k_neighbors=10, iterations=5,
     # Subsample large clouds for tractable sparse solve
     max_points = 1500
     if n > max_points:
-        idx = np.random.choice(n, max_points, replace=False)
+        if isinstance(random_state, np.random.Generator):
+            rng = random_state
+        else:
+            rng = np.random.default_rng(random_state)
+        idx = np.sort(rng.choice(n, max_points, replace=False))
         points = points[idx]
         n = max_points
 
