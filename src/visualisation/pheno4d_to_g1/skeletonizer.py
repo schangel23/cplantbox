@@ -10,6 +10,25 @@ from scipy.sparse.linalg import spsolve
 from scipy.signal import savgol_filter
 
 
+def _spatial_subsample_indices(points, max_points):
+    """Deterministic farthest-point subsample for branch coverage."""
+    n = len(points)
+    if n <= max_points:
+        return np.arange(n)
+
+    selected = np.empty(max_points, dtype=int)
+    centroid = points.mean(axis=0)
+    selected[0] = int(np.argmin(np.linalg.norm(points - centroid, axis=1)))
+    min_dist2 = np.sum((points - points[selected[0]]) ** 2, axis=1)
+
+    for i in range(1, max_points):
+        selected[i] = int(np.argmax(min_dist2))
+        dist2 = np.sum((points - points[selected[i]]) ** 2, axis=1)
+        min_dist2 = np.minimum(min_dist2, dist2)
+
+    return np.sort(selected)
+
+
 def refine_tip_nodes(skeleton, points, direction_window=3, max_lateral_dist=None):
     """Project terminal skeleton nodes to the point cloud boundary.
 
@@ -84,7 +103,7 @@ def refine_tip_nodes(skeleton, points, direction_window=3, max_lateral_dist=None
 
 def laplacian_contraction_skeleton(points, k_neighbors=10, iterations=5,
                                    contraction_weight=2.0, merge_threshold=None,
-                                   random_state=0):
+                                   random_state=0, subsample_method='spatial'):
     """Extract a 1D skeleton from a point cloud via iterative Laplacian contraction.
 
     Builds a k-NN graph, constructs the uniform umbrella Laplacian, and
@@ -101,6 +120,8 @@ def laplacian_contraction_skeleton(points, k_neighbors=10, iterations=5,
             into a single skeleton node.  Default: median NN distance * 1.5
         random_state: seed or ``np.random.Generator`` used when subsampling
             large point clouds.  Use ``None`` for non-deterministic sampling.
+        subsample_method: ``'spatial'`` keeps deterministic farthest-point
+            coverage of branches; ``'random'`` uses RNG sampling.
 
     Returns:
         np.array([M, 3]) ordered skeleton points from one end to the other
@@ -112,11 +133,18 @@ def laplacian_contraction_skeleton(points, k_neighbors=10, iterations=5,
     # Subsample large clouds for tractable sparse solve
     max_points = 1500
     if n > max_points:
-        if isinstance(random_state, np.random.Generator):
-            rng = random_state
+        if subsample_method == 'spatial':
+            idx = _spatial_subsample_indices(points, max_points)
+        elif subsample_method == 'random':
+            if isinstance(random_state, np.random.Generator):
+                rng = random_state
+            else:
+                rng = np.random.default_rng(random_state)
+            idx = np.sort(rng.choice(n, max_points, replace=False))
         else:
-            rng = np.random.default_rng(random_state)
-        idx = np.sort(rng.choice(n, max_points, replace=False))
+            raise ValueError(
+                "subsample_method must be 'spatial' or 'random'"
+            )
         points = points[idx]
         n = max_points
 

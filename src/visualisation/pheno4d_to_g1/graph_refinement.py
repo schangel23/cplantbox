@@ -255,7 +255,7 @@ def split_overlapping_leaves(G, min_cycle_length=None, junction_merge_distance=5
 # 4. Stem and leaf identification (MonGraphSeg 3d + 3e)
 # ---------------------------------------------------------------------------
 
-def identify_stem_and_leaves(G, start_node):
+def identify_stem_and_leaves(G, start_node, min_split_nodes=5):
     """Identify stem path and individual leaf instances.
 
     For unbranched monocots, the stem is the path from *start_node* to the
@@ -269,6 +269,8 @@ def identify_stem_and_leaves(G, start_node):
     Args:
         G: ``nx.Graph`` (acyclic after :func:`split_overlapping_leaves`).
         start_node: plant base node ID.
+        min_split_nodes: minimum non-stem nodes for an attachment/branch split
+            to become a separate leaf candidate.
 
     Returns:
         stem_path: list of node IDs from base to tip.
@@ -351,11 +353,64 @@ def identify_stem_and_leaves(G, start_node):
                 ),
             )
 
-        ordered = _bfs_order(G_leaves, root, leaf_nodes)
-        leaf_dict[leaf_id] = ordered
-        leaf_id += 1
+        for split_nodes in _split_leaf_component(
+            G_leaves,
+            comp,
+            stem_set,
+            root,
+            min_split_nodes=min_split_nodes,
+        ):
+            ordered = _bfs_order(G_leaves, split_nodes[0], split_nodes)
+            leaf_dict[leaf_id] = ordered
+            leaf_id += 1
 
     return stem_path, leaf_dict
+
+
+def _split_leaf_component(G, component, stem_set, root, min_split_nodes=5):
+    """Split a non-stem component by stem attachments or root branches."""
+    component = set(component)
+    junctions = sorted(component & stem_set)
+
+    if len(junctions) > 1:
+        groups = {junction: [junction] for junction in junctions}
+        for node in component - stem_set:
+            best_junction = None
+            best_distance = float("inf")
+            for junction in junctions:
+                try:
+                    distance = nx.shortest_path_length(
+                        G,
+                        junction,
+                        node,
+                        weight="weight",
+                    )
+                except nx.NetworkXNoPath:
+                    continue
+                if distance < best_distance:
+                    best_distance = distance
+                    best_junction = junction
+            if best_junction is not None:
+                groups[best_junction].append(node)
+
+        split = [
+            nodes for nodes in groups.values()
+            if len(set(nodes) - stem_set) >= min_split_nodes
+        ]
+        if split:
+            return split
+
+    if root in component and G.degree(root) > 1:
+        sub = G.subgraph(component).copy()
+        sub.remove_node(root)
+        split = []
+        for branch in nx.connected_components(sub):
+            if len(branch - stem_set) >= min_split_nodes:
+                split.append([root] + list(branch))
+        if len(split) > 1:
+            return split
+
+    return [list(component)]
 
 
 def _bfs_order(G, root, node_subset):
@@ -509,3 +564,80 @@ def segment_point_cloud(points, skeleton_points, stem_path, leaf_dict):
     labels = labeled_labels[nearest_idx]
 
     return labels
+
+
+def export_graph_diagnostics(G, output_path, stem_path=None, leaf_dict=None):
+    """Export a skeleton graph with labels as ASCII PLY for inspection.
+
+    The PLY contains graph vertices and edge elements.  Vertex properties
+    include node ID, label, connected-component ID, degree, and radial
+    distance from the graph XY centroid.  Labels are: 0 = unassigned,
+    1 = stem, 2+ = leaf candidates.
+    """
+    positions = nx.get_node_attributes(G, "pos")
+    node_label = {node: 0 for node in G.nodes()}
+
+    if stem_path:
+        for node in stem_path:
+            if node in node_label:
+                node_label[node] = 1
+
+    if leaf_dict:
+        for leaf_id, nodes in leaf_dict.items():
+            for node in nodes:
+                if node in node_label and node_label[node] == 0:
+                    node_label[node] = leaf_id + 1
+
+    component_id = {}
+    for cid, component in enumerate(nx.connected_components(G), start=1):
+        for node in component:
+            component_id[node] = cid
+
+    node_ids = list(G.nodes())
+    node_index = {node: i for i, node in enumerate(node_ids)}
+    xy_centroid = np.array([positions[node][:2] for node in node_ids]).mean(axis=0)
+
+    with open(output_path, "w", encoding="utf-8") as handle:
+        handle.write("ply\n")
+        handle.write("format ascii 1.0\n")
+        handle.write("element vertex %d\n" % len(node_ids))
+        handle.write("property float x\n")
+        handle.write("property float y\n")
+        handle.write("property float z\n")
+        handle.write("property int node_id\n")
+        handle.write("property int label\n")
+        handle.write("property int component_id\n")
+        handle.write("property int degree\n")
+        handle.write("property float radial_cm\n")
+        handle.write("element edge %d\n" % G.number_of_edges())
+        handle.write("property int vertex1\n")
+        handle.write("property int vertex2\n")
+        handle.write("property float weight\n")
+        handle.write("end_header\n")
+
+        for node in node_ids:
+            pos = positions[node]
+            radial = np.linalg.norm(pos[:2] - xy_centroid)
+            handle.write(
+                "%.8f %.8f %.8f %d %d %d %d %.8f\n"
+                % (
+                    pos[0],
+                    pos[1],
+                    pos[2],
+                    node,
+                    node_label[node],
+                    component_id[node],
+                    G.degree(node),
+                    radial,
+                )
+            )
+
+        for u, v, data in G.edges(data=True):
+            handle.write(
+                "%d %d %.8f\n"
+                % (
+                    node_index[u],
+                    node_index[v],
+                    data.get("weight", 0.0),
+                )
+            )
