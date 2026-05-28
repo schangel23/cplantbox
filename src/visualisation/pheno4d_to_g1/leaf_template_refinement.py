@@ -28,17 +28,26 @@ except ImportError:  # direct file loading in diagnostics
 
 
 def segment_by_leaf_templates(points, axis=None, n_axis_slices=80,
-                              inner_percentile=60, n_detect_slices=50,
-                              dbscan_eps_rad=0.45, dbscan_min_samples=8,
+                              inner_percentile=60, n_detect_slices=120,
+                              dbscan_eps_rad=0.25, dbscan_min_samples=4,
                               link_tolerance_rad=0.45,
-                              min_track_z_span=3.0,
-                              min_track_points=100,
+                              min_track_z_span=1.5,
+                              min_track_points=30,
                               tight_tolerance_rad=0.45,
                               core_fraction=0.15,
-                              min_leaf_points=200,
-                              min_leaf_z_range=3.0,
+                              min_leaf_points=80,
+                              min_leaf_z_range=1.5,
                               return_debug=False):
     """Segment a maize crop by track-derived leaf templates.
+
+    Defaults are tuned for cross-row-clipped FP4D crops (≈5 k pts / plant,
+    cf. :func:`loader.crop_plant_window` with ``cross_row_window_cm``). On
+    Plot04/230621 centre[9] these defaults recover 5 leaf candidates (3 of
+    which fit NURBS at <10 mm RMS) instead of 2 with the prior preset.
+    The previous noisier preset was tuned for crops that included ~60 % of
+    cross-row floor; pass ``n_detect_slices=50, dbscan_eps_rad=0.45,
+    dbscan_min_samples=8, min_track_points=100, min_track_z_span=3.0,
+    min_leaf_points=200, min_leaf_z_range=3.0`` to restore that behaviour.
 
     Args:
         points: ``(N, 3)`` point cloud in cm.
