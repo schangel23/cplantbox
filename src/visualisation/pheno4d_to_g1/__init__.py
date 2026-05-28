@@ -26,3 +26,9 @@ from .graph_refinement import (
     export_graph_diagnostics,
 )
 from .leaf_template_refinement import segment_by_leaf_templates, write_labelled_xyz
+from .geodesic_assignment import (
+    assign_points_geodesic,
+    leaf_quality_gate,
+    build_knn_graph,
+)
+from .nurbs_leaf_fit import fit_leaf_nurbs_surface, nrbeval_grid, to_nurbs_patch

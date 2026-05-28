@@ -17,6 +17,10 @@ try:
         identify_leaves,
         assign_all_points,
     )
+    from .geodesic_assignment import (
+        assign_points_geodesic,
+        leaf_quality_gate,
+    )
 except ImportError:  # direct file loading in diagnostics
     from segmenter import (  # type: ignore
         estimate_virtual_axis,
@@ -24,6 +28,10 @@ except ImportError:  # direct file loading in diagnostics
         detect_blade_clusters_fullheight,
         identify_leaves,
         assign_all_points,
+    )
+    from geodesic_assignment import (  # type: ignore
+        assign_points_geodesic,
+        leaf_quality_gate,
     )
 
 
@@ -38,6 +46,15 @@ def segment_by_leaf_templates(points, axis=None, n_axis_slices=80,
                               core_fraction=0.15,
                               min_leaf_points=80,
                               min_leaf_z_range=1.5,
+                              assignment="geodesic",
+                              knn_k=10,
+                              knn_max_edge_cm=3.0,
+                              knn_core_percentile=35,
+                              knn_tip_reach_cm=10.0,
+                              apply_quality_gate=True,
+                              gate_max_zspan_frac=0.6,
+                              gate_max_verticality=0.995,
+                              gate_min_elongation=1.6,
                               return_debug=False):
     """Segment a maize crop by track-derived leaf templates.
 
@@ -105,24 +122,64 @@ def segment_by_leaf_templates(points, axis=None, n_axis_slices=80,
     )
     leaves = identify_leaves(tracks)
 
-    labels = assign_all_points(
-        points,
-        r,
-        theta,
-        z_proj,
-        leaves,
-        n_z_slices=n_axis_slices,
-        core_fraction=core_fraction,
-        tight_tolerance_rad=tight_tolerance_rad,
-        min_leaf_points=min_leaf_points,
-        min_leaf_z_range=min_leaf_z_range,
-    )
+    if assignment == "geodesic":
+        # MonGraphSeg Section 4 spirit: geodesic nearest-instance over a kNN
+        # graph, seeded from the blade tracks + pseudostem core. Respects blade
+        # connectivity, so a low leaf can no longer absorb the vertical column
+        # above it (the failure mode of the slice-wise angular assignment).
+        labels = assign_points_geodesic(
+            points, tracks, r, z_proj,
+            k=knn_k,
+            max_edge_cm=knn_max_edge_cm,
+            core_percentile=knn_core_percentile,
+            tip_reach_cm=knn_tip_reach_cm,
+        )
+    elif assignment == "angular":
+        labels = assign_all_points(
+            points,
+            r,
+            theta,
+            z_proj,
+            leaves,
+            n_z_slices=n_axis_slices,
+            core_fraction=core_fraction,
+            tight_tolerance_rad=tight_tolerance_rad,
+            min_leaf_points=min_leaf_points,
+            min_leaf_z_range=min_leaf_z_range,
+        )
+    else:
+        raise ValueError(f"unknown assignment backend: {assignment!r}")
+
+    labels = np.asarray(labels, dtype=int)
+    plant_height = float(np.ptp(points[:, 2]))
+    median_r = float(np.median(r))
 
     organs = {"stem": points[labels == 0]}
     active_labels = sorted(set(labels) - {0})
     diagnostics = []
-    for out_id, label in enumerate(active_labels, start=1):
+    rejected = []
+    out_id = 0
+    for label in active_labels:
         leaf_points = points[labels == label]
+        if apply_quality_gate:
+            leaf_max_r = float(r[labels == label].max())
+            keep, reason, metrics = leaf_quality_gate(
+                leaf_points, plant_height,
+                min_points=min_leaf_points,
+                max_zspan_frac=gate_max_zspan_frac,
+                max_verticality=gate_max_verticality,
+                min_elongation=gate_min_elongation,
+                leaf_max_r_cm=leaf_max_r,
+                median_plant_r_cm=median_r,
+            )
+            if not keep:
+                # rejected candidates fold back into the stem bucket
+                organs["stem"] = np.vstack([organs["stem"], leaf_points])
+                labels[labels == label] = 0
+                rejected.append({"label": int(label), "reason": reason,
+                                 "metrics": metrics})
+                continue
+        out_id += 1
         name = f"leaf_{out_id}"
         organs[name] = leaf_points
         diagnostics.append(_leaf_template_diagnostics(name, leaf_points))
@@ -140,6 +197,8 @@ def segment_by_leaf_templates(points, axis=None, n_axis_slices=80,
         "leaves": leaves,
         "labels": labels,
         "diagnostics": diagnostics,
+        "rejected": rejected,
+        "assignment": assignment,
     }
     return organs, debug
 
