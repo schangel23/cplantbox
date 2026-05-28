@@ -33,6 +33,25 @@ def _circular_distance(a, b):
     return np.abs(np.arctan2(np.sin(d), np.cos(d)))
 
 
+def _angle_at_z(z_value, z_profile, angle_profile):
+    """Interpolate a circular angle profile at one height."""
+    if len(z_profile) == 0:
+        raise ValueError("angle profile must not be empty")
+    if len(z_profile) == 1:
+        return float(angle_profile[0])
+
+    order = np.argsort(z_profile)
+    z_sorted = np.asarray(z_profile, dtype=float)[order]
+    angles_sorted = np.unwrap(np.asarray(angle_profile, dtype=float)[order])
+    angle = np.interp(z_value, z_sorted, angles_sorted)
+    return float(np.arctan2(np.sin(angle), np.cos(angle)))
+
+
+def _track_angle_at_z(track, z_value):
+    """Evaluate one detected track's angular profile at ``z_value``."""
+    return _angle_at_z(z_value, track['angle_z'], track['angle_theta'])
+
+
 def _circular_dbscan(angles, eps_rad=0.5, min_samples=10):
     """DBSCAN clustering on circular angles.
 
@@ -204,6 +223,7 @@ def detect_blade_clusters_fullheight(points, r, theta, z_proj,
                                      dbscan_eps_rad=0.6,
                                      dbscan_min_samples=8,
                                      link_tolerance_rad=0.5,
+                                     max_fragment_merge_gap_cm=10.0,
                                      min_leaf_z_span=1.0,
                                      min_leaf_points=100):
     """Detect leaf blade clusters by scanning all Z-levels.
@@ -301,6 +321,7 @@ def detect_blade_clusters_fullheight(points, r, theta, z_proj,
                 track['z_max'] = cl['z_mid']
                 # Update angle with running mean
                 track['all_angles'].append(cl['angle'])
+                track['all_z_mids'].append(cl['z_mid'])
                 track['current_angle'] = _circular_mean(
                     np.array(track['all_angles']))
                 track['gap_count'] = 0
@@ -322,6 +343,7 @@ def detect_blade_clusters_fullheight(points, r, theta, z_proj,
                 active_tracks.append({
                     'current_angle': cl['angle'],
                     'all_angles': [cl['angle']],
+                    'all_z_mids': [cl['z_mid']],
                     'all_indices': [cl['indices']],
                     'n_points': cl['n_points'],
                     'z_min': cl['z_mid'],
@@ -339,33 +361,67 @@ def detect_blade_clusters_fullheight(points, r, theta, z_proj,
             all_idx = np.concatenate(track['all_indices']) if track['all_indices'] else np.array([], dtype=int)
             leaf_tracks.append({
                 'angle': _circular_mean(np.array(track['all_angles'])),
+                'angle_z': np.array(track['all_z_mids'], dtype=float),
+                'angle_theta': np.array(track['all_angles'], dtype=float),
                 'z_min': track['z_min'],
                 'z_max': track['z_max'],
                 'n_points': track['n_points'],
                 'indices': all_idx,
             })
 
-    # Sort by z_min (lowest insertion first)
-    leaf_tracks.sort(key=lambda t: t['z_min'])
+    return _merge_contiguous_track_fragments(
+        leaf_tracks,
+        max_gap_cm=max_fragment_merge_gap_cm,
+        angle_tolerance_rad=link_tolerance_rad,
+    )
 
-    # Merge tracks with very similar angles (< 30 deg) — likely same leaf
+
+def _merge_contiguous_track_fragments(tracks, max_gap_cm=3.0,
+                                      angle_tolerance_rad=0.5):
+    """Merge same-leaf fragments without collapsing repeated phyllotaxis.
+
+    Maize leaves from different ranks can share a similar mean azimuth, so a
+    global same-angle merge is unsafe.  This only joins fragments when their
+    height ranges are contiguous and their endpoint angles agree.
+    """
+    if not tracks:
+        return []
+
+    pending = sorted(tracks, key=lambda t: (t['z_min'], t['z_max']))
     merged = []
-    for track in leaf_tracks:
-        matched = False
-        for mt in merged:
-            if _circular_distance(track['angle'], mt['angle']) < 0.52:  # ~30 deg
-                # Merge
-                mt['indices'] = np.concatenate([mt['indices'], track['indices']])
-                mt['n_points'] += track['n_points']
-                mt['z_min'] = min(mt['z_min'], track['z_min'])
-                mt['z_max'] = max(mt['z_max'], track['z_max'])
-                mt['angle'] = _circular_mean(
-                    np.array([mt['angle'], track['angle']]))
-                matched = True
-                break
-        if not matched:
-            merged.append(track)
 
+    for track in pending:
+        best_i = None
+        best_gap = max_gap_cm
+
+        for i, existing in enumerate(merged):
+            gap = track['z_min'] - existing['z_max']
+            if gap < -1e-8 or gap > max_gap_cm:
+                continue
+
+            z_join = 0.5 * (track['z_min'] + existing['z_max'])
+            d = _circular_distance(
+                _track_angle_at_z(existing, z_join),
+                _track_angle_at_z(track, z_join),
+            )
+            if d <= angle_tolerance_rad and gap <= best_gap:
+                best_i = i
+                best_gap = gap
+
+        if best_i is None:
+            merged.append(track.copy())
+            continue
+
+        existing = merged[best_i]
+        existing['indices'] = np.concatenate([existing['indices'], track['indices']])
+        existing['n_points'] += track['n_points']
+        existing['z_min'] = min(existing['z_min'], track['z_min'])
+        existing['z_max'] = max(existing['z_max'], track['z_max'])
+        existing['angle_z'] = np.concatenate([existing['angle_z'], track['angle_z']])
+        existing['angle_theta'] = np.concatenate([existing['angle_theta'], track['angle_theta']])
+        existing['angle'] = _circular_mean(existing['angle_theta'])
+
+    merged.sort(key=lambda t: t['z_min'])
     return merged
 
 
@@ -397,6 +453,8 @@ def identify_leaves(tracks):
         leaves.append({
             'leaf_id': i + 1,
             'angle': track['angle'],
+            'angle_z': track.get('angle_z', np.array([track['z_min'], track['z_max']])),
+            'angle_theta': track.get('angle_theta', np.array([track['angle'], track['angle']])),
             'z_min': track['z_min'],
             'z_max': track['z_max'],
             'n_points': track['n_points'],
@@ -431,7 +489,6 @@ def assign_all_points(points, r, theta, z_proj, leaves,
     if n_leaves == 0:
         return labels
 
-    leaf_angles = np.array([lf['angle'] for lf in leaves])
     leaf_z_mins = np.array([lf['z_min'] for lf in leaves])
 
     # Pre-assign tracked blade points
@@ -446,9 +503,6 @@ def assign_all_points(points, r, theta, z_proj, leaves,
     z_edges = np.linspace(z_max, z_min, n_z_slices + 1)
 
     wide_tolerance = np.pi / max(n_leaves, 1)
-
-    # Track current angular centers per leaf (updated slice-by-slice)
-    current_angles = leaf_angles.copy()
 
     for zi in range(n_z_slices):
         z_hi = z_edges[zi]
@@ -476,7 +530,10 @@ def assign_all_points(points, r, theta, z_proj, leaves,
             continue
 
         active_ids = np.where(active)[0]
-        active_angles = current_angles[active]
+        active_angles = np.array([
+            _angle_at_z(slice_z_mid, leaves[li]['angle_z'], leaves[li]['angle_theta'])
+            for li in active_ids
+        ])
 
         for j, idx in enumerate(slice_indices):
             pt_r = slice_r[j]
@@ -499,13 +556,6 @@ def assign_all_points(points, r, theta, z_proj, leaves,
             else:
                 if min_dist < wide_tolerance:
                     labels[idx] = best_leaf_id + 1
-
-        # Update angular centers from all assigned points in this slice
-        all_slice = (z_proj <= z_hi) & (z_proj > z_lo)
-        for li in range(n_leaves):
-            leaf_mask = all_slice & (labels == li + 1)
-            if leaf_mask.sum() >= 5:
-                current_angles[li] = _circular_mean(theta[leaf_mask])
 
     # Post-process: filter small/thin leaves
     for li in range(n_leaves):
