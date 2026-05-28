@@ -143,6 +143,23 @@ def remove_ground_nodes(G, angle_threshold_deg=50):
             return G_plant, None
         start_node = min(G_plant.nodes(), key=lambda n: positions[n][2])
 
+    # FP4D skeleton graphs can remain disconnected after low ground nodes are
+    # removed.  In that case, the first vertical edge may belong to a small
+    # basal side component; start stem tracing in the component with the
+    # largest vertical span instead.
+    components = list(nx.connected_components(G_plant))
+    if len(components) > 1:
+        def z_span(component):
+            z_vals = [positions[n][2] for n in component]
+            return max(z_vals) - min(z_vals)
+
+        main_component = max(components, key=z_span)
+        current_component = next(
+            component for component in components if start_node in component
+        )
+        if z_span(main_component) > z_span(current_component) + 1e-6:
+            start_node = min(main_component, key=lambda n: positions[n][2])
+
     return G_plant, start_node
 
 
@@ -150,7 +167,7 @@ def remove_ground_nodes(G, angle_threshold_deg=50):
 # 3. Overlapping leaf splitting (MonGraphSeg 3c)
 # ---------------------------------------------------------------------------
 
-def split_overlapping_leaves(G, min_cycle_length=50, junction_merge_distance=5.0):
+def split_overlapping_leaves(G, min_cycle_length=None, junction_merge_distance=5.0):
     """Resolve cycles created by overlapping / touching leaves.
 
     When two leaves overlap in 3D space, the k-NN graph may connect them,
@@ -165,7 +182,9 @@ def split_overlapping_leaves(G, min_cycle_length=50, junction_merge_distance=5.0
     Args:
         G: ``nx.Graph`` (modified in-place).
         min_cycle_length: cycles shorter than this are treated as junction
-            artefacts (edge count).
+            artefacts (edge count).  If ``None``, use an adaptive threshold
+            that keeps the original Pheno4D scale at roughly 50 nodes while
+            allowing compact FP4D skeletons to split at 10-15 node cycles.
         junction_merge_distance: if two cycle-breaking candidate nodes are
             within this distance (cm), merge the operations.
 
@@ -173,6 +192,9 @@ def split_overlapping_leaves(G, min_cycle_length=50, junction_merge_distance=5.0
         G: the same graph object, with cycle-creating edges removed.
     """
     positions = nx.get_node_attributes(G, "pos")
+
+    if min_cycle_length is None:
+        min_cycle_length = max(8, min(50, int(round(0.15 * G.number_of_nodes()))))
 
     # Estimate central stem axis as the vertical line through the XY centroid
     all_pos = np.array([positions[n] for n in G.nodes()])
