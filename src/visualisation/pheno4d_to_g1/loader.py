@@ -1,4 +1,11 @@
-"""Load Pheno4D .txt point clouds and separate by organ label."""
+"""Load Pheno4D .txt point clouds and separate by organ label.
+
+Also supports FieldPheno4D-style LAS field scans via ``load_las`` and
+``separate_plants_along_row`` — the FP4D laser-triangulation robot scans
+8 m row strips of multiple plants at sub-mm density (LAS 1.2 pf-3 with a
+DEM-normalised ``height`` scalar). The helpers here bridge that format to
+the (N, 3 cm) plant-frame array the rest of the pipeline expects.
+"""
 
 import numpy as np
 
@@ -43,6 +50,114 @@ def load_unlabeled(filepath, soil_margin_cm=0.5):
 
     print(f"[loader] Loaded unlabeled {filepath}: {len(coords):,} plant points")
     return coords
+
+
+def load_las(filepath, height_lo_m=0.10, voxel_m=0.005):
+    """Load a FieldPheno4D-style LAS scan as a row-scale plant cloud in cm.
+
+    The scan is a multi-plant row strip (~2 x 8 m). Returns the full
+    above-ground row in centimetres so callers can split into individual
+    plants via ``separate_plants_along_row``. No centring is applied here —
+    centring is per-plant after splitting.
+
+    Args:
+        filepath: path to .las
+        height_lo_m: drop points with DEM-normalised height below this (m)
+        voxel_m: voxel-downsample to this resolution (m); set to 0 to skip
+
+    Returns:
+        np.array([N, 3]) above-ground points in cm, in the LAS local frame
+        with z centred on min-Z.
+    """
+    import laspy
+    las = laspy.read(filepath)
+    xyz = np.column_stack([np.asarray(las.x, float),
+                           np.asarray(las.y, float),
+                           np.asarray(las.z, float)])
+    dims = set(las.point_format.dimension_names)
+    if 'height' in dims:
+        height = np.asarray(las.height, float)
+    else:
+        height = xyz[:, 2] - np.percentile(xyz[:, 2], 1)
+
+    xyz = xyz[height > height_lo_m]
+    if xyz.shape[0] == 0:
+        raise ValueError(f"No above-ground points in {filepath} at h>{height_lo_m} m")
+
+    # Recentre x, y on the median of the row (preserves intra-row geometry)
+    # and z on min-Z so plant base sits near z=0.
+    xyz[:, 0] -= float(np.median(xyz[:, 0]))
+    xyz[:, 1] -= float(np.median(xyz[:, 1]))
+    xyz[:, 2] -= float(xyz[:, 2].min())
+
+    if voxel_m > 0:
+        mn = xyz.min(0)
+        vidx = np.floor((xyz - mn) / voxel_m).astype(np.int64)
+        _, uniq = np.unique(vidx, axis=0, return_index=True)
+        xyz = xyz[uniq]
+
+    xyz_cm = xyz * 100.0
+    print(f"[loader] LAS {filepath}: {xyz_cm.shape[0]:,} pts (h>{height_lo_m}m, voxel {voxel_m*1000:.0f}mm), cm-frame")
+    return xyz_cm
+
+
+def separate_plants_along_row(points_cm, smoothing_cm=2.0,
+                              min_separation_cm=10.0, min_density=0.2,
+                              base_height_cm=10.0):
+    """Find plant centres along the long row axis from BASE points only.
+
+    Density peak detection on the full canopy is unreliable for monocot rows:
+    splayed leaf tips create false peaks 30-60 cm away from the actual stem
+    they belong to. Stems are vertical and well-localised at the base, so we
+    restrict the density profile to points within ``base_height_cm`` of the
+    ground — that isolates pseudostems / stem columns.
+
+    Returns ``(row_axis, centres_cm)``.
+    """
+    from scipy.ndimage import gaussian_filter1d
+    extents = points_cm.max(0) - points_cm.min(0)
+    row_axis = int(np.argmax(extents[:2]))
+
+    base_mask = points_cm[:, 2] <= base_height_cm
+    if base_mask.sum() < 20:
+        # fall back to full canopy if no base points
+        base_mask = np.ones(points_cm.shape[0], bool)
+    coord = points_cm[base_mask, row_axis]
+
+    lo, hi = coord.min(), coord.max()
+    bin_size_cm = 0.5
+    bins = np.arange(lo, hi + bin_size_cm, bin_size_cm)
+    cnt, edges = np.histogram(coord, bins)
+    smoothed = gaussian_filter1d(cnt.astype(float), smoothing_cm / bin_size_cm)
+    centres_cm = 0.5 * (edges[:-1] + edges[1:])
+
+    sep_bins = max(1, int(min_separation_cm / bin_size_cm))
+    peaks = []
+    thresh = float(smoothed.max()) * min_density
+    for i in range(len(smoothed)):
+        if smoothed[i] < thresh:
+            continue
+        lo_i = max(0, i - sep_bins)
+        hi_i = min(len(smoothed), i + sep_bins + 1)
+        if smoothed[i] == smoothed[lo_i:hi_i].max():
+            peaks.append(centres_cm[i])
+    centres = np.array(sorted(peaks))
+    return row_axis, centres
+
+
+def crop_plant_window(points_cm, row_axis, centre_cm, window_cm=20.0):
+    """Crop a window around ``centre_cm`` along ``row_axis``, then centre on
+    its base (XY at the densest low-Z column, Z at min)."""
+    coord = points_cm[:, row_axis]
+    sel = (coord >= centre_cm - window_cm / 2) & (coord <= centre_cm + window_cm / 2)
+    P = points_cm[sel].copy()
+    if P.shape[0] == 0:
+        return P
+    base_idx = int(np.argmin(P[:, 2]))
+    P[:, 0] -= P[base_idx, 0]
+    P[:, 1] -= P[base_idx, 1]
+    P[:, 2] -= P[base_idx, 2]
+    return P
 
 
 def load_pheno4d(filepath, label_method='collar'):
