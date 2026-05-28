@@ -15,7 +15,7 @@ The companion CLI lives at
 from __future__ import annotations
 import numpy as np
 
-ORGAN_TYPE_CODES = {"stem": 0, "leaf_blade": 1, "leaf_midrib": 2, "tassel": 3, "root": 4}
+ORGAN_TYPE_CODES = {"stem": 0, "leaf_blade": 1, "leaf_midrib": 2, "tassel": 3, "root": 4, "background": 5}
 
 
 def sample_mesh_uniform(vertices, indices, n_points, rng=None):
