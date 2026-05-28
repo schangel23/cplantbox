@@ -123,8 +123,14 @@ def main():
     ap.add_argument("--n", type=int, default=1)
     ap.add_argument("--out", default="/home/lukas/pointr/synth")
     ap.add_argument("--n_complete", type=int, default=16384)
-    ap.add_argument("--day_lo", type=int, default=40)
-    ap.add_argument("--day_hi", type=int, default=80)
+    # Day range calibrated to the real FP4D corn height envelope (measured
+    # 2026-05-28): real h95 spans ~7-83 cm, hmax up to ~104 cm (Plot03 Mirza
+    # Jun1->Jul11; Plot04 Popcorn Jun1->Jun21). Synthetic height-vs-day:
+    # d20->12cm d40->19 d55->29 d70->40 d85->67 d100->168(!) — a sharp bolting
+    # jump at d~90-100. Real plants are all PRE-bolting, so cap at ~92 (~110cm)
+    # to span the real range without off-distribution 1.7-2.3 m plants.
+    ap.add_argument("--day_lo", type=int, default=15)
+    ap.add_argument("--day_hi", type=int, default=92)
     ap.add_argument("--seed0", type=int, default=0)
     ap.add_argument("--viz", action="store_true")
     a = ap.parse_args()
