@@ -19,7 +19,9 @@ from dart.coupling.growth.grow import grow_plant
 from dart.coupling.geometry.cplantbox_adapter import extract_organs_for_lofter
 from dart.coupling.geometry.g1_to_g3 import loft_organs
 
-XML = "dart/coupling/data/maize_calibrated.xml"
+# Default cultivar XML; override with --xml for cultivar-specific generation
+# (e.g. a Mirza or Popcorn-Robust XML fitted via fit_xml_to_pheno4d.py).
+DEFAULT_XML = "dart/coupling/data/maize_calibrated.xml"
 
 
 def sample_mesh(vertices, indices, n):
@@ -121,6 +123,8 @@ def make_partial(complete, rng, vox_cm=0.5, noise_mm=1.0):
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--n", type=int, default=1)
+    ap.add_argument("--xml", default=DEFAULT_XML,
+                    help="cultivar XML (e.g. a Mirza/Popcorn-Robust fit)")
     ap.add_argument("--out", default="/home/lukas/pointr/synth")
     ap.add_argument("--n_complete", type=int, default=16384)
     # Day range calibrated to the real FP4D corn height envelope (measured
@@ -141,7 +145,7 @@ def main():
     for i in range(a.n):
         seed = a.seed0 + i
         day = int(rng.integers(a.day_lo, a.day_hi + 1))
-        plant = grow_plant(XML, simulation_time=day, seed=seed)
+        plant = grow_plant(a.xml, simulation_time=day, seed=seed)
         organs = extract_organs_for_lofter(plant)
         mesh = loft_organs(organs, use_nurbs_backend=True)
         comp = sample_mesh(mesh.vertices, mesh.indices, a.n_complete)
