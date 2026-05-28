@@ -145,14 +145,38 @@ def separate_plants_along_row(points_cm, smoothing_cm=2.0,
     return row_axis, centres
 
 
-def crop_plant_window(points_cm, row_axis, centre_cm, window_cm=20.0):
+def crop_plant_window(points_cm, row_axis, centre_cm, window_cm=20.0,
+                      cross_row_window_cm=None,
+                      cross_row_base_height_cm=5.0):
     """Crop a window around ``centre_cm`` along ``row_axis``, then centre on
-    its base (XY at the densest low-Z column, Z at min)."""
+    its base (XY at the densest low-Z column, Z at min).
+
+    By default only the row axis is clipped. Pass ``cross_row_window_cm`` to
+    also clip the cross-row axis to ``±cross_row_window_cm/2`` around the
+    densest low-Z column — without that, ~150 cm of cross-row width (incl.
+    adjacent rows / mulch) leaks into the crop and dominates the point count.
+    The base column is taken as the median cross-row coordinate of points
+    below ``cross_row_base_height_cm`` (rebased to the post-row-crop minimum
+    Z, so it matches what survives the height_lo_m filter in load_las).
+    """
     coord = points_cm[:, row_axis]
     sel = (coord >= centre_cm - window_cm / 2) & (coord <= centre_cm + window_cm / 2)
     P = points_cm[sel].copy()
     if P.shape[0] == 0:
         return P
+
+    if cross_row_window_cm is not None and cross_row_window_cm > 0:
+        cross = 1 - row_axis  # row_axis is 0 or 1
+        z_floor = float(P[:, 2].min())
+        base_mask = P[:, 2] <= z_floor + cross_row_base_height_cm
+        if base_mask.sum() < 10:
+            base_mask = P[:, 2] <= np.percentile(P[:, 2], 5)
+        base_cross = float(np.median(P[base_mask, cross]))
+        keep = np.abs(P[:, cross] - base_cross) <= cross_row_window_cm / 2
+        P = P[keep]
+        if P.shape[0] == 0:
+            return P
+
     base_idx = int(np.argmin(P[:, 2]))
     P[:, 0] -= P[base_idx, 0]
     P[:, 1] -= P[base_idx, 1]
