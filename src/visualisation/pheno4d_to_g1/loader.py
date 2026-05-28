@@ -54,7 +54,8 @@ def load_unlabeled(filepath, soil_margin_cm=0.5):
 
 def _csf_terrain_normalize(xyz_m, cloth_res_m=0.1, class_threshold_m=0.03,
                            rigidness=3, slope_smooth=True, time_step=0.65,
-                           iterations=500, keep_below_ground_m=0.02):
+                           iterations=500, keep_below_ground_m=0.02,
+                           deterministic=True):
     """Cloth Simulation Filter (Zhang et al. 2016) ground removal + DEM
     normalisation.
 
@@ -79,6 +80,14 @@ def _csf_terrain_normalize(xyz_m, cloth_res_m=0.1, class_threshold_m=0.03,
         (M, 3) non-ground points with column 2 replaced by height-above-ground
         (m); x, y unchanged.
     """
+    if deterministic:
+        # CSF parallelises ground classification with OpenMP; reduction order
+        # then flips points within float-epsilon of class_threshold, so the
+        # ground/non-ground split (and the downstream plant separation) varies
+        # run-to-run. Pinning to one thread makes it bit-reproducible. Must be
+        # set before CSF's first import, hence here (the import is lazy).
+        import os
+        os.environ["OMP_NUM_THREADS"] = "1"
     import CSF
     from scipy.interpolate import LinearNDInterpolator, NearestNDInterpolator
 
