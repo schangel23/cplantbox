@@ -52,7 +52,74 @@ def load_unlabeled(filepath, soil_margin_cm=0.5):
     return coords
 
 
-def load_las(filepath, height_lo_m=0.10, voxel_m=0.005):
+def _csf_terrain_normalize(xyz_m, cloth_res_m=0.1, class_threshold_m=0.03,
+                           rigidness=3, slope_smooth=True, time_step=0.65,
+                           iterations=500, keep_below_ground_m=0.02):
+    """Cloth Simulation Filter (Zhang et al. 2016) ground removal + DEM
+    normalisation.
+
+    Drapes an inverted cloth over the (gravity-flipped) terrain; points within
+    ``class_threshold_m`` of the settled cloth are ground. Unlike a flat height
+    cut this follows local relief, so a low leaf sitting a few cm above locally
+    depressed soil is kept rather than deleted with the floor.
+
+    Crucially it does NOT just mask ground — it also *normalises* the surviving
+    points by the local ground surface (a DEM built from the ground returns),
+    so the returned z is height-above-ground. Without this, a single global
+    z-recentre leaves plants on higher terrain with an inflated base height,
+    which breaks the base-density plant separation downstream.
+
+    Args:
+        xyz_m: (N, 3) points, elevation in column 2 (m).
+        keep_below_ground_m: tolerance band below the DEM (m) — points up to
+            this far under the fitted ground are still dropped as ground; small
+            positive value absorbs DEM interpolation noise.
+
+    Returns:
+        (M, 3) non-ground points with column 2 replaced by height-above-ground
+        (m); x, y unchanged.
+    """
+    import CSF
+    from scipy.interpolate import LinearNDInterpolator, NearestNDInterpolator
+
+    csf = CSF.CSF()
+    csf.params.bSloopSmooth = bool(slope_smooth)
+    csf.params.cloth_resolution = float(cloth_res_m)
+    csf.params.class_threshold = float(class_threshold_m)
+    csf.params.rigidness = int(rigidness)
+    csf.params.time_step = float(time_step)
+    csf.params.interations = int(iterations)  # NB: CSF spells it 'interations'
+    csf.setPointCloud(np.ascontiguousarray(xyz_m, dtype=np.float64))
+    ground, non_ground = CSF.VecInt(), CSF.VecInt()
+    csf.do_filtering(ground, non_ground)
+    g_idx = np.asarray(ground, dtype=np.int64)
+    ng_idx = np.asarray(non_ground, dtype=np.int64)
+    if g_idx.size < 3 or ng_idx.size == 0:
+        # degenerate; fall back to raw non-ground with a global recentre
+        out = xyz_m[ng_idx].copy() if ng_idx.size else xyz_m.copy()
+        out[:, 2] -= out[:, 2].min()
+        return out
+
+    # Build a ground DEM from the classified ground points and subtract it so
+    # column 2 becomes height-above-local-ground.
+    g = xyz_m[g_idx]
+    lin = LinearNDInterpolator(g[:, :2], g[:, 2])
+    nn = NearestNDInterpolator(g[:, :2], g[:, 2])
+    ng = xyz_m[ng_idx].copy()
+    z_ground = lin(ng[:, :2])
+    nan = np.isnan(z_ground)
+    if nan.any():
+        z_ground[nan] = nn(ng[nan, :2])  # extrapolate edges by nearest
+    height = ng[:, 2] - z_ground
+    keep = height > -float(keep_below_ground_m)
+    ng = ng[keep]
+    ng[:, 2] = np.maximum(height[keep], 0.0)
+    return ng
+
+
+def load_las(filepath, height_lo_m=0.10, voxel_m=0.005, ground_method="height",
+             csf_cloth_res_m=0.1, csf_class_threshold_m=0.03, csf_rigidness=3,
+             csf_slope_smooth=True):
     """Load a FieldPheno4D-style LAS scan as a row-scale plant cloud in cm.
 
     The scan is a multi-plant row strip (~2 x 8 m). Returns the full
@@ -62,8 +129,27 @@ def load_las(filepath, height_lo_m=0.10, voxel_m=0.005):
 
     Args:
         filepath: path to .las
-        height_lo_m: drop points with DEM-normalised height below this (m)
+        height_lo_m: only used when ``ground_method='height'`` — drop points
+            with DEM-normalised height below this (m). The flat-cut legacy path.
         voxel_m: voxel-downsample to this resolution (m); set to 0 to skip
+        ground_method: ``'height'`` (current default) is the flat
+            ``height_lo_m`` threshold. ``'csf'`` runs the Cloth Simulation Filter
+            with DEM normalisation — it follows local relief and preserves
+            bottom/basal leaves a flat cut deletes with the soil. CSF is the
+            better ground separator but the downstream crop + segmenter defaults
+            are still tuned to flat-cut crops, so it is opt-in until those are
+            retuned (see FP4D_LEAF_SEGMENTATION_STATUS).
+        csf_cloth_res_m: CSF cloth grid spacing (m). Should exceed inter-plant
+            gaps so the cloth stays at ground level instead of draping up into
+            the canopy. Default 0.1 m.
+        csf_class_threshold_m: CSF ground band (m); points within this of the
+            settled cloth are ground. Default 0.03 m — small enough that a basal
+            leaf a few cm above soil is kept as non-ground, large enough to
+            absorb soil roughness/mulch (verified on Plot04/230621: recovers the
+            basal leaf at z 7-14 cm that the flat 15 cm cut deleted, soil cut at
+            ~6.6 cm).
+        csf_rigidness: cloth rigidness 1-3 (3 = stiff, flatter terrain).
+        csf_slope_smooth: enable CSF post-hoc slope smoothing.
 
     Returns:
         np.array([N, 3]) above-ground points in cm, in the LAS local frame
@@ -74,15 +160,37 @@ def load_las(filepath, height_lo_m=0.10, voxel_m=0.005):
     xyz = np.column_stack([np.asarray(las.x, float),
                            np.asarray(las.y, float),
                            np.asarray(las.z, float)])
-    dims = set(las.point_format.dimension_names)
-    if 'height' in dims:
-        height = np.asarray(las.height, float)
-    else:
-        height = xyz[:, 2] - np.percentile(xyz[:, 2], 1)
 
-    xyz = xyz[height > height_lo_m]
+    # Voxel-downsample first so the ground filter runs on a tractable cloud.
+    if voxel_m > 0:
+        mn = xyz.min(0)
+        vidx = np.floor((xyz - mn) / voxel_m).astype(np.int64)
+        _, uniq = np.unique(vidx, axis=0, return_index=True)
+        xyz = xyz[uniq]
+
+    if ground_method == "csf":
+        # Terrain-normalised: z becomes height-above-local-ground, so the row's
+        # slope no longer biases per-plant base heights downstream.
+        xyz = _csf_terrain_normalize(
+            xyz, cloth_res_m=csf_cloth_res_m,
+            class_threshold_m=csf_class_threshold_m,
+            rigidness=csf_rigidness, slope_smooth=csf_slope_smooth)
+        tag = f"CSF cloth {csf_cloth_res_m*100:.0f}cm thr {csf_class_threshold_m*100:.0f}cm (DEM-normalised)"
+    elif ground_method == "height":
+        dims = set(las.point_format.dimension_names)
+        if 'height' in dims:
+            # re-read height aligned to the voxel-kept rows is non-trivial; for
+            # the legacy path recompute height from a low percentile of z.
+            height = xyz[:, 2] - np.percentile(xyz[:, 2], 1)
+        else:
+            height = xyz[:, 2] - np.percentile(xyz[:, 2], 1)
+        xyz = xyz[height > height_lo_m]
+        tag = f"h>{height_lo_m}m flat-cut"
+    else:
+        raise ValueError(f"unknown ground_method {ground_method!r}")
+
     if xyz.shape[0] == 0:
-        raise ValueError(f"No above-ground points in {filepath} at h>{height_lo_m} m")
+        raise ValueError(f"No above-ground points in {filepath} ({tag})")
 
     # Recentre x, y on the median of the row (preserves intra-row geometry)
     # and z on min-Z so plant base sits near z=0.
@@ -90,14 +198,8 @@ def load_las(filepath, height_lo_m=0.10, voxel_m=0.005):
     xyz[:, 1] -= float(np.median(xyz[:, 1]))
     xyz[:, 2] -= float(xyz[:, 2].min())
 
-    if voxel_m > 0:
-        mn = xyz.min(0)
-        vidx = np.floor((xyz - mn) / voxel_m).astype(np.int64)
-        _, uniq = np.unique(vidx, axis=0, return_index=True)
-        xyz = xyz[uniq]
-
     xyz_cm = xyz * 100.0
-    print(f"[loader] LAS {filepath}: {xyz_cm.shape[0]:,} pts (h>{height_lo_m}m, voxel {voxel_m*1000:.0f}mm), cm-frame")
+    print(f"[loader] LAS {filepath}: {xyz_cm.shape[0]:,} pts ({tag}, voxel {voxel_m*1000:.0f}mm), cm-frame")
     return xyz_cm
 
 
